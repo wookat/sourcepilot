@@ -189,4 +189,3 @@ assertFails('planBatch1Count', {
 assertFails('currentBranch', { currentBranch: 'feat/p9' });
 assertFails('headDetached', { headDetached: true });
 assertFails('stagedFileCount', { stagedFileCount: 1 });
-

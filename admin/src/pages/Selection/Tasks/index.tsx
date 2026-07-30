@@ -181,7 +181,7 @@ export default function SelectionTasksPage() {
             />
             <ProFormTextArea
               name="keywords"
-              label="关键词候选（每行一个，走采集/行情 Provider）"
+              label="关键词候选（每行一个，通过采集/行情服务获取价格）"
               placeholder={'pet water fountain\nmagnetic phone holder'}
               fieldProps={{ rows: 3 }}
             />

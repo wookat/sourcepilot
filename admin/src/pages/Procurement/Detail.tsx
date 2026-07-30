@@ -193,7 +193,7 @@ export default function ProcurementOrderDetailPage() {
                 '-'
               ),
           },
-          { title: '外部SKU', dataIndex: 'externalSkuId', width: 120, render: (v) => v || '-' },
+          { title: '货源规格', dataIndex: 'externalSkuId', width: 120, render: (v) => v || '-' },
           { title: '数量', dataIndex: 'quantity', width: 80 },
           {
             title: '参考价',

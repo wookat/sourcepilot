@@ -177,7 +177,7 @@ export default function ProductSourcesPage() {
             try {
               const res = await refreshProductSources(productId);
               setAlerts(res.alerts || []);
-              message.success(`已刷新 ${res.refreshed} 个 SKU 报价（mock Provider）`);
+              message.success(`已刷新 ${res.refreshed} 个规格的报价（模拟报价服务）`);
               void load();
             } catch (e) {
               message.error((e as Error).message || '刷新失败');
@@ -221,12 +221,12 @@ export default function ProductSourcesPage() {
                   pagination={false}
                   columns={[
                     {
-                      title: '本地SKU',
+                      title: '本地规格',
                       dataIndex: 'localSkuId',
                       render: (v: string) =>
                         localSkus.find((s) => s.id === v)?.skuName || v.slice(0, 8),
                     },
-                    { title: '外部SKU', dataIndex: 'externalSkuId', render: (v) => v || '-' },
+                    { title: '货源规格', dataIndex: 'externalSkuId', render: (v) => v || '-' },
                     {
                       title: '当前进价',
                       dataIndex: 'currentPrice',
@@ -421,9 +421,9 @@ export default function ProductSourcesPage() {
             dataSource={mappingRows}
             pagination={false}
             columns={[
-              { title: '本地SKU', dataIndex: 'skuName', width: 180 },
+              { title: '本地规格', dataIndex: 'skuName', width: 180 },
               {
-                title: '外部SKU ID',
+                title: '货源规格 ID',
                 dataIndex: 'externalSkuId',
                 render: (_, row, idx) => (
                   <Input

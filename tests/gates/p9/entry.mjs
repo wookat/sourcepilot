@@ -151,4 +151,3 @@ assertFails('p9ProductImplementationFileCount', { discovery: { p9ProductImplemen
 assertFails('implementationStarted', { discovery: { implementationStarted: true } });
 assertFails('p10BoundaryPreserved', { discovery: { p10BoundaryPreserved: false } });
 assertFails('productionReady', { discovery: { productionReady: true } });
-

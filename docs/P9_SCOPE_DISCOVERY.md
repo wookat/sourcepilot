@@ -83,4 +83,3 @@ p9ProductImplementationFileCount=0
 - real platform writes
 - automatic publish or listing
 - P10-only capabilities
-
