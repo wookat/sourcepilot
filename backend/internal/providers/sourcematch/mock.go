@@ -75,7 +75,7 @@ func (p *MockProvider) generate(req MatchRequest, method string, baseSim float64
 			MaxPrice:       math.Round(maxPrice*100) / 100,
 			Currency:       "CNY",
 			MOQ:            int(2 + s%98),
-			SupplierName:   mockSuppliers[int(s)%len(mockSuppliers)],
+			SupplierName:   mockSuppliers[int(s%uint64(len(mockSuppliers)))],
 			SupplierRating: math.Round((3.6+float64(s%14)/10.0)*100) / 100,
 			Raw:            raw,
 		})

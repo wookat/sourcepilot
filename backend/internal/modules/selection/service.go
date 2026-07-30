@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 	"github.com/trademind-ai/trademind/backend/internal/providers/marketprice"
 	"github.com/trademind-ai/trademind/backend/internal/providers/sourcematch"
@@ -102,7 +103,9 @@ func (s *Service) CreateTask(c *gin.Context, body CreateTaskBody, adminID *uuid.
 	if name == "" {
 		name = fmt.Sprintf("选品任务 %s", time.Now().Format("2006-01-02 15:04"))
 	}
+	tenantID, _ := adminperm.TenantIDFromGin(c)
 	task := &SelectionTask{
+		TenantID:       tenantID,
 		Name:           name,
 		TargetPlatform: platform,
 		TargetCountry:  country,
@@ -118,6 +121,7 @@ func (s *Service) CreateTask(c *gin.Context, body CreateTaskBody, adminID *uuid.
 		}
 		for _, it := range items {
 			cand := &SelectionCandidate{
+				TenantID:       tenantID,
 				TaskID:         task.ID,
 				Title:          strings.TrimSpace(it.Title),
 				ImageURL:       strings.TrimSpace(it.ImageURL),
@@ -151,6 +155,7 @@ func (s *Service) CreateTask(c *gin.Context, body CreateTaskBody, adminID *uuid.
 				}
 			}
 			cand := &SelectionCandidate{
+				TenantID:       tenantID,
 				TaskID:         task.ID,
 				ProductID:      &p.ID,
 				Title:          p.Title,
