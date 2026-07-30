@@ -134,6 +134,9 @@ func quoteIdentifier(value string) string {
 
 func safeServerVersion(raw string) string {
 	raw = strings.TrimSpace(raw)
+	if fields := strings.Fields(raw); len(fields) > 0 {
+		raw = fields[0]
+	}
 	parts := strings.Split(raw, ".")
 	if len(parts) == 0 {
 		return "unknown"
