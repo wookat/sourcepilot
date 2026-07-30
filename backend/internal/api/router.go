@@ -40,22 +40,27 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventorysyncp9"
 	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/pricing"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/release"
 	"github.com/trademind-ai/trademind/backend/internal/modules/restore"
 	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
+	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
+	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
@@ -64,12 +69,16 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
+	"github.com/trademind-ai/trademind/backend/internal/providers/marketprice"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
+	"github.com/trademind-ai/trademind/backend/internal/providers/sourceinfo"
+	"github.com/trademind-ai/trademind/backend/internal/providers/sourcematch"
+	"github.com/trademind-ai/trademind/backend/internal/providers/trade"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/gorm"
 )
@@ -80,6 +89,34 @@ type collectRunnerAdapter struct {
 
 func (a collectRunnerAdapter) RunCollect(ctx context.Context, source, rawURL string, options map[string]any) (json.RawMessage, error) {
 	out, err := a.c.Collect(ctx, source, rawURL, options)
+	if err != nil {
+		return nil, err
+	}
+	return out.ProductJSON, nil
+}
+
+// selection1688CollectorGW adapts the collector client to the sourcematch
+// crawler provider's minimal gateway surface.
+type selection1688CollectorGW struct {
+	c *collect.CollectorClient
+}
+
+func (a selection1688CollectorGW) HasAuth(ctx context.Context) (bool, error) {
+	if a.c == nil {
+		return false, fmt.Errorf("collector unavailable")
+	}
+	st, err := a.c.Get1688AuthStatus(ctx)
+	if err != nil {
+		return false, err
+	}
+	return st != nil && st.LoggedIn, nil
+}
+
+func (a selection1688CollectorGW) CollectDetail(ctx context.Context, rawURL string) (json.RawMessage, error) {
+	if a.c == nil {
+		return nil, fmt.Errorf("collector unavailable")
+	}
+	out, err := a.c.Collect(ctx, "1688", rawURL, map[string]any{"useBrowserProfile": true})
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +202,7 @@ type Deps struct {
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service, *webhook.Service, *files.Service, *securitymod.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service, *webhook.Service, *files.Service, *securitymod.Service, *selection.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -600,6 +637,25 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	pricingH := &pricing.Handler{Svc: pricingSvc}
 	pricing.Register(authed, pricingH)
 	collect.Register(authed, collectH)
+	selectionSvc := &selection.Service{
+		DB:          dep.DB,
+		Redis:       dep.Redis,
+		Products:    productSvc,
+		Settings:    settingsSvc,
+		OpLog:       opLogSvc,
+		AIGateway:   aiGateway,
+		Prompts:     promptSvc,
+		MarketMock:  &marketprice.MockProvider{},
+		SourceMock:  &sourcematch.MockProvider{},
+		SourceCrawl: &sourcematch.CrawlerProvider{Collector: selection1688CollectorGW{c: collectorClient}},
+		SourceOpen:  &sourcematch.Open1688Provider{},
+	}
+	if dep.Config != nil {
+		selectionSvc.QueueName = dep.Config.SelectionQueueName
+		selectionSvc.TaskLeaseTimeoutSeconds = dep.Config.SelectionTaskTimeoutSeconds
+	}
+	selectionH := &selection.Handler{Svc: selectionSvc}
+	selection.Register(authed, selectionH)
 	collectRuleAISvc := &collectruleai.Service{
 		Settings:    settingsSvc,
 		Prompts:     promptSvc,
@@ -629,6 +685,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
+	sourcingSvc := &sourcing.Service{DB: dep.DB, Settings: settingsSvc, OpLog: opLogSvc, Provider: &sourceinfo.Mock{}}
+	sourcingH := &sourcing.Handler{Svc: sourcingSvc}
+	sourcing.Register(authed, sourcingH)
+	procurementSvc := &procurement.Service{DB: dep.DB, OpLog: opLogSvc, Provider: trade.NewMock1688()}
+	procurementH := &procurement.Handler{Svc: procurementSvc}
+	procurement.Register(authed, procurementH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
 	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)
@@ -691,6 +753,11 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	inventory.Register(authed, inventoryH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
 	worker.Register(authed, workerH)
+
+	operationTaskH := &operationtask.Handler{Svc: operationtask.NewAPIService(dep.DB)}
+	operationtask.Register(authed, operationTaskH)
+	inventorySyncP9H := &inventorysyncp9.Handler{Svc: inventorysyncp9.NewAPIService(dep.DB)}
+	inventorysyncp9.Register(authed, inventorySyncP9H)
 
 	tcSvc := &taskcenter.Service{
 		DB:             dep.DB,
@@ -771,7 +838,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		demoseed.Register(authed, demoSeedH)
 	}
 
-	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc
+	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc, selectionSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {

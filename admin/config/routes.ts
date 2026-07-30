@@ -61,6 +61,18 @@ export default [
         component: './TaskCenter/Alerts',
       },
       {
+        path: '/ops/task-center/operation-tasks',
+        name: '运营任务中心',
+        icon: 'ProfileOutlined',
+        component: './TaskCenter/OperationTasks',
+      },
+      {
+        path: '/ops/task-center/operation-tasks/:taskId',
+        name: '运营任务详情',
+        component: './TaskCenter/OperationTasks/Detail',
+        hideInMenu: true,
+      },
+      {
         path: '/ops/observability',
         name: '可观测性中心',
         icon: 'LineChartOutlined',
@@ -229,6 +241,28 @@ export default [
     ],
   },
   {
+    path: '/selection',
+    name: 'AI 选品',
+    icon: 'ExperimentOutlined',
+    routes: [
+      {
+        path: '/selection',
+        redirect: '/selection/tasks',
+      },
+      {
+        path: '/selection/tasks',
+        name: '选品任务',
+        component: './Selection/Tasks',
+      },
+      {
+        path: '/selection/tasks/:id',
+        name: '可上架清单',
+        component: './Selection/Detail',
+        hideInMenu: true,
+      },
+    ],
+  },
+  {
     path: '/collect',
     name: '采集',
     icon: 'CloudDownloadOutlined',
@@ -322,6 +356,51 @@ export default [
         path: '/orders/exceptions',
         name: '异常工作台',
         component: './Orders/Exceptions',
+      },
+    ],
+  },
+  {
+    path: '/sourcing',
+    name: '货源与采购',
+    icon: 'ClusterOutlined',
+    component: '@/layouts/SourcingGroupLayout',
+    routes: [
+      {
+        path: '/sourcing',
+        redirect: '/sourcing/suppliers',
+      },
+      {
+        path: '/sourcing/suppliers',
+        name: '供应商管理',
+        component: './Sourcing/Suppliers',
+      },
+      {
+        path: '/sourcing/product-sources',
+        name: '商品货源档案',
+        component: './Sourcing/ProductSources',
+      },
+    ],
+  },
+  {
+    path: '/procurement',
+    name: '采购协同',
+    icon: 'ShoppingCartOutlined',
+    component: '@/layouts/SourcingGroupLayout',
+    routes: [
+      {
+        path: '/procurement',
+        redirect: '/procurement/orders',
+      },
+      {
+        path: '/procurement/orders',
+        name: '采购单',
+        component: './Procurement',
+      },
+      {
+        path: '/procurement/orders/:id',
+        name: '采购单详情',
+        hideInMenu: true,
+        component: './Procurement/Detail',
       },
     ],
   },

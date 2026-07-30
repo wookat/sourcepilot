@@ -327,6 +327,31 @@
 
 Provider 调用官方 `sku.syncStock`（`incremental=false` 全量更新）；受 `inventory_sync_enabled` 开关控制（默认关闭）。缺失平台 SKU ID 或 `bindStatus=unmatched/failed` 返回 `DOUYIN_SKU_BINDING_REQUIRED`；`bindStatus=ambiguous` 返回 `DOUYIN_SKU_BINDING_AMBIGUOUS`；绑定冲突返回 `DOUYIN_SKU_BINDING_CONFLICT`；不猜测同步。库存同步前须全部 SKU 处于可同步绑定状态（bound / skipped 且已有 `external_sku_id`）。
 
+### P9 Inventory Sync Backend API（Batch 5）
+
+Batch 5 的 fixture/mock-only 后端 API 使用 `/api/v1/inventory-sync`，复用现有认证、租户上下文、RBAC、审计和签名 keyset cursor。所有写请求必须带 `Idempotency-Key`；JSON body 必须为受限 `application/json`，拒绝未知字段和多余 JSON 值。该 API 不接收凭证、不调用真实 Douyin、不读写真实平台库存，也不启动 worker/cron/queue。
+
+| Method | Path | Permission | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/inventory-sync/runs` | `inventory_sync.run` | Create a fixture-backed sync run |
+| `GET` | `/api/v1/inventory-sync/runs` | `inventory_sync.read` | Signed keyset run history |
+| `GET` | `/api/v1/inventory-sync/runs/:runId` | `inventory_sync.read` | Safe run detail/statistics/error summary |
+| `POST` | `/api/v1/inventory-sync/runs/:runId/rerun` | `inventory_sync.rerun` | Guarded retry of a failed/cancelled retryable run |
+| `GET` | `/api/v1/inventory-sync/runs/:runId/snapshots` | `inventory_snapshot.read` | Immutable snapshot list and result filter |
+| `GET` | `/api/v1/inventory-sync/snapshots/:snapshotId` | `inventory_snapshot.read` | Immutable snapshot detail |
+| `GET` | `/api/v1/inventory-sync/bindings` | `sku_binding.read` | Tenant-scoped binding list |
+| `GET` | `/api/v1/inventory-sync/bindings/:bindingId` | `sku_binding.read` | Safe binding detail |
+| `GET` | `/api/v1/inventory-sync/bindings/:bindingId/history` | `sku_binding.read` | Calibration/manual decision history |
+| `GET` | `/api/v1/inventory-sync/snapshots/:snapshotId/calibrations` | `sku_binding.read` | Versioned calibration candidates |
+| `POST` | `/api/v1/inventory-sync/snapshots/:snapshotId/recalibrate` | `sku_binding.manage` | Idempotent controlled new calibration version |
+| `GET` | `/api/v1/inventory-sync/manual-binding-requests` | `sku_binding.read` | Pending/status manual request list |
+| `GET` | `/api/v1/inventory-sync/manual-binding-requests/:requestId` | `sku_binding.read` | Request and immutable decisions |
+| `POST` | `/api/v1/inventory-sync/manual-binding-requests/:requestId/confirm` | `sku_binding.resolve_manual` | Revision-checked manual confirmation |
+| `POST` | `/api/v1/inventory-sync/manual-binding-requests/:requestId/reject` | `sku_binding.resolve_manual` | Revision-checked manual rejection |
+| `GET` | `/api/v1/inventory-sync/runs/:runId/audit-events` | `inventory_sync.audit.read` | Allowlisted tenant-scoped audit timeline |
+
+List endpoints return `{items, nextCursor, hasMore, limit}` and never expose offset/page totals. DTOs intentionally omit raw provider cursors, checkpoints, payloads, credential fields, and idempotency hashes.
+
 通用刊登任务接口（含抖店）：
 
 | 方法 | 路径 | 说明 |
@@ -424,6 +449,23 @@ Provider 调用官方 `sku.syncStock`（`incremental=false` 全量更新）；�
 | `GET` | `/api/v1/ai/operation-workbench/todos/:id` | 单条待办详情 |
 | `POST` | `/api/v1/ai/operation-workbench/todos/refresh` | 重新聚合待办（只读，不写库、不调平台 API） |
 
+## AI 比价选品引擎 API
+
+候选商品 → 海外在售价 → 1688 同款匹配 → 落地成本/利润模型 → LLM 打分 → 可上架清单。均需 Bearer 认证。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/selection/tasks` | 创建选品任务（items 人工导入 / productIds 草稿 / keywords），入 Redis 队列异步处理 |
+| `GET` | `/api/v1/selection/tasks` | 分页任务列表，支持 `status` 过滤；返回候选/打分/失败计数 |
+| `GET` | `/api/v1/selection/tasks/:id` | 任务详情 |
+| `GET` | `/api/v1/selection/tasks/:id/candidates` | 可上架清单：候选 + 1688 同款 + 利润评估 + AI 评分，按评分降序 |
+| `POST` | `/api/v1/selection/tasks/:id/retry` | 失败/部分成功任务重新入队 |
+| `POST` | `/api/v1/selection/candidates/:id/decision` | 人工审核 `{"decision":"approved\|rejected"}` |
+| `POST` | `/api/v1/selection/candidates/:id/to-draft` | 已通过候选一键转商品草稿（幂等，重复调用返回已有草稿） |
+
+数据表：`selection_tasks` / `selection_candidates` / `selection_source_matches` / `selection_evaluations`。
+利润参数（汇率、佣金、物流、退货率等）默认读 settings `selection` 分组，可按任务 `params` 覆盖。
+
 ## P6 Backup / Restore / Release / DR API
 
 All P6 write operations require Bearer authentication and backend RBAC. The frontend never receives shell commands, full backup paths, storage secrets or database credentials.
@@ -467,6 +509,48 @@ Planned ops routes remain design-only until implemented with RBAC, re-authentica
 | `POST` | `/api/v1/ops/profiling/cpu` | planned | 内部高权限 profiling，duration 有上限，不返回任意路径。 |
 
 Current code-level P7 endpoints affected: product and order list APIs reject excessive deep offset via P7 pagination guard; HTTP requests can be locally rate-limited when `RATE_LIMIT_ENABLED=true`.
+
+## 商品-货源档案（sourcing）
+
+一品多源的供应商与货源档案，供采购协同与后续 AI 比价选品引擎引用。所有路由走统一 JWT 鉴权与统一返回结构。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/suppliers` | 供应商列表（keyword/status/分页）。 |
+| `POST` | `/api/v1/suppliers` | 创建供应商（platform 默认 `1688`）。 |
+| `PUT` | `/api/v1/suppliers/:id` | 更新供应商。 |
+| `DELETE` | `/api/v1/suppliers/:id` | 删除供应商（存在绑定货源时 409）。 |
+| `GET` | `/api/v1/products/:id/sources` | 商品的货源列表（含供应商与 SKU 映射）。 |
+| `POST` | `/api/v1/products/:id/sources` | 绑定货源；`supplierName` 不存在时自动建供应商；首个货源自动设为主供应商；重复绑定 409。 |
+| `PUT` | `/api/v1/product-sources/:id` | 更新优先级 / 锁定 / 状态 / MOQ / 备货周期等。 |
+| `POST` | `/api/v1/product-sources/:id/set-primary` | 人工切换主供应商，写入 `source_switch_events`。 |
+| `POST` | `/api/v1/product-sources/:id/sku-mappings` | 批量保存本地 SKU ↔ 外部 SKU 映射；价格变化写 `source_price_history`。 |
+| `GET` | `/api/v1/product-source-skus/:id/price-history?days=90` | 历史进价（默认 90 天）。 |
+| `POST` | `/api/v1/products/:id/sources/refresh` | 通过 Source Info Provider（当前 mock）刷新价格/库存，并按切换规则处理断货/涨价。 |
+| `GET` | `/api/v1/source-switch-events?productId=` | 货源切换审计（auto / manual / suggested）。 |
+
+切换规则：`priority` 越小越优先；主货源断货且未锁定时自动切换到最优可用备用源并记 `auto` 事件；涨价超过阈值（settings `sourcing` 组，默认 10%）仅生成 `suggested` 建议事件，不自动切换；`locked` 货源不参与自动切换。
+
+## 采购协同（procurement，人工下单过渡模式）
+
+1688 官方 API 暂不可用；当前通过 Trade Provider mock + 人工下单模式流转。状态机：`draft → pending_confirm → placing → placed → paid → shipped → delivered`，另有 `failed / cancelled`；非法流转返回 400。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回；支持 `idempotencyKey` 幂等。 |
+| `GET` | `/api/v1/procurement/orders?status=` | 采购单列表。 |
+| `GET` | `/api/v1/procurement/orders/:id` | 详情（items / events / logistics）。 |
+| `GET` | `/api/v1/procurement/orders/:id/export.csv` | 导出采购清单 CSV（含 1688 链接、外部 SKU、数量、参考价，UTF-8 BOM）。 |
+| `POST` | `/api/v1/procurement/orders/:id/submit` | draft → pending_confirm（经 Provider PreviewOrder）。 |
+| `POST` | `/api/v1/procurement/orders/:id/confirm` | pending_confirm → placing（记录确认人/时间，调用 mock CreateOrder，人工模式）。 |
+| `POST` | `/api/v1/procurement/orders/:id/mark-placed` | 回填 1688 订单号，placing → placed。 |
+| `POST` | `/api/v1/procurement/orders/:id/mark-paid` | 人工标记付款，placed → paid。 |
+| `POST` | `/api/v1/procurement/orders/:id/logistics` | 回填运单号/承运商，paid → shipped。 |
+| `POST` | `/api/v1/procurement/orders/:id/mark-delivered` | shipped → delivered。 |
+| `POST` | `/api/v1/procurement/orders/:id/retry` | failed → placing。 |
+| `POST` | `/api/v1/procurement/orders/:id/cancel` | 取消（终态前均可）。 |
+
+所有状态流转写入 `purchase_order_events`；对应管理端页面为 `/procurement/orders`。
 
 ## 修改 API 时的同步要求
 
