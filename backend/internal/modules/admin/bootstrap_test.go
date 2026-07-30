@@ -42,6 +42,27 @@ func TestEnsureBootstrapAdmin_createsAdminRole(t *testing.T) {
 	}
 }
 
+func TestEnsureBootstrapAdmin_assignsBootstrapTenant(t *testing.T) {
+	t.Parallel()
+	db := testBootstrapDB(t)
+	cfg := &config.Config{
+		AppEnv:                 config.EnvDevelopment,
+		BootstrapAdminEmail:    "admin@example.com",
+		BootstrapAdminPassword: "secret",
+		BootstrapAdminTenantID: 7,
+	}
+	if err := EnsureBootstrapAdmin(context.Background(), db, cfg, slog.Default()); err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	var u AdminUser
+	if err := db.Where("email = ?", "admin@example.com").First(&u).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if u.TenantID != 7 {
+		t.Fatalf("got tenantId=%d, want 7", u.TenantID)
+	}
+}
+
 func TestEnsureBootstrapAdmin_syncsExistingOperatorToAdmin(t *testing.T) {
 	t.Parallel()
 	db := testBootstrapDB(t)

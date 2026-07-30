@@ -44,6 +44,7 @@ docker compose -f docker-compose.full.yml up -d --build
 | `ADMIN_BOOTSTRAP_EMAIL` | 空 / `admin@example.com` | backend | 否 | 初始管理员邮箱。 |
 | `ADMIN_BOOTSTRAP_PHONE` | 空 | backend | 否 | 初始管理员手机号。 |
 | `ADMIN_BOOTSTRAP_PASSWORD` | 空 / 示例密码 | backend | 是 | 初始管理员密码，生产必须强密码。 |
+| `ADMIN_BOOTSTRAP_TENANT_ID` | `0`（示例文件为 `1`） | backend | 否 | 初始管理员的租户 ID。选品（selection）等按租户隔离的模块要求 >0，否则 worker 会拒绝任务；`0` 保持遗留单租户行为。仅在 admin_users 为空首次创建时生效。 |
 | `JWT_SECRET` | `change-me-in-production` | backend | 是 | JWT 签名密钥。 |
 | `JWT_EXPIRE_HOURS` | `168` | backend | 否 | JWT 有效期小时数。 |
 | `UPLOAD_MAX_MB` | `10` | backend | 否 | 单文件上传大小上限。 |

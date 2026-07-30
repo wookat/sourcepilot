@@ -35,6 +35,8 @@ type Config struct {
 	BootstrapAdminEmail    string
 	BootstrapAdminPhone    string
 	BootstrapAdminPassword string
+	// BootstrapAdminTenantID assigns the first admin to a tenant (0 keeps legacy single-tenant rows).
+	BootstrapAdminTenantID int64
 
 	// UploadMaxMB limits multipart image uploads (default 10 MB).
 	UploadMaxMB int
@@ -237,6 +239,7 @@ func Load() (*Config, error) {
 		BootstrapAdminEmail:    strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_EMAIL")),
 		BootstrapAdminPhone:    strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_PHONE")),
 		BootstrapAdminPassword: os.Getenv("ADMIN_BOOTSTRAP_PASSWORD"),
+		BootstrapAdminTenantID: int64(atoiOrDefault(os.Getenv("ADMIN_BOOTSTRAP_TENANT_ID"), 0)),
 
 		UploadMaxMB: atoiOrDefault(os.Getenv("UPLOAD_MAX_MB"), 10),
 

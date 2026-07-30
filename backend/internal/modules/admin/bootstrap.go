@@ -101,6 +101,7 @@ func createBootstrapAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, 
 	}
 
 	u := AdminUser{
+		TenantID:     cfg.BootstrapAdminTenantID,
 		Username:     NewInternalUsername(),
 		Email:        id.email,
 		Phone:        id.phone,

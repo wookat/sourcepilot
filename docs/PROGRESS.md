@@ -865,3 +865,8 @@ Final Production Acceptance Deferred to P10
 - LLM 打分走既有 `providers/ai.Gateway` + `ai_prompts`（code `selection_scoring`），AI 不可用时规则兜底评分。
 - Admin 新增 `/selection/tasks` 选品任务页与 `/selection/tasks/:id` 可上架清单页（排序展示、人工审核、一键转商品草稿进入既有刊登链路）。
 - 边界：未改动货源档案/采购协同（source/procurement）模块；1688 官方 API 保持空壳。
+
+### 变更记录（2026-07-29）生产部署收口与运营手册
+
+- 新增 `ADMIN_BOOTSTRAP_TENANT_ID`：首次创建管理员时指定租户（示例文件默认 1），解决选品 worker 因 tenant_id=0 静默拒绝任务的问题（staging/production 禁用 dev 租户 fallback，故必须在种子阶段落租户）；同步 `.env.example` / `.env.docker.example` / `.env.production.example` / `docs/env.md` / `docs/docker-deployment.md`，附单测。
+- 新增 `docs/operations-manual.md`：日常运营操作手册（选品→上架→出单→采购→发货，1688 人工下单过渡模式），并登记到 `docs/README.md`。
