@@ -479,6 +479,13 @@ func (s *Service) ToDraft(c *gin.Context, candidateID uuid.UUID, adminID *uuid.U
 	if err != nil {
 		return nil, err
 	}
+	if cand.TenantID > 0 {
+		if err := s.DB.WithContext(ctx).Model(&product.Product{}).Where("id = ?", created.ID).
+			Update("tenant_id", cand.TenantID).Error; err != nil {
+			return nil, err
+		}
+		created.TenantID = cand.TenantID
+	}
 	if err := s.DB.WithContext(ctx).Model(&SelectionEvaluation{}).Where("id = ?", ev.ID).
 		Update("draft_product_id", created.ID).Error; err != nil {
 		return nil, err
