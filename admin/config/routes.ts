@@ -241,6 +241,28 @@ export default [
     ],
   },
   {
+    path: '/selection',
+    name: 'AI 选品',
+    icon: 'ExperimentOutlined',
+    routes: [
+      {
+        path: '/selection',
+        redirect: '/selection/tasks',
+      },
+      {
+        path: '/selection/tasks',
+        name: '选品任务',
+        component: './Selection/Tasks',
+      },
+      {
+        path: '/selection/tasks/:id',
+        name: '可上架清单',
+        component: './Selection/Detail',
+        hideInMenu: true,
+      },
+    ],
+  },
+  {
     path: '/collect',
     name: '采集',
     icon: 'CloudDownloadOutlined',

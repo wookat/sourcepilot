@@ -855,3 +855,12 @@ Final Production Acceptance Deferred to P10
 ```
 
 权威运行证据：`artifacts/p9-postgres-runtime.json`（run `p9pg-20260730074632-3b1bbb38`）。PostgreSQL 专项测试 fail-closed，不回退 SQLite；本轮未实现 Admin UI、真实 Provider、OAuth、后台 Worker 或库存写入。
+
+### 变更记录（2026-07-30）AI 比价选品引擎（线B）
+
+- 新增 `backend/internal/modules/selection`：`selection_tasks` / `selection_candidates` / `selection_source_matches` / `selection_evaluations` 四表 + Redis 队列（`selection:tasks`）异步 Worker（复用 tasklease 租约/心跳/重试）+ REST API（见 docs/api.md「AI 比价选品引擎 API」）。
+- 新增 Provider 抽象：`providers/marketprice`（海外在售价，mock）、`providers/sourcematch`（1688 同款：mock + collector 爬虫兜底 + open1688 官方 API 空壳）、`providers/fx`（汇率）、`providers/logistics`（物流线性报价）。
+- 利润模型 `selection/profit.go`：汇率×物流×佣金×退货率×采购价 → 落地成本/预期利润/利润率，参数走 settings `selection` 分组 + 每任务 params 覆盖；完整单元测试。
+- LLM 打分走既有 `providers/ai.Gateway` + `ai_prompts`（code `selection_scoring`），AI 不可用时规则兜底评分。
+- Admin 新增 `/selection/tasks` 选品任务页与 `/selection/tasks/:id` 可上架清单页（排序展示、人工审核、一键转商品草稿进入既有刊登链路）。
+- 边界：未改动货源档案/采购协同（source/procurement）模块；1688 官方 API 保持空壳。

@@ -67,6 +67,15 @@ type Config struct {
 	CollectRetryBaseDelaySeconds int
 	CollectRetryMaxDelaySeconds  int
 
+	// SelectionQueueEnabled gates async AI 选品 jobs (Redis list + worker).
+	SelectionQueueEnabled bool
+	// SelectionQueueName is the Redis list key for selection job payloads.
+	SelectionQueueName string
+	// SelectionWorkerConcurrency is the number of concurrent BRPOP consumers.
+	SelectionWorkerConcurrency int
+	// SelectionTaskTimeoutSeconds is the DB lease TTL for a running selection task.
+	SelectionTaskTimeoutSeconds int
+
 	// ImageQueueEnabled gates async image_tasks (Redis list + in-process worker).
 	ImageQueueEnabled bool
 	// ImageWorkerConcurrency is the number of concurrent BRPOP consumers for image tasks.
@@ -253,6 +262,14 @@ func Load() (*Config, error) {
 		CollectMaxRetries:            atoiOrDefault(os.Getenv("COLLECT_MAX_RETRIES"), 3),
 		CollectRetryBaseDelaySeconds: atoiOrDefault(os.Getenv("COLLECT_RETRY_BASE_DELAY_SECONDS"), 30),
 		CollectRetryMaxDelaySeconds:  atoiOrDefault(os.Getenv("COLLECT_RETRY_MAX_DELAY_SECONDS"), 600),
+
+		SelectionQueueEnabled: envBool(os.Getenv("SELECTION_QUEUE_ENABLED"), true),
+		SelectionQueueName: strings.TrimSpace(firstNonEmpty(
+			os.Getenv("SELECTION_QUEUE_NAME"),
+			"selection:tasks",
+		)),
+		SelectionWorkerConcurrency:  atoiOrDefault(os.Getenv("SELECTION_WORKER_CONCURRENCY"), 1),
+		SelectionTaskTimeoutSeconds: atoiOrDefault(os.Getenv("SELECTION_TASK_TIMEOUT_SECONDS"), 300),
 
 		ImageQueueEnabled:      envBool(os.Getenv("IMAGE_QUEUE_ENABLED"), true),
 		ImageWorkerConcurrency: atoiOrDefault(os.Getenv("IMAGE_WORKER_CONCURRENCY"), 2),

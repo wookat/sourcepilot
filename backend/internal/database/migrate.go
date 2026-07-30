@@ -30,6 +30,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/release"
 	"github.com/trademind-ai/trademind/backend/internal/modules/restore"
+	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
@@ -152,6 +153,10 @@ func AutoMigrate(db *gorm.DB) error {
 		&collect.CollectBatch{},
 		&collect.CollectTask{},
 		&collect.CollectTaskEvent{},
+		&selection.SelectionTask{},
+		&selection.SelectionCandidate{},
+		&selection.SelectionSourceMatch{},
+		&selection.SelectionEvaluation{},
 		&collectrule.CollectRule{},
 		&collectbrowserprofile.CollectBrowserProfile{},
 		&aiprompt.AIPrompt{},

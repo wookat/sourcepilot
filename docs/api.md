@@ -449,6 +449,23 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `GET` | `/api/v1/ai/operation-workbench/todos/:id` | 单条待办详情 |
 | `POST` | `/api/v1/ai/operation-workbench/todos/refresh` | 重新聚合待办（只读，不写库、不调平台 API） |
 
+## AI 比价选品引擎 API
+
+候选商品 → 海外在售价 → 1688 同款匹配 → 落地成本/利润模型 → LLM 打分 → 可上架清单。均需 Bearer 认证。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/selection/tasks` | 创建选品任务（items 人工导入 / productIds 草稿 / keywords），入 Redis 队列异步处理 |
+| `GET` | `/api/v1/selection/tasks` | 分页任务列表，支持 `status` 过滤；返回候选/打分/失败计数 |
+| `GET` | `/api/v1/selection/tasks/:id` | 任务详情 |
+| `GET` | `/api/v1/selection/tasks/:id/candidates` | 可上架清单：候选 + 1688 同款 + 利润评估 + AI 评分，按评分降序 |
+| `POST` | `/api/v1/selection/tasks/:id/retry` | 失败/部分成功任务重新入队 |
+| `POST` | `/api/v1/selection/candidates/:id/decision` | 人工审核 `{"decision":"approved\|rejected"}` |
+| `POST` | `/api/v1/selection/candidates/:id/to-draft` | 已通过候选一键转商品草稿（幂等，重复调用返回已有草稿） |
+
+数据表：`selection_tasks` / `selection_candidates` / `selection_source_matches` / `selection_evaluations`。
+利润参数（汇率、佣金、物流、退货率等）默认读 settings `selection` 分组，可按任务 `params` 覆盖。
+
 ## P6 Backup / Restore / Release / DR API
 
 All P6 write operations require Bearer authentication and backend RBAC. The frontend never receives shell commands, full backup paths, storage secrets or database credentials.
