@@ -1,0 +1,259 @@
+package procurement
+
+import (
+	"context"
+	"fmt"
+	"testing"
+
+	"github.com/glebarez/sqlite"
+	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
+	"github.com/trademind-ai/trademind/backend/internal/providers/trade"
+	"gorm.io/gorm"
+)
+
+func openTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	dsn := fmt.Sprintf("file:procurement_%s?mode=memory&cache=shared", uuid.NewString())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Skipf("sqlite unavailable: %v", err)
+	}
+	if err := db.AutoMigrate(
+		&sourcing.Supplier{}, &sourcing.ProductSource{}, &sourcing.ProductSourceSKU{},
+		&sourcing.SourcePriceHistory{}, &sourcing.SourceSwitchEvent{},
+		&order.Order{}, &order.OrderItem{},
+		&product.Product{}, &product.ProductSKU{},
+		&PurchaseOrder{}, &PurchaseOrderItem{}, &PurchaseOrderEvent{}, &PurchaseLogistics{},
+	); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	return db
+}
+
+type fixture struct {
+	svc     *Service
+	orderID uuid.UUID
+}
+
+// setupFixture creates a sales order with one item mapped to a primary
+// source (supplier + SKU mapping ready for aggregation).
+func setupFixture(t *testing.T) fixture {
+	t.Helper()
+	db := openTestDB(t)
+	svc := &Service{DB: db, Provider: trade.NewMock1688()}
+
+	sup := sourcing.Supplier{Platform: "1688", Name: "supplier-a", Status: "active"}
+	if err := db.Create(&sup).Error; err != nil {
+		t.Fatal(err)
+	}
+	productID := uuid.New()
+	localSKU := uuid.New()
+	src := sourcing.ProductSource{
+		ProductID: productID, SupplierID: sup.ID, IsPrimary: true, Priority: 10,
+		Status: sourcing.SourceStatusActive, SourceOfferID: "111",
+		SourceURL: "https://detail.1688.com/offer/111.html",
+	}
+	if err := db.Create(&src).Error; err != nil {
+		t.Fatal(err)
+	}
+	price := 9.9
+	mapping := sourcing.ProductSourceSKU{
+		ProductSourceID: src.ID, LocalSKUID: localSKU, ExternalSKUID: "ext-1",
+		Currency: "CNY", Status: "active", CurrentPrice: &price,
+	}
+	if err := db.Create(&mapping).Error; err != nil {
+		t.Fatal(err)
+	}
+	o := order.Order{TenantID: 0, Platform: "tiktok", OrderNo: "SO-1", Status: "paid", Currency: "USD"}
+	if err := db.Create(&o).Error; err != nil {
+		t.Fatal(err)
+	}
+	item := order.OrderItem{
+		OrderID: o.ID, ProductID: &productID, ProductSKUID: &localSKU,
+		ProductTitle: "demo product", SKUName: "red / L", Quantity: 3,
+	}
+	if err := db.Create(&item).Error; err != nil {
+		t.Fatal(err)
+	}
+	return fixture{svc: svc, orderID: o.ID}
+}
+
+func generate(t *testing.T, f fixture, key string) *GenerateResult {
+	t.Helper()
+	res, err := f.svc.Generate(context.Background(), GenerateBody{
+		OrderIDs:       []string{f.orderID.String()},
+		IdempotencyKey: key,
+	}, nil)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	return res
+}
+
+func TestGenerateAggregatesBySupplierAndIsIdempotent(t *testing.T) {
+	f := setupFixture(t)
+	res := generate(t, f, "key-1")
+	if len(res.Orders) != 1 || len(res.Blockers) != 0 {
+		t.Fatalf("expected 1 purchase order, got %+v", res)
+	}
+	po := res.Orders[0]
+	if po.Status != StatusDraft || po.SupplierName != "supplier-a" {
+		t.Fatalf("unexpected po %+v", po)
+	}
+	if po.TotalAmount != 29.7 {
+		t.Fatalf("expected total 29.7, got %v", po.TotalAmount)
+	}
+	// idempotent replay
+	res2 := generate(t, f, "key-1")
+	if len(res2.Orders) != 1 || res2.Orders[0].ID != po.ID {
+		t.Fatalf("expected idempotent replay, got %+v", res2.Orders)
+	}
+}
+
+func TestGenerateReportsBlockers(t *testing.T) {
+	f := setupFixture(t)
+	// an order item without local SKU link
+	o := order.Order{Platform: "tiktok", OrderNo: "SO-2", Status: "paid"}
+	if err := f.svc.DB.Create(&o).Error; err != nil {
+		t.Fatal(err)
+	}
+	item := order.OrderItem{OrderID: o.ID, SKUName: "unmatched", Quantity: 1}
+	if err := f.svc.DB.Create(&item).Error; err != nil {
+		t.Fatal(err)
+	}
+	res, err := f.svc.Generate(context.Background(), GenerateBody{OrderIDs: []string{o.ID.String()}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Orders) != 0 || len(res.Blockers) != 1 || res.Blockers[0].Code != "sku.unmatched" {
+		t.Fatalf("expected sku.unmatched blocker, got %+v", res)
+	}
+}
+
+func TestManualFlowHappyPath(t *testing.T) {
+	f := setupFixture(t)
+	po := generate(t, f, "key-flow").Orders[0]
+	ctx := context.Background()
+
+	if _, err := f.svc.Submit(ctx, po.ID, nil); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	if _, err := f.svc.Confirm(ctx, po.ID, nil); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	got, err := f.svc.MarkPlaced(ctx, po.ID, MarkPlacedBody{ExternalOrderID: "1688-ORDER-1"}, nil)
+	if err != nil {
+		t.Fatalf("mark placed: %v", err)
+	}
+	if got.ExternalOrderID != "1688-ORDER-1" || got.Status != StatusPlaced {
+		t.Fatalf("unexpected po %+v", got)
+	}
+	if got, err = f.svc.MarkPaid(ctx, po.ID, MarkPaidBody{PayChannel: "alipay"}, nil); err != nil || got.PayStatus != PayStatusPaid {
+		t.Fatalf("mark paid: %v %+v", err, got)
+	}
+	if got, err = f.svc.FillLogistics(ctx, po.ID, LogisticsBody{TrackingNo: "SF123", Carrier: "SF"}, nil); err != nil || got.Status != StatusShipped {
+		t.Fatalf("fill logistics: %v %+v", err, got)
+	}
+	if got, err = f.svc.MarkDelivered(ctx, po.ID, nil); err != nil || got.Status != StatusDelivered {
+		t.Fatalf("mark delivered: %v %+v", err, got)
+	}
+
+	detail, err := f.svc.Detail(ctx, po.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// draft→pending_confirm→placing→placed→paid→shipped→delivered plus creation event
+	if len(detail.Events) != 7 {
+		t.Fatalf("expected 7 events, got %d", len(detail.Events))
+	}
+	if len(detail.Logistics) != 1 || detail.Logistics[0].TrackingNo != "SF123" || detail.Logistics[0].Status != "delivered" {
+		t.Fatalf("unexpected logistics %+v", detail.Logistics)
+	}
+	// mock provider knows the manual order
+	pay, err := f.svc.Provider.GetPayStatus(ctx, "1688-ORDER-1")
+	if err != nil || pay.Status != "paid" {
+		t.Fatalf("mock pay status: %v %+v", err, pay)
+	}
+	lg, err := f.svc.Provider.GetLogistics(ctx, "1688-ORDER-1")
+	if err != nil || lg.TrackingNo != "SF123" {
+		t.Fatalf("mock logistics: %v %+v", err, lg)
+	}
+}
+
+func TestIllegalTransitionsRejected(t *testing.T) {
+	f := setupFixture(t)
+	po := generate(t, f, "key-illegal").Orders[0]
+	ctx := context.Background()
+
+	// draft → placed is illegal
+	if _, err := f.svc.MarkPlaced(ctx, po.ID, MarkPlacedBody{ExternalOrderID: "X"}, nil); err == nil {
+		t.Fatalf("draft→placed must be rejected")
+	}
+	// draft → paid is illegal
+	if _, err := f.svc.MarkPaid(ctx, po.ID, MarkPaidBody{}, nil); err == nil {
+		t.Fatalf("draft→paid must be rejected")
+	}
+	// cancel from draft is legal
+	if _, err := f.svc.Cancel(ctx, po.ID, "test", nil); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	// cancelled is terminal
+	if _, err := f.svc.Submit(ctx, po.ID, nil); err == nil {
+		t.Fatalf("cancelled→pending_confirm must be rejected")
+	}
+}
+
+func TestExportCSVContains1688Link(t *testing.T) {
+	f := setupFixture(t)
+	po := generate(t, f, "key-csv").Orders[0]
+	data, name, err := f.svc.ExportCSV(context.Background(), po.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name == "" {
+		t.Fatalf("expected filename")
+	}
+	s := string(data)
+	for _, want := range []string{"https://detail.1688.com/offer/111.html", "ext-1", "demo product", "9.90", "29.70"} {
+		if !containsStr(s, want) {
+			t.Fatalf("csv missing %q:\n%s", want, s)
+		}
+	}
+}
+
+func containsStr(s, sub string) bool {
+	return len(s) >= len(sub) && (func() bool {
+		for i := 0; i+len(sub) <= len(s); i++ {
+			if s[i:i+len(sub)] == sub {
+				return true
+			}
+		}
+		return false
+	})()
+}
+
+func TestStateMachineTable(t *testing.T) {
+	cases := []struct {
+		from, to string
+		ok       bool
+	}{
+		{StatusDraft, StatusPendingConfirm, true},
+		{StatusPendingConfirm, StatusPlacing, true},
+		{StatusPlacing, StatusPlaced, true},
+		{StatusPlaced, StatusPaid, true},
+		{StatusPaid, StatusShipped, true},
+		{StatusShipped, StatusDelivered, true},
+		{StatusFailed, StatusPlacing, true},
+		{StatusDraft, StatusPaid, false},
+		{StatusDelivered, StatusDraft, false},
+		{StatusCancelled, StatusPlacing, false},
+	}
+	for _, c := range cases {
+		if got := CanTransition(c.from, c.to); got != c.ok {
+			t.Fatalf("%s→%s expected %v", c.from, c.to, c.ok)
+		}
+	}
+}

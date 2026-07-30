@@ -47,6 +47,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/pricing"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
@@ -56,6 +57,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
+	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
@@ -70,6 +72,8 @@ import (
 	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
+	"github.com/trademind-ai/trademind/backend/internal/providers/sourceinfo"
+	"github.com/trademind-ai/trademind/backend/internal/providers/trade"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/gorm"
 )
@@ -629,6 +633,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
+	sourcingSvc := &sourcing.Service{DB: dep.DB, Settings: settingsSvc, OpLog: opLogSvc, Provider: &sourceinfo.Mock{}}
+	sourcingH := &sourcing.Handler{Svc: sourcingSvc}
+	sourcing.Register(authed, sourcingH)
+	procurementSvc := &procurement.Service{DB: dep.DB, OpLog: opLogSvc, Provider: trade.NewMock1688()}
+	procurementH := &procurement.Handler{Svc: procurementSvc}
+	procurement.Register(authed, procurementH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
 	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)
