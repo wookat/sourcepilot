@@ -41,10 +41,20 @@ func TestEncryptFileRoundTripAndTamperReject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.WriteAt([]byte{0x7f}, int64(len(encryptionMagic)+8)); err != nil {
+	tamperOffset := int64(len(encryptionMagic) + 8)
+	original := []byte{0}
+	if _, err := f.ReadAt(original, tamperOffset); err != nil {
+		_ = f.Close()
 		t.Fatal(err)
 	}
-	_ = f.Close()
+	original[0] ^= 0xff
+	if _, err := f.WriteAt(original, tamperOffset); err != nil {
+		_ = f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := DecryptFile(encPath, filepath.Join(dir, "tampered.out"), *env, kek); err == nil {
 		t.Fatalf("expected tamper rejection")
 	}

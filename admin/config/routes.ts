@@ -61,6 +61,18 @@ export default [
         component: './TaskCenter/Alerts',
       },
       {
+        path: '/ops/task-center/operation-tasks',
+        name: '运营任务中心',
+        icon: 'ProfileOutlined',
+        component: './TaskCenter/OperationTasks',
+      },
+      {
+        path: '/ops/task-center/operation-tasks/:taskId',
+        name: '运营任务详情',
+        component: './TaskCenter/OperationTasks/Detail',
+        hideInMenu: true,
+      },
+      {
         path: '/ops/observability',
         name: '可观测性中心',
         icon: 'LineChartOutlined',
@@ -225,6 +237,28 @@ export default [
         path: '/product/publish-tasks',
         name: '刊登任务',
         component: './Product/PublishTasks',
+      },
+    ],
+  },
+  {
+    path: '/selection',
+    name: 'AI 选品',
+    icon: 'ExperimentOutlined',
+    routes: [
+      {
+        path: '/selection',
+        redirect: '/selection/tasks',
+      },
+      {
+        path: '/selection/tasks',
+        name: '选品任务',
+        component: './Selection/Tasks',
+      },
+      {
+        path: '/selection/tasks/:id',
+        name: '可上架清单',
+        component: './Selection/Detail',
+        hideInMenu: true,
       },
     ],
   },

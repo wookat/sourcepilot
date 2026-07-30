@@ -34,6 +34,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
+	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
@@ -311,7 +312,7 @@ func main() {
 	)
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc, selectionSvc := api.Register(engine, &api.Deps{
 		Config:          cfg,
 		DB:              db,
 		Redis:           redisClient,
@@ -397,6 +398,14 @@ func main() {
 		}
 	} else if cfg.CollectQueueEnabled && redisClient == nil {
 		log.Warn("collect_worker_skipped", "reason", "redis unavailable while COLLECT_QUEUE_ENABLED=true")
+	}
+
+	if cfg.SelectionQueueEnabled && redisClient != nil && selectionSvc != nil {
+		selectionSvc.Log = log
+		selection.StartWorker(workerCtx, &workerWG, log, selectionSvc, cfg.SelectionQueueName, cfg.SelectionWorkerConcurrency, workerReg)
+		log.Info("selection_worker_started", "concurrency", cfg.SelectionWorkerConcurrency, "queue", cfg.SelectionQueueName)
+	} else if cfg.SelectionQueueEnabled && redisClient == nil {
+		log.Warn("selection_worker_skipped", "reason", "redis unavailable while SELECTION_QUEUE_ENABLED=true")
 	}
 
 	if cfg.ImageQueueEnabled && redisClient != nil && imageTaskSvc != nil {

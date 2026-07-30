@@ -134,6 +134,18 @@ Douyin Shop Phase 8 adds order sync MVP via existing order sync orchestration (`
 - 当前实现：`Mock1688`（内存态、无外部请求）。`CreateOrder` 返回 `manual=true`，表示需人工前往 1688 下单，之后通过采购单 API 回填订单号 / 运单号推进状态。
 - 后续接入官方 API 时，仅需新增 Provider 实现并在路由装配处替换，业务层无需改动。
 
+## 选品相关 Provider（AI 比价选品引擎）
+
+`backend/internal/providers` 下为选品链路新增四类抽象：
+
+- **Market Price Provider**（`providers/marketprice`）：按平台/国家/关键词取海外在售价。当前实现：`mock`（确定性造数）；人工导入价格优先于 Provider。
+- **Source Match Provider**（`providers/sourcematch`）：1688 同款匹配（图搜 + 关键词）。实现：
+  - `mock`：确定性生成真实感 1688 货源（价格区间/MOQ/供应商评分）。
+  - `crawler`：collector 爬虫兜底，仅当候选带 1688 链接且存在已登录 1688 浏览器 profile 时可用；否则返回 `ErrUnavailable` 优雅降级到 mock。
+  - `open1688`：官方 API 空壳，凭证可用前始终 `ErrUnavailable`。
+- **FX Provider**（`providers/fx`）：汇率，默认内置固定表，可由 settings `selection` 分组（`fx_rate_usd` 等）覆盖。
+- **Logistics Provider**（`providers/logistics`）：物流报价，线性模型 `base + perKG × weight`，参数可配置。
+
 ## 扩展建议
 
 新增 Provider 时建议：

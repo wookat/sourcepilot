@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventorysyncp9"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -30,6 +31,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/release"
 	"github.com/trademind-ai/trademind/backend/internal/modules/restore"
+	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
@@ -162,6 +164,10 @@ func AutoMigrate(db *gorm.DB) error {
 		&collect.CollectBatch{},
 		&collect.CollectTask{},
 		&collect.CollectTaskEvent{},
+		&selection.SelectionTask{},
+		&selection.SelectionCandidate{},
+		&selection.SelectionSourceMatch{},
+		&selection.SelectionEvaluation{},
 		&collectrule.CollectRule{},
 		&collectbrowserprofile.CollectBrowserProfile{},
 		&aiprompt.AIPrompt{},
@@ -199,6 +205,9 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 	if err := operationtask.Migrate(db); err != nil {
+		return err
+	}
+	if err := inventorysyncp9.Migrate(db); err != nil {
 		return err
 	}
 	if err := migrateDouyinPhase102Indexes(db); err != nil {
