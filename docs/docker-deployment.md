@@ -110,9 +110,12 @@ docker compose -f docker-compose.full.yml down -v
 ```env
 ADMIN_BOOTSTRAP_EMAIL=admin@example.com
 ADMIN_BOOTSTRAP_PASSWORD=admin123456
+ADMIN_BOOTSTRAP_TENANT_ID=1
 ```
 
 首次登录后请尽快修改密码。生产环境不要使用示例密码。
+
+`ADMIN_BOOTSTRAP_TENANT_ID` 决定初始管理员所属租户：选品（selection）等按租户隔离的模块要求租户 ID > 0，否则 worker 会拒绝任务（任务停留在 pending）。仅在 admin_users 为空、首次创建管理员时生效；对已存在的历史管理员，需按 `P4_1_TENANT_DATA_MIGRATION.md` 的规则处理。
 
 ## 与本地开发 Compose 的区别
 
