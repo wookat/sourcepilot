@@ -326,6 +326,39 @@ export default [
     ],
   },
   {
+    path: '/sourcing',
+    name: '货源与采购',
+    icon: 'ClusterOutlined',
+    component: '@/layouts/SourcingGroupLayout',
+    routes: [
+      {
+        path: '/sourcing',
+        redirect: '/sourcing/suppliers',
+      },
+      {
+        path: '/sourcing/suppliers',
+        name: '供应商管理',
+        component: './Sourcing/Suppliers',
+      },
+      {
+        path: '/sourcing/product-sources',
+        name: '商品货源档案',
+        component: './Sourcing/ProductSources',
+      },
+      {
+        path: '/procurement/orders',
+        name: '采购单',
+        component: './Procurement',
+      },
+      {
+        path: '/procurement/orders/:id',
+        name: '采购单详情',
+        hideInMenu: true,
+        component: './Procurement/Detail',
+      },
+    ],
+  },
+  {
     path: '/inventory',
     name: '库存',
     icon: 'InboxOutlined',
