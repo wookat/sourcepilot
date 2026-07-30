@@ -345,6 +345,18 @@ export default [
         name: '商品货源档案',
         component: './Sourcing/ProductSources',
       },
+    ],
+  },
+  {
+    path: '/procurement',
+    name: '采购协同',
+    icon: 'ShoppingCartOutlined',
+    component: '@/layouts/SourcingGroupLayout',
+    routes: [
+      {
+        path: '/procurement',
+        redirect: '/procurement/orders',
+      },
       {
         path: '/procurement/orders',
         name: '采购单',

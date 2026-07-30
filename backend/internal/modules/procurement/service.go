@@ -204,6 +204,12 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 					skuName = localSKU.SKUName
 				}
 			}
+			if title == "" && it.ProductID != nil {
+				var prod product.Product
+				if err := s.DB.WithContext(ctx).Select("title").First(&prod, "id = ?", *it.ProductID).Error; err == nil {
+					title = prod.Title
+				}
+			}
 			salesID := oid
 			line := PurchaseOrderItem{
 				SalesOrderID:    &salesID,
