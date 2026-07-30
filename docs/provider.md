@@ -118,6 +118,22 @@ Douyin Shop Phase 8 adds order sync MVP via existing order sync orchestration (`
 
 采集服务必须输出统一商品结构，包括标题、图片、属性、SKU、描述图与 raw 原始数据。
 
+## Source Info Provider（货源报价）
+
+用于抓取/查询货源（1688 offer）的 SKU 价格与库存。
+
+- 接口：`backend/internal/providers/sourceinfo`，`Provider.FetchOffer(ctx, offerID, externalSKUIDs)`。
+- 当前实现：`Mock`（确定性伪随机报价，无外部请求），供货源档案 refresh 与切换规则演示。
+- 后续可扩展：1688 开放平台报价 API、采集服务回填。
+
+## Trade Provider（1688 下单）
+
+用于采购下单链路。1688 官方 API 暂不可用，本期全部走 mock + 人工下单过渡模式。
+
+- 接口：`backend/internal/providers/trade`，包含 `PreviewOrder / CreateOrder / GetPayStatus / GetOrder / GetLogistics / CancelOrder`。
+- 当前实现：`Mock1688`（内存态、无外部请求）。`CreateOrder` 返回 `manual=true`，表示需人工前往 1688 下单，之后通过采购单 API 回填订单号 / 运单号推进状态。
+- 后续接入官方 API 时，仅需新增 Provider 实现并在路由装配处替换，业务层无需改动。
+
 ## 扩展建议
 
 新增 Provider 时建议：

@@ -468,6 +468,48 @@ Planned ops routes remain design-only until implemented with RBAC, re-authentica
 
 Current code-level P7 endpoints affected: product and order list APIs reject excessive deep offset via P7 pagination guard; HTTP requests can be locally rate-limited when `RATE_LIMIT_ENABLED=true`.
 
+## 商品-货源档案（sourcing）
+
+一品多源的供应商与货源档案，供采购协同与后续 AI 比价选品引擎引用。所有路由走统一 JWT 鉴权与统一返回结构。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/suppliers` | 供应商列表（keyword/status/分页）。 |
+| `POST` | `/api/v1/suppliers` | 创建供应商（platform 默认 `1688`）。 |
+| `PUT` | `/api/v1/suppliers/:id` | 更新供应商。 |
+| `DELETE` | `/api/v1/suppliers/:id` | 删除供应商（存在绑定货源时 409）。 |
+| `GET` | `/api/v1/products/:id/sources` | 商品的货源列表（含供应商与 SKU 映射）。 |
+| `POST` | `/api/v1/products/:id/sources` | 绑定货源；`supplierName` 不存在时自动建供应商；首个货源自动设为主供应商；重复绑定 409。 |
+| `PUT` | `/api/v1/product-sources/:id` | 更新优先级 / 锁定 / 状态 / MOQ / 备货周期等。 |
+| `POST` | `/api/v1/product-sources/:id/set-primary` | 人工切换主供应商，写入 `source_switch_events`。 |
+| `POST` | `/api/v1/product-sources/:id/sku-mappings` | 批量保存本地 SKU ↔ 外部 SKU 映射；价格变化写 `source_price_history`。 |
+| `GET` | `/api/v1/product-source-skus/:id/price-history?days=90` | 历史进价（默认 90 天）。 |
+| `POST` | `/api/v1/products/:id/sources/refresh` | 通过 Source Info Provider（当前 mock）刷新价格/库存，并按切换规则处理断货/涨价。 |
+| `GET` | `/api/v1/source-switch-events?productId=` | 货源切换审计（auto / manual / suggested）。 |
+
+切换规则：`priority` 越小越优先；主货源断货且未锁定时自动切换到最优可用备用源并记 `auto` 事件；涨价超过阈值（settings `sourcing` 组，默认 10%）仅生成 `suggested` 建议事件，不自动切换；`locked` 货源不参与自动切换。
+
+## 采购协同（procurement，人工下单过渡模式）
+
+1688 官方 API 暂不可用；当前通过 Trade Provider mock + 人工下单模式流转。状态机：`draft → pending_confirm → placing → placed → paid → shipped → delivered`，另有 `failed / cancelled`；非法流转返回 400。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回；支持 `idempotencyKey` 幂等。 |
+| `GET` | `/api/v1/procurement/orders?status=` | 采购单列表。 |
+| `GET` | `/api/v1/procurement/orders/:id` | 详情（items / events / logistics）。 |
+| `GET` | `/api/v1/procurement/orders/:id/export.csv` | 导出采购清单 CSV（含 1688 链接、外部 SKU、数量、参考价，UTF-8 BOM）。 |
+| `POST` | `/api/v1/procurement/orders/:id/submit` | draft → pending_confirm（经 Provider PreviewOrder）。 |
+| `POST` | `/api/v1/procurement/orders/:id/confirm` | pending_confirm → placing（记录确认人/时间，调用 mock CreateOrder，人工模式）。 |
+| `POST` | `/api/v1/procurement/orders/:id/mark-placed` | 回填 1688 订单号，placing → placed。 |
+| `POST` | `/api/v1/procurement/orders/:id/mark-paid` | 人工标记付款，placed → paid。 |
+| `POST` | `/api/v1/procurement/orders/:id/logistics` | 回填运单号/承运商，paid → shipped。 |
+| `POST` | `/api/v1/procurement/orders/:id/mark-delivered` | shipped → delivered。 |
+| `POST` | `/api/v1/procurement/orders/:id/retry` | failed → placing。 |
+| `POST` | `/api/v1/procurement/orders/:id/cancel` | 取消（终态前均可）。 |
+
+所有状态流转写入 `purchase_order_events`；对应管理端页面为 `/procurement/orders`。
+
 ## 修改 API 时的同步要求
 
 - 后端：handler、service、DTO、权限和错误处理一起检查。
