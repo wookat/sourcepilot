@@ -880,6 +880,12 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-08-01）迭代第 7 轮：销售订单批量导入 + 手工订单租户修复
+
+- 新增 `POST /orders/import`：批量创建手工销售订单（≤200 张/批），订单号已存在或批内重复自动跳过（`skipped_duplicate`），单张失败不影响其余，可选创建后自动按 SKU 编码匹配本地规格；Admin 订单列表工具栏新增「批量导入订单」粘贴弹窗（逐行校验 + 同订单号合并明细 + 逐单结果表）。店铺 API 未接入前的订单来源过渡方案。
+- 修复：手工订单创建（`POST /orders`）此前不写 `tenant_id`，租户 >0 的管理员创建后立即查不到该订单（`record not found`）；现从请求上下文写入当前租户。附 service 层单测（创建/去重/单行失败不中断/租户可见性）。
+- 同步 `docs/api.md`、`admin/src/services/orders.ts`。
+
 ### 变更记录（2026-08-01）迭代第 6 轮：刷新提示结构化中文化
 
 - `POST /products/:id/sources/refresh` 的 `alerts` 由英文内部字符串（含货源 UUID）改为结构化对象（`code` / `sourceId` / `supplierName` / `reason` / `thresholdPercent`），货源档案页「切换规则提示」按 code 渲染中文文案并显示供应商名称（第 5 轮 E2E 反馈项）。

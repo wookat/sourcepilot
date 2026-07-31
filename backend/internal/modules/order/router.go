@@ -13,6 +13,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	o := g.Group("/orders")
 	o.GET("", h.List)
 	o.POST("", h.Create)
+	o.POST("/import", h.Import)
 
 	o.POST("/:id/items", h.PostItem)
 	o.PUT("/:id/items/:itemId", h.PutItem)
