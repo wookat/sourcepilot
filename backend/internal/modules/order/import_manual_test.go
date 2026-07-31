@@ -132,6 +132,43 @@ func TestImportOrdersMatchSkusManualOrder(t *testing.T) {
 	}
 }
 
+func TestMatchOrderItemsRematchUpdatesExistingRow(t *testing.T) {
+	db := openImportTestDB(t)
+	if err := db.AutoMigrate(&product.ProductSKU{}, &order.OrderItemSKUMatch{}); err != nil {
+		t.Fatal(err)
+	}
+	svc := &order.Service{DB: db}
+	c := importTestCtx(1)
+	sum, err := svc.ImportOrders(c, order.ImportBody{
+		Orders:    []order.CreateBody{importOrderBody("SO-REMATCH")},
+		MatchSKUs: true,
+	}, nil)
+	if err != nil || sum.Created != 1 {
+		t.Fatalf("import failed: %v %+v", err, sum)
+	}
+	if sum.Results[0].ItemsMatched != 0 {
+		t.Fatalf("expected no match before SKU exists, got %+v", sum.Results[0])
+	}
+	// SKU now exists; re-match must update the existing skipped/unmatched row.
+	if err := db.Create(&product.ProductSKU{ProductID: uuid.New(), SKUCode: "SKU-1"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	ms, err := svc.MatchOrderItemsForOrder(c.Request.Context(), *sum.Results[0].OrderID, order.MatchOrderItemsOptions{Source: "rematch_test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ms.Matched != 1 {
+		t.Fatalf("expected rematch to update existing row to matched, got %+v", ms)
+	}
+	var row order.OrderItemSKUMatch
+	if err := db.First(&row, "order_id = ?", *sum.Results[0].OrderID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if row.MatchStatus != order.MatchStatusMatched || row.ProductSKUID == nil {
+		t.Fatalf("expected persisted matched row, got %+v", row)
+	}
+}
+
 func TestImportOrdersEmptyRejected(t *testing.T) {
 	db := openImportTestDB(t)
 	svc := &order.Service{DB: db}

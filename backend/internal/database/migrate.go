@@ -77,6 +77,8 @@ func migrateLegacyInventorySKUColumns(db *gorm.DB) error {
 		{&inventory.OrderInventoryEffect{}, "product_sk_uid", "product_sku_id"},
 		{&order.OrderItem{}, "product_sk_uid", "product_sku_id"},
 		{&order.OrderItem{}, "external_sk_uid", "external_sku_id"},
+		{&order.OrderItemSKUMatch{}, "product_sk_uid", "product_sku_id"},
+		{&order.OrderItemSKUMatch{}, "external_sk_uid", "external_sku_id"},
 	}
 	for _, r := range renames {
 		if !db.Migrator().HasTable(r.model) {
@@ -139,6 +141,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&productpublish.ProductPublicationSKU{},
 		&order.Order{},
 		&order.OrderItem{},
+		&order.OrderShipment{},
 		&order.OrderItemSKUMatch{},
 		&orderexception.OrderExceptionMark{},
 		&sourcing.Supplier{},
