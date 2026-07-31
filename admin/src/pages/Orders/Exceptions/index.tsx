@@ -147,6 +147,7 @@ export default function OrderExceptionsPage() {
   const formRef = useRef<ProFormInstance>();
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(20);
+  const urlAppliedRef = useRef(false);
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof EXCEPTION_QUERY_KEYS)[number], string | undefined>>(
       EXCEPTION_QUERY_KEYS,
@@ -204,6 +205,7 @@ export default function OrderExceptionsPage() {
       orderId: urlState.orderId,
       createdAt: queryTimeRange(urlState.start, urlState.end),
     });
+    urlAppliedRef.current = true;
     actionRef.current?.reload();
   }, [
     urlState.end,
@@ -660,41 +662,60 @@ export default function OrderExceptionsPage() {
         }}
         locale={emptyLocale}
         request={async (params) => {
+          // 首次请求可能早于 URL → 表单同步（ProTable 子组件 effect 先于页面 effect），
+          // 此时以 URL query 为准，且不回写 URL，避免把直达筛选参数剪掉。
+          const fromUrl = !urlAppliedRef.current;
+          const src = fromUrl
+            ? {
+                exceptionType: urlState.exceptionType,
+                severity: urlState.severity,
+                platform: urlState.platform,
+                shopId: urlState.shopId,
+                orderId: urlState.orderId,
+                keyword: urlState.keyword,
+                start: urlState.start,
+                end: urlState.end,
+                status: urlState.status,
+              }
+            : params;
+
           let handled: boolean | undefined;
           let ignored: boolean | undefined;
-          const st = params.status as string | undefined;
+          const st = src.status as string | undefined;
           if (st === 'handled') handled = true;
           else if (st === 'ignored') ignored = true;
 
           const qp = {
             page: params.current ?? tablePage,
             pageSize: params.pageSize ?? tablePageSize,
-            exceptionType: (params.exceptionType as string | undefined)?.trim(),
-            severity: (params.severity as string | undefined)?.trim(),
-            platform: (params.platform as string | undefined)?.trim(),
-            shopId: (params.shopId as string | undefined)?.trim(),
-            orderId: (params.orderId as string | undefined)?.trim(),
-            keyword: prepareKeyword(params.keyword),
-            start: typeof params.start === 'string' ? params.start : undefined,
-            end: typeof params.end === 'string' ? params.end : undefined,
+            exceptionType: (src.exceptionType as string | undefined)?.trim(),
+            severity: (src.severity as string | undefined)?.trim(),
+            platform: (src.platform as string | undefined)?.trim(),
+            shopId: (src.shopId as string | undefined)?.trim(),
+            orderId: (src.orderId as string | undefined)?.trim(),
+            keyword: prepareKeyword(src.keyword),
+            start: typeof src.start === 'string' ? src.start : undefined,
+            end: typeof src.end === 'string' ? src.end : undefined,
           };
-          setUrlState(
-            {
-              page: Number(qp.page) > 1 ? qp.page : undefined,
-              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
-              keyword: qp.keyword,
-              exceptionType: qp.exceptionType,
-              severity: qp.severity,
-              platform: qp.platform,
-              shopId: qp.shopId,
-              status: st,
-              orderId: qp.orderId,
-              start: qp.start,
-              end: qp.end,
-              source: urlState.source,
-            },
-            { replace: true },
-          );
+          if (!fromUrl) {
+            setUrlState(
+              {
+                page: Number(qp.page) > 1 ? qp.page : undefined,
+                pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+                keyword: qp.keyword,
+                exceptionType: qp.exceptionType,
+                severity: qp.severity,
+                platform: qp.platform,
+                shopId: qp.shopId,
+                status: st,
+                orderId: qp.orderId,
+                start: qp.start,
+                end: qp.end,
+                source: urlState.source,
+              },
+              { replace: true },
+            );
+          }
 
           const res = await queryOrderExceptions({
             page: qp.page,
