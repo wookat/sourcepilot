@@ -249,6 +249,23 @@ func (h *Handler) SaveSKUMappings(c *gin.Context) {
 	response.OK(c, gin.H{"items": out})
 }
 
+// DeleteSKUMapping DELETE /product-source-skus/:id
+func (h *Handler) DeleteSKUMapping(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "sourcing unavailable")
+		return
+	}
+	id, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.Svc.DeleteSKUMapping(c.Request.Context(), id, adminUUID(c)); err != nil {
+		handleSourcingError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"deleted": true})
+}
+
 // PriceHistory GET /product-source-skus/:id/price-history?days=90
 func (h *Handler) PriceHistory(c *gin.Context) {
 	if !h.ok() {

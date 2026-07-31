@@ -507,6 +507,19 @@ func (s *Service) SaveSKUMappings(ctx context.Context, sourceID uuid.UUID, rows 
 	return out, nil
 }
 
+// DeleteSKUMapping soft-deletes one local↔external SKU mapping row.
+func (s *Service) DeleteSKUMapping(ctx context.Context, id uuid.UUID, operator *uuid.UUID) error {
+	res := s.DB.WithContext(ctx).Delete(&ProductSourceSKU{}, "id = ?", id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	s.logOp(ctx, operator, "sourcing.sku_mapping.delete", id.String(), "")
+	return nil
+}
+
 // PriceHistory returns recent price/stock snapshots for a source SKU.
 func (s *Service) PriceHistory(ctx context.Context, sourceSKUID uuid.UUID, days int) ([]SourcePriceHistory, error) {
 	if days <= 0 || days > 365 {

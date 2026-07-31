@@ -880,6 +880,12 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-08-01）迭代第 4 轮：SKU 映射删除入口
+
+- 新增 `DELETE /api/v1/product-source-skus/:id`（软删除单条本地↔外部 SKU 映射，写操作日志，附 sqlite 单测）；此前 UI 只能清空 `external_sku_id`，行仍计为有效映射，导致采购受阻判定与实际不符（E2E 测试反馈项）。
+- 货源档案 SKU 映射弹窗每行新增「删除映射」操作（Popconfirm 确认），删除后行回到未映射状态并刷新档案。
+- 同步 `docs/api.md`、`admin/src/services/sourcing.ts`。
+
 ### 变更记录（2026-07-31）迭代第 3 轮：问题订单自动拦截（采购受阻异常）
 
 - 订单异常工作台新增聚合异常类型 `procurement_blocked`：已付款、未发货且未取消/退款/关闭的订单行，已绑定本地 SKU 但缺可用主货源或主货源缺 SKU 映射、且未被任何未取消/未失败采购单行覆盖时，自动进入工作台（`sourceType=order_item`，严重程度 high），错误信息区分「缺主货源 / 缺 SKU 映射」并给出建议动作；附 sqlite service 层单测（缺货源、缺映射、补映射后消失、被采购单覆盖/取消、未付款不拦截、标记已处理）。

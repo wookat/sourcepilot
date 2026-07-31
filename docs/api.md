@@ -526,6 +526,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `POST` | `/api/v1/product-sources/:id/set-primary` | 人工切换主供应商，写入 `source_switch_events`。 |
 | `POST` | `/api/v1/product-sources/:id/sku-mappings` | 批量保存本地 SKU ↔ 外部 SKU 映射；价格变化写 `source_price_history`。 |
 | `GET` | `/api/v1/product-source-skus/:id/price-history?days=90` | 历史进价（默认 90 天）。 |
+| `DELETE` | `/api/v1/product-source-skus/:id` | 删除单条 SKU 映射（软删除）；删除后该映射不再参与采购单生成与采购受阻判定。 |
 | `POST` | `/api/v1/products/:id/sources/refresh` | 通过 Source Info Provider（当前 mock）刷新价格/库存，并按切换规则处理断货/涨价。 |
 | `GET` | `/api/v1/source-switch-events?productId=` | 货源切换审计（auto / manual / suggested）。 |
 

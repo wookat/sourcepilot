@@ -148,6 +148,10 @@ export async function saveSkuMappings(
   );
 }
 
+export async function deleteSkuMapping(sourceSkuId: string) {
+  return deleteJSON<{ deleted: boolean }>(`/api/v1/product-source-skus/${sourceSkuId}`);
+}
+
 export async function fetchPriceHistory(sourceSkuId: string, days = 90) {
   return getWithParams<{ items: SourcePriceHistoryRow[] }>(
     `/api/v1/product-source-skus/${sourceSkuId}/price-history`,

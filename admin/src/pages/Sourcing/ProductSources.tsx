@@ -7,6 +7,7 @@ import {
 } from '@/services/products';
 import {
   bindProductSource,
+  deleteSkuMapping,
   fetchPriceHistory,
   fetchProductSources,
   fetchSwitchEvents,
@@ -28,6 +29,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Switch,
@@ -79,7 +81,14 @@ export default function ProductSourcesPage() {
 
   const [mappingSource, setMappingSource] = useState<ProductSource | null>(null);
   const [mappingRows, setMappingRows] = useState<
-    { localSkuId: string; skuName: string; externalSkuId?: string; currentPrice?: number; currentStock?: number }[]
+    {
+      localSkuId: string;
+      skuName: string;
+      mappingId?: string;
+      externalSkuId?: string;
+      currentPrice?: number;
+      currentStock?: number;
+    }[]
   >([]);
 
   const [historySku, setHistorySku] = useState<ProductSourceSKU | null>(null);
@@ -125,6 +134,7 @@ export default function ProductSourcesPage() {
         return {
           localSkuId: sku.id,
           skuName: sku.skuName || sku.skuCode,
+          mappingId: m?.id,
           externalSkuId: m?.externalSkuId,
           currentPrice: m?.currentPrice,
           currentStock: m?.currentStock,
@@ -478,6 +488,35 @@ export default function ProductSourcesPage() {
                     }}
                   />
                 ),
+              },
+              {
+                title: '操作',
+                width: 90,
+                render: (_, row, idx) =>
+                  row.mappingId ? (
+                    <Popconfirm
+                      title="删除该 SKU 映射？删除后订单将无法按该映射生成采购单"
+                      onConfirm={async () => {
+                        try {
+                          await deleteSkuMapping(row.mappingId!);
+                          message.success('映射已删除');
+                          const next = [...mappingRows];
+                          next[idx] = {
+                            localSkuId: row.localSkuId,
+                            skuName: row.skuName,
+                          };
+                          setMappingRows(next);
+                          void load();
+                        } catch (e) {
+                          message.error((e as Error).message || '删除失败');
+                        }
+                      }}
+                    >
+                      <Typography.Link type="danger">删除映射</Typography.Link>
+                    </Popconfirm>
+                  ) : (
+                    '-'
+                  ),
               },
             ]}
           />

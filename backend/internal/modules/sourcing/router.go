@@ -19,5 +19,6 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/product-sources/:id/set-primary", h.SetPrimary)
 	g.POST("/product-sources/:id/sku-mappings", h.SaveSKUMappings)
 	g.GET("/product-source-skus/:id/price-history", h.PriceHistory)
+	g.DELETE("/product-source-skus/:id", h.DeleteSKUMapping)
 	g.GET("/source-switch-events", h.ListSwitchEvents)
 }
