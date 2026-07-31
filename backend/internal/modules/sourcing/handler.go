@@ -302,6 +302,55 @@ func (h *Handler) Refresh(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// AdoptSwitchSuggestion POST /source-switch-events/:id/adopt
+func (h *Handler) AdoptSwitchSuggestion(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "sourcing unavailable")
+		return
+	}
+	id, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	out, err := h.Svc.AdoptSwitchSuggestion(c.Request.Context(), id, adminUUID(c))
+	if err != nil {
+		handleSourcingError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// IgnoreSwitchSuggestion POST /source-switch-events/:id/ignore
+func (h *Handler) IgnoreSwitchSuggestion(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "sourcing unavailable")
+		return
+	}
+	id, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.Svc.IgnoreSwitchSuggestion(c.Request.Context(), id, adminUUID(c)); err != nil {
+		handleSourcingError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"ignored": true})
+}
+
+// ListSourceAlerts GET /product-source-alerts
+func (h *Handler) ListSourceAlerts(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "sourcing unavailable")
+		return
+	}
+	out, err := h.Svc.ListSourceAlerts(c.Request.Context())
+	if err != nil {
+		handleSourcingError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"items": out})
+}
+
 // ListSwitchEvents GET /source-switch-events?productId=
 func (h *Handler) ListSwitchEvents(c *gin.Context) {
 	if !h.ok() {

@@ -118,16 +118,26 @@ func (s *Service) applySwitchRules(ctx context.Context, productID uuid.UUID, sou
 	})
 	if !needSwitch {
 		if reason != "" && !primary.Locked {
-			ev := SourceSwitchEvent{
-				ProductID:    productID,
-				FromSourceID: &primary.ID,
-				ToSourceID:   backup.ID,
-				Reason:       reason,
-				Detail:       datatypes.JSON(detail),
-				Mode:         SwitchModeSuggested,
-			}
-			if err := s.DB.WithContext(ctx).Create(&ev).Error; err != nil {
+			var dup int64
+			if err := s.DB.WithContext(ctx).Model(&SourceSwitchEvent{}).
+				Where("product_id = ? AND from_source_id = ? AND to_source_id = ? AND reason = ? AND mode = ? AND status = ?",
+					productID, primary.ID, backup.ID, reason, SwitchModeSuggested, SuggestionOpen).
+				Count(&dup).Error; err != nil {
 				return nil, alerts, err
+			}
+			if dup == 0 {
+				ev := SourceSwitchEvent{
+					ProductID:    productID,
+					FromSourceID: &primary.ID,
+					ToSourceID:   backup.ID,
+					Reason:       reason,
+					Detail:       datatypes.JSON(detail),
+					Mode:         SwitchModeSuggested,
+					Status:       SuggestionOpen,
+				}
+				if err := s.DB.WithContext(ctx).Create(&ev).Error; err != nil {
+					return nil, alerts, err
+				}
 			}
 			alerts = append(alerts, fmt.Sprintf("suggested switching primary to source %s (%s)", backup.ID, reason))
 		}

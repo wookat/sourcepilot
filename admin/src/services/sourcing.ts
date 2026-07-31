@@ -59,8 +59,20 @@ export type SourceSwitchEvent = {
   toSourceId: string;
   reason: string;
   mode: string;
+  status?: string;
   operator?: string;
   createdAt: string;
+};
+
+export type SourceAlertRow = {
+  sourceId: string;
+  productId: string;
+  productTitle: string;
+  supplierName: string;
+  status: string;
+  isPrimary: boolean;
+  lastCheckedAt?: string;
+  openSuggestions: number;
 };
 
 export type RefreshResult = {
@@ -172,4 +184,16 @@ export async function fetchSwitchEvents(params: {
     '/api/v1/source-switch-events',
     { productId: params.productId, page: params.page, pageSize: params.pageSize },
   );
+}
+
+export async function adoptSwitchSuggestion(eventId: string) {
+  return postJSON<ProductSource>(`/api/v1/source-switch-events/${eventId}/adopt`);
+}
+
+export async function ignoreSwitchSuggestion(eventId: string) {
+  return postJSON<{ ignored: boolean }>(`/api/v1/source-switch-events/${eventId}/ignore`);
+}
+
+export async function fetchSourceAlerts() {
+  return getJSON<{ items: SourceAlertRow[] }>('/api/v1/product-source-alerts');
 }

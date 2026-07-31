@@ -6,17 +6,21 @@ import {
   type ProductListRow,
 } from '@/services/products';
 import {
+  adoptSwitchSuggestion,
   bindProductSource,
   deleteSkuMapping,
   fetchPriceHistory,
   fetchProductSources,
+  fetchSourceAlerts,
   fetchSwitchEvents,
+  ignoreSwitchSuggestion,
   refreshProductSources,
   saveSkuMappings,
   setPrimarySource,
   updateProductSource,
   type ProductSource,
   type ProductSourceSKU,
+  type SourceAlertRow,
   type SourcePriceHistoryRow,
   type SourceSwitchEvent,
 } from '@/services/sourcing';
@@ -60,6 +64,12 @@ const SWITCH_MODE: Record<string, string> = {
   suggested: '建议',
 };
 
+const SUGGESTION_STATUS_TAG: Record<string, { text: string; color: string }> = {
+  open: { text: '待处理', color: 'orange' },
+  adopted: { text: '已采纳', color: 'green' },
+  ignored: { text: '已忽略', color: 'default' },
+};
+
 export default function ProductSourcesPage() {
   const location = useLocation();
   const initialProductId = useMemo(() => {
@@ -93,6 +103,8 @@ export default function ProductSourcesPage() {
 
   const [historySku, setHistorySku] = useState<ProductSourceSKU | null>(null);
   const [historyRows, setHistoryRows] = useState<SourcePriceHistoryRow[]>([]);
+  const [alertRows, setAlertRows] = useState<SourceAlertRow[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(false);
 
   useEffect(() => {
     fetchProducts({ page: 1, pageSize: 100 })
@@ -123,7 +135,24 @@ export default function ProductSourcesPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (productId) return;
+    setAlertsLoading(true);
+    fetchSourceAlerts()
+      .then((res) => setAlertRows(res.items || []))
+      .catch(() => message.error('加载预警货源失败'))
+      .finally(() => setAlertsLoading(false));
+  }, [productId]);
+
   const localSkus = useMemo(() => productDetail?.skus || [], [productDetail]);
+
+  const sourceLabel = useCallback(
+    (id: string) => {
+      const s = sources.find((x) => x.id === id);
+      return s?.supplier?.name || id.slice(0, 8);
+    },
+    [sources],
+  );
 
   const openMapping = (src: ProductSource) => {
     setMappingSource(src);
@@ -220,7 +249,54 @@ export default function ProductSourcesPage() {
         />
       )}
       {!productId ? (
-        <Empty description="请选择商品查看货源档案" />
+        alertRows.length === 0 && !alertsLoading ? (
+          <Empty description="暂无涨价/断货预警，请选择商品查看货源档案" />
+        ) : (
+          <>
+            <Typography.Title level={5}>预警货源（涨价 / 断货）</Typography.Title>
+            <Table<SourceAlertRow>
+              rowKey="sourceId"
+              size="small"
+              loading={alertsLoading}
+              dataSource={alertRows}
+              pagination={false}
+              scroll={{ x: 800 }}
+              columns={[
+                { title: '商品', dataIndex: 'productTitle', ellipsis: true },
+                { title: '供应商', dataIndex: 'supplierName', width: 160, render: (v) => v || '-' },
+                {
+                  title: '状态',
+                  dataIndex: 'status',
+                  width: 110,
+                  render: (v: string) => {
+                    const cfg = SOURCE_STATUS_TAG[v] || { text: v, color: 'default' };
+                    return <Tag color={cfg.color}>{cfg.text}</Tag>;
+                  },
+                },
+                {
+                  title: '主供应商',
+                  dataIndex: 'isPrimary',
+                  width: 100,
+                  render: (v: boolean) => (v ? <Tag color="blue">主</Tag> : '-'),
+                },
+                {
+                  title: '待处理建议',
+                  dataIndex: 'openSuggestions',
+                  width: 110,
+                  render: (v: number) => (v > 0 ? <Tag color="orange">{v}</Tag> : '-'),
+                },
+                { title: '最近检查', dataIndex: 'lastCheckedAt', width: 180, render: (v) => v || '-' },
+                {
+                  title: '操作',
+                  width: 110,
+                  render: (_, row) => (
+                    <a onClick={() => setProductId(row.productId)}>查看档案</a>
+                  ),
+                },
+              ]}
+            />
+          </>
+        )
       ) : (
         <>
           <Table<ProductSource>
@@ -364,9 +440,57 @@ export default function ProductSourcesPage() {
               {
                 title: '原货源',
                 dataIndex: 'fromSourceId',
-                render: (v?: string) => (v ? v.slice(0, 8) : '-'),
+                render: (v?: string) => (v ? sourceLabel(v) : '-'),
               },
-              { title: '新货源', dataIndex: 'toSourceId', render: (v: string) => v.slice(0, 8) },
+              { title: '新货源', dataIndex: 'toSourceId', render: (v: string) => sourceLabel(v) },
+              {
+                title: '处理状态',
+                dataIndex: 'status',
+                width: 100,
+                render: (v: string | undefined, row) => {
+                  if (row.mode !== 'suggested') return '-';
+                  const cfg = SUGGESTION_STATUS_TAG[v || ''] || { text: v || '-', color: 'default' };
+                  return <Tag color={cfg.color}>{cfg.text}</Tag>;
+                },
+              },
+              {
+                title: '操作',
+                width: 160,
+                render: (_, row) =>
+                  row.mode === 'suggested' && row.status === 'open' ? (
+                    <Space>
+                      <Popconfirm
+                        title="采纳建议并把主供应商切换为该备选货源？"
+                        onConfirm={async () => {
+                          try {
+                            await adoptSwitchSuggestion(row.id);
+                            message.success('已采纳建议并切换主供应商');
+                            void load();
+                          } catch (e) {
+                            message.error((e as Error).message || '采纳失败');
+                          }
+                        }}
+                      >
+                        <a>采纳建议</a>
+                      </Popconfirm>
+                      <a
+                        onClick={async () => {
+                          try {
+                            await ignoreSwitchSuggestion(row.id);
+                            message.success('已忽略该建议');
+                            void load();
+                          } catch (e) {
+                            message.error((e as Error).message || '操作失败');
+                          }
+                        }}
+                      >
+                        忽略
+                      </a>
+                    </Space>
+                  ) : (
+                    '-'
+                  ),
+              },
             ]}
           />
         </>

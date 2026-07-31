@@ -880,6 +880,14 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-08-01）迭代第 5 轮：涨价/断货预警一键动作闭环
+
+- `source_switch_events` 新增 `status` 字段（suggested 事件：open / adopted / ignored），同一商品同一「原货源→备选货源→原因」的待处理建议去重，避免每次刷新报价重复刷屏。
+- 新增 `POST /source-switch-events/:id/adopt`（采纳建议：主供应商切换到建议备选货源并标记 adopted，写操作日志，非待处理返回 409）与 `POST /source-switch-events/:id/ignore`；附 sqlite 单测（去重、采纳切主、重复处理拒绝）。
+- 新增 `GET /product-source-alerts` 预警货源总览（涨价预警/断货货源 + 商品标题 + 供应商 + 待处理建议数）；货源档案页未选商品时展示该总览，一键「查看档案」直达，首页「货源涨价预警/断货」待办卡落地页不再是空态。
+- 货源档案「切换审计」表：suggested 事件展示处理状态，待处理建议提供「采纳建议」（Popconfirm）/「忽略」一键动作；货源列显示供应商名称替代 UUID 截断。
+- 同步 `docs/api.md`、`admin/src/services/sourcing.ts`。
+
 ### 变更记录（2026-08-01）迭代第 4 轮：SKU 映射删除入口
 
 - 新增 `DELETE /api/v1/product-source-skus/:id`（软删除单条本地↔外部 SKU 映射，写操作日志，附 sqlite 单测）；此前 UI 只能清空 `external_sku_id`，行仍计为有效映射，导致采购受阻判定与实际不符（E2E 测试反馈项）。

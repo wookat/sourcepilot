@@ -528,7 +528,10 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `GET` | `/api/v1/product-source-skus/:id/price-history?days=90` | 历史进价（默认 90 天）。 |
 | `DELETE` | `/api/v1/product-source-skus/:id` | 删除单条 SKU 映射（软删除）；删除后该映射不再参与采购单生成与采购受阻判定。 |
 | `POST` | `/api/v1/products/:id/sources/refresh` | 通过 Source Info Provider（当前 mock）刷新价格/库存，并按切换规则处理断货/涨价。 |
-| `GET` | `/api/v1/source-switch-events?productId=` | 货源切换审计（auto / manual / suggested）。 |
+| `GET` | `/api/v1/source-switch-events?productId=` | 货源切换审计（auto / manual / suggested）；suggested 事件带处理状态（open / adopted / ignored）。 |
+| `POST` | `/api/v1/source-switch-events/:id/adopt` | 采纳一条待处理的切换建议：主供应商切换为建议的备选货源并标记 adopted，写操作日志；非待处理建议返回 409。 |
+| `POST` | `/api/v1/source-switch-events/:id/ignore` | 忽略一条待处理的切换建议（标记 ignored），写操作日志。 |
+| `GET` | `/api/v1/product-source-alerts` | 预警货源总览：当前处于涨价预警/断货状态的货源（含商品标题、供应商、是否主供应商、该商品待处理建议数）。 |
 
 切换规则：`priority` 越小越优先；主货源断货且未锁定时自动切换到最优可用备用源并记 `auto` 事件；涨价超过阈值（settings `sourcing` 组，默认 10%）仅生成 `suggested` 建议事件，不自动切换；`locked` 货源不参与自动切换。
 
