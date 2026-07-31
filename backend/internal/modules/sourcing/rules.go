@@ -3,7 +3,6 @@ package sourcing
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -70,7 +69,7 @@ func pickBackup(sources []ProductSource, exclude uuid.UUID) *ProductSource {
 // applySwitchRules evaluates the primary source after a refresh and either
 // switches automatically (out-of-stock) or records a suggested switch
 // (price alert), following module_design.md §2.3.
-func (s *Service) applySwitchRules(ctx context.Context, productID uuid.UUID, sources []ProductSource, cfg RuleConfig) (*ProductSource, []string, error) {
+func (s *Service) applySwitchRules(ctx context.Context, productID uuid.UUID, sources []ProductSource, cfg RuleConfig) (*ProductSource, []RefreshAlert, error) {
 	var primary *ProductSource
 	for i := range sources {
 		if sources[i].IsPrimary {
@@ -81,7 +80,7 @@ func (s *Service) applySwitchRules(ctx context.Context, productID uuid.UUID, sou
 	if primary == nil {
 		return nil, nil, nil
 	}
-	var alerts []string
+	var alerts []RefreshAlert
 	needSwitch := false
 	reason := ""
 	mode := SwitchModeAuto
@@ -89,7 +88,7 @@ func (s *Service) applySwitchRules(ctx context.Context, productID uuid.UUID, sou
 	case SourceStatusOutOfStock:
 		reason = SwitchReasonOutOfStock
 		if primary.Locked {
-			alerts = append(alerts, "primary source out of stock but locked; manual action required")
+			alerts = append(alerts, RefreshAlert{Code: AlertPrimaryLocked, SourceID: &primary.ID, SupplierName: supplierName(primary), Reason: reason})
 		} else if cfg.AutoSwitchOnOutOfStock {
 			needSwitch = true
 		} else {
@@ -98,7 +97,7 @@ func (s *Service) applySwitchRules(ctx context.Context, productID uuid.UUID, sou
 	case SourceStatusPriceAlert:
 		reason = SwitchReasonPriceIncrease
 		if primary.Locked {
-			alerts = append(alerts, "primary source price alert but locked; manual action required")
+			alerts = append(alerts, RefreshAlert{Code: AlertPrimaryLocked, SourceID: &primary.ID, SupplierName: supplierName(primary), Reason: reason})
 		} else if cfg.AutoSwitchOnPriceAlert {
 			needSwitch = true
 		} else {
@@ -109,7 +108,7 @@ func (s *Service) applySwitchRules(ctx context.Context, productID uuid.UUID, sou
 	}
 	backup := pickBackup(sources, primary.ID)
 	if backup == nil {
-		alerts = append(alerts, fmt.Sprintf("primary source %s (%s) has no available backup", primary.ID, reason))
+		alerts = append(alerts, RefreshAlert{Code: AlertNoBackup, SourceID: &primary.ID, SupplierName: supplierName(primary), Reason: reason})
 		return nil, alerts, nil
 	}
 	detail, _ := json.Marshal(map[string]any{
@@ -139,7 +138,7 @@ func (s *Service) applySwitchRules(ctx context.Context, productID uuid.UUID, sou
 					return nil, alerts, err
 				}
 			}
-			alerts = append(alerts, fmt.Sprintf("suggested switching primary to source %s (%s)", backup.ID, reason))
+			alerts = append(alerts, RefreshAlert{Code: AlertSwitchSuggested, SourceID: &backup.ID, SupplierName: supplierName(backup), Reason: reason})
 		}
 		_ = mode
 		return nil, alerts, nil
@@ -166,6 +165,6 @@ func (s *Service) applySwitchRules(ctx context.Context, productID uuid.UUID, sou
 	}
 	backup.IsPrimary = true
 	primary.IsPrimary = false
-	alerts = append(alerts, fmt.Sprintf("auto-switched primary to source %s (%s)", backup.ID, reason))
+	alerts = append(alerts, RefreshAlert{Code: AlertAutoSwitched, SourceID: &backup.ID, SupplierName: supplierName(backup), Reason: reason})
 	return backup, alerts, nil
 }

@@ -75,10 +75,25 @@ export type SourceAlertRow = {
   openSuggestions: number;
 };
 
+export type RefreshAlert = {
+  code:
+    | 'fetch_failed'
+    | 'price_increase'
+    | 'primary_locked'
+    | 'no_backup'
+    | 'switch_suggested'
+    | 'auto_switched'
+    | string;
+  sourceId?: string;
+  supplierName?: string;
+  reason?: string;
+  thresholdPercent?: number;
+};
+
 export type RefreshResult = {
   productId: string;
   refreshed: number;
-  alerts?: string[];
+  alerts?: RefreshAlert[];
   switched?: ProductSource;
   sources: ProductSource[];
 };

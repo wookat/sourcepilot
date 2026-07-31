@@ -647,11 +647,38 @@ func (s *Service) ListSourceAlerts(ctx context.Context) ([]SourceAlertRow, error
 	return rows, nil
 }
 
+// Refresh alert codes.
+const (
+	AlertFetchFailed     = "fetch_failed"
+	AlertPriceIncrease   = "price_increase"
+	AlertPrimaryLocked   = "primary_locked"
+	AlertNoBackup        = "no_backup"
+	AlertSwitchSuggested = "switch_suggested"
+	AlertAutoSwitched    = "auto_switched"
+)
+
+// RefreshAlert is one structured alert produced by a refresh run; the
+// frontend renders localized copy from the code + params.
+type RefreshAlert struct {
+	Code             string     `json:"code"`
+	SourceID         *uuid.UUID `json:"sourceId,omitempty"`
+	SupplierName     string     `json:"supplierName,omitempty"`
+	Reason           string     `json:"reason,omitempty"`
+	ThresholdPercent *float64   `json:"thresholdPercent,omitempty"`
+}
+
+func supplierName(src *ProductSource) string {
+	if src != nil && src.Supplier != nil {
+		return src.Supplier.Name
+	}
+	return ""
+}
+
 // RefreshResult reports one product refresh run.
 type RefreshResult struct {
 	ProductID uuid.UUID       `json:"productId"`
 	Refreshed int             `json:"refreshed"`
-	Alerts    []string        `json:"alerts"`
+	Alerts    []RefreshAlert  `json:"alerts"`
 	Switched  *ProductSource  `json:"switched,omitempty"`
 	Sources   []ProductSource `json:"sources"`
 }
@@ -684,7 +711,7 @@ func (s *Service) RefreshProductSources(ctx context.Context, productID uuid.UUID
 		}
 		quote, err := prov.FetchOffer(ctx, defaultStr(src.SourceOfferID, src.ID.String()), extIDs)
 		if err != nil {
-			res.Alerts = append(res.Alerts, fmt.Sprintf("source %s fetch failed: %v", src.ID, err))
+			res.Alerts = append(res.Alerts, RefreshAlert{Code: AlertFetchFailed, SourceID: &src.ID, SupplierName: supplierName(src)})
 			continue
 		}
 		byExt := map[string]sourceinfo.SKUQuote{}
@@ -725,7 +752,8 @@ func (s *Service) RefreshProductSources(ctx context.Context, productID uuid.UUID
 			newStatus = SourceStatusOutOfStock
 		} else if priceAlert {
 			newStatus = SourceStatusPriceAlert
-			res.Alerts = append(res.Alerts, fmt.Sprintf("source %s price increased beyond %.1f%%", src.ID, cfg.PriceIncreaseThresholdPercent))
+			threshold := cfg.PriceIncreaseThresholdPercent
+			res.Alerts = append(res.Alerts, RefreshAlert{Code: AlertPriceIncrease, SourceID: &src.ID, SupplierName: supplierName(src), ThresholdPercent: &threshold})
 		}
 		if err := s.DB.WithContext(ctx).Model(src).
 			Updates(map[string]any{"status": newStatus, "last_checked_at": now}).Error; err != nil {

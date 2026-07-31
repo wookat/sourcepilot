@@ -20,6 +20,7 @@ import {
   updateProductSource,
   type ProductSource,
   type ProductSourceSKU,
+  type RefreshAlert,
   type SourceAlertRow,
   type SourcePriceHistoryRow,
   type SourceSwitchEvent,
@@ -64,6 +65,27 @@ const SWITCH_MODE: Record<string, string> = {
   suggested: '建议',
 };
 
+function renderRefreshAlert(a: RefreshAlert): string {
+  const supplier = a.supplierName || '未知供应商';
+  const reason = SWITCH_REASON[a.reason || ''] || '';
+  switch (a.code) {
+    case 'fetch_failed':
+      return `货源「${supplier}」报价拉取失败，请稍后重试`;
+    case 'price_increase':
+      return `货源「${supplier}」进货价涨幅超过 ${a.thresholdPercent ?? ''}%，已标记涨价预警`;
+    case 'primary_locked':
+      return `主供应商「${supplier}」${a.reason === 'out_of_stock' ? '断货' : '涨价预警'}，但已锁定，需人工处理`;
+    case 'no_backup':
+      return `主供应商「${supplier}」${a.reason === 'out_of_stock' ? '断货' : '涨价预警'}，且无可用备选货源`;
+    case 'switch_suggested':
+      return `建议将主供应商切换到「${supplier}」（${reason || '建议切换'}），可在下方切换审计中采纳或忽略`;
+    case 'auto_switched':
+      return `主供应商已自动切换到「${supplier}」（${reason || '自动切换'}）`;
+    default:
+      return `货源「${supplier}」出现预警（${a.code}）`;
+  }
+}
+
 const SUGGESTION_STATUS_TAG: Record<string, { text: string; color: string }> = {
   open: { text: '待处理', color: 'orange' },
   adopted: { text: '已采纳', color: 'green' },
@@ -84,7 +106,7 @@ export default function ProductSourcesPage() {
   const [events, setEvents] = useState<SourceSwitchEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [alerts, setAlerts] = useState<string[]>([]);
+  const [alerts, setAlerts] = useState<RefreshAlert[]>([]);
 
   const [bindOpen, setBindOpen] = useState(false);
   const [bindForm] = Form.useForm();
@@ -242,7 +264,7 @@ export default function ProductSourcesPage() {
           style={{ marginBottom: 16 }}
           message="切换规则提示"
           description={alerts.map((a, i) => (
-            <div key={i}>{a}</div>
+            <div key={i}>{renderRefreshAlert(a)}</div>
           ))}
           closable
           onClose={() => setAlerts([])}

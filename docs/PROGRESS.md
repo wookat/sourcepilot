@@ -880,6 +880,11 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-08-01）迭代第 6 轮：刷新提示结构化中文化
+
+- `POST /products/:id/sources/refresh` 的 `alerts` 由英文内部字符串（含货源 UUID）改为结构化对象（`code` / `sourceId` / `supplierName` / `reason` / `thresholdPercent`），货源档案页「切换规则提示」按 code 渲染中文文案并显示供应商名称（第 5 轮 E2E 反馈项）。
+- 同步 `docs/api.md`、`admin/src/services/sourcing.ts`。
+
 ### 变更记录（2026-08-01）迭代第 5 轮：涨价/断货预警一键动作闭环
 
 - `source_switch_events` 新增 `status` 字段（suggested 事件：open / adopted / ignored），同一商品同一「原货源→备选货源→原因」的待处理建议去重，避免每次刷新报价重复刷屏。
