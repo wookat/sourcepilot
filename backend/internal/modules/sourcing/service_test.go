@@ -158,6 +158,40 @@ func TestDeleteSKUMapping(t *testing.T) {
 	}
 }
 
+func TestSaveSKUMappingsRevivesSoftDeletedRow(t *testing.T) {
+	svc := newTestService(t)
+	productID := uuid.New()
+	src := mustBind(t, svc, productID, "supplier-a", "111", 10)
+	localSKU := uuid.New()
+	price := 9.9
+	rows, err := svc.SaveSKUMappings(context.Background(), src.ID, []SKUMappingBody{
+		{LocalSKUID: localSKU.String(), ExternalSKUID: "ext-1", CurrentPrice: &price},
+	}, nil)
+	if err != nil {
+		t.Fatalf("save mappings: %v", err)
+	}
+	if err := svc.DeleteSKUMapping(context.Background(), rows[0].ID, nil); err != nil {
+		t.Fatalf("delete mapping: %v", err)
+	}
+	price2 := 12.5
+	revived, err := svc.SaveSKUMappings(context.Background(), src.ID, []SKUMappingBody{
+		{LocalSKUID: localSKU.String(), ExternalSKUID: "ext-2", CurrentPrice: &price2},
+	}, nil)
+	if err != nil {
+		t.Fatalf("re-save after delete should revive row, got: %v", err)
+	}
+	if len(revived) != 1 || revived[0].ID != rows[0].ID || revived[0].ExternalSKUID != "ext-2" {
+		t.Fatalf("expected revived original row, got %+v", revived)
+	}
+	var cnt int64
+	if err := svc.DB.Model(&ProductSourceSKU{}).Where("id = ?", rows[0].ID).Count(&cnt).Error; err != nil {
+		t.Fatal(err)
+	}
+	if cnt != 1 {
+		t.Fatalf("revived mapping should be visible, got %d", cnt)
+	}
+}
+
 func TestApplySwitchRulesOutOfStockAutoSwitch(t *testing.T) {
 	svc := newTestService(t)
 	productID := uuid.New()

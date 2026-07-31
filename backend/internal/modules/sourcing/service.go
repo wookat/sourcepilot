@@ -461,13 +461,17 @@ func (s *Service) SaveSKUMappings(ctx context.Context, sourceID uuid.UUID, rows 
 				return fmt.Errorf("%w: invalid localSkuId", ErrBadRequest)
 			}
 			var m ProductSourceSKU
-			err = tx.Where("product_source_id = ? AND local_sku_id = ?", sourceID, localID).First(&m).Error
+			err = tx.Unscoped().Where("product_source_id = ? AND local_sku_id = ?", sourceID, localID).First(&m).Error
 			isNew := errors.Is(err, gorm.ErrRecordNotFound)
 			if err != nil && !isNew {
 				return err
 			}
 			if isNew {
 				m = ProductSourceSKU{ProductSourceID: sourceID, LocalSKUID: localID, Currency: "CNY", Status: "active"}
+			} else if m.DeletedAt.Valid {
+				// unique index (tenant_id, product_source_id, local_sku_id) covers
+				// soft-deleted rows too, so revive the row instead of inserting.
+				m.DeletedAt = gorm.DeletedAt{}
 			}
 			m.ExternalSKUID = strings.TrimSpace(r.ExternalSKUID)
 			if len(r.ExternalSpec) > 0 {
@@ -481,7 +485,7 @@ func (s *Service) SaveSKUMappings(ctx context.Context, sourceID uuid.UUID, rows 
 			if r.CurrentStock != nil {
 				m.CurrentStock = r.CurrentStock
 			}
-			if err := tx.Save(&m).Error; err != nil {
+			if err := tx.Unscoped().Save(&m).Error; err != nil {
 				return err
 			}
 			if priceChanged && r.CurrentPrice != nil {
