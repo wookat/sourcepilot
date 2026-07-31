@@ -149,11 +149,11 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
   {
     id: 'order_sku_unmatched',
     key: 'order_sku_unmatched',
-    title: '订单 SKU 未匹配',
+    title: '订单规格未匹配',
     count: 0,
     severity: 'high',
     level: 'danger',
-    description: '订单行未匹配到本地 SKU，需人工匹配',
+    description: '订单行未匹配到本地规格，需人工匹配',
     link: '/orders/exceptions?exceptionType=sku_unmatched',
   },
   {
