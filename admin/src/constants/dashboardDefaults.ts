@@ -184,7 +184,7 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     severity: 'high',
     level: 'danger',
     description: '已确认采购单等待到 1688 下单并回填订单号',
-    link: '/procurement?status=placing',
+    link: '/procurement/orders?status=placing',
   },
   {
     id: 'procurement_unpaid',
@@ -194,7 +194,7 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     severity: 'high',
     level: 'danger',
     description: '已下单未付款，请到 1688 完成付款并标记',
-    link: '/procurement?status=placed',
+    link: '/procurement/orders?status=placed',
   },
   {
     id: 'procurement_await_tracking',
@@ -204,7 +204,7 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     severity: 'medium',
     level: 'warning',
     description: '已付款采购单等待回填快递单号（支持批量粘贴）',
-    link: '/procurement?status=paid',
+    link: '/procurement/orders?status=paid',
   },
 ];
 
@@ -287,6 +287,14 @@ export const EMPTY_SUMMARY: DashboardSummary = {
   orderExceptionTotal: 0,
   skuUnmatchedOrderItems: 0,
   inventoryDeductFailedOrders: 0,
+  selectionReviewCount: 0,
+  selectionFailedTasks: 0,
+  sourcePriceAlertCount: 0,
+  sourceOutOfStockCount: 0,
+  procurementPendingConfirmCount: 0,
+  procurementPlacingCount: 0,
+  procurementUnpaidCount: 0,
+  procurementAwaitTrackingCount: 0,
   draftTotal: 0,
   todayNewProducts: 0,
   missingAiTitle: 0,
