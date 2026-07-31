@@ -866,6 +866,11 @@ Final Production Acceptance Deferred to P10
 - Admin 新增 `/selection/tasks` 选品任务页与 `/selection/tasks/:id` 可上架清单页（排序展示、人工审核、一键转商品草稿进入既有刊登链路）。
 - 边界：未改动货源档案/采购协同（source/procurement）模块；1688 官方 API 保持空壳。
 
+### 变更记录（2026-07-31）Docker 全栈构建修复与 legacy 登录租户修复
+
+- 修复 `docker-compose.full.yml` 全栈构建失败：admin/collector 镜像缺少 `scripts/patch-pro-field-antd-select.mjs` 导致 `pnpm install` postinstall 报错（Dockerfile 增加 `COPY scripts`、`.dockerignore` 放行该脚本）；admin 基础镜像 node:26 不再内置 corepack，改用 `npm install -g pnpm` 安装。
+- 修复 legacy_local_storage 登录模式 JWT 恒定 `tenant_id=0` 的问题：`LegacyMintToken` 改为携带管理员真实租户，选品等按租户隔离的模块在生产（无 dev 租户 fallback）下不再静默卡 pending，附单测。
+
 ### 变更记录（2026-07-29）生产部署收口与运营手册
 
 - 新增 `ADMIN_BOOTSTRAP_TENANT_ID`：首次创建管理员时指定租户（示例文件默认 1），解决选品 worker 因 tenant_id=0 静默拒绝任务的问题（staging/production 禁用 dev 租户 fallback，故必须在种子阶段落租户）；同步 `.env.example` / `.env.docker.example` / `.env.production.example` / `docs/env.md` / `docs/docker-deployment.md`，附单测。

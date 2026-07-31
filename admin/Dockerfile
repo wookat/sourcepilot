@@ -3,9 +3,10 @@ FROM node:26-bookworm AS builder
 
 WORKDIR /workspace
 
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+RUN npm install -g pnpm@9.15.4
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY scripts ./scripts
 COPY admin ./admin
 COPY collector ./collector
 
