@@ -638,15 +638,6 @@ export default function OrderExceptionsPage() {
         params={{
           current: tablePage,
           pageSize: tablePageSize,
-          keyword: urlState.keyword,
-          exceptionType: urlState.exceptionType,
-          severity: urlState.severity,
-          platform: urlState.platform,
-          shopId: urlState.shopId,
-          orderId: urlState.orderId,
-          status: urlState.status,
-          start: urlState.start,
-          end: urlState.end,
         }}
         search={{ layout: 'vertical', defaultCollapsed: false }}
         onReset={() => {
