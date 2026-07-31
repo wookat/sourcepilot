@@ -110,10 +110,11 @@ type Blocker struct {
 	Message    string `json:"message"`
 }
 
-// GenerateResult reports created purchase orders plus blockers.
+// GenerateResult reports created purchase orders plus blockers and warnings.
 type GenerateResult struct {
 	Orders   []PurchaseOrder `json:"orders"`
 	Blockers []Blocker       `json:"blockers"`
+	Warnings []Blocker       `json:"warnings,omitempty"`
 }
 
 type aggLine struct {
@@ -210,6 +211,23 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 					title = prod.Title
 				}
 			}
+			expected := mapping.CurrentPrice
+			if expected == nil {
+				var hist sourcing.SourcePriceHistory
+				if err := s.DB.WithContext(ctx).
+					Where("source_sku_id = ?", mapping.ID).
+					Order("captured_at DESC").
+					First(&hist).Error; err == nil {
+					p := hist.Price
+					expected = &p
+				}
+			}
+			if expected == nil {
+				res.Warnings = append(res.Warnings, Blocker{
+					OrderID: oid.String(), LocalSKUID: it.ProductSKUID.String(), SKUName: it.SKUName,
+					Code: "price.missing", Message: "SKU 缺少参考进价，采购单金额将不含该行，可在确认前补填",
+				})
+			}
 			salesID := oid
 			line := PurchaseOrderItem{
 				SalesOrderID:    &salesID,
@@ -221,7 +239,7 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 				ProductTitle:    title,
 				SKUName:         skuName,
 				Quantity:        it.Quantity,
-				ExpectedPrice:   mapping.CurrentPrice,
+				ExpectedPrice:   expected,
 			}
 			if primary.Supplier == nil {
 				res.Blockers = append(res.Blockers, Blocker{
@@ -291,6 +309,57 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 }
 
 func round2(v float64) float64 { return float64(int(v*100+0.5)) / 100 }
+
+// UpdateItemPrice sets an item's expected price before the order is confirmed
+// (draft / pending_confirm only) and recomputes the order total.
+func (s *Service) UpdateItemPrice(ctx context.Context, poID, itemID uuid.UUID, price float64, operator *uuid.UUID) (*PurchaseOrder, error) {
+	if price <= 0 {
+		return nil, fmt.Errorf("%w: expectedPrice must be greater than 0", ErrBadRequest)
+	}
+	var po PurchaseOrder
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&po, "id = ?", poID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if po.Status != StatusDraft && po.Status != StatusPendingConfirm {
+			return fmt.Errorf("%w: 仅草稿或待确认状态可修改参考价（当前 %s）", ErrConflict, po.Status)
+		}
+		var item PurchaseOrderItem
+		if err := tx.First(&item, "id = ? AND purchase_order_id = ?", itemID, poID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if err := tx.Model(&item).Update("expected_price", price).Error; err != nil {
+			return err
+		}
+		var items []PurchaseOrderItem
+		if err := tx.Where("purchase_order_id = ?", poID).Find(&items).Error; err != nil {
+			return err
+		}
+		total := 0.0
+		for _, it := range items {
+			if it.ID == itemID {
+				total += price * float64(it.Quantity)
+				continue
+			}
+			if it.ExpectedPrice != nil {
+				total += *it.ExpectedPrice * float64(it.Quantity)
+			}
+		}
+		po.TotalAmount = round2(total)
+		return tx.Model(&po).Update("total_amount", po.TotalAmount).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.logOp(ctx, operator, "procurement.item.update_price", poID.String(), fmt.Sprintf("item %s price %.2f", itemID, price))
+	return s.Detail(ctx, poID)
+}
 
 // ListQuery filters purchase orders.
 type ListQuery struct {

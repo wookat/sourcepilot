@@ -17,6 +17,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/procurement/orders/:id/confirm", h.Confirm)
 	g.POST("/procurement/orders/:id/retry", h.Retry)
 	g.POST("/procurement/orders/:id/cancel", h.Cancel)
+	g.PUT("/procurement/orders/:id/items/:itemId/price", h.UpdateItemPrice)
 	g.POST("/procurement/orders/:id/mark-placed", h.MarkPlaced)
 	g.POST("/procurement/orders/:id/mark-paid", h.MarkPaid)
 	g.POST("/procurement/orders/:id/logistics", h.FillLogistics)

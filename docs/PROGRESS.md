@@ -873,6 +873,13 @@ Final Production Acceptance Deferred to P10
 - 待办导向首页：dashboard 新增选品/货源/采购统计（选品待审核、选品失败、货源涨价/断货、采购待确认/待下单/待付款/待回填运单），统一待办流与首页「今日待办」新增对应卡片；首页待办改为只展示有数量的待办并按 P0/P1 + 数量排序，全空时给出下一步引导空状态。
 - 同步 `docs/api.md`、`admin/src/services/{procurement,dashboard}.ts`、`admin/src/constants/dashboardDefaults.ts`。
 
+### 变更记录（2026-07-29）迭代第 2 轮：采购单参考价闭环
+
+- 生成采购单时 SKU 映射缺参考价自动回退到最近一条历史进价（`source_price_history`）；仍缺价时采购单照常生成，但以 `warnings`（`price.missing`）逐行提示，避免 0.00 金额误导。
+- 新增 `PUT /procurement/orders/:id/items/:itemId/price`：draft / pending_confirm 状态下补填/修改明细参考价并重算 `totalAmount`，记录操作日志；附 service 层单测（历史价回退、缺价告警、改价重算与状态限制）。
+- Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
+- 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
+
 ### 变更记录（2026-07-31）Docker 全栈构建修复与 legacy 登录租户修复
 
 - 修复 `docker-compose.full.yml` 全栈构建失败：admin/collector 镜像缺少 `scripts/patch-pro-field-antd-select.mjs` 导致 `pnpm install` postinstall 报错（Dockerfile 增加 `COPY scripts`、`.dockerignore` 放行该脚本）；admin 基础镜像 node:26 不再内置 corepack，改用 `npm install -g pnpm` 安装。

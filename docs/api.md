@@ -537,7 +537,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回；支持 `idempotencyKey` 幂等。 |
+| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回；映射无参考价时自动回退到最近历史进价，仍缺价以 `warnings`（`price.missing`）返回；支持 `idempotencyKey` 幂等。 |
 | `GET` | `/api/v1/procurement/orders?status=` | 采购单列表。 |
 | `GET` | `/api/v1/procurement/orders/:id` | 详情（items / events / logistics）。 |
 | `GET` | `/api/v1/procurement/orders/:id/export.csv` | 导出采购清单 CSV（含 1688 链接、外部 SKU、数量、参考价，UTF-8 BOM）。 |
@@ -549,6 +549,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `POST` | `/api/v1/procurement/orders/:id/mark-delivered` | shipped → delivered。 |
 | `POST` | `/api/v1/procurement/orders/:id/retry` | failed → placing。 |
 | `POST` | `/api/v1/procurement/orders/:id/cancel` | 取消（终态前均可）。 |
+| `PUT` | `/api/v1/procurement/orders/:id/items/:itemId/price` | 补填/修改明细参考价：`{expectedPrice}`（>0），仅 draft / pending_confirm 状态可改，重算采购单 `totalAmount` 并返回详情。 |
 | `POST` | `/api/v1/procurement/orders/batch-mark-placed` | 批量回填 1688 订单号：`{items:[{purchaseOrderId, externalOrderId}]}`，单批 ≤200 行，逐行独立处理返回 `{succeeded, failed, results[]}`（部分成功不回滚）。 |
 | `POST` | `/api/v1/procurement/orders/batch-logistics` | 批量回填运单号：`{items:[{externalOrderId, trackingNo, carrier?}]}`，按 1688 外部订单号匹配采购单（placed 状态会先自动 mark-paid），返回逐行结果。 |
 

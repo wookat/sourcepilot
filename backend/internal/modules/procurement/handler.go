@@ -279,6 +279,36 @@ func (h *Handler) BatchLogistics(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// UpdateItemPrice PUT /procurement/orders/:id/items/:itemId/price
+func (h *Handler) UpdateItemPrice(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "procurement unavailable")
+		return
+	}
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	itemID, err := uuid.Parse(strings.TrimSpace(c.Param("itemId")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid item id")
+		return
+	}
+	var body struct {
+		ExpectedPrice float64 `json:"expectedPrice"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
+		return
+	}
+	out, err := h.Svc.UpdateItemPrice(c.Request.Context(), id, itemID, body.ExpectedPrice, adminUUID(c))
+	if err != nil {
+		handleProcurementError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
 // ExportCSV GET /procurement/orders/:id/export.csv
 func (h *Handler) ExportCSV(c *gin.Context) {
 	if !h.ok() {

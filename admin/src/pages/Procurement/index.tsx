@@ -288,6 +288,24 @@ export default function ProcurementOrdersPage() {
             }
           />
         )}
+        {genResult && (genResult.warnings || []).length > 0 && (
+          <Alert
+            style={{ marginTop: 16 }}
+            type="warning"
+            showIcon
+            message="部分明细缺参考进价，采购单金额不含这些行"
+            description={
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {(genResult.warnings || []).map((w, i) => (
+                  <li key={i}>
+                    订单 {w.orderId.slice(0, 8)}：{w.message}
+                    {w.skuName ? `（${w.skuName}）` : ''}
+                  </li>
+                ))}
+              </ul>
+            }
+          />
+        )}
       </Modal>
     </TmPageContainer>
   );

@@ -1,5 +1,5 @@
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
-import { getJSON, getWithParams, postJSON } from './request';
+import { getJSON, getWithParams, postJSON, putJSON } from './request';
 
 export type PurchaseOrderItem = {
   id: string;
@@ -55,15 +55,18 @@ export type PurchaseOrder = {
   logistics?: PurchaseLogistics[];
 };
 
+export type GenerateIssue = {
+  orderId: string;
+  localSkuId?: string;
+  skuName?: string;
+  code: string;
+  message: string;
+};
+
 export type GenerateResult = {
   orders: PurchaseOrder[];
-  blockers?: {
-    orderId: string;
-    localSkuId?: string;
-    skuName?: string;
-    code: string;
-    message: string;
-  }[];
+  blockers?: GenerateIssue[];
+  warnings?: GenerateIssue[];
 };
 
 export async function generatePurchaseOrders(body: {
@@ -120,6 +123,13 @@ export async function fillPurchaseLogistics(id: string, trackingNo: string, carr
     trackingNo,
     carrier,
   });
+}
+
+export async function updatePurchaseItemPrice(id: string, itemId: string, expectedPrice: number) {
+  return putJSON<PurchaseOrder, { expectedPrice: number }>(
+    `/api/v1/procurement/orders/${id}/items/${itemId}/price`,
+    { expectedPrice },
+  );
 }
 
 export async function markPurchaseOrderDelivered(id: string) {
