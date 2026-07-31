@@ -26,10 +26,7 @@ export type ParsedImportOrder = {
 };
 
 export function splitImportLine(raw: string): string[] {
-  return raw
-    .split(/[\t,，;；|]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  return raw.split(/[\t,，;；|]/).map((s) => s.trim());
 }
 
 const CURRENCY_RE = /^[A-Za-z]{3}$/;
@@ -52,19 +49,24 @@ export function parseImportText(text: string): ParsedImportLine[] {
       out.push(item);
       return;
     }
+    if (!parts[0]) {
+      item.error = '订单号不能为空';
+      out.push(item);
+      return;
+    }
     const qty = Number(parts[4]);
-    if (!Number.isInteger(qty) || qty < 1) {
+    if (!parts[4] || !Number.isInteger(qty) || qty < 1) {
       item.error = '数量需为正整数';
       out.push(item);
       return;
     }
     const price = Number(parts[5]);
-    if (!Number.isFinite(price) || price < 0) {
+    if (!parts[5] || !Number.isFinite(price) || price < 0) {
       item.error = '单价需为非负数字';
       out.push(item);
       return;
     }
-    if (parts.length >= 7 && !CURRENCY_RE.test(parts[6])) {
+    if (parts.length >= 7 && parts[6] && !CURRENCY_RE.test(parts[6])) {
       item.error = '币种需为 3 位字母代码（如 USD / CNY）';
       out.push(item);
       return;
@@ -75,7 +77,7 @@ export function parseImportText(text: string): ParsedImportLine[] {
     item.skuCode = parts[3];
     item.quantity = qty;
     item.unitPrice = price;
-    item.currency = parts.length >= 7 ? parts[6].toUpperCase() : undefined;
+    item.currency = parts.length >= 7 && parts[6] ? parts[6].toUpperCase() : undefined;
     out.push(item);
   });
   return out;

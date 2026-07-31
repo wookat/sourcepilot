@@ -29,6 +29,16 @@ describe('parseImportText', () => {
     expect(parseImportText('SO-1,A,B,C,1,abc')[0].error).toContain('单价');
     expect(parseImportText('SO-1,A,B,C,1,10,人民币')[0].error).toContain('币种');
   });
+
+  it('keeps empty fields instead of collapsing consecutive separators', () => {
+    const rows = parseImportText('SO-1,,蓝牙耳机,BT-001,2,19.9');
+    expect(rows[0].error).toBeUndefined();
+    expect(rows[0].customerName).toBe('');
+    expect(rows[0].productTitle).toBe('蓝牙耳机');
+    expect(parseImportText(',A,B,C,1,10')[0].error).toContain('订单号');
+    expect(parseImportText('SO-1,A,B,C,,10')[0].error).toContain('数量');
+    expect(parseImportText('SO-1,A,B,C,1,')[0].error).toContain('单价');
+  });
 });
 
 describe('groupImportOrders', () => {
