@@ -6,7 +6,12 @@ import {
   Card,
   Col,
   Descriptions,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
   Row,
+  Select,
   Space,
   Table,
   Tabs,
@@ -23,15 +28,21 @@ import {
   ORDER_INVENTORY_DEDUCT_SUMMARY,
   ORDER_ITEM_SKU_MATCH_STATUS,
   ORDER_PAYMENT_STATUS,
+  ORDER_SHIPMENT_STATUS,
   ORDER_SKU_MATCH_SUMMARY,
   ORDER_STATUS,
   ORDER_SYNC_SUMMARY,
 } from '@/constants/status';
 import {
+  createOrderShipment,
+  deleteOrderShipment,
   getOrder,
   getOrderInventoryEffects,
   getOrderSKUMatches,
+  updateOrder,
+  updateOrderShipment,
   type OrderDetailDTO,
+  type OrderShipmentRow,
   type OrderSkuMatchRow,
 } from '@/services/orders';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
@@ -65,6 +76,24 @@ export default function OrderDetailPage() {
   const [invRows, setInvRows] = useState<OrderInventoryEffectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [shipModal, setShipModal] = useState<{ open: boolean; row?: OrderShipmentRow | null }>({
+    open: false,
+  });
+  const [shipForm] = Form.useForm();
+  const [markPaidLoading, setMarkPaidLoading] = useState(false);
+
+  const openShipModal = (row?: OrderShipmentRow) => {
+    shipForm.resetFields();
+    if (row) {
+      shipForm.setFieldsValue({
+        carrier: row.carrier,
+        trackingNo: row.trackingNo,
+        trackingUrl: row.trackingUrl,
+        status: row.status,
+      });
+    }
+    setShipModal({ open: true, row: row ?? null });
+  };
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -223,7 +252,30 @@ export default function OrderDetailPage() {
                           {tagFromMap(detail.status, ORDER_STATUS)}
                         </Descriptions.Item>
                         <Descriptions.Item label="付款状态">
-                          {tagFromMap(detail.paymentStatus, ORDER_PAYMENT_STATUS)}
+                          <Space>
+                            {tagFromMap(detail.paymentStatus, ORDER_PAYMENT_STATUS)}
+                            {writable && detail.paymentStatus === 'unpaid' ? (
+                              <Popconfirm
+                                title="确认将该订单标记为已付款？"
+                                onConfirm={async () => {
+                                  setMarkPaidLoading(true);
+                                  try {
+                                    await updateOrder(detail.id, { paymentStatus: 'paid' });
+                                    message.success('已标记为已付款');
+                                    await load();
+                                  } catch (e: unknown) {
+                                    message.error((e as Error)?.message || '标记失败');
+                                  } finally {
+                                    setMarkPaidLoading(false);
+                                  }
+                                }}
+                              >
+                                <Button size="small" loading={markPaidLoading}>
+                                  标记已付款
+                                </Button>
+                              </Popconfirm>
+                            ) : null}
+                          </Space>
                         </Descriptions.Item>
                         <Descriptions.Item label="履约状态">
                           {tagFromMap(detail.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}
@@ -413,6 +465,90 @@ export default function OrderDetailPage() {
               ),
             },
             {
+              key: 'shipments',
+              label: '物流',
+              children: (
+                <>
+                  {writable ? (
+                    <Space style={{ marginBottom: 12 }}>
+                      <Button type="primary" onClick={() => openShipModal()}>
+                        新增物流
+                      </Button>
+                      <Typography.Text type="secondary">
+                        物流状态为已发货/运输中/已签收时，订单状态会自动向前流转。
+                      </Typography.Text>
+                    </Space>
+                  ) : null}
+                  <Table
+                    rowKey="id"
+                    size="small"
+                    pagination={false}
+                    dataSource={detail.shipments ?? []}
+                    locale={{ emptyText: '暂无物流记录' }}
+                    scroll={{ x: 720 }}
+                    columns={[
+                      { title: '承运商', dataIndex: 'carrier', width: 120 },
+                      { title: '运单号', dataIndex: 'trackingNo', width: 160, render: (v) => v || '—' },
+                      {
+                        title: '状态',
+                        dataIndex: 'status',
+                        width: 96,
+                        render: (v) => tagFromMap(String(v), ORDER_SHIPMENT_STATUS),
+                      },
+                      {
+                        title: '发货时间',
+                        dataIndex: 'shippedAt',
+                        width: 156,
+                        render: (v) => (v ? formatDateTime(v) : '—'),
+                      },
+                      {
+                        title: '签收时间',
+                        dataIndex: 'deliveredAt',
+                        width: 156,
+                        render: (v) => (v ? formatDateTime(v) : '—'),
+                      },
+                      {
+                        title: '追踪',
+                        dataIndex: 'trackingUrl',
+                        width: 72,
+                        render: (u) =>
+                          u ? (
+                            <a href={u} target="_blank" rel="noopener noreferrer">
+                              打开
+                            </a>
+                          ) : (
+                            '—'
+                          ),
+                      },
+                      ...(writable
+                        ? [
+                            {
+                              title: '操作',
+                              width: 120,
+                              render: (_: unknown, row: OrderShipmentRow) => (
+                                <Space>
+                                  <Typography.Link onClick={() => openShipModal(row)}>编辑</Typography.Link>
+                                  <Popconfirm
+                                    title="确认删除该物流记录？"
+                                    onConfirm={async () => {
+                                      await deleteOrderShipment(detail.id, row.id);
+                                      message.success('已删除');
+                                      await load();
+                                    }}
+                                  >
+                                    <Typography.Link type="danger">删除</Typography.Link>
+                                  </Popconfirm>
+                                </Space>
+                              ),
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                </>
+              ),
+            },
+            {
               key: 'exceptions',
               label: '异常记录',
               children: (
@@ -451,6 +587,49 @@ export default function OrderDetailPage() {
       ) : (
         !loading && <Alert type="info" message="未找到订单" description="请从订单列表重新进入，或检查是否有访问权限。" />
       )}
+
+      <Modal
+        title={shipModal.row ? '编辑物流' : '新增物流'}
+        open={shipModal.open}
+        onCancel={() => setShipModal({ open: false })}
+        destroyOnHidden
+        onOk={async () => {
+          const v = await shipForm.validateFields();
+          if (!detail) return;
+          try {
+            if (shipModal.row) {
+              await updateOrderShipment(detail.id, shipModal.row.id, v as Record<string, unknown>);
+            } else {
+              await createOrderShipment(detail.id, v as Record<string, unknown>);
+            }
+            message.success('已保存');
+            setShipModal({ open: false });
+            await load();
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '保存失败');
+          }
+        }}
+      >
+        <Form form={shipForm} layout="vertical">
+          <Form.Item name="carrier" label="承运商" rules={[{ required: true, message: '请填写承运商' }]}>
+            <Input placeholder="如：云途物流 / J&T" />
+          </Form.Item>
+          <Form.Item name="trackingNo" label="运单号">
+            <Input />
+          </Form.Item>
+          <Form.Item name="trackingUrl" label="追踪 URL">
+            <Input />
+          </Form.Item>
+          <Form.Item name="status" label="状态" rules={[{ required: true }]} initialValue="shipped">
+            <Select
+              options={Object.entries(ORDER_SHIPMENT_STATUS).map(([value, cfg]) => ({
+                value,
+                label: cfg.text,
+              }))}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </TmPageContainer>
   );
 }
