@@ -567,6 +567,22 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 对应管理端入口：`/orders` 工具栏「批量导入订单」，粘贴格式 `订单号,客户名,商品标题,SKU编码,数量,单价[,币种]`，同订单号多行合并为多明细。
 
+### 销售订单发货（物流回填与状态流转）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/orders/:id/shipments` | 新增物流记录：`{carrier, trackingNo?, trackingUrl?, status?, shippedAt?, deliveredAt?}`；`status` 缺省 `pending`。 |
+| `PUT` | `/api/v1/orders/:id/shipments/:shipmentId` | 更新物流记录（同上字段）。 |
+| `DELETE` | `/api/v1/orders/:id/shipments/:shipmentId` | 删除物流记录。 |
+
+物流写入时的自动流转（仅前进、不回退，按订单生命周期 rank 判定）：
+
+- 物流状态 `shipped` / `in_transit` → 订单 `status=shipped`、`fulfillmentStatus=fulfilled`，缺省补 `shippedAt`；
+- 物流状态 `delivered` → 订单 `status=delivered`，缺省补 `shippedAt` / `deliveredAt`；
+- `pending` / `exception` / `returned` 不触发订单状态变化；已取消/退款/关闭订单不会被回退或改写。
+
+首页待办新增 `order_await_shipment`「订单待发货」（已付款且 `fulfillmentStatus=unfulfilled` 且未发货/关闭的订单数），链接 `/orders?payStatus=paid&fulfillmentStatus=unfulfilled`。
+
 ### 订单异常工作台：采购受阻（procurement_blocked）
 
 `GET /api/v1/orders/exceptions` 新增聚合异常类型 `procurement_blocked`：已付款、未发货且未取消/退款/关闭的销售订单行，若已绑定本地 SKU 但商品缺可用主货源（`source_missing`）或主货源缺该 SKU 映射（`mapping_missing`），且未被任何未取消/未失败的采购单行覆盖，则以 `sourceType=order_item` 进入工作台。返回体：

@@ -197,6 +197,16 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     link: '/orders/exceptions?exceptionType=procurement_blocked',
   },
   {
+    id: 'order_await_shipment',
+    key: 'order_await_shipment',
+    title: '订单待发货',
+    count: 0,
+    severity: 'high',
+    level: 'danger',
+    description: '已付款销售订单尚未发货，请添加物流并发货',
+    link: '/orders?payStatus=paid&fulfillmentStatus=unfulfilled',
+  },
+  {
     id: 'procurement_placing',
     key: 'procurement_placing',
     title: '待去 1688 下单',

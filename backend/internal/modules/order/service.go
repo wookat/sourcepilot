@@ -1321,7 +1321,11 @@ func (s *Service) AppendShipment(c *gin.Context, orderID uuid.UUID, body OrderSh
 		ShippedAt:   body.ShippedAt,
 		DeliveredAt: body.DeliveredAt,
 	}
+	fillShipmentTimestamps(&row)
 	if err := s.DB.WithContext(c.Request.Context()).Create(&row).Error; err != nil {
+		return nil, err
+	}
+	if err := s.advanceOrderOnShipment(c, o, row.Status); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
@@ -1363,7 +1367,11 @@ func (s *Service) PatchShipment(c *gin.Context, orderID, shipmentID uuid.UUID, b
 	if body.DeliveredAt != nil {
 		row.DeliveredAt = body.DeliveredAt
 	}
+	fillShipmentTimestamps(&row)
 	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
+		return nil, err
+	}
+	if err := s.advanceOrderOnShipment(c, o, row.Status); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {

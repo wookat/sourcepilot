@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -327,6 +328,11 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
 		Where("status = ?", procurement.StatusPaid).
 		Count(&sum.ProcurementAwaitTrackingCount).Error
+	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+		Where("payment_status = ? AND fulfillment_status = ? AND status NOT IN ?",
+			order.PaymentPaid, order.FulfillmentUnfulfilled,
+			[]string{order.StatusShipped, order.StatusDelivered, order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
+		Count(&sum.AwaitShipmentOrderCount).Error
 
 	// Compact KPI aliases
 	sum.DraftTotal = sum.DraftProducts + sum.ReadyProducts
@@ -565,6 +571,8 @@ func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 			"已下单未付款，请到 1688 完成付款并标记", "/procurement/orders?status=placed"),
 		todoCard("procurement_await_tracking", "待回填运单号", sum.ProcurementAwaitTrackingCount, failureclassifier.SeverityMedium,
 			"已付款采购单等待回填快递单号（支持批量粘贴）", "/procurement/orders?status=paid"),
+		todoCard("order_await_shipment", "订单待发货", sum.AwaitShipmentOrderCount, failureclassifier.SeverityHigh,
+			"已付款销售订单尚未发货，请添加物流并发货", "/orders?payStatus=paid&fulfillmentStatus=unfulfilled"),
 		todoCard("customer_pending", "客服待回复", sum.CustomerPendingReplyCount, failureclassifier.SeverityHigh,
 			"买家消息等待人工处理", "/customer/conversations?status=pending_reply"),
 		todoCard("failed_tasks", "失败任务待处理", sum.FailedTaskTotal, failureclassifier.SeverityCritical,

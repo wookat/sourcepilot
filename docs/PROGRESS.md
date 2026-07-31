@@ -880,6 +880,13 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-08-01）迭代第 8 轮：销售订单发货闭环
+
+- 修复（P0）：`POST /orders/:id/shipments` 路由未注册，Admin 订单详情「新增物流」一直 404；现已注册。
+- 新增物流写入自动流转：物流状态 `shipped`/`in_transit` → 订单 `shipped`/`fulfilled`（缺省补 `shippedAt`），`delivered` → 订单 `delivered`（缺省补 `deliveredAt`）；仅前进不回退（按订单生命周期 rank），已取消/退款/关闭订单不受影响。附 sqlite 单测（发货/签收流转、pending 不回退）。
+- 首页待办新增 `order_await_shipment`「订单待发货」（已付款未发货订单数），直达 `/orders?payStatus=paid&fulfillmentStatus=unfulfilled`。
+- 同步 `docs/api.md`、`admin/src/constants/dashboardDefaults.ts`。
+
 ### 变更记录（2026-08-01）迭代第 7 轮：销售订单批量导入 + 手工订单租户修复
 
 - 新增 `POST /orders/import`：批量创建手工销售订单（≤200 张/批），订单号已存在或批内重复自动跳过（`skipped_duplicate`），单张失败不影响其余，可选创建后自动按 SKU 编码匹配本地规格；Admin 订单列表工具栏新增「批量导入订单」粘贴弹窗（逐行校验 + 同订单号合并明细 + 逐单结果表）。店铺 API 未接入前的订单来源过渡方案。

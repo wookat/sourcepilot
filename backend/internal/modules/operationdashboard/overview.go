@@ -133,6 +133,7 @@ func (s *Service) GetTodos(ctx context.Context, q Query, sc Scope) (*TodosDTO, e
 		unifiedTodo("publish_failed", "P0", "刊登失败", "刊登到平台时出错", "publish", "", "/product/publish-tasks?status=failed", sum.PublishFailedTasks),
 		unifiedTodo("order_sku_unmatched", "P0", "订单 SKU 未匹配", "平台订单行尚未绑定本地 SKU", "order", "", "/orders/exceptions?exceptionType=sku_unmatched", sum.SKUUnmatchedOrderItems),
 		unifiedTodo("procurement_blocked", "P0", "订单采购受阻", "已付款订单缺主货源或 SKU 映射，无法生成采购单", "procurement", "", "/orders/exceptions?exceptionType=procurement_blocked", sum.ProcurementBlockedOrderItems),
+		unifiedTodo("order_await_shipment", "P1", "订单待发货", "已付款销售订单尚未发货，请添加物流并发货", "order", "", "/orders?payStatus=paid&fulfillmentStatus=unfulfilled", sum.AwaitShipmentOrderCount),
 		unifiedTodo("selection_review", "P1", "选品待审核", "已打分候选商品等待人工审核或转草稿", "selection", "", "/selection/tasks", sum.SelectionReviewCount),
 		unifiedTodo("selection_failed", "P1", "选品任务失败", "选品任务处理失败，可查看原因后重建", "selection", "", "/selection/tasks", sum.SelectionFailedTasks),
 		unifiedTodo("source_price_alert", "P1", "货源涨价预警", "进货价上涨，建议调价或切换备选货源", "sourcing", "", "/sourcing/product-sources", sum.SourcePriceAlertCount),
