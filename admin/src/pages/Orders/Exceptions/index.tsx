@@ -68,6 +68,7 @@ const EX_TYPES: Record<string, { text: string }> = {
   inventory_sync_failed: { text: '库存同步失败' },
   order_sync_partial_failed: { text: '页级同步失败' },
   missing_order_item: { text: '缺明细' },
+  procurement_blocked: { text: '采购受阻' },
   unknown: { text: '未知' },
 };
 
@@ -491,6 +492,9 @@ export default function OrderExceptionsPage() {
                   <a>重试扣库存</a>
                 </Popconfirm>
               )}
+            {r.exceptionType === 'procurement_blocked' && r.sourcingUrl && (
+              <a onClick={() => history.push(r.sourcingUrl!)}>去货源档案</a>
+            )}
             {r.exceptionType === 'inventory_sync_failed' && (
               <Popconfirm
                 title="重试该库存同步任务？"
@@ -616,6 +620,11 @@ export default function OrderExceptionsPage() {
           <Col xs={24} sm={12} md={8} lg={4}>
             <Card size="small">
               <Statistic title="库存同步失败" value={summary.inventorySyncFailed} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card size="small">
+              <Statistic title="采购受阻" value={summary.procurementBlocked ?? 0} />
             </Card>
           </Col>
         </Row>

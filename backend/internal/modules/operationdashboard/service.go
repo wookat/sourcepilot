@@ -210,6 +210,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 			sum.OrderExceptionTotal = ex.TotalOpen
 			sum.SKUUnmatchedOrderItems = ex.SKUUnmatched
 			sum.InventoryDeductFailedOrders = ex.InsufficientStock + ex.InventoryDeductFailed
+			sum.ProcurementBlockedOrderItems = ex.ProcurementBlocked
 		}
 	}
 

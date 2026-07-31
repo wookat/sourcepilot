@@ -161,6 +161,13 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 			}
 		}
 	}
+	if req.ExceptionType == "" || req.ExceptionType == TypeProcurementBlocked {
+		if xs, err := s.collectProcurementBlocked(ctx, req); err == nil {
+			for _, x := range xs {
+				appendUniqueAgg(&rows, x)
+			}
+		}
+	}
 
 	sum := ExceptionSummaryDTO{}
 	for _, r := range rows {
@@ -184,6 +191,8 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 			sum.InventorySyncFailed++
 		case TypeOrderSyncPartialFailed:
 			sum.OrderSyncPartial++
+		case TypeProcurementBlocked:
+			sum.ProcurementBlocked++
 		}
 	}
 
@@ -351,6 +360,9 @@ func exceptionToDTO(ctx context.Context, s *Service, r aggRow) OrderExceptionDTO
 		if r.orderItemID != nil {
 			d.DetailURL += "?itemId=" + r.orderItemID.String()
 		}
+	}
+	if r.exceptionType == TypeProcurementBlocked && r.productID != "" {
+		d.SourcingURL = "/sourcing/product-sources?productId=" + r.productID
 	}
 	if r.shopID != nil && *r.shopID != uuid.Nil {
 		d.ShopID = r.shopID.String()
@@ -693,6 +705,165 @@ func (s *Service) collectInventorySyncFailed(ctx context.Context, req ListOrderE
 			suggestedAction: "请检查平台库存同步配置或在库存同步任务页重试。",
 			createdAt:       t.CreatedAt,
 			updatedAt:       t.UpdatedAt,
+		})
+	}
+	return out, nil
+}
+
+// collectProcurementBlocked surfaces paid, unfulfilled order lines that cannot
+// enter procurement because the linked product lacks a primary source or the
+// primary source lacks a mapping for the local SKU.
+func (s *Service) collectProcurementBlocked(ctx context.Context, req ListOrderExceptionsRequest) ([]aggRow, error) {
+	if s == nil || s.DB == nil {
+		return nil, nil
+	}
+	mig := s.DB.Migrator()
+	if !mig.HasTable("orders") || !mig.HasTable("order_items") ||
+		!mig.HasTable("product_skus") || !mig.HasTable("product_sources") ||
+		!mig.HasTable("product_source_skus") {
+		return nil, nil
+	}
+	hasPOI := mig.HasTable("purchase_order_items") && mig.HasTable("purchase_orders")
+
+	type hit struct {
+		OrderItemID  uuid.UUID  `gorm:"column:order_item_id"`
+		OrderID      uuid.UUID  `gorm:"column:order_id"`
+		Platform     string     `gorm:"column:platform"`
+		ShopID       *uuid.UUID `gorm:"column:shop_id"`
+		OrderNo      string     `gorm:"column:order_no"`
+		ExternalOID  *string    `gorm:"column:external_order_id"`
+		ExternalItem *string    `gorm:"column:external_item_id"`
+		ExternalSku  *string    `gorm:"column:external_sku_id"`
+		SKUCodeCol   string     `gorm:"column:sku_code"`
+		SellerSKU    string     `gorm:"column:seller_sku"`
+		SKUName      string     `gorm:"column:sku_name"`
+		ProductTitle string     `gorm:"column:product_title"`
+		Quantity     int        `gorm:"column:quantity"`
+		ProductSkuID uuid.UUID  `gorm:"column:product_sku_id"`
+		ProductID    uuid.UUID  `gorm:"column:local_product_id"`
+		LocalSkuCode string     `gorm:"column:local_sku_code"`
+		Reason       string     `gorm:"column:reason"`
+		CreatedAt    time.Time  `gorm:"column:oi_created"`
+		UpdatedAt    time.Time  `gorm:"column:oi_updated"`
+	}
+
+	q := `
+SELECT
+  oi.id AS order_item_id,
+  o.id AS order_id,
+  o.platform AS platform,
+  o.shop_id AS shop_id,
+  o.order_no AS order_no,
+  o.external_order_id AS external_order_id,
+  oi.external_item_id AS external_item_id,
+  oi.external_sku_id AS external_sku_id,
+  oi.sku_code AS sku_code,
+  oi.seller_sku AS seller_sku,
+  oi.sku_name AS sku_name,
+  oi.product_title AS product_title,
+  oi.quantity AS quantity,
+  oi.product_sku_id AS product_sku_id,
+  ps.product_id AS local_product_id,
+  ps.sku_code AS local_sku_code,
+  CASE WHEN src.id IS NULL THEN 'source_missing' ELSE 'mapping_missing' END AS reason,
+  oi.created_at AS oi_created,
+  oi.updated_at AS oi_updated
+FROM order_items oi
+JOIN orders o ON o.id = oi.order_id AND o.deleted_at IS NULL
+JOIN product_skus ps ON ps.id = oi.product_sku_id
+LEFT JOIN product_sources src
+  ON src.product_id = ps.product_id
+ AND src.is_primary = TRUE
+ AND src.status <> 'disabled'
+ AND src.deleted_at IS NULL
+LEFT JOIN product_source_skus map
+  ON map.product_source_id = src.id
+ AND map.local_sku_id = oi.product_sku_id
+ AND map.deleted_at IS NULL
+WHERE o.payment_status = ?
+  AND o.status NOT IN (?, ?, ?)
+  AND o.fulfillment_status = ?
+  AND oi.product_sku_id IS NOT NULL
+  AND oi.product_sku_id <> '00000000-0000-0000-0000-000000000000'
+  AND (src.id IS NULL OR map.id IS NULL)
+`
+	args := []any{
+		order.PaymentPaid,
+		order.StatusCancelled, order.StatusRefunded, order.StatusClosed,
+		order.FulfillmentUnfulfilled,
+	}
+	if hasPOI {
+		q += `  AND NOT EXISTS (
+    SELECT 1 FROM purchase_order_items poi
+    JOIN purchase_orders po ON po.id = poi.purchase_order_id AND po.deleted_at IS NULL
+    WHERE poi.sales_order_id = o.id
+      AND poi.local_sku_id = oi.product_sku_id
+      AND po.status NOT IN ('cancelled','failed')
+  )
+`
+	}
+	if req.Platform != "" {
+		q += ` AND LOWER(o.platform) = ?`
+		args = append(args, strings.ToLower(strings.TrimSpace(req.Platform)))
+	}
+	if req.ShopID != "" {
+		if sid, err := uuid.Parse(strings.TrimSpace(req.ShopID)); err == nil {
+			q += ` AND o.shop_id = ?`
+			args = append(args, sid)
+		}
+	}
+	if req.OrderID != "" {
+		if oid, err := uuid.Parse(strings.TrimSpace(req.OrderID)); err == nil {
+			q += ` AND o.id = ?`
+			args = append(args, oid)
+		}
+	}
+
+	var hits []hit
+	if err := s.DB.WithContext(ctx).Raw(q, args...).Scan(&hits).Error; err != nil {
+		return nil, err
+	}
+	out := make([]aggRow, 0, len(hits))
+	for _, h := range hits {
+		extOid := ""
+		if h.ExternalOID != nil {
+			extOid = strings.TrimSpace(*h.ExternalOID)
+		}
+		sc := strings.TrimSpace(h.SKUCodeCol)
+		if sc == "" {
+			sc = strings.TrimSpace(h.SellerSKU)
+		}
+		msg := "商品没有可用主货源，订单无法生成采购单"
+		suggest := "请到货源档案为该商品绑定主货源，再重新生成采购单。"
+		if h.Reason == "mapping_missing" {
+			msg = "主货源缺少该 SKU 的映射，订单无法生成采购单"
+			suggest = "请到货源档案补全主货源的 SKU 映射，再重新生成采购单。"
+		}
+		oiid := h.OrderItemID
+		out = append(out, aggRow{
+			exceptionType:   TypeProcurementBlocked,
+			severity:        SeverityHigh,
+			sourceType:      SourceOrderItem,
+			sourceID:        h.OrderItemID,
+			orderID:         h.OrderID,
+			orderItemID:     &oiid,
+			platform:        strings.TrimSpace(h.Platform),
+			shopID:          h.ShopID,
+			orderNo:         strings.TrimSpace(h.OrderNo),
+			externalOrderID: extOid,
+			externalItemID:  derefStr(h.ExternalItem),
+			externalSkuID:   derefStr(h.ExternalSku),
+			skuCode:         sc,
+			skuName:         strings.TrimSpace(h.SKUName),
+			productID:       h.ProductID.String(),
+			productSkuID:    h.ProductSkuID.String(),
+			productTitle:    strings.TrimSpace(h.ProductTitle),
+			localSkuCode:    strings.TrimSpace(h.LocalSkuCode),
+			quantity:        h.Quantity,
+			errorMessage:    msg,
+			suggestedAction: suggest,
+			createdAt:       h.CreatedAt,
+			updatedAt:       h.UpdatedAt,
 		})
 	}
 	return out, nil

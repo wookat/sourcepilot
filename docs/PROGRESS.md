@@ -880,6 +880,13 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-07-31）迭代第 3 轮：问题订单自动拦截（采购受阻异常）
+
+- 订单异常工作台新增聚合异常类型 `procurement_blocked`：已付款、未发货且未取消/退款/关闭的订单行，已绑定本地 SKU 但缺可用主货源或主货源缺 SKU 映射、且未被任何未取消/未失败采购单行覆盖时，自动进入工作台（`sourceType=order_item`，严重程度 high），错误信息区分「缺主货源 / 缺 SKU 映射」并给出建议动作；附 sqlite service 层单测（缺货源、缺映射、补映射后消失、被采购单覆盖/取消、未付款不拦截、标记已处理）。
+- 行内新增 `sourcingUrl` 跳转货源档案；`/sourcing/product-sources` 支持 `?productId=` 直达；异常页新增「采购受阻」筛选、统计卡与「去货源档案」操作。
+- Dashboard：`summary.procurementBlockedOrderItems` + 统一待办 `procurement_blocked`（P0）；顺带修复待办 `order_sku_unmatched` 链接 query 参数名（`type` → `exceptionType`）导致筛选不生效的问题。
+- 同步 `docs/api.md`、`admin/src/services/{dashboard,orderExceptions}.ts`、`admin/src/constants/dashboardDefaults.ts`。
+
 ### 变更记录（2026-07-31）Docker 全栈构建修复与 legacy 登录租户修复
 
 - 修复 `docker-compose.full.yml` 全栈构建失败：admin/collector 镜像缺少 `scripts/patch-pro-field-antd-select.mjs` 导致 `pnpm install` postinstall 报错（Dockerfile 增加 `COPY scripts`、`.dockerignore` 放行该脚本）；admin 基础镜像 node:26 不再内置 corepack，改用 `npm install -g pnpm` 安装。

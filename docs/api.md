@@ -555,6 +555,16 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 所有状态流转写入 `purchase_order_events`；对应管理端页面为 `/procurement/orders`。
 
+### 订单异常工作台：采购受阻（procurement_blocked）
+
+`GET /api/v1/orders/exceptions` 新增聚合异常类型 `procurement_blocked`：已付款、未发货且未取消/退款/关闭的销售订单行，若已绑定本地 SKU 但商品缺可用主货源（`source_missing`）或主货源缺该 SKU 映射（`mapping_missing`），且未被任何未取消/未失败的采购单行覆盖，则以 `sourceType=order_item` 进入工作台。返回体：
+
+- `summary.procurementBlocked`：未处理数量。
+- 行内 `sourcingUrl`：`/sourcing/product-sources?productId=<productId>`，用于跳转货源档案绑定主货源/补 SKU 映射。
+- 处理/忽略沿用现有 mark 接口（`exceptionType=procurement_blocked`）。
+
+Dashboard 同步：`GET /api/v1/dashboard/product-operations` 的 `summary.procurementBlockedOrderItems`，以及统一待办 `procurement_blocked`（P0，链接 `/orders/exceptions?exceptionType=procurement_blocked`）。货源档案页 `/sourcing/product-sources` 支持 `?productId=` 直达指定商品。
+
 ## 修改 API 时的同步要求
 
 - 后端：handler、service、DTO、权限和错误处理一起检查。
