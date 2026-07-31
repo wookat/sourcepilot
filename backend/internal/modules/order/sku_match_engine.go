@@ -242,7 +242,7 @@ func (s *Service) findPublicationSKUsByExternalSKUID(ctx context.Context, platfo
 	err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 		Select("pps.product_sku_id AS product_sku_id, skus.product_id AS product_id, pps.sku_code AS pub_code").
 		Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id").
 		Where("pp.platform = ? AND pp.shop_id = ? AND pps.external_sku_id = ? AND pps.product_sku_id IS NOT NULL", platform, shopID, ext).
 		Find(&rows).Error
 	if err != nil {
@@ -271,7 +271,7 @@ func (s *Service) findPublicationSKUsBySKUCode(ctx context.Context, platform str
 	err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 		Select("pps.product_sku_id AS product_sku_id, skus.product_id AS product_id, pps.sku_code AS pub_code").
 		Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id").
 		Where("pp.platform = ? AND pp.shop_id = ? AND LOWER(TRIM(pps.sku_code)) = LOWER(?)", platform, shopID, code).
 		Find(&rows).Error
 	if err != nil {
@@ -300,10 +300,10 @@ func (s *Service) findLocalSKUsByCode(ctx context.Context, code string) ([]produ
 	return skus, err
 }
 
-// LoadSKUForBind returns the SKU row after ownership checks (no soft-deleted).
+// LoadSKUForBind returns the SKU row for manual binding.
 func (s *Service) LoadSKUForBind(ctx context.Context, skuID uuid.UUID) (*product.ProductSKU, error) {
 	var sku product.ProductSKU
-	if err := s.DB.WithContext(ctx).First(&sku, "id = ? AND deleted_at IS NULL", skuID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&sku, "id = ?", skuID).Error; err != nil {
 		return nil, err
 	}
 	return &sku, nil
