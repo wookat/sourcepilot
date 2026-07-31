@@ -241,6 +241,44 @@ func (h *Handler) Cancel(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// BatchMarkPlaced POST /procurement/orders/batch-mark-placed
+func (h *Handler) BatchMarkPlaced(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "procurement unavailable")
+		return
+	}
+	var body BatchMarkPlacedBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
+		return
+	}
+	out, err := h.Svc.BatchMarkPlaced(c.Request.Context(), body, adminUUID(c))
+	if err != nil {
+		handleProcurementError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// BatchLogistics POST /procurement/orders/batch-logistics
+func (h *Handler) BatchLogistics(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "procurement unavailable")
+		return
+	}
+	var body BatchLogisticsBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
+		return
+	}
+	out, err := h.Svc.BatchFillLogistics(c.Request.Context(), body, adminUUID(c))
+	if err != nil {
+		handleProcurementError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
 // ExportCSV GET /procurement/orders/:id/export.csv
 func (h *Handler) ExportCSV(c *gin.Context) {
 	if !h.ok() {

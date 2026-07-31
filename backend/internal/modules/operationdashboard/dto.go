@@ -49,6 +49,16 @@ type Summary struct {
 	SKUUnmatchedOrderItems        int64 `json:"skuUnmatchedOrderItems"`
 	InventoryDeductFailedOrders   int64 `json:"inventoryDeductFailedOrders"`
 
+	// 选品 / 货源 / 采购协同（selection & procurement collaboration）
+	SelectionReviewCount           int64 `json:"selectionReviewCount"`
+	SelectionFailedTasks           int64 `json:"selectionFailedTasks"`
+	SourcePriceAlertCount          int64 `json:"sourcePriceAlertCount"`
+	SourceOutOfStockCount          int64 `json:"sourceOutOfStockCount"`
+	ProcurementPendingConfirmCount int64 `json:"procurementPendingConfirmCount"`
+	ProcurementPlacingCount        int64 `json:"procurementPlacingCount"`
+	ProcurementUnpaidCount         int64 `json:"procurementUnpaidCount"`
+	ProcurementAwaitTrackingCount  int64 `json:"procurementAwaitTrackingCount"`
+
 	// Compact KPI aliases for the workbench overview cards.
 	DraftTotal           int64 `json:"draftTotal"`
 	TodayNewProducts     int64 `json:"todayNewProducts"`

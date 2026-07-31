@@ -10,7 +10,8 @@ import {
   type PurchaseOrder,
 } from '@/services/procurement';
 import { queryOrders, type OrderListRow } from '@/services/orders';
-import { Link } from '@umijs/max';
+import { Link, useSearchParams } from '@umijs/max';
+import BatchBackfillModal, { type BatchMode } from './BatchBackfillModal';
 import {
   Alert,
   Button,
@@ -38,11 +39,16 @@ export const PO_STATUS_TAG: Record<string, { text: string; color: string }> = {
 };
 
 export default function ProcurementOrdersPage() {
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<PurchaseOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [status, setStatus] = useState<string>();
+  const [status, setStatus] = useState<string | undefined>(() => {
+    const s = (searchParams.get('status') || '').trim();
+    return PO_STATUS_TAG[s] ? s : undefined;
+  });
+  const [batchMode, setBatchMode] = useState<BatchMode | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [genOpen, setGenOpen] = useState(false);
@@ -111,6 +117,8 @@ export default function ProcurementOrdersPage() {
         <Button type="primary" onClick={() => void openGenerate()}>
           从销售订单生成采购单
         </Button>
+        <Button onClick={() => setBatchMode('placed')}>批量回填 1688 订单号</Button>
+        <Button onClick={() => setBatchMode('logistics')}>批量回填快递单号</Button>
         <Select
           allowClear
           placeholder="按状态筛选"
@@ -227,6 +235,14 @@ export default function ProcurementOrdersPage() {
           },
         ]}
       />
+      {batchMode && (
+        <BatchBackfillModal
+          mode={batchMode}
+          open
+          onClose={() => setBatchMode(null)}
+          onDone={() => void load()}
+        />
+      )}
       <Modal
         title="从销售订单生成采购单"
         open={genOpen}

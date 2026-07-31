@@ -34,6 +34,15 @@ export type DashboardSummary = {
   orderExceptionTotal: number;
   skuUnmatchedOrderItems: number;
   inventoryDeductFailedOrders: number;
+  /** 选品 / 货源 / 采购协同 */
+  selectionReviewCount: number;
+  selectionFailedTasks: number;
+  sourcePriceAlertCount: number;
+  sourceOutOfStockCount: number;
+  procurementPendingConfirmCount: number;
+  procurementPlacingCount: number;
+  procurementUnpaidCount: number;
+  procurementAwaitTrackingCount: number;
   /** Workbench compact KPI aliases */
   draftTotal: number;
   todayNewProducts: number;

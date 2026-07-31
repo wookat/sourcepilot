@@ -15,8 +15,11 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
+	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier"
 	"gorm.io/gorm"
@@ -298,6 +301,32 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	}
 	_ = todayNewTx.Count(&sum.TodayNewProducts).Error
 
+	// 选品 / 货源 / 采购协同（manual 1688 mode）
+	_ = s.DB.WithContext(ctx).Model(&selection.SelectionCandidate{}).
+		Where("status = ? AND product_id IS NULL", selection.CandidateScored).
+		Count(&sum.SelectionReviewCount).Error
+	_ = s.DB.WithContext(ctx).Model(&selection.SelectionTask{}).
+		Where("status = ?", selection.StatusFailed).
+		Count(&sum.SelectionFailedTasks).Error
+	_ = s.DB.WithContext(ctx).Model(&sourcing.ProductSource{}).
+		Where("status = ?", sourcing.SourceStatusPriceAlert).
+		Count(&sum.SourcePriceAlertCount).Error
+	_ = s.DB.WithContext(ctx).Model(&sourcing.ProductSource{}).
+		Where("status = ?", sourcing.SourceStatusOutOfStock).
+		Count(&sum.SourceOutOfStockCount).Error
+	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+		Where("status = ?", procurement.StatusPendingConfirm).
+		Count(&sum.ProcurementPendingConfirmCount).Error
+	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+		Where("status = ?", procurement.StatusPlacing).
+		Count(&sum.ProcurementPlacingCount).Error
+	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+		Where("status = ? AND pay_status = ?", procurement.StatusPlaced, procurement.PayStatusUnpaid).
+		Count(&sum.ProcurementUnpaidCount).Error
+	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+		Where("status = ?", procurement.StatusPaid).
+		Count(&sum.ProcurementAwaitTrackingCount).Error
+
 	// Compact KPI aliases
 	sum.DraftTotal = sum.DraftProducts + sum.ReadyProducts
 	sum.MissingAiTitle = sum.MissingAiTitleCount
@@ -519,6 +548,18 @@ func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 			"刊登到平台时出错，请查看详情后重试", "/product/publish-tasks?status=failed"),
 		todoCard("order_exceptions", "订单异常", sum.OrderExceptionTotal, failureclassifier.SeverityHigh,
 			"含未匹配 SKU 等需人工处理的订单问题", "/orders/exceptions"),
+		todoCard("selection_review", "选品待审核", sum.SelectionReviewCount, failureclassifier.SeverityMedium,
+			"已打分候选商品等待人工审核或转草稿", "/selection/tasks"),
+		todoCard("source_price_alert", "货源涨价预警", sum.SourcePriceAlertCount, failureclassifier.SeverityHigh,
+			"进货价上涨，建议调价或切换备选货源", "/sourcing/product-sources"),
+		todoCard("source_out_of_stock", "货源断货", sum.SourceOutOfStockCount, failureclassifier.SeverityHigh,
+			"主货源断货，建议切换备选货源或下架", "/sourcing/product-sources"),
+		todoCard("procurement_placing", "待去 1688 下单", sum.ProcurementPlacingCount, failureclassifier.SeverityHigh,
+			"已确认采购单等待到 1688 下单并回填订单号", "/procurement?status=placing"),
+		todoCard("procurement_unpaid", "采购单待付款", sum.ProcurementUnpaidCount, failureclassifier.SeverityHigh,
+			"已下单未付款，请到 1688 完成付款并标记", "/procurement?status=placed"),
+		todoCard("procurement_await_tracking", "待回填运单号", sum.ProcurementAwaitTrackingCount, failureclassifier.SeverityMedium,
+			"已付款采购单等待回填快递单号（支持批量粘贴）", "/procurement?status=paid"),
 		todoCard("customer_pending", "客服待回复", sum.CustomerPendingReplyCount, failureclassifier.SeverityHigh,
 			"买家消息等待人工处理", "/customer/conversations?status=pending_reply"),
 		todoCard("failed_tasks", "失败任务待处理", sum.FailedTaskTotal, failureclassifier.SeverityCritical,
