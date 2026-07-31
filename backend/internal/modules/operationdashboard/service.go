@@ -572,7 +572,7 @@ func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 		todoCard("procurement_await_tracking", "待回填运单号", sum.ProcurementAwaitTrackingCount, failureclassifier.SeverityMedium,
 			"已付款采购单等待回填快递单号（支持批量粘贴）", "/procurement/orders?status=paid"),
 		todoCard("order_await_shipment", "订单待发货", sum.AwaitShipmentOrderCount, failureclassifier.SeverityHigh,
-			"已付款销售订单尚未发货，请添加物流并发货", "/orders?payStatus=paid&fulfillmentStatus=unfulfilled"),
+			"已付款销售订单尚未发货，请添加物流并发货", "/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled"),
 		todoCard("customer_pending", "客服待回复", sum.CustomerPendingReplyCount, failureclassifier.SeverityHigh,
 			"买家消息等待人工处理", "/customer/conversations?status=pending_reply"),
 		todoCard("failed_tasks", "失败任务待处理", sum.FailedTaskTotal, failureclassifier.SeverityCritical,

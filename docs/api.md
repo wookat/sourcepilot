@@ -581,7 +581,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 - 物流状态 `delivered` → 订单 `status=delivered`，缺省补 `shippedAt` / `deliveredAt`；
 - `pending` / `exception` / `returned` 不触发订单状态变化；已取消/退款/关闭订单不会被回退或改写。
 
-首页待办新增 `order_await_shipment`「订单待发货」（已付款且 `fulfillmentStatus=unfulfilled` 且未发货/关闭的订单数），链接 `/orders?payStatus=paid&fulfillmentStatus=unfulfilled`。
+首页待办新增 `order_await_shipment`「订单待发货」（已付款且 `fulfillmentStatus=unfulfilled` 且未发货/关闭的订单数），链接 `/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled`。
 
 ### 订单异常工作台：采购受阻（procurement_blocked）
 

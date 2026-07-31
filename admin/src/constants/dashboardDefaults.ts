@@ -204,7 +204,7 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     severity: 'high',
     level: 'danger',
     description: '已付款销售订单尚未发货，请添加物流并发货',
-    link: '/orders?payStatus=paid&fulfillmentStatus=unfulfilled',
+    link: '/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled',
   },
   {
     id: 'procurement_placing',

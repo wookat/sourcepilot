@@ -884,7 +884,7 @@ Final Production Acceptance Deferred to P10
 
 - 修复（P0）：`POST /orders/:id/shipments` 路由未注册，Admin 订单详情「新增物流」一直 404；现已注册。
 - 新增物流写入自动流转：物流状态 `shipped`/`in_transit` → 订单 `shipped`/`fulfilled`（缺省补 `shippedAt`），`delivered` → 订单 `delivered`（缺省补 `deliveredAt`）；仅前进不回退（按订单生命周期 rank），已取消/退款/关闭订单不受影响。附 sqlite 单测（发货/签收流转、pending 不回退）。
-- 首页待办新增 `order_await_shipment`「订单待发货」（已付款未发货订单数），直达 `/orders?payStatus=paid&fulfillmentStatus=unfulfilled`。
+- 首页待办新增 `order_await_shipment`「订单待发货」（已付款未发货订单数），直达 `/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled`。
 - 同步 `docs/api.md`、`admin/src/constants/dashboardDefaults.ts`。
 
 ### 变更记录（2026-08-01）迭代第 7 轮：销售订单批量导入 + 手工订单租户修复
