@@ -170,7 +170,7 @@ func (s *Service) addHistoryManualCandidates(ctx context.Context, pool map[uuid.
 		}
 		var pid uuid.UUID
 		if err := s.DB.WithContext(ctx).Model(&product.ProductSKU{}).
-			Select("product_id").Where("id = ? AND deleted_at IS NULL", *r.PSKU).Scan(&pid).Error; err != nil {
+			Select("product_id").Where("id = ?", *r.PSKU).Scan(&pid).Error; err != nil {
 			continue
 		}
 		acc := s.accumulate(pool, *r.PSKU, pid)
@@ -195,7 +195,7 @@ func (s *Service) addPublicationCandidates(ctx context.Context, pool map[uuid.UU
 		err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 			Select("pps.product_sku_id, skus.product_id AS product_id").
 			Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-			Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+			Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id").
 			Where("pp.platform = ? AND pp.shop_id = ? AND pps.external_sku_id = ? AND pps.product_sku_id IS NOT NULL", platform, shopID, ext).
 			Scan(&rows).Error
 		if err != nil {
@@ -220,7 +220,7 @@ func (s *Service) addPublicationCandidates(ctx context.Context, pool map[uuid.UU
 		err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 			Select("pps.product_sku_id, skus.product_id AS product_id").
 			Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-			Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+			Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id").
 			Where("pp.platform = ? AND pp.shop_id = ? AND LOWER(TRIM(pps.sku_code)) = LOWER(?) AND pps.product_sku_id IS NOT NULL", platform, shopID, codeOrSeller).
 			Scan(&rows).Error
 		if err != nil {
@@ -243,7 +243,7 @@ func (s *Service) addPublicationCandidates(ctx context.Context, pool map[uuid.UU
 			if err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 				Select("pps.sku_code AS pub_code, pps.product_sku_id AS product_sku_id, skus.product_id AS product_id").
 				Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-				Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+				Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id").
 				Where("pp.platform = ? AND pp.shop_id = ? AND pps.product_sku_id IS NOT NULL AND pps.sku_code IS NOT NULL AND pps.sku_code <> ?", platform, shopID, "").
 				Scan(&pubRows).Error; err != nil {
 				return err
@@ -270,7 +270,7 @@ func (s *Service) addPublicationCandidates(ctx context.Context, pool map[uuid.UU
 func (s *Service) addLocalSkuCodeCandidates(ctx context.Context, pool map[uuid.UUID]*candidateAcc, codeOrSeller string) error {
 	norm := normalizeSKUCode(codeOrSeller)
 	var skus []product.ProductSKU
-	if err := s.DB.WithContext(ctx).Where("deleted_at IS NULL AND LOWER(TRIM(sku_code)) = LOWER(?)", codeOrSeller).
+	if err := s.DB.WithContext(ctx).Where("LOWER(TRIM(sku_code)) = LOWER(?)", codeOrSeller).
 		Order("created_at ASC, id ASC").Find(&skus).Error; err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func (s *Service) addLocalSkuCodeCandidates(ctx context.Context, pool map[uuid.U
 		return nil
 	}
 	var all []product.ProductSKU
-	if err := s.DB.WithContext(ctx).Where("deleted_at IS NULL AND sku_code IS NOT NULL AND sku_code <> ''").Find(&all).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("sku_code IS NOT NULL AND sku_code <> ''").Find(&all).Error; err != nil {
 		return err
 	}
 	for _, sku := range all {
@@ -365,7 +365,7 @@ func (s *Service) addTitleAndAttrCandidates(ctx context.Context, pool map[uuid.U
 	}
 
 	var products []product.Product
-	if err := s.DB.WithContext(ctx).Preload("SKUs", "deleted_at IS NULL").
+	if err := s.DB.WithContext(ctx).Preload("SKUs").
 		Where("id IN ? AND deleted_at IS NULL", productIDs).Find(&products).Error; err != nil {
 		return err
 	}
@@ -390,7 +390,7 @@ func (s *Service) addTitleAndAttrCandidates(ctx context.Context, pool map[uuid.U
 
 func (s *Service) buildCandidateDTO(ctx context.Context, acc *candidateAcc, conf int) (*CandidateDTO, error) {
 	var sku product.ProductSKU
-	if err := s.DB.WithContext(ctx).First(&sku, "id = ? AND deleted_at IS NULL", acc.skuID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&sku, "id = ?", acc.skuID).Error; err != nil {
 		return nil, err
 	}
 	var p product.Product

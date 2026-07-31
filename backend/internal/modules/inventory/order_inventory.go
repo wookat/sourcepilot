@@ -191,7 +191,7 @@ func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID u
 
 	var sku product.ProductSKU
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		First(&sku, "id = ? AND deleted_at IS NULL", it.ProductSKUID).Error; err != nil {
+		First(&sku, "id = ?", it.ProductSKUID).Error; err != nil {
 		return out, err
 	}
 	if it.ProductID != nil && *it.ProductID != uuid.Nil && sku.ProductID != *it.ProductID {
@@ -496,7 +496,7 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 
 			var sku product.ProductSKU
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				First(&sku, "id = ? AND deleted_at IS NULL", it.ProductSKUID).Error; err != nil {
+				First(&sku, "id = ?", it.ProductSKUID).Error; err != nil {
 				return err
 			}
 			before := derefStock(sku.Stock)

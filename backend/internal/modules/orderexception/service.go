@@ -623,7 +623,7 @@ func (s *Service) collectInventoryEffects(ctx context.Context, req ListOrderExce
 			psku = e.ProductSKUID.String()
 			ar.productSkuID = psku
 			var loc product.ProductSKU
-			if err := s.DB.WithContext(ctx).First(&loc, "id = ? AND deleted_at IS NULL", e.ProductSKUID).Error; err == nil {
+			if err := s.DB.WithContext(ctx).First(&loc, "id = ?", e.ProductSKUID).Error; err == nil {
 				ar.localSkuCode = strings.TrimSpace(loc.SKUCode)
 				ar.productID = loc.ProductID.String()
 			}
@@ -680,7 +680,7 @@ func (s *Service) collectInventorySyncFailed(ctx context.Context, req ListOrderE
 		lcode := ""
 		if t.ProductSKUID != nil {
 			var loc product.ProductSKU
-			if err := s.DB.WithContext(ctx).First(&loc, "id = ? AND deleted_at IS NULL", *t.ProductSKUID).Error; err == nil {
+			if err := s.DB.WithContext(ctx).First(&loc, "id = ?", *t.ProductSKUID).Error; err == nil {
 				lcode = strings.TrimSpace(loc.SKUCode)
 				var pr product.Product
 				if err := s.DB.WithContext(ctx).First(&pr, "id = ? AND deleted_at IS NULL", loc.ProductID).Error; err == nil {

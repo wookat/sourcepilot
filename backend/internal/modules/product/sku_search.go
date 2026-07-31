@@ -42,8 +42,7 @@ func (s *Service) SearchSKUs(c *gin.Context, q SearchSKUsQuery) ([]ProductSKUSea
 		Table("product_skus AS sk").
 		Select(`sk.id AS sku_id, sk.product_id AS product_id, sk.sku_code AS sku_code, sk.sku_name AS sku_name, sk.stock AS stock, sk.attrs AS attrs,
 			p.title AS product_title`).
-		Joins("JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL").
-		Where("sk.deleted_at IS NULL")
+		Joins("JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL")
 	if q.ProductID != nil && strings.TrimSpace(*q.ProductID) != "" {
 		tx = tx.Where("sk.product_id = ?", strings.TrimSpace(*q.ProductID))
 	}
