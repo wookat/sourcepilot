@@ -25,15 +25,7 @@ func (s *Service) MatchOrderItemToSKU(ctx context.Context, o *Order, it *OrderIt
 		return nil, fmt.Errorf("order: invalid match args")
 	}
 	plat := strings.TrimSpace(o.Platform)
-	if plat == "" || plat == "manual" {
-		return &MatchOrderItemResult{
-			MatchType:   MatchTypeNone,
-			MatchStatus: MatchStatusSkipped,
-			Confidence:  0,
-			Reason:      "manual_or_empty_platform",
-			RawData:     map[string]any{"hint": "skipped_non_platform_order"},
-		}, nil
-	}
+	manualOrder := plat == "" || plat == "manual"
 
 	extItem := ""
 	if it.ExternalItemID != nil {
@@ -57,8 +49,8 @@ func (s *Service) MatchOrderItemToSKU(ctx context.Context, o *Order, it *OrderIt
 		"skuCode":        code,
 	}
 
-	// Priority 1: publication external_sku_id
-	if extSku != "" && o.ShopID != nil && *o.ShopID != uuid.Nil {
+	// Priority 1: publication external_sku_id (platform orders only)
+	if !manualOrder && extSku != "" && o.ShopID != nil && *o.ShopID != uuid.Nil {
 		hits, err := s.findPublicationSKUsByExternalSKUID(ctx, plat, *o.ShopID, extSku)
 		if err != nil {
 			return nil, err
@@ -93,8 +85,8 @@ func (s *Service) MatchOrderItemToSKU(ctx context.Context, o *Order, it *OrderIt
 		}
 	}
 
-	// Priority 2: publication sku_code
-	if codeOrSeller != "" && o.ShopID != nil && *o.ShopID != uuid.Nil {
+	// Priority 2: publication sku_code (platform orders only)
+	if !manualOrder && codeOrSeller != "" && o.ShopID != nil && *o.ShopID != uuid.Nil {
 		hits, err := s.findPublicationSKUsBySKUCode(ctx, plat, *o.ShopID, codeOrSeller)
 		if err != nil {
 			return nil, err
@@ -302,7 +294,7 @@ func (s *Service) findLocalSKUsByCode(ctx context.Context, code string) ([]produ
 	}
 	var skus []product.ProductSKU
 	err := s.DB.WithContext(ctx).
-		Where("deleted_at IS NULL AND LOWER(TRIM(sku_code)) = LOWER(?)", code).
+		Where("LOWER(TRIM(sku_code)) = LOWER(?)", code).
 		Order("created_at ASC, id ASC").
 		Find(&skus).Error
 	return skus, err

@@ -9,6 +9,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/gorm"
@@ -104,6 +105,30 @@ func TestImportOrdersRowFailureDoesNotAbort(t *testing.T) {
 	}
 	if sum.Results[0].Status != order.ImportRowFailed || sum.Results[0].Error == "" {
 		t.Fatalf("expected failed row with error, got %+v", sum.Results[0])
+	}
+}
+
+func TestImportOrdersMatchSkusManualOrder(t *testing.T) {
+	db := openImportTestDB(t)
+	if err := db.AutoMigrate(&product.ProductSKU{}, &order.OrderItemSKUMatch{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&product.ProductSKU{ProductID: uuid.New(), SKUCode: "SKU-1"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	svc := &order.Service{DB: db}
+	sum, err := svc.ImportOrders(importTestCtx(1), order.ImportBody{
+		Orders:    []order.CreateBody{importOrderBody("SO-MATCH")},
+		MatchSKUs: true,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Created != 1 {
+		t.Fatalf("unexpected summary: %+v", sum)
+	}
+	if sum.Results[0].ItemsMatched != 1 {
+		t.Fatalf("expected 1 matched item for manual order, got %+v", sum.Results[0])
 	}
 }
 
