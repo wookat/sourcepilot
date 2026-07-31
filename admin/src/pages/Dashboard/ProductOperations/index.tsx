@@ -19,7 +19,7 @@ import { ProCard } from '@ant-design/pro-components';
 import { EmptyState, MetricCard, OperationToolbar, TmPageContainer, type MetricCardIntent } from '@/components/ui';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { formatDateTime } from '@/utils/formatTime';
-import { history } from '@umijs/max';
+import { history, useLocation } from '@umijs/max';
 import {
   Button,
   Col,
@@ -743,6 +743,7 @@ function DashboardSkeleton() {
 
 export default function ProductOperationsDashboardPage() {
   const dashboardEmptyLocale = useListEmptyLocale('dashboard');
+  const location = useLocation();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>>(
       DASHBOARD_QUERY_KEYS,
@@ -772,10 +773,12 @@ export default function ProductOperationsDashboardPage() {
   ]);
 
   useEffect(() => {
+    // 路由已离开驾驶舱时不再回写 URL，避免覆盖目标页的 query（如待办卡带筛选直达）
+    if (!location.pathname.startsWith('/dashboard')) return;
     const next = dashboardFiltersToUrlPatch(filters);
     if (sameDashboardUrlPatch(next, urlState)) return;
     setUrlState(next, { replace: true });
-  }, [filters, setUrlState, urlState]);
+  }, [filters, location.pathname, setUrlState, urlState]);
 
   const queryParams = useMemo(() => {
     const [start, end] = filters.range ?? [];
