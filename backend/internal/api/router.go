@@ -689,6 +689,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	sourcingH := &sourcing.Handler{Svc: sourcingSvc}
 	sourcing.Register(authed, sourcingH)
 	procurementSvc := &procurement.Service{DB: dep.DB, OpLog: opLogSvc, Provider: trade.NewMock1688(), Settings: settingsSvc}
+	excSvc.Cost = procurementSvc
 	procurementH := &procurement.Handler{Svc: procurementSvc}
 	procurement.Register(authed, procurementH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}

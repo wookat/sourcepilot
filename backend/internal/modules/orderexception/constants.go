@@ -11,6 +11,7 @@ const (
 	TypeOrderSyncPartialFailed = "order_sync_partial_failed"
 	TypeMissingOrderItem       = "missing_order_item"
 	TypeProcurementBlocked     = "procurement_blocked"
+	TypeNegativeMargin         = "negative_margin"
 	TypeUnknown                = "unknown"
 )
 

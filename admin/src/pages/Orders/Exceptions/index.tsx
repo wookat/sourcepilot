@@ -69,6 +69,7 @@ const EX_TYPES: Record<string, { text: string }> = {
   order_sync_partial_failed: { text: '页级同步失败' },
   missing_order_item: { text: '缺明细' },
   procurement_blocked: { text: '采购受阻' },
+  negative_margin: { text: '利润为负' },
   unknown: { text: '未知' },
 };
 
@@ -495,6 +496,9 @@ export default function OrderExceptionsPage() {
             {r.exceptionType === 'procurement_blocked' && r.sourcingUrl && (
               <a onClick={() => history.push(r.sourcingUrl!)}>去货源档案</a>
             )}
+            {r.exceptionType === 'negative_margin' && r.orderUrl && (
+              <a onClick={() => history.push(r.orderUrl!)}>去订单复核</a>
+            )}
             {r.exceptionType === 'inventory_sync_failed' && (
               <Popconfirm
                 title="重试该库存同步任务？"
@@ -625,6 +629,11 @@ export default function OrderExceptionsPage() {
           <Col xs={24} sm={12} md={8} lg={4}>
             <Card size="small">
               <Statistic title="采购受阻" value={summary.procurementBlocked ?? 0} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card size="small">
+              <Statistic title="利润为负" value={summary.negativeMargin ?? 0} />
             </Card>
           </Col>
         </Row>

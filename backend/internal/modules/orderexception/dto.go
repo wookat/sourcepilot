@@ -30,6 +30,7 @@ type ExceptionSummaryDTO struct {
 	InventorySyncFailed    int64 `json:"inventorySyncFailed"`
 	OrderSyncPartial       int64 `json:"orderSyncPartialFailed"`
 	ProcurementBlocked     int64 `json:"procurementBlocked"`
+	NegativeMargin         int64 `json:"negativeMargin"`
 }
 
 // ListOrderExceptionsResult is the list payload.

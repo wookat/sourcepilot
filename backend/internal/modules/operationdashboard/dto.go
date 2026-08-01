@@ -49,6 +49,7 @@ type Summary struct {
 	SKUUnmatchedOrderItems        int64 `json:"skuUnmatchedOrderItems"`
 	InventoryDeductFailedOrders   int64 `json:"inventoryDeductFailedOrders"`
 	ProcurementBlockedOrderItems  int64 `json:"procurementBlockedOrderItems"`
+	NegativeMarginOrderCount      int64 `json:"negativeMarginOrderCount"`
 	AwaitShipmentOrderCount       int64 `json:"awaitShipmentOrderCount"`
 
 	// 选品 / 货源 / 采购协同（selection & procurement collaboration）

@@ -595,6 +595,16 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 Dashboard 同步：`GET /api/v1/dashboard/product-operations` 的 `summary.procurementBlockedOrderItems`，以及统一待办 `procurement_blocked`（P0，链接 `/orders/exceptions?exceptionType=procurement_blocked`）。货源档案页 `/sourcing/product-sources` 支持 `?productId=` 直达指定商品。
 
+### 订单异常工作台：利润为负（negative_margin）
+
+`GET /api/v1/orders/exceptions` 新增聚合异常类型 `negative_margin`：已付款、未发货且未取消/退款/关闭的销售订单，按主货源参考价成本估算（与 `/procurement/cost-estimates` 同一口径）预估毛利为负时，以 `sourceType=order` 进入工作台（每次列表最多扫描最近更新的 200 个候选订单）。缺参考价或未配汇率导致毛利不可算的订单不会误报。返回体：
+
+- `summary.negativeMargin`：未处理数量。
+- 行内 `errorMessage` 含售价、预估成本（CNY）、预估毛利与毛利率；`orderUrl` 直达订单详情复核。
+- 处理/忽略沿用现有 mark 接口（`exceptionType=negative_margin`，`sourceType=order`，`sourceId=订单 ID`）。
+
+Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_negative_margin`（P0，链接 `/orders/exceptions?exceptionType=negative_margin`）。
+
 ## 修改 API 时的同步要求
 
 - 后端：handler、service、DTO、权限和错误处理一起检查。

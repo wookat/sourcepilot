@@ -10,6 +10,7 @@ export type OrderExceptionSummary = {
   inventorySyncFailed: number;
   orderSyncPartialFailed?: number;
   procurementBlocked?: number;
+  negativeMargin?: number;
 };
 
 export type OrderExceptionRow = {

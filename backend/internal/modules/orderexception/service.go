@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"gorm.io/gorm"
@@ -21,6 +22,7 @@ type Service struct {
 	DB     *gorm.DB
 	Orders *order.Service
 	Inv    *inventory.Service
+	Cost   *procurement.Service
 }
 
 type aggRow struct {
@@ -168,6 +170,13 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 			}
 		}
 	}
+	if req.ExceptionType == "" || req.ExceptionType == TypeNegativeMargin {
+		if xs, err := s.collectNegativeMargin(ctx, req); err == nil {
+			for _, x := range xs {
+				appendUniqueAgg(&rows, x)
+			}
+		}
+	}
 
 	sum := ExceptionSummaryDTO{}
 	for _, r := range rows {
@@ -193,6 +202,8 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 			sum.OrderSyncPartial++
 		case TypeProcurementBlocked:
 			sum.ProcurementBlocked++
+		case TypeNegativeMargin:
+			sum.NegativeMargin++
 		}
 	}
 
@@ -963,6 +974,19 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 			}
 		}
 		return nil, gorm.ErrRecordNotFound
+	case SourceOrder:
+		xs, err := s.collectNegativeMargin(ctx, ListOrderExceptionsRequest{OrderID: sid.String()})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range xs {
+			if r.sourceID == sid {
+				d := exceptionToDTO(ctx, s, r)
+				applyMarkDTO(&d, marks)
+				return &d, nil
+			}
+		}
+		return nil, gorm.ErrRecordNotFound
 	default:
 		return nil, fmt.Errorf("unsupported sourceType")
 	}
@@ -1172,6 +1196,13 @@ func (s *Service) resolveOrderPointers(ctx context.Context, sourceType, sourceID
 		}
 		oiid := e.OrderItemID
 		return &e.OrderID, &oiid, nil
+	case SourceOrder:
+		var o order.Order
+		if err := s.DB.WithContext(ctx).Select("id").First(&o, "id = ?", sid).Error; err != nil {
+			return nil, nil, err
+		}
+		oid := o.ID
+		return &oid, nil, nil
 	case SourceInventorySyncTask:
 		return nil, nil, nil
 	default:

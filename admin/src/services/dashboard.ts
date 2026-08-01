@@ -35,6 +35,7 @@ export type DashboardSummary = {
   skuUnmatchedOrderItems: number;
   inventoryDeductFailedOrders: number;
   procurementBlockedOrderItems: number;
+  negativeMarginOrderCount?: number;
   /** 选品 / 货源 / 采购协同 */
   selectionReviewCount: number;
   selectionFailedTasks: number;

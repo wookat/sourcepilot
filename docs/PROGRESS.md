@@ -892,6 +892,12 @@ Final Production Acceptance Deferred to P10
 - `ALLOWED_QUERY_KEYS` 补 `operationStep`（商品草稿运营进度筛选）与 `customerName`（客服会话买家筛选）；客服会话布尔筛选（待回复/有 AI 建议/发送失败/有关联订单）URL 采用 `1`/`0`，兼容既有 `replyStatus`/`aiSuggestionStatus`/`sendStatus` 深链。
 - 修复真实测试发现的既有后端 P1：`GET /api/v1/task-center/failures` 对 tenant>0 用户必报 400（PostgreSQL 42703）。根因是统一的 `tenant_id = ?` 过滤被套到了自身没有 `tenant_id` 列的失败源表上。新增 `applyTenantListFilterVia`：`image_tasks` 经 `products` 限定租户（`product_id IS NULL` 的工具级任务保留可见）、`ai_product_text_items`/`ai_product_image_items` 经各自 batches 表、`customer_failure_events` 经 `shops` 表；附 sqlite DryRun SQL 回归单测。
 
+### 变更记录（2026-08-02）迭代第 18 轮：负毛利订单自动拦截 + Admin 静态资源 404 修复
+
+- 订单异常工作台新增聚合异常类型 `negative_margin`（利润为负）：已付款、未发货且未取消/退款/关闭的销售订单，按主货源参考价成本估算（复用 `procurement.Service.EstimateOrderCostBatch`，与订单成本卡/列表毛利列同一口径）预估毛利为负时，以 `sourceType=order` 进入工作台，`orderexception.Service` 通过新增 `Cost *procurement.Service` 依赖复用估算逻辑（router 注入），单次列表最多扫描最近更新的 200 个候选订单。缺参考价/未配汇率的订单不误报（毛利不可算即不判定）。
+- 支撑：`summary.negativeMargin` 统计、handled/ignored 标记与详情兼容（`resolveOrderPointers`/`GetOrderExceptionDetail` 支持 `order` source）；Dashboard `summary.negativeMarginOrderCount` + 待办卡/统一待办 `order_negative_margin`（P0，直达 `/orders/exceptions?exceptionType=negative_margin`）；前端异常页新增类型标签、统计卡与「去订单复核」动作；`docs/api.md` 已同步；新增 sqlite 单测覆盖亏损产生/盈利不产生/已履约不产生/忽略隐藏。
+- 修复 Admin 构建产物 `/static/*`（如 logo 哈希资源）404：`admin/nginx.conf` 的 `/static/` 改为 `try_files` 先取本地前端构建产物，未命中再回退代理 backend 上传静态文件。
+
 ### 变更记录（2026-08-02）迭代第 17 轮：Admin TypeScript 全量错误清零
 
 - 修复 Admin `tsc --noEmit` 全部 24 个既有类型错误并把 `tests/quality/baselines/admin-typescript.json` 基线 ratchet 到 0（CI「Admin TypeScript baseline ratchet」此后任何新增类型错误直接红灯）。均为类型层修正，无运行时行为变化。

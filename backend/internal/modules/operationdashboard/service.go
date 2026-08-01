@@ -212,6 +212,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 			sum.SKUUnmatchedOrderItems = ex.SKUUnmatched
 			sum.InventoryDeductFailedOrders = ex.InsufficientStock + ex.InventoryDeductFailed
 			sum.ProcurementBlockedOrderItems = ex.ProcurementBlocked
+			sum.NegativeMarginOrderCount = ex.NegativeMargin
 		}
 	}
 
@@ -557,6 +558,8 @@ func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 			"含未匹配 SKU 等需人工处理的订单问题", "/orders/exceptions"),
 		todoCard("procurement_blocked", "订单采购受阻", sum.ProcurementBlockedOrderItems, failureclassifier.SeverityCritical,
 			"已付款订单缺主货源或 SKU 映射，无法生成采购单", "/orders/exceptions?exceptionType=procurement_blocked"),
+		todoCard("order_negative_margin", "订单利润为负", sum.NegativeMarginOrderCount, failureclassifier.SeverityHigh,
+			"已付款订单预估毛利为负，发货前请复核价格或货源", "/orders/exceptions?exceptionType=negative_margin"),
 		todoCard("order_sku_unmatched", "订单规格未匹配", sum.SKUUnmatchedOrderItems, failureclassifier.SeverityHigh,
 			"订单行未匹配到本地规格，需人工匹配", "/orders/exceptions?exceptionType=sku_unmatched"),
 		todoCard("selection_review", "选品待审核", sum.SelectionReviewCount, failureclassifier.SeverityMedium,
