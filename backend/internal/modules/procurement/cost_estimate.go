@@ -174,15 +174,23 @@ func (s *Service) resolveExchangeRate(ctx context.Context, tenantID int64, curre
 	if s.Settings == nil {
 		return 0, false
 	}
-	m, err := s.Settings.PlainByGroup(ctx, tenantID, "pricing")
-	if err != nil {
-		return 0, false
+	// Tenant-scoped settings first, then tenant 0 (global defaults, where the
+	// pricing settings page writes).
+	tenants := []int64{tenantID}
+	if tenantID != 0 {
+		tenants = append(tenants, 0)
 	}
-	// default_exchange_rate is the key the pricing settings page writes.
-	for _, k := range []string{"exchangeRate", "default_exchange_rate"} {
-		if v := strings.TrimSpace(m[k]); v != "" {
-			if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
-				return f, true
+	for _, tid := range tenants {
+		m, err := s.Settings.PlainByGroup(ctx, tid, "pricing")
+		if err != nil {
+			continue
+		}
+		// default_exchange_rate is the key the pricing settings page writes.
+		for _, k := range []string{"exchangeRate", "default_exchange_rate"} {
+			if v := strings.TrimSpace(m[k]); v != "" {
+				if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+					return f, true
+				}
 			}
 		}
 	}

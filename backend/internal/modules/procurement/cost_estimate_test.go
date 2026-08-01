@@ -51,6 +51,30 @@ func TestEstimateOrderCostWithExchangeRate(t *testing.T) {
 	}
 }
 
+type tenantSettings map[int64]map[string]string
+
+func (m tenantSettings) PlainByGroup(_ context.Context, tenantID int64, _ string) (map[string]string, error) {
+	return m[tenantID], nil
+}
+
+func TestEstimateOrderCostFallbackTenantZeroSettings(t *testing.T) {
+	f := setupFixture(t)
+	// pricing page saves settings under tenant 0; order belongs to another tenant
+	f.svc.Settings = tenantSettings{0: {"default_exchange_rate": "0.14"}}
+	if err := f.svc.DB.Model(&order.Order{}).Where("id = ?", f.orderID).
+		Update("tenant_id", 1).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := f.svc.EstimateOrderCost(context.Background(), f.orderID)
+	if err != nil {
+		t.Fatalf("estimate: %v", err)
+	}
+	if out.ExchangeRate == nil || *out.ExchangeRate != 0.14 {
+		t.Fatalf("expected tenant-0 fallback rate 0.14, got %+v", out.ExchangeRate)
+	}
+}
+
 func TestEstimateOrderCostFallbackDefaultExchangeRateKey(t *testing.T) {
 	f := setupFixture(t)
 	// pricing settings page writes default_exchange_rate, not exchangeRate
