@@ -170,6 +170,7 @@ type GenerateBody struct {
 // Blocker is one unmet precondition (e.g. missing SKU mapping).
 type Blocker struct {
 	OrderID    string `json:"orderId"`
+	ProductID  string `json:"productId,omitempty"`
 	LocalSKUID string `json:"localSkuId,omitempty"`
 	SKUName    string `json:"skuName,omitempty"`
 	Code       string `json:"code"` // sku.unmatched|source.missing|mapping.missing
@@ -257,7 +258,7 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					res.Blockers = append(res.Blockers, Blocker{
-						OrderID: oid.String(), LocalSKUID: it.ProductSKUID.String(), SKUName: it.SKUName,
+						OrderID: oid.String(), ProductID: it.ProductID.String(), LocalSKUID: it.ProductSKUID.String(), SKUName: it.SKUName,
 						Code: "source.missing", Message: "商品没有主货源，请先在货源档案绑定",
 					})
 					continue
@@ -271,7 +272,7 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					res.Blockers = append(res.Blockers, Blocker{
-						OrderID: oid.String(), LocalSKUID: it.ProductSKUID.String(), SKUName: it.SKUName,
+						OrderID: oid.String(), ProductID: it.ProductID.String(), LocalSKUID: it.ProductSKUID.String(), SKUName: it.SKUName,
 						Code: "mapping.missing", Message: "主货源缺少该 SKU 的映射，请先补全 SKU 映射",
 					})
 					continue
@@ -324,7 +325,7 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 			}
 			if primary.Supplier == nil {
 				res.Blockers = append(res.Blockers, Blocker{
-					OrderID: oid.String(), LocalSKUID: it.ProductSKUID.String(), SKUName: it.SKUName,
+					OrderID: oid.String(), ProductID: it.ProductID.String(), LocalSKUID: it.ProductSKUID.String(), SKUName: it.SKUName,
 					Code: "source.missing", Message: "主货源供应商缺失",
 				})
 				continue

@@ -678,6 +678,13 @@ export default function OrderDetailPage() {
                       }
                     />
                   ) : null}
+                  <Alert
+                    showIcon
+                    type="info"
+                    style={{ marginBottom: 12 }}
+                    message="库存口径说明：发货不会自动扣减库存"
+                    description="本平台的库存扣减与发货解耦：扣减由本页「手工扣库存」或系统设置中的库存策略（如自动扣减）触发，发货时不会强制扣减；取消订单时已扣减的库存按策略自动回滚。未扣减不影响发货，但建议发货前后及时扣减，保持库存准确。"
+                  />
                   <Space wrap style={{ marginBottom: 12 }}>
                     {detail.inventorySummary ? (
                       <>
@@ -919,7 +926,11 @@ export default function OrderDetailPage() {
         footer={null}
         onCancel={() => setGenResult(null)}
       >
-        <GenerateResultAlerts blockers={genResult?.blockers} warnings={genResult?.warnings} />
+        <GenerateResultAlerts
+          blockers={genResult?.blockers}
+          warnings={genResult?.warnings}
+          onNavigate={() => setGenResult(null)}
+        />
       </Modal>
 
       <Modal
@@ -999,6 +1010,15 @@ export default function OrderDetailPage() {
         }}
       >
         <Form form={shipForm} layout="vertical">
+          {!shipModal.row && detail && !detail.inventorySummary?.hasDeductionSuccess ? (
+            <Alert
+              showIcon
+              type="warning"
+              style={{ marginBottom: 12 }}
+              message="本单尚未扣减库存"
+              description="发货不会自动扣减库存；保存后可到「库存影响」Tab 手工扣减，避免库存与实际不符。"
+            />
+          ) : null}
           <Form.Item name="carrier" label="承运商" rules={[{ required: true, message: '请填写承运商' }]}>
             <Input placeholder="如：云途物流 / J&T" />
           </Form.Item>

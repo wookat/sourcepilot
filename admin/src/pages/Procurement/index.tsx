@@ -457,7 +457,14 @@ export default function ProcurementOrdersPage() {
         />
         {genResult && ((genResult.blockers || []).length > 0 || (genResult.warnings || []).length > 0) && (
           <div style={{ marginTop: 16 }}>
-            <GenerateResultAlerts blockers={genResult.blockers} warnings={genResult.warnings} />
+            <GenerateResultAlerts
+              blockers={genResult.blockers}
+              warnings={genResult.warnings}
+              onNavigate={() => {
+                setGenOpen(false);
+                setSelectedOrderIds([]);
+              }}
+            />
           </div>
         )}
       </Modal>

@@ -554,7 +554,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回；映射无参考价时自动回退到最近历史进价，仍缺价以 `warnings`（`price.missing`）返回；支持 `idempotencyKey` 幂等；明细行已被未取消/未失败采购单覆盖时跳过并以 `warnings`（`line.covered`）返回，取消原采购单后可重新生成。 |
+| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回，每条含 `orderId`/`code`/`message`，`source.missing`、`mapping.missing` 额外返回 `productId` 与 `localSkuId`（新增可选字段，向后兼容，供前端生成直达链接）；映射无参考价时自动回退到最近历史进价，仍缺价以 `warnings`（`price.missing`）返回；支持 `idempotencyKey` 幂等；明细行已被未取消/未失败采购单覆盖时跳过并以 `warnings`（`line.covered`）返回，取消原采购单后可重新生成。 |
 | `GET` | `/api/v1/procurement/orders?status=&salesOrderId=` | 采购单列表；`salesOrderId` 按来源销售订单过滤（订单详情「关联采购单」用），非法 UUID 返回 400。 |
 | `GET` | `/api/v1/procurement/cost-estimates/:id` | 销售订单成本/毛利估算（id 为销售订单）：按主货源 SKU 映射参考价（缺价回退最近历史进价）逐行估算 CNY 成本；订单币种为 CNY 或配置了 `settings.pricing.exchangeRate`（CNY→订单币种）时折算 `estimatedCost/grossProfit/marginPercent`，任一行缺价时不计算毛利，问题行以 `issueCode`（`sku.unmatched`/`source.missing`/`mapping.missing`/`price.missing`）返回。 |
 | `POST` | `/api/v1/procurement/cost-estimates/batch` | 批量成本/毛利估算（订单列表用）：body `{"orderIds": ["..."]}`（≤50 个），返回 `items`（orderId → 汇总：`estimatedCostCny/exchangeRate/estimatedCost/grossProfit/marginPercent/missingLines`），不存在的订单被省略。 |
@@ -592,8 +592,9 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/orders/stats/sales` | 经营概览统计：返回 `{generatedAt, windows:[{key: today|7d|30d, orderCount, paidCount, shippedCount, paidAmounts:[{currency, amount, orders}]}]}`，按创建时间窗口在租户内统计订单数/已付款/已发货与分币种已付款销售额；店铺 scope 与订单列表一致（非 admin 按授权店铺过滤）。 |
+| `GET` | `/api/v1/orders/stats/daily` | 经营报表按日统计：`?days=30`（默认 30，最大 90），返回 `{generatedAt, days, items:[{date: YYYY-MM-DD, orderCount, paidCount, paidAmounts:[{currency, amount, orders}]}]}`；口径与 `stats/sales` 一致（当前租户、软删除订单不计入），店铺 scope 与订单列表一致（非 admin 按授权店铺过滤）。 |
 | `GET` | `/api/v1/orders/shipping-list/export.csv?ids=` | 批量导出发货清单 CSV：`ids` 为逗号分隔销售订单 UUID（去重后 ≤50 个），逐单合并明细行（「订单号」列区分来源，含客户名/电话/商品/SKU/数量/币种/金额），「快递单号(回填)」「承运商(回填)」列留空供线下打单后回填批量发货；任一 id 不在租户内返回 404。 |
-| `POST` | `/api/v1/orders/shipments/batch` | 批量发货：`{items:[{orderNo, trackingNo, carrier?}]}`（≤200 条），按订单号在租户内匹配销售订单并新增 `shipped` 物流（订单自动流转）；未付款/已取消/未找到/重复订单号逐行失败，返回 `{succeeded, failed, results[]}`。 |
+| `POST` | `/api/v1/orders/shipments/batch` | 批量发货：`{items:[{orderNo, trackingNo, carrier?}]}`（≤200 条），按订单号在租户内匹配销售订单并新增 `shipped` 物流（订单自动流转）；未付款/已取消/未找到/重复订单号逐行失败，返回 `{succeeded, failed, results[]}`；成功行附 `inventoryDeducted`（该订单是否已有成功库存扣减；发货本身不扣库存，仅提示口径）。 |
 | `POST` | `/api/v1/orders/:id/shipments` | 新增物流记录：`{carrier, trackingNo?, trackingUrl?, status?, shippedAt?, deliveredAt?}`；`status` 缺省 `pending`。 |
 | `PUT` | `/api/v1/orders/:id/shipments/:shipmentId` | 更新物流记录（同上字段）。 |
 | `DELETE` | `/api/v1/orders/:id/shipments/:shipmentId` | 删除物流记录。 |

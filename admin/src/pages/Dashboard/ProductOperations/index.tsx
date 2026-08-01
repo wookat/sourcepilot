@@ -61,6 +61,7 @@ import {
   type DashboardTodo,
   type ProductOperationDashboard,
 } from '@/services/dashboard';
+import OnboardingGuide from '@/pages/Dashboard/ProductOperations/OnboardingGuide';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { fetchOrderSalesStats, type SalesStatsDTO, type SalesWindowStats } from '@/services/orders';
 import { useUrlQueryState } from '@/hooks/useUrlState';
@@ -915,6 +916,9 @@ export default function ProductOperationsDashboardPage() {
         </OperationToolbar>
       }
     >
+      {/* 新手入门引导 */}
+      <OnboardingGuide />
+
       {/* 筛选 */}
       <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>
         <Space wrap size={[12, 12]}>

@@ -206,6 +206,23 @@ export async function fetchOrderSalesStats(): Promise<SalesStatsDTO> {
   return getJSON('/api/v1/orders/stats/sales');
 }
 
+export type DailyStat = {
+  date: string;
+  orderCount: number;
+  paidCount: number;
+  paidAmounts: SalesAmount[];
+};
+
+export type DailyStatsDTO = {
+  generatedAt: string;
+  days: number;
+  items: DailyStat[];
+};
+
+export async function fetchOrderDailyStats(days = 30): Promise<DailyStatsDTO> {
+  return getJSON(`/api/v1/orders/stats/daily?days=${days}`);
+}
+
 export async function getOrder(id: string): Promise<OrderDetailDTO> {
   return getJSON(`/api/v1/orders/${id}`);
 }
@@ -256,6 +273,8 @@ export type BatchShipmentLineResult = {
   ok: boolean;
   status?: string;
   message?: string;
+  /** 仅成功行返回：该订单是否已有成功的库存扣减（发货本身不扣库存） */
+  inventoryDeducted?: boolean;
 };
 
 export type BatchShipmentsResult = {

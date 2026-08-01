@@ -17,7 +17,7 @@ import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import { message } from 'antd';
 import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
-import { AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY } from '@/constants/auth';
+import { saveSessionCredentials } from '@/utils/sessionGuard';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import { login, register, sendEmailCode } from '@/services/auth';
 import './index.less';
@@ -72,10 +72,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const data = await login(values.account as string, values.password as string);
-      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
-      if (data.sessionMode) {
-        localStorage.setItem(AUTH_SESSION_MODE_KEY, data.sessionMode);
-      }
+      saveSessionCredentials(data);
       await setInitialState((s) => ({ ...s, currentUser: data.user }));
       message.success('登录成功');
     } catch (e: unknown) {
@@ -94,7 +91,7 @@ export default function LoginPage() {
         password: values.password,
         confirmPassword: values.confirmPassword,
       });
-      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+      saveSessionCredentials(data);
       await setInitialState((s) => ({ ...s, currentUser: data.user }));
       message.success('注册并登录成功');
     } catch (e: unknown) {
