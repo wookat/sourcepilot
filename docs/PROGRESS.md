@@ -1119,3 +1119,8 @@ Final Production Acceptance Deferred to P10
 ### 变更记录（2026-07-29）迭代第 44 轮：批量导入订单支持店铺归属
 
 - 「批量导入订单」弹窗新增「关联店铺（可选，应用到本次导入的全部订单）」下拉，选中后整批订单写入 `shopId`（复用既有 `CreateBody.shopId` 与后端店铺可见性校验，API 不变）；补齐订单店铺归属入口，使店铺授权（store scope）的正向过滤在手工/导入订单上可用（此前导入订单 shop_id 恒为 NULL，非 admin 授权店铺账号看不到任何导入订单）。纯前端改动。
+
+### 变更记录（2026-08-01）迭代第 46 轮：生成采购单前置条件阻断引导闭环
+
+- 「生成采购单结果」弹窗的 blockers 每条附可点击直达入口（第 45 轮 UX 走查 P1：新手被 sku.unmatched → source.missing → mapping.missing 3 连环阻断且报错只给文案不给入口）：`sku.unmatched` →「去规格匹配」直达该订单详情规格匹配 Tab（`/orders/:id?tab=sku`，可用 Tab 内既有「自动匹配整单」）；`source.missing` →「去绑定主货源」直达货源档案并自动打开绑定弹窗（`/sourcing/product-sources?productId=…&action=bind`）；`mapping.missing` →「去补 SKU 映射」直达货源档案自动打开主货源 SKU 映射抽屉并高亮对应行（`…&action=mapping&skuId=…`）。点击链接自动关闭结果弹窗；订单列表/订单详情/采购单页三处入口统一生效。
+- 后端 `POST /procurement/orders/generate` 的 `Blocker` 新增可选 `productId` 字段，并为 `source.missing`/`mapping.missing` 补齐 `productId`/`localSkuId`（既有字段语义不变，向后兼容，附单测）；货源档案页新增 `action`/`skuId` 深链定位参数。附 GenerateResultAlerts 组件单测。

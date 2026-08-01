@@ -541,7 +541,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回；映射无参考价时自动回退到最近历史进价，仍缺价以 `warnings`（`price.missing`）返回；支持 `idempotencyKey` 幂等；明细行已被未取消/未失败采购单覆盖时跳过并以 `warnings`（`line.covered`）返回，取消原采购单后可重新生成。 |
+| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回，每条含 `orderId`/`code`/`message`，`source.missing`、`mapping.missing` 额外返回 `productId` 与 `localSkuId`（新增可选字段，向后兼容，供前端生成直达链接）；映射无参考价时自动回退到最近历史进价，仍缺价以 `warnings`（`price.missing`）返回；支持 `idempotencyKey` 幂等；明细行已被未取消/未失败采购单覆盖时跳过并以 `warnings`（`line.covered`）返回，取消原采购单后可重新生成。 |
 | `GET` | `/api/v1/procurement/orders?status=&salesOrderId=` | 采购单列表；`salesOrderId` 按来源销售订单过滤（订单详情「关联采购单」用），非法 UUID 返回 400。 |
 | `GET` | `/api/v1/procurement/cost-estimates/:id` | 销售订单成本/毛利估算（id 为销售订单）：按主货源 SKU 映射参考价（缺价回退最近历史进价）逐行估算 CNY 成本；订单币种为 CNY 或配置了 `settings.pricing.exchangeRate`（CNY→订单币种）时折算 `estimatedCost/grossProfit/marginPercent`，任一行缺价时不计算毛利，问题行以 `issueCode`（`sku.unmatched`/`source.missing`/`mapping.missing`/`price.missing`）返回。 |
 | `POST` | `/api/v1/procurement/cost-estimates/batch` | 批量成本/毛利估算（订单列表用）：body `{"orderIds": ["..."]}`（≤50 个），返回 `items`（orderId → 汇总：`estimatedCostCny/exchangeRate/estimatedCost/grossProfit/marginPercent/missingLines`），不存在的订单被省略。 |

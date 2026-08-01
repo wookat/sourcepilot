@@ -919,7 +919,11 @@ export default function OrderDetailPage() {
         footer={null}
         onCancel={() => setGenResult(null)}
       >
-        <GenerateResultAlerts blockers={genResult?.blockers} warnings={genResult?.warnings} />
+        <GenerateResultAlerts
+          blockers={genResult?.blockers}
+          warnings={genResult?.warnings}
+          onNavigate={() => setGenResult(null)}
+        />
       </Modal>
 
       <Modal
