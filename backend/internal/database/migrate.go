@@ -77,6 +77,8 @@ func migrateLegacyInventorySKUColumns(db *gorm.DB) error {
 		{&inventory.OrderInventoryEffect{}, "product_sk_uid", "product_sku_id"},
 		{&order.OrderItem{}, "product_sk_uid", "product_sku_id"},
 		{&order.OrderItem{}, "external_sk_uid", "external_sku_id"},
+		{&order.OrderItemSKUMatch{}, "product_sk_uid", "product_sku_id"},
+		{&order.OrderItemSKUMatch{}, "external_sk_uid", "external_sku_id"},
 	}
 	for _, r := range renames {
 		if !db.Migrator().HasTable(r.model) {
@@ -139,6 +141,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&productpublish.ProductPublicationSKU{},
 		&order.Order{},
 		&order.OrderItem{},
+		&order.OrderShipment{},
 		&order.OrderItemSKUMatch{},
 		&orderexception.OrderExceptionMark{},
 		&sourcing.Supplier{},
@@ -246,5 +249,22 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateP5Observability(db); err != nil {
 		return err
 	}
+	if err := backfillPurchaseOrderTenantIDs(db); err != nil {
+		return err
+	}
 	return migrateP7Performance(db)
+}
+
+// backfillPurchaseOrderTenantIDs fills purchase_orders.tenant_id from the
+// tenant of the sales orders their items reference (purchase orders created
+// before tenant scoping were persisted with tenant_id 0).
+func backfillPurchaseOrderTenantIDs(db *gorm.DB) error {
+	sql := `UPDATE purchase_orders po SET tenant_id = o.tenant_id
+		FROM purchase_order_items poi JOIN orders o ON o.id = poi.sales_order_id
+		WHERE poi.purchase_order_id = po.id AND o.tenant_id <> 0 AND (po.tenant_id IS NULL OR po.tenant_id = 0)`
+	if err := db.Exec(sql).Error; err != nil {
+		// SQLite dev may not support UPDATE FROM; skip non-fatal.
+		_ = err
+	}
+	return nil
 }

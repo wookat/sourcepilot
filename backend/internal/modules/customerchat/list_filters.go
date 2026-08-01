@@ -13,29 +13,45 @@ func (s *Service) applyListFilters(c *gin.Context, tx *gorm.DB, q ListQuery) *go
 		return tx
 	}
 	ctx := c.Request.Context()
-	if q.PendingReply {
-		tx = tx.Where("status = ?", StatusPendingReply)
+	if q.PendingReply != nil {
+		if *q.PendingReply {
+			tx = tx.Where("status = ?", StatusPendingReply)
+		} else {
+			tx = tx.Where("status <> ?", StatusPendingReply)
+		}
 	}
-	if q.HasOrder {
-		tx = tx.Where("order_id IS NOT NULL")
+	if q.HasOrder != nil {
+		if *q.HasOrder {
+			tx = tx.Where("order_id IS NOT NULL")
+		} else {
+			tx = tx.Where("order_id IS NULL")
+		}
 	}
 	if kw := strings.TrimSpace(q.Keyword); kw != "" {
 		pat := "%" + kw + "%"
 		tx = tx.Where("(customer_name ILIKE ? OR CAST(id AS TEXT) ILIKE ? OR CAST(order_id AS TEXT) ILIKE ?)", pat, pat, pat)
 	}
-	if q.HasAiSuggestion {
-		tx = tx.Where(`EXISTS (
+	if q.HasAiSuggestion != nil {
+		cond := `EXISTS (
 			SELECT 1 FROM customer_reply_suggestions s
 			WHERE s.conversation_id = customer_conversations.id
 			AND s.status IN ?
-		)`, []string{SuggestionGenerated, SuggestionEdited})
+		)`
+		if !*q.HasAiSuggestion {
+			cond = "NOT " + cond
+		}
+		tx = tx.Where(cond, []string{SuggestionGenerated, SuggestionEdited})
 	}
-	if q.SendFailed {
-		tx = tx.Where(`EXISTS (
+	if q.SendFailed != nil {
+		cond := `EXISTS (
 			SELECT 1 FROM customer_failure_events f
 			WHERE f.conversation_id = customer_conversations.id
 			AND f.status = ? AND f.category IN ?
-		)`, FailureEventStatusOpen, []string{FailureCategoryReplySendFailed, FailureCategoryReplyPermissionDenied})
+		)`
+		if !*q.SendFailed {
+			cond = "NOT " + cond
+		}
+		tx = tx.Where(cond, FailureEventStatusOpen, []string{FailureCategoryReplySendFailed, FailureCategoryReplyPermissionDenied})
 	}
 	if q.UpdatedStart != nil {
 		tx = tx.Where("updated_at >= ?", *q.UpdatedStart)

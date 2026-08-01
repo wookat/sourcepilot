@@ -4,5 +4,6 @@
 backend
 data
 docs
-scripts
+scripts/*
+!scripts/patch-pro-field-antd-select.mjs
 .env

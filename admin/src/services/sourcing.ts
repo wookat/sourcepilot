@@ -59,14 +59,41 @@ export type SourceSwitchEvent = {
   toSourceId: string;
   reason: string;
   mode: string;
+  status?: string;
   operator?: string;
   createdAt: string;
+};
+
+export type SourceAlertRow = {
+  sourceId: string;
+  productId: string;
+  productTitle: string;
+  supplierName: string;
+  status: string;
+  isPrimary: boolean;
+  lastCheckedAt?: string;
+  openSuggestions: number;
+};
+
+export type RefreshAlert = {
+  code:
+    | 'fetch_failed'
+    | 'price_increase'
+    | 'primary_locked'
+    | 'no_backup'
+    | 'switch_suggested'
+    | 'auto_switched'
+    | string;
+  sourceId?: string;
+  supplierName?: string;
+  reason?: string;
+  thresholdPercent?: number;
 };
 
 export type RefreshResult = {
   productId: string;
   refreshed: number;
-  alerts?: string[];
+  alerts?: RefreshAlert[];
   switched?: ProductSource;
   sources: ProductSource[];
 };
@@ -148,6 +175,10 @@ export async function saveSkuMappings(
   );
 }
 
+export async function deleteSkuMapping(sourceSkuId: string) {
+  return deleteJSON<{ deleted: boolean }>(`/api/v1/product-source-skus/${sourceSkuId}`);
+}
+
 export async function fetchPriceHistory(sourceSkuId: string, days = 90) {
   return getWithParams<{ items: SourcePriceHistoryRow[] }>(
     `/api/v1/product-source-skus/${sourceSkuId}/price-history`,
@@ -168,4 +199,16 @@ export async function fetchSwitchEvents(params: {
     '/api/v1/source-switch-events',
     { productId: params.productId, page: params.page, pageSize: params.pageSize },
   );
+}
+
+export async function adoptSwitchSuggestion(eventId: string) {
+  return postJSON<ProductSource>(`/api/v1/source-switch-events/${eventId}/adopt`);
+}
+
+export async function ignoreSwitchSuggestion(eventId: string) {
+  return postJSON<{ ignored: boolean }>(`/api/v1/source-switch-events/${eventId}/ignore`);
+}
+
+export async function fetchSourceAlerts() {
+  return getJSON<{ items: SourceAlertRow[] }>('/api/v1/product-source-alerts');
 }

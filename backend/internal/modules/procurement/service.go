@@ -30,6 +30,7 @@ type Service struct {
 	DB       *gorm.DB
 	OpLog    *operationlog.Service
 	Provider trade.Provider
+	Settings SettingsReader
 }
 
 func (s *Service) provider() trade.Provider {
@@ -94,6 +95,71 @@ func (s *Service) transition(ctx context.Context, id uuid.UUID, to, source strin
 	return &po, nil
 }
 
+// Scope is the trusted tenant/store visibility scope resolved from the
+// authenticated caller. TenantID nil skips tenant filtering (legacy/unit-test
+// paths); AllowedShopIDs nil means all stores (admin), empty means none.
+type Scope struct {
+	TenantID       *int64
+	AllowedShopIDs []uuid.UUID
+}
+
+// POInScope reports whether one purchase order is visible under sc. Purchase
+// orders are tenant-scoped directly; store scope resolves through the sales
+// orders referenced by their items.
+func (s *Service) POInScope(ctx context.Context, id uuid.UUID, sc Scope) (bool, error) {
+	var po PurchaseOrder
+	err := s.DB.WithContext(ctx).Select("id", "tenant_id").First(&po, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if sc.TenantID != nil && po.TenantID != *sc.TenantID {
+		return false, nil
+	}
+	if sc.AllowedShopIDs == nil {
+		return true, nil
+	}
+	if len(sc.AllowedShopIDs) == 0 {
+		return false, nil
+	}
+	var n int64
+	err = s.DB.WithContext(ctx).
+		Table("purchase_order_items").
+		Joins("JOIN orders ON orders.id = purchase_order_items.sales_order_id").
+		Where("purchase_order_items.purchase_order_id = ? AND orders.shop_id IN ?", id, sc.AllowedShopIDs).
+		Count(&n).Error
+	return n > 0, err
+}
+
+// SalesOrderInScope reports whether one sales order is visible under sc.
+func (s *Service) SalesOrderInScope(ctx context.Context, id uuid.UUID, sc Scope) (bool, error) {
+	var o order.Order
+	err := s.DB.WithContext(ctx).Select("id", "tenant_id", "shop_id").First(&o, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if sc.TenantID != nil && o.TenantID != *sc.TenantID {
+		return false, nil
+	}
+	if sc.AllowedShopIDs == nil {
+		return true, nil
+	}
+	if o.ShopID == nil {
+		return false, nil
+	}
+	for _, sid := range sc.AllowedShopIDs {
+		if sid == *o.ShopID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // GenerateBody creates purchase orders from sales orders.
 type GenerateBody struct {
 	OrderIDs       []string       `json:"orderIds"`
@@ -110,10 +176,11 @@ type Blocker struct {
 	Message    string `json:"message"`
 }
 
-// GenerateResult reports created purchase orders plus blockers.
+// GenerateResult reports created purchase orders plus blockers and warnings.
 type GenerateResult struct {
 	Orders   []PurchaseOrder `json:"orders"`
 	Blockers []Blocker       `json:"blockers"`
+	Warnings []Blocker       `json:"warnings,omitempty"`
 }
 
 type aggLine struct {
@@ -168,6 +235,21 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 				})
 				continue
 			}
+			var covered int64
+			if err := s.DB.WithContext(ctx).Model(&PurchaseOrderItem{}).
+				Joins("JOIN purchase_orders po ON po.id = purchase_order_items.purchase_order_id").
+				Where("purchase_order_items.sales_order_id = ? AND purchase_order_items.local_sku_id = ? AND po.status NOT IN ?",
+					oid, *it.ProductSKUID, []string{StatusCancelled, StatusFailed}).
+				Count(&covered).Error; err != nil {
+				return nil, err
+			}
+			if covered > 0 {
+				res.Warnings = append(res.Warnings, Blocker{
+					OrderID: oid.String(), LocalSKUID: it.ProductSKUID.String(), SKUName: it.SKUName,
+					Code: "line.covered", Message: "该明细已有有效采购单覆盖，未重复生成；如需重新采购请先取消原采购单",
+				})
+				continue
+			}
 			var primary sourcing.ProductSource
 			err := s.DB.WithContext(ctx).Preload("Supplier").
 				Where("product_id = ? AND is_primary = TRUE AND status <> ?", *it.ProductID, sourcing.SourceStatusDisabled).
@@ -210,6 +292,23 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 					title = prod.Title
 				}
 			}
+			expected := mapping.CurrentPrice
+			if expected == nil {
+				var hist sourcing.SourcePriceHistory
+				if err := s.DB.WithContext(ctx).
+					Where("source_sku_id = ?", mapping.ID).
+					Order("captured_at DESC").
+					First(&hist).Error; err == nil {
+					p := hist.Price
+					expected = &p
+				}
+			}
+			if expected == nil {
+				res.Warnings = append(res.Warnings, Blocker{
+					OrderID: oid.String(), LocalSKUID: it.ProductSKUID.String(), SKUName: it.SKUName,
+					Code: "price.missing", Message: "SKU 缺少参考进价，采购单金额将不含该行，可在确认前补填",
+				})
+			}
 			salesID := oid
 			line := PurchaseOrderItem{
 				SalesOrderID:    &salesID,
@@ -221,7 +320,7 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 				ProductTitle:    title,
 				SKUName:         skuName,
 				Quantity:        it.Quantity,
-				ExpectedPrice:   mapping.CurrentPrice,
+				ExpectedPrice:   expected,
 			}
 			if primary.Supplier == nil {
 				res.Blockers = append(res.Blockers, Blocker{
@@ -244,6 +343,14 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 			receiverJSON = datatypes.JSON(b)
 		}
 	}
+	// purchase orders inherit the tenant of their source sales orders
+	var poTenantID int64
+	if len(orderIDs) > 0 {
+		var src order.Order
+		if err := s.DB.WithContext(ctx).Select("tenant_id").First(&src, "id = ?", orderIDs[0]).Error; err == nil {
+			poTenantID = src.TenantID
+		}
+	}
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		idx := 0
 		for supplierID, lines := range bySupplier {
@@ -255,6 +362,7 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 				}
 			}
 			po := PurchaseOrder{
+				TenantID:        poTenantID,
 				SupplierID:      supplierID,
 				SupplierName:    lines[0].supplier.Name,
 				SourcePlatform:  lines[0].supplier.Platform,
@@ -292,13 +400,66 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 
 func round2(v float64) float64 { return float64(int(v*100+0.5)) / 100 }
 
+// UpdateItemPrice sets an item's expected price before the order is confirmed
+// (draft / pending_confirm only) and recomputes the order total.
+func (s *Service) UpdateItemPrice(ctx context.Context, poID, itemID uuid.UUID, price float64, operator *uuid.UUID) (*PurchaseOrder, error) {
+	if price <= 0 {
+		return nil, fmt.Errorf("%w: expectedPrice must be greater than 0", ErrBadRequest)
+	}
+	var po PurchaseOrder
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&po, "id = ?", poID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if po.Status != StatusDraft && po.Status != StatusPendingConfirm {
+			return fmt.Errorf("%w: 仅草稿或待确认状态可修改参考价（当前 %s）", ErrConflict, po.Status)
+		}
+		var item PurchaseOrderItem
+		if err := tx.First(&item, "id = ? AND purchase_order_id = ?", itemID, poID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if err := tx.Model(&item).Update("expected_price", price).Error; err != nil {
+			return err
+		}
+		var items []PurchaseOrderItem
+		if err := tx.Where("purchase_order_id = ?", poID).Find(&items).Error; err != nil {
+			return err
+		}
+		total := 0.0
+		for _, it := range items {
+			if it.ID == itemID {
+				total += price * float64(it.Quantity)
+				continue
+			}
+			if it.ExpectedPrice != nil {
+				total += *it.ExpectedPrice * float64(it.Quantity)
+			}
+		}
+		po.TotalAmount = round2(total)
+		return tx.Model(&po).Update("total_amount", po.TotalAmount).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.logOp(ctx, operator, "procurement.item.update_price", poID.String(), fmt.Sprintf("item %s price %.2f", itemID, price))
+	return s.Detail(ctx, poID)
+}
+
 // ListQuery filters purchase orders.
 type ListQuery struct {
-	Page       int
-	PageSize   int
-	Status     string
-	SupplierID string
-	Keyword    string
+	Page         int
+	PageSize     int
+	Status       string
+	SupplierID   string
+	Keyword      string
+	SalesOrderID string
+	Scope        Scope
 }
 
 // ListResult is a paginated purchase-order page.
@@ -318,11 +479,34 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 		q.PageSize = 20
 	}
 	tx := s.DB.WithContext(ctx).Model(&PurchaseOrder{})
+	if q.Scope.TenantID != nil {
+		tx = tx.Where("tenant_id = ?", *q.Scope.TenantID)
+	}
+	if q.Scope.AllowedShopIDs != nil {
+		if len(q.Scope.AllowedShopIDs) == 0 {
+			tx = tx.Where("1 = 0")
+		} else {
+			tx = tx.Where(
+				"id IN (SELECT purchase_order_items.purchase_order_id FROM purchase_order_items JOIN orders ON orders.id = purchase_order_items.sales_order_id WHERE orders.shop_id IN ?)",
+				q.Scope.AllowedShopIDs,
+			)
+		}
+	}
 	if q.Status != "" {
 		tx = tx.Where("status = ?", q.Status)
 	}
 	if q.SupplierID != "" {
 		tx = tx.Where("supplier_id = ?", q.SupplierID)
+	}
+	if raw := strings.TrimSpace(q.SalesOrderID); raw != "" {
+		sid, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid salesOrderId", ErrBadRequest)
+		}
+		tx = tx.Where(
+			"id IN (SELECT purchase_order_id FROM purchase_order_items WHERE sales_order_id = ?)",
+			sid,
+		)
 	}
 	if kw := strings.TrimSpace(q.Keyword); kw != "" {
 		like := "%" + kw + "%"
@@ -556,18 +740,36 @@ func (s *Service) FillLogistics(ctx context.Context, id uuid.UUID, body Logistic
 	return po, nil
 }
 
-// MarkDelivered moves shipped → delivered (cloud warehouse inbound).
+// MarkDelivered moves shipped → delivered (cloud warehouse inbound) and adds
+// each purchase line quantity to local SKU stock (idempotent per line).
 func (s *Service) MarkDelivered(ctx context.Context, id uuid.UUID, operator *uuid.UUID) (*PurchaseOrder, error) {
-	po, err := s.transition(ctx, id, StatusDelivered, EventSourceManual, nil, func(tx *gorm.DB, po *PurchaseOrder) error {
+	payload := map[string]any{}
+	po, err := s.transition(ctx, id, StatusDelivered, EventSourceManual, payload, func(tx *gorm.DB, po *PurchaseOrder) error {
 		now := time.Now().UTC()
-		return tx.Model(&PurchaseLogistics{}).
+		if err := tx.Model(&PurchaseLogistics{}).
 			Where("purchase_order_id = ?", po.ID).
-			Updates(map[string]any{"status": "delivered", "inbound_at": now}).Error
+			Updates(map[string]any{"status": "delivered", "inbound_at": now}).Error; err != nil {
+			return err
+		}
+		lines, err := inboundStockTx(tx, po, operator)
+		if err != nil {
+			return err
+		}
+		payload["inboundLines"] = lines
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	s.logOp(ctx, operator, "procurement.mark_delivered", id.String(), "")
+	inbound := 0
+	if lines, ok := payload["inboundLines"].([]InboundLine); ok {
+		for _, l := range lines {
+			if !l.Skipped {
+				inbound += l.Quantity
+			}
+		}
+	}
+	s.logOp(ctx, operator, "procurement.mark_delivered", id.String(), fmt.Sprintf("inboundQty=%d", inbound))
 	return po, nil
 }
 

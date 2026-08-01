@@ -15,12 +15,13 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from 'antd';
 import dayjs from 'dayjs';
 import { formatDateTime } from '@/utils/formatTime';
-import { history, useLocation } from '@umijs/max';
+import { history, useLocation, useModel } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PAGE_COPY } from '@/constants/copywriting';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
@@ -41,6 +42,7 @@ import {
   deleteOrder,
   deleteOrderItem,
   deleteOrderShipment,
+  downloadOrdersShippingCsv,
   getOrderInventoryEffects,
   getOrder,
   queryOrders,
@@ -54,7 +56,17 @@ import {
   type OrderShipmentRow,
 } from '@/services/orders';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
+import ImportOrdersModal from '@/pages/Orders/ImportOrdersModal';
+import BatchShipModal from '@/pages/Orders/BatchShipModal';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
+import {
+  fetchOrderCostEstimateBatch,
+  generatePurchaseOrders,
+  type GenerateResult,
+  type OrderCostEstimateSummary,
+} from '@/services/procurement';
+import GenerateResultAlerts from '@/components/procurement/GenerateResultAlerts';
+import { canWriteOrders } from '@/utils/orderPerm';
 import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
 import { pickGroup } from '@/utils/settingsForm';
@@ -74,6 +86,8 @@ const ORDER_QUERY_KEYS = [
   'fulfillmentStatus',
   'platform',
   'shopId',
+  'hasException',
+  'hasPurchase',
   'source',
   'start',
   'end',
@@ -93,6 +107,8 @@ function summarizeInvResp(sum?: Record<string, unknown>) {
   if (typeof sum.message === 'string' && sum.message) return sum.message;
   return '已完成';
 }
+
+const TERMINAL_ORDER_STATUSES = ['cancelled', 'refunded', 'closed'];
 
 const ORDER_STATUS_OPTS = Object.keys(ORDER_STATUS).map((v) => ({
   label: ORDER_STATUS[v as keyof typeof ORDER_STATUS].text,
@@ -145,14 +161,146 @@ export default function OrdersPage() {
   const [shipModal, setShipModal] = useState<{ open: boolean; row?: OrderShipmentRow | null }>({ open: false });
   const [shipForm] = Form.useForm();
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
+  const [importOpen, setImportOpen] = useState(false);
+  const [batchShipOpen, setBatchShipOpen] = useState(false);
   const { search: ordersSearch } = useLocation();
   const [createInvDefaults, setCreateInvDefaults] = useState<{ deduct: boolean; sync: boolean }>({
     deduct: false,
     sync: false,
   });
   const [invEffectRows, setInvEffectRows] = useState<OrderInventoryEffectRow[]>([]);
+  const [costMap, setCostMap] = useState<Record<string, OrderCostEstimateSummary>>({});
   const [invActionLoading, setInvActionLoading] = useState(false);
   const detailIdRef = useRef<string | undefined>();
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: API.CurrentUser };
+  };
+  const writable = canWriteOrders(initialState?.currentUser?.role);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [tableRows, setTableRows] = useState<OrderListRow[]>([]);
+  const [batchGenLoading, setBatchGenLoading] = useState(false);
+  const [batchPayLoading, setBatchPayLoading] = useState(false);
+  const [batchExportLoading, setBatchExportLoading] = useState(false);
+  const [batchDeliverLoading, setBatchDeliverLoading] = useState(false);
+  const [genResult, setGenResult] = useState<GenerateResult | null>(null);
+
+  const selectedPaidIds = useMemo(
+    () =>
+      tableRows
+        .filter(
+          (r) =>
+            selectedRowKeys.includes(r.id) &&
+            r.paymentStatus === 'paid' &&
+            !TERMINAL_ORDER_STATUSES.includes(r.status),
+        )
+        .map((r) => r.id),
+    [tableRows, selectedRowKeys],
+  );
+  const selectedUnpaidIds = useMemo(
+    () =>
+      tableRows
+        .filter(
+          (r) =>
+            selectedRowKeys.includes(r.id) &&
+            r.paymentStatus === 'unpaid' &&
+            !TERMINAL_ORDER_STATUSES.includes(r.status),
+        )
+        .map((r) => r.id),
+    [tableRows, selectedRowKeys],
+  );
+  const selectedShippedIds = useMemo(
+    () =>
+      tableRows
+        .filter((r) => selectedRowKeys.includes(r.id) && r.status === 'shipped')
+        .map((r) => r.id),
+    [tableRows, selectedRowKeys],
+  );
+
+  const handleBatchMarkPaid = useCallback(async () => {
+    const ids = selectedUnpaidIds;
+    if (ids.length === 0) return;
+    setBatchPayLoading(true);
+    const failures: string[] = [];
+    let ok = 0;
+    try {
+      for (const id of ids) {
+        try {
+          await updateOrder(id, { paymentStatus: 'paid' });
+          ok += 1;
+        } catch (e: unknown) {
+          failures.push((e as Error)?.message || id);
+        }
+      }
+      if (ok > 0) message.success(`已标记 ${ok} 单为已付款`);
+      if (failures.length > 0) message.error(`${failures.length} 单标记失败：${failures[0]}`);
+      setSelectedRowKeys([]);
+      actionRef.current?.reload();
+    } finally {
+      setBatchPayLoading(false);
+    }
+  }, [selectedUnpaidIds]);
+
+  const handleBatchExportShipping = useCallback(async () => {
+    const ids = selectedPaidIds;
+    if (ids.length === 0) return;
+    setBatchExportLoading(true);
+    try {
+      await downloadOrdersShippingCsv(ids);
+      message.success(`已导出 ${ids.length} 单发货清单`);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '导出失败');
+    } finally {
+      setBatchExportLoading(false);
+    }
+  }, [selectedPaidIds]);
+
+  const handleBatchMarkDelivered = useCallback(async () => {
+    const ids = selectedShippedIds;
+    if (ids.length === 0) return;
+    setBatchDeliverLoading(true);
+    const failures: string[] = [];
+    let ok = 0;
+    try {
+      for (const id of ids) {
+        try {
+          await updateOrder(id, {
+            status: 'delivered',
+            deliveredAt: new Date().toISOString(),
+          });
+          ok += 1;
+        } catch (e: unknown) {
+          failures.push((e as Error)?.message || id);
+        }
+      }
+      if (ok > 0) message.success(`已标记 ${ok} 单为已送达`);
+      if (failures.length > 0) message.error(`${failures.length} 单标记失败：${failures[0]}`);
+      setSelectedRowKeys([]);
+      actionRef.current?.reload();
+    } finally {
+      setBatchDeliverLoading(false);
+    }
+  }, [selectedShippedIds]);
+
+  const handleBatchGenerate = useCallback(async () => {
+    const ids = selectedPaidIds;
+    if (ids.length === 0) return;
+    setBatchGenLoading(true);
+    try {
+      const res = await generatePurchaseOrders({ orderIds: ids });
+      setGenResult(res);
+      if ((res.orders || []).length > 0) {
+        message.success(`已生成 ${res.orders.length} 张采购单`);
+      } else if ((res.blockers || []).length === 0 && (res.warnings || []).length === 0) {
+        message.info('没有可进入采购清单的明细行');
+      }
+      setSelectedRowKeys([]);
+      actionRef.current?.reload();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '生成采购单失败');
+    } finally {
+      setBatchGenLoading(false);
+    }
+  }, [selectedPaidIds]);
 
   const invEffectFailures = useMemo(
     () => invEffectRows.filter((r) => r.status === 'failed'),
@@ -235,10 +383,15 @@ export default function OrdersPage() {
       fulfillmentStatus: urlState.fulfillmentStatus,
       platform: urlState.platform,
       shopId: urlState.shopId,
+      hasException: urlState.hasException,
+      hasPurchase: urlState.hasPurchase,
       createdAt: queryTimeRange(urlState.start, urlState.end),
     });
+    actionRef.current?.reload();
   }, [
     urlState.fulfillmentStatus,
+    urlState.hasException,
+    urlState.hasPurchase,
     urlState.inventoryStatus,
     urlState.keyword,
     urlState.page,
@@ -390,6 +543,16 @@ export default function OrdersPage() {
         },
       },
       {
+        title: '采购覆盖',
+        dataIndex: 'hasPurchase',
+        hideInTable: true,
+        valueType: 'select',
+        valueEnum: {
+          '1': { text: '已生成采购单' },
+          '0': { text: '未生成采购单' },
+        },
+      },
+      {
         title: '异常',
         dataIndex: 'openExceptionCount',
         width: 72,
@@ -415,6 +578,47 @@ export default function OrdersPage() {
         search: false,
         width: 120,
         render: (_, r) => `${r.currency} ${r.totalAmount}`,
+      },
+      {
+        title: '预估毛利',
+        dataIndex: 'estimatedProfit',
+        search: false,
+        width: 132,
+        render: (_, r) => {
+          const est = costMap[r.id];
+          if (!est) return '—';
+          if (est.missingLines > 0) {
+            return (
+              <Tooltip title={`${est.missingLines} 行缺参考进价，无法估算成本`}>
+                <Tag color="warning">缺价</Tag>
+              </Tooltip>
+            );
+          }
+          if (est.exchangeRate == null) {
+            return (
+              <Tooltip title="未配置汇率，无法折算毛利（定价设置 → 默认汇率）">
+                <Tag>未配汇率</Tag>
+              </Tooltip>
+            );
+          }
+          if (est.grossProfit == null) return '—';
+          const color = est.grossProfit >= 0 ? '#3f8600' : '#cf1322';
+          return (
+            <Tooltip
+              title={`预估采购成本 CNY ${est.estimatedCostCny.toFixed(2)}，汇率 ${est.exchangeRate}`}
+            >
+              <span style={{ color, fontWeight: 500 }}>
+                {r.currency} {est.grossProfit.toFixed(2)}
+                {est.marginPercent != null ? (
+                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                    {' '}
+                    {est.marginPercent.toFixed(1)}%
+                  </Typography.Text>
+                ) : null}
+              </span>
+            </Tooltip>
+          );
+        },
       },
       {
         title: '物流',
@@ -480,7 +684,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [shopOptions, keywordFieldProps],
+    [shopOptions, keywordFieldProps, costMap],
   );
 
   const openItemModal = (row?: OrderItemRow) => {
@@ -600,27 +804,89 @@ export default function OrdersPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
-        params={{
-          current: tablePage,
-          pageSize: tablePageSize,
-          keyword: urlState.keyword,
-          paymentStatus: urlState.payStatus,
-          skuMatchStatus: urlState.skuStatus,
-          inventoryDeductStatus: urlState.inventoryStatus,
-          status: urlState.status,
-          fulfillmentStatus: urlState.fulfillmentStatus,
-          platform: urlState.platform,
-          shopId: urlState.shopId,
-          start: urlState.start,
-          end: urlState.end,
-        }}
         search={{ layout: 'vertical', defaultCollapsed: false }}
+        rowSelection={
+          writable
+            ? {
+                selectedRowKeys,
+                alwaysShowAlert: true,
+                onChange: (keys) => setSelectedRowKeys(keys.map(String)),
+                getCheckboxProps: (r) => ({
+                  disabled:
+                    (r.paymentStatus !== 'paid' && r.paymentStatus !== 'unpaid') ||
+                    TERMINAL_ORDER_STATUSES.includes(r.status),
+                }),
+              }
+            : undefined
+        }
+        tableAlertOptionRender={({ onCleanSelected }) => (
+          <Space wrap>
+            <Button
+              type="primary"
+              size="small"
+              loading={batchGenLoading}
+              disabled={selectedPaidIds.length === 0}
+              onClick={() => void handleBatchGenerate()}
+            >
+              批量生成采购单（{selectedPaidIds.length}）
+            </Button>
+            <Button
+              size="small"
+              loading={batchPayLoading}
+              disabled={selectedUnpaidIds.length === 0}
+              onClick={() => void handleBatchMarkPaid()}
+            >
+              批量标记已付款（{selectedUnpaidIds.length}）
+            </Button>
+            <Button
+              size="small"
+              loading={batchExportLoading}
+              disabled={selectedPaidIds.length === 0}
+              onClick={() => void handleBatchExportShipping()}
+            >
+              批量导出发货清单（{selectedPaidIds.length}）
+            </Button>
+            <Button
+              size="small"
+              loading={batchDeliverLoading}
+              disabled={selectedShippedIds.length === 0}
+              onClick={() => void handleBatchMarkDelivered()}
+            >
+              批量标记送达（{selectedShippedIds.length}）
+            </Button>
+            <a onClick={onCleanSelected}>取消选择</a>
+          </Space>
+        )}
+        onSubmit={() => {
+          // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
+          const v = (formRef.current?.getFieldsValue?.() ?? {}) as Record<string, unknown>;
+          const range = v.createdAt as [unknown, unknown] | undefined;
+          setTablePage(1);
+          setUrlState(
+            {
+              page: undefined,
+              keyword: prepareKeyword(v.keyword) || undefined,
+              payStatus: (v.paymentStatus as string | undefined)?.trim() || undefined,
+              skuStatus: (v.skuMatchStatus as string | undefined)?.trim() || undefined,
+              inventoryStatus: (v.inventoryDeductStatus as string | undefined)?.trim() || undefined,
+              status: (v.status as string | undefined)?.trim() || undefined,
+              fulfillmentStatus: (v.fulfillmentStatus as string | undefined)?.trim() || undefined,
+              platform: (v.platform as string | undefined)?.trim() || undefined,
+              shopId: (v.shopId as string | undefined)?.trim() || undefined,
+              hasException: String(v.hasException ?? '') === 'true' ? 'true' : undefined,
+              hasPurchase: ['0', '1'].includes(String(v.hasPurchase ?? '')) ? String(v.hasPurchase) : undefined,
+              start: range?.[0] ? dayjs(range[0] as string).toISOString() : undefined,
+              end: range?.[1] ? dayjs(range[1] as string).toISOString() : undefined,
+            },
+            { replace: true },
+          );
+        }}
         onReset={() => {
           setTablePage(1);
           setTablePageSize(20);
           clearUrlState(ORDER_QUERY_KEYS, { replace: true });
         }}
-        toolBarRender={() => [
+        toolBarRender={() => (writable ? [
           <ModalForm
             key={`c-${createInvDefaults.deduct}-${createInvDefaults.sync}`}
             initialValues={{
@@ -637,6 +903,12 @@ export default function OrdersPage() {
             }}
           >
             <ProFormText name="platform" label="平台" placeholder="manual" extra="手工订单可填 manual 或留空" />
+            <Alert
+              showIcon
+              type="info"
+              style={{ marginBottom: 12 }}
+              message="商品明细可在创建后进入订单详情「商品明细」Tab 添加；成本/毛利估算依赖明细行。"
+            />
             <ProFormSelect
               name="shopId"
               label="关联店铺（可选）"
@@ -663,43 +935,33 @@ export default function OrdersPage() {
               tooltip="需在策略中放行并具备刊登出库路由"
             />
           </ModalForm>,
-        ]}
-        request={async (params) => {
-          const kw = prepareKeyword(params.keyword);
+          <Button key="import" onClick={() => setImportOpen(true)}>
+            批量导入订单
+          </Button>,
+          <Button key="batch-ship" onClick={() => setBatchShipOpen(true)}>
+            批量发货
+          </Button>,
+        ] : [])}
+        request={async () => {
+          // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
           const qp = {
-            page: params.current ?? tablePage,
-            pageSize: params.pageSize ?? tablePageSize,
-            platform: (params.platform as string | undefined)?.trim(),
-            shopId: (params.shopId as string | undefined)?.trim(),
-            keyword: kw,
-            paymentStatus: (params.paymentStatus as string | undefined)?.trim(),
-            skuMatchStatus: (params.skuMatchStatus as string | undefined)?.trim(),
-            inventoryDeductStatus: (params.inventoryDeductStatus as string | undefined)?.trim(),
-            status: (params.status as string | undefined)?.trim(),
-            fulfillmentStatus: (params.fulfillmentStatus as string | undefined)?.trim(),
-            hasException:
-              params.hasException === 'true' || params.hasException === true ? true : undefined,
-            start: typeof params.start === 'string' ? params.start : undefined,
-            end: typeof params.end === 'string' ? params.end : undefined,
+            page: parsePositiveInt(urlState.page, 1),
+            pageSize: parsePositiveInt(urlState.pageSize, 20),
+            platform: urlState.platform?.trim(),
+            shopId: urlState.shopId?.trim(),
+            keyword: prepareKeyword(urlState.keyword),
+            paymentStatus: urlState.payStatus?.trim(),
+            skuMatchStatus: urlState.skuStatus?.trim(),
+            inventoryDeductStatus: urlState.inventoryStatus?.trim(),
+            status: urlState.status?.trim(),
+            fulfillmentStatus: urlState.fulfillmentStatus?.trim(),
+            hasException: urlState.hasException === 'true' ? true : undefined,
+            hasPurchase: ['0', '1'].includes(String(urlState.hasPurchase ?? ''))
+              ? (urlState.hasPurchase as '0' | '1')
+              : undefined,
+            start: urlState.start,
+            end: urlState.end,
           };
-          setUrlState(
-            {
-              page: Number(qp.page) > 1 ? qp.page : undefined,
-              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
-              keyword: qp.keyword,
-              payStatus: qp.paymentStatus,
-              skuStatus: qp.skuMatchStatus,
-              inventoryStatus: qp.inventoryDeductStatus,
-              status: qp.status,
-              fulfillmentStatus: qp.fulfillmentStatus,
-              platform: qp.platform,
-              shopId: qp.shopId,
-              start: qp.start,
-              end: qp.end,
-              source: urlState.source,
-            },
-            { replace: true },
-          );
           const res = await queryOrders({
             page: qp.page,
             pageSize: qp.pageSize,
@@ -712,9 +974,19 @@ export default function OrdersPage() {
             skuMatchStatus: qp.skuMatchStatus,
             inventoryDeductStatus: qp.inventoryDeductStatus,
             hasException: qp.hasException,
+            hasPurchase: qp.hasPurchase,
             start: qp.start,
             end: qp.end,
           });
+          setTableRows(res.list);
+          const ids = res.list.map((r) => r.id).filter(Boolean);
+          if (ids.length > 0) {
+            void fetchOrderCostEstimateBatch(ids.slice(0, 50))
+              .then((out) => setCostMap((prev) => ({ ...prev, ...out.items })))
+              .catch(() => {
+                /* 估算失败不阻塞列表 */
+              });
+          }
           return { data: res.list, total: res.pagination.total, success: true };
         }}
         pagination={{
@@ -731,6 +1003,15 @@ export default function OrdersPage() {
           },
         }}
       />
+
+      <Modal
+        title="生成采购单结果"
+        open={!!genResult && ((genResult.blockers || []).length > 0 || (genResult.warnings || []).length > 0)}
+        footer={null}
+        onCancel={() => setGenResult(null)}
+      >
+        <GenerateResultAlerts blockers={genResult?.blockers} warnings={genResult?.warnings} />
+      </Modal>
 
       <Drawer
         title={detail ? `订单 ${detail.orderNo}` : '订单详情'}
@@ -1085,6 +1366,17 @@ export default function OrdersPage() {
           </Form.Item>
         </Form>
       </Modal>
+      <ImportOrdersModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onDone={() => actionRef.current?.reload()}
+        shopOptions={shopOptions}
+      />
+      <BatchShipModal
+        open={batchShipOpen}
+        onClose={() => setBatchShipOpen(false)}
+        onDone={() => actionRef.current?.reload()}
+      />
     </TmPageContainer>
   );
 }

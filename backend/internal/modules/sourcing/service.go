@@ -461,13 +461,17 @@ func (s *Service) SaveSKUMappings(ctx context.Context, sourceID uuid.UUID, rows 
 				return fmt.Errorf("%w: invalid localSkuId", ErrBadRequest)
 			}
 			var m ProductSourceSKU
-			err = tx.Where("product_source_id = ? AND local_sku_id = ?", sourceID, localID).First(&m).Error
+			err = tx.Unscoped().Where("product_source_id = ? AND local_sku_id = ?", sourceID, localID).First(&m).Error
 			isNew := errors.Is(err, gorm.ErrRecordNotFound)
 			if err != nil && !isNew {
 				return err
 			}
 			if isNew {
 				m = ProductSourceSKU{ProductSourceID: sourceID, LocalSKUID: localID, Currency: "CNY", Status: "active"}
+			} else if m.DeletedAt.Valid {
+				// unique index (tenant_id, product_source_id, local_sku_id) covers
+				// soft-deleted rows too, so revive the row instead of inserting.
+				m.DeletedAt = gorm.DeletedAt{}
 			}
 			m.ExternalSKUID = strings.TrimSpace(r.ExternalSKUID)
 			if len(r.ExternalSpec) > 0 {
@@ -481,7 +485,7 @@ func (s *Service) SaveSKUMappings(ctx context.Context, sourceID uuid.UUID, rows 
 			if r.CurrentStock != nil {
 				m.CurrentStock = r.CurrentStock
 			}
-			if err := tx.Save(&m).Error; err != nil {
+			if err := tx.Unscoped().Save(&m).Error; err != nil {
 				return err
 			}
 			if priceChanged && r.CurrentPrice != nil {
@@ -505,6 +509,19 @@ func (s *Service) SaveSKUMappings(ctx context.Context, sourceID uuid.UUID, rows 
 	}
 	s.logOp(ctx, operator, "sourcing.sku_mapping.save", sourceID.String(), fmt.Sprintf("%d rows", len(rows)))
 	return out, nil
+}
+
+// DeleteSKUMapping soft-deletes one local↔external SKU mapping row.
+func (s *Service) DeleteSKUMapping(ctx context.Context, id uuid.UUID, operator *uuid.UUID) error {
+	res := s.DB.WithContext(ctx).Delete(&ProductSourceSKU{}, "id = ?", id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	s.logOp(ctx, operator, "sourcing.sku_mapping.delete", id.String(), "")
+	return nil
 }
 
 // PriceHistory returns recent price/stock snapshots for a source SKU.
@@ -546,11 +563,122 @@ func (s *Service) ListSwitchEvents(ctx context.Context, productID *uuid.UUID, pa
 	return map[string]any{"items": items, "total": total, "page": page, "pageSize": pageSize}, nil
 }
 
+// AdoptSwitchSuggestion switches the primary source to the suggested backup
+// and marks the suggestion adopted.
+func (s *Service) AdoptSwitchSuggestion(ctx context.Context, id uuid.UUID, operator *uuid.UUID) (*ProductSource, error) {
+	var ev SourceSwitchEvent
+	if err := s.DB.WithContext(ctx).First(&ev, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if ev.Mode != SwitchModeSuggested || ev.Status != SuggestionOpen {
+		return nil, fmt.Errorf("%w: suggestion is not open", ErrConflict)
+	}
+	out, err := s.SetPrimary(ctx, ev.ToSourceID, operator)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.DB.WithContext(ctx).Model(&SourceSwitchEvent{}).Where("id = ?", id).
+		Updates(map[string]any{"status": SuggestionAdopted, "operator": operator}).Error; err != nil {
+		return nil, err
+	}
+	s.logOp(ctx, operator, "sourcing.switch_suggestion.adopt", id.String(), ev.ToSourceID.String())
+	return out, nil
+}
+
+// IgnoreSwitchSuggestion marks an open suggestion ignored.
+func (s *Service) IgnoreSwitchSuggestion(ctx context.Context, id uuid.UUID, operator *uuid.UUID) error {
+	res := s.DB.WithContext(ctx).Model(&SourceSwitchEvent{}).
+		Where("id = ? AND mode = ? AND status = ?", id, SwitchModeSuggested, SuggestionOpen).
+		Updates(map[string]any{"status": SuggestionIgnored, "operator": operator})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	s.logOp(ctx, operator, "sourcing.switch_suggestion.ignore", id.String(), "")
+	return nil
+}
+
+// SourceAlertRow is one alerted product source (price alert / out of stock).
+type SourceAlertRow struct {
+	SourceID        uuid.UUID  `json:"sourceId"`
+	ProductID       uuid.UUID  `json:"productId"`
+	ProductTitle    string     `json:"productTitle"`
+	SupplierName    string     `json:"supplierName"`
+	Status          string     `json:"status"`
+	IsPrimary       bool       `json:"isPrimary"`
+	LastCheckedAt   *time.Time `json:"lastCheckedAt,omitempty"`
+	OpenSuggestions int64      `json:"openSuggestions"`
+}
+
+// ListSourceAlerts returns sources currently in price_alert / out_of_stock,
+// newest-checked first, with per-product open suggestion counts.
+func (s *Service) ListSourceAlerts(ctx context.Context) ([]SourceAlertRow, error) {
+	var rows []SourceAlertRow
+	err := s.DB.WithContext(ctx).Raw(`
+		SELECT ps.id AS source_id,
+		       ps.product_id,
+		       COALESCE(NULLIF(TRIM(p.title), ''), p.original_title) AS product_title,
+		       COALESCE(sup.name, '') AS supplier_name,
+		       ps.status,
+		       ps.is_primary,
+		       ps.last_checked_at,
+		       (
+		           SELECT COUNT(*) FROM source_switch_events se
+		           WHERE se.product_id = ps.product_id
+		             AND se.mode = ? AND se.status = ?
+		       ) AS open_suggestions
+		FROM product_sources ps
+		JOIN products p ON p.id = ps.product_id AND p.deleted_at IS NULL
+		LEFT JOIN suppliers sup ON sup.id = ps.supplier_id AND sup.deleted_at IS NULL
+		WHERE ps.deleted_at IS NULL
+		  AND ps.status IN (?, ?)
+		ORDER BY ps.last_checked_at DESC NULLS LAST
+		LIMIT 200
+	`, SwitchModeSuggested, SuggestionOpen, SourceStatusPriceAlert, SourceStatusOutOfStock).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// Refresh alert codes.
+const (
+	AlertFetchFailed     = "fetch_failed"
+	AlertPriceIncrease   = "price_increase"
+	AlertPrimaryLocked   = "primary_locked"
+	AlertNoBackup        = "no_backup"
+	AlertSwitchSuggested = "switch_suggested"
+	AlertAutoSwitched    = "auto_switched"
+)
+
+// RefreshAlert is one structured alert produced by a refresh run; the
+// frontend renders localized copy from the code + params.
+type RefreshAlert struct {
+	Code             string     `json:"code"`
+	SourceID         *uuid.UUID `json:"sourceId,omitempty"`
+	SupplierName     string     `json:"supplierName,omitempty"`
+	Reason           string     `json:"reason,omitempty"`
+	ThresholdPercent *float64   `json:"thresholdPercent,omitempty"`
+}
+
+func supplierName(src *ProductSource) string {
+	if src != nil && src.Supplier != nil {
+		return src.Supplier.Name
+	}
+	return ""
+}
+
 // RefreshResult reports one product refresh run.
 type RefreshResult struct {
 	ProductID uuid.UUID       `json:"productId"`
 	Refreshed int             `json:"refreshed"`
-	Alerts    []string        `json:"alerts"`
+	Alerts    []RefreshAlert  `json:"alerts"`
 	Switched  *ProductSource  `json:"switched,omitempty"`
 	Sources   []ProductSource `json:"sources"`
 }
@@ -583,7 +711,7 @@ func (s *Service) RefreshProductSources(ctx context.Context, productID uuid.UUID
 		}
 		quote, err := prov.FetchOffer(ctx, defaultStr(src.SourceOfferID, src.ID.String()), extIDs)
 		if err != nil {
-			res.Alerts = append(res.Alerts, fmt.Sprintf("source %s fetch failed: %v", src.ID, err))
+			res.Alerts = append(res.Alerts, RefreshAlert{Code: AlertFetchFailed, SourceID: &src.ID, SupplierName: supplierName(src)})
 			continue
 		}
 		byExt := map[string]sourceinfo.SKUQuote{}
@@ -624,7 +752,8 @@ func (s *Service) RefreshProductSources(ctx context.Context, productID uuid.UUID
 			newStatus = SourceStatusOutOfStock
 		} else if priceAlert {
 			newStatus = SourceStatusPriceAlert
-			res.Alerts = append(res.Alerts, fmt.Sprintf("source %s price increased beyond %.1f%%", src.ID, cfg.PriceIncreaseThresholdPercent))
+			threshold := cfg.PriceIncreaseThresholdPercent
+			res.Alerts = append(res.Alerts, RefreshAlert{Code: AlertPriceIncrease, SourceID: &src.ID, SupplierName: supplierName(src), ThresholdPercent: &threshold})
 		}
 		if err := s.DB.WithContext(ctx).Model(src).
 			Updates(map[string]any{"status": newStatus, "last_checked_at": now}).Error; err != nil {

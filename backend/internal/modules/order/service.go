@@ -87,6 +87,7 @@ type ListQuery struct {
 	InventoryDeductStatus string
 	SyncStatus            string
 	HasException          bool
+	HasPurchase           *bool
 	Start                 *time.Time
 	End                   *time.Time
 }
@@ -173,10 +174,25 @@ func orderCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) 
 		"inventoryDeductStatus": q.InventoryDeductStatus,
 		"syncStatus":            q.SyncStatus,
 		"hasException":          q.HasException,
+		"hasPurchase":           hasPurchaseKey(q.HasPurchase),
 		"start":                 q.Start,
 		"end":                   q.End,
 		"sort":                  "created_at_desc_id_desc",
 	}), shopScope
+}
+
+// activePOCoverageExists matches orders having at least one line covered by a
+// non-cancelled / non-failed purchase order (same rule as generate dedupe).
+const activePOCoverageExists = "EXISTS (SELECT 1 FROM purchase_order_items poi JOIN purchase_orders po2 ON po2.id = poi.purchase_order_id WHERE poi.sales_order_id = orders.id AND po2.status NOT IN ('cancelled','failed'))"
+
+func hasPurchaseKey(v *bool) string {
+	if v == nil {
+		return ""
+	}
+	if *v {
+		return "1"
+	}
+	return "0"
 }
 
 func (s *Service) validateShopRef(c *gin.Context, id *uuid.UUID) error {
@@ -484,6 +500,13 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if v := strings.TrimSpace(q.FulfillmentStatus); v != "" {
 		tx = tx.Where("fulfillment_status = ?", v)
+	}
+	if q.HasPurchase != nil {
+		if *q.HasPurchase {
+			tx = tx.Where(activePOCoverageExists)
+		} else {
+			tx = tx.Where("NOT " + activePOCoverageExists)
+		}
 	}
 	if q.Start != nil {
 		tx = tx.Where("created_at >= ?", *q.Start)
@@ -806,6 +829,11 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	if err := s.validateShopRef(c, o.ShopID); err != nil {
 		return nil, err
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	o.TenantID = tid
 	o.CreatedBy = adminID
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(o).Error; err != nil {
@@ -1316,7 +1344,11 @@ func (s *Service) AppendShipment(c *gin.Context, orderID uuid.UUID, body OrderSh
 		ShippedAt:   body.ShippedAt,
 		DeliveredAt: body.DeliveredAt,
 	}
+	fillShipmentTimestamps(&row)
 	if err := s.DB.WithContext(c.Request.Context()).Create(&row).Error; err != nil {
+		return nil, err
+	}
+	if err := s.advanceOrderOnShipment(c, o, row.Status); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
@@ -1358,7 +1390,11 @@ func (s *Service) PatchShipment(c *gin.Context, orderID, shipmentID uuid.UUID, b
 	if body.DeliveredAt != nil {
 		row.DeliveredAt = body.DeliveredAt
 	}
+	fillShipmentTimestamps(&row)
 	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
+		return nil, err
+	}
+	if err := s.advanceOrderOnShipment(c, o, row.Status); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {

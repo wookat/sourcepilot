@@ -11,7 +11,7 @@ import (
 
 func (s *Service) listCustomerFailures(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&customerchat.CustomerFailureEvent{})
-	q = s.applyTenantListFilter(q, p)
+	q = s.applyTenantListFilterVia(q, p, "shop_id IN (SELECT id FROM shops WHERE tenant_id = ?)")
 	q = q.Where("status = ?", customerchat.FailureEventStatusOpen)
 	if !p.IncludeResolved {
 		q = q.Where("status = ?", customerchat.FailureEventStatusOpen)

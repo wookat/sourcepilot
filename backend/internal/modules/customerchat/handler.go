@@ -74,10 +74,10 @@ func (h *Handler) ListConversations(c *gin.Context) {
 		}
 	}
 	q.Keyword = c.Query("keyword")
-	q.PendingReply = parseBoolQuery(c.Query("pendingReply"))
-	q.HasAiSuggestion = parseBoolQuery(c.Query("hasAiSuggestion"))
-	q.SendFailed = parseBoolQuery(c.Query("sendFailed"))
-	q.HasOrder = parseBoolQuery(c.Query("hasOrder"))
+	q.PendingReply = parseTriBoolQuery(c.Query("pendingReply"))
+	q.HasAiSuggestion = parseTriBoolQuery(c.Query("hasAiSuggestion"))
+	q.SendFailed = parseTriBoolQuery(c.Query("sendFailed"))
+	q.HasOrder = parseTriBoolQuery(c.Query("hasOrder"))
 	if raw := strings.TrimSpace(c.Query("updatedStart")); raw != "" {
 		if t, err := time.Parse(time.RFC3339, raw); err == nil {
 			q.UpdatedStart = &t

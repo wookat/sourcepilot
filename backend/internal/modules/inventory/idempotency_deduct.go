@@ -36,11 +36,11 @@ func deductOwner(opts OrderInventoryOptions) string {
 	return "inventory-deduct"
 }
 
-func (s *Service) acquireDeductLine(ctx context.Context, orderID uuid.UUID, orderItemID, skuID uuid.UUID, qty int, reason string, opts OrderInventoryOptions) (*deductAcquire, *idempotency.AcquireResult, error) {
+func (s *Service) acquireDeductLine(ctx context.Context, orderID uuid.UUID, orderItemID, skuID uuid.UUID, qty int, reason string, round int, opts OrderInventoryOptions) (*deductAcquire, *idempotency.AcquireResult, error) {
 	if s == nil || s.Idempotency == nil {
 		return nil, nil, nil
 	}
-	key := idempotency.InventoryDeduct(orderID.String(), orderItemID.String(), skuID.String())
+	key := idempotency.InventoryDeductRound(orderID.String(), orderItemID.String(), skuID.String(), round)
 	owner := deductOwner(opts)
 	hash := deductRequestHash(orderID, orderItemID, skuID, qty, reason)
 	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeInventory, key, hash, owner, idempotency.DefaultLease)
@@ -65,12 +65,12 @@ func (s *Service) acquireDeductLine(ctx context.Context, orderID uuid.UUID, orde
 	}
 }
 
-func (s *Service) completeDeductLine(ctx context.Context, job *deductAcquire, chgID uuid.UUID) error {
+func (s *Service) completeDeductLine(ctx context.Context, tx *gorm.DB, job *deductAcquire, chgID uuid.UUID) error {
 	if s == nil || s.Idempotency == nil || job == nil {
 		return nil
 	}
 	summary, _ := json.Marshal(map[string]string{"changeLogId": chgID.String()})
-	return s.Idempotency.Complete(ctx, job.RecordID, job.Owner, idempotency.CompleteResult{
+	return s.Idempotency.WithDB(tx).Complete(ctx, job.RecordID, job.Owner, idempotency.CompleteResult{
 		ResponseCode:    "INVENTORY_DEDUCT_SUCCESS",
 		ResponseSummary: string(summary),
 		ResourceType:    "inventory_change_log",
@@ -78,11 +78,11 @@ func (s *Service) completeDeductLine(ctx context.Context, job *deductAcquire, ch
 	})
 }
 
-func (s *Service) failDeductLine(ctx context.Context, job *deductAcquire, code string, retryable bool) {
+func (s *Service) failDeductLine(ctx context.Context, tx *gorm.DB, job *deductAcquire, code string, retryable bool) {
 	if s == nil || s.Idempotency == nil || job == nil {
 		return
 	}
-	_ = s.Idempotency.Fail(ctx, job.RecordID, job.Owner, code, retryable)
+	_ = s.Idempotency.WithDB(tx).Fail(ctx, job.RecordID, job.Owner, code, retryable)
 }
 
 func (s *Service) resolveExistingDeductOutcome(ctx context.Context, tx *gorm.DB, orderItemID, skuID uuid.UUID) (deductLineOutcome, error) {
@@ -90,13 +90,11 @@ func (s *Service) resolveExistingDeductOutcome(ctx context.Context, tx *gorm.DB,
 	if tx == nil {
 		return out, fmt.Errorf("inventory: no db tx")
 	}
-	var hitSuccess int64
-	if err := tx.Model(&OrderInventoryEffect{}).
-		Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", orderItemID, skuID, EffectTypeDeduct, InventoryEffectSuccess).
-		Count(&hitSuccess).Error; err != nil {
+	st, err := loadLineEffectState(tx, orderItemID, skuID)
+	if err != nil {
 		return out, err
 	}
-	if hitSuccess > 0 {
+	if st.currentlyDeducted() {
 		out.synced = true
 		out.skipped = false
 		return out, nil
@@ -113,4 +111,40 @@ func (s *Service) resolveExistingDeductOutcome(ctx context.Context, tx *gorm.DB,
 		return out, nil
 	}
 	return out, nil
+}
+
+// lineEffectState captures the current deduct/restore effect rows for one order line + SKU.
+// Effect rows hold the latest state only (unique per effect_type); full history
+// lives in inventory_change_logs, whose restore-log count defines the deduct round.
+type lineEffectState struct {
+	deductSuccess  bool
+	restoreSuccess bool
+	restoreRounds  int64
+}
+
+func (st lineEffectState) currentlyDeducted() bool {
+	return st.deductSuccess && !st.restoreSuccess
+}
+
+func loadLineEffectState(tx *gorm.DB, orderItemID, skuID uuid.UUID) (lineEffectState, error) {
+	var st lineEffectState
+	var deducts, restores int64
+	if err := tx.Model(&OrderInventoryEffect{}).
+		Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", orderItemID, skuID, EffectTypeDeduct, InventoryEffectSuccess).
+		Count(&deducts).Error; err != nil {
+		return st, err
+	}
+	if err := tx.Model(&OrderInventoryEffect{}).
+		Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", orderItemID, skuID, EffectTypeRestore, InventoryEffectSuccess).
+		Count(&restores).Error; err != nil {
+		return st, err
+	}
+	if err := tx.Model(&InventoryChangeLog{}).
+		Where("ref_order_item_id = ? AND product_sku_id = ? AND change_type = ?", orderItemID, skuID, ChangeOrderCancel).
+		Count(&st.restoreRounds).Error; err != nil {
+		return st, err
+	}
+	st.deductSuccess = deducts > 0
+	st.restoreSuccess = restores > 0
+	return st, nil
 }

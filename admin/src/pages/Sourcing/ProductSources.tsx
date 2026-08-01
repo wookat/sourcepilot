@@ -6,16 +6,22 @@ import {
   type ProductListRow,
 } from '@/services/products';
 import {
+  adoptSwitchSuggestion,
   bindProductSource,
+  deleteSkuMapping,
   fetchPriceHistory,
   fetchProductSources,
+  fetchSourceAlerts,
   fetchSwitchEvents,
+  ignoreSwitchSuggestion,
   refreshProductSources,
   saveSkuMappings,
   setPrimarySource,
   updateProductSource,
   type ProductSource,
   type ProductSourceSKU,
+  type RefreshAlert,
+  type SourceAlertRow,
   type SourcePriceHistoryRow,
   type SourceSwitchEvent,
 } from '@/services/sourcing';
@@ -28,6 +34,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Switch,
@@ -36,6 +43,8 @@ import {
   Typography,
   message,
 } from 'antd';
+import { isReadonly } from '@/utils/permission';
+import { useLocation, useModel } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const SOURCE_STATUS_TAG: Record<string, { text: string; color: string }> = {
@@ -57,26 +66,72 @@ const SWITCH_MODE: Record<string, string> = {
   suggested: '建议',
 };
 
+function renderRefreshAlert(a: RefreshAlert): string {
+  const supplier = a.supplierName || '未知供应商';
+  const reason = SWITCH_REASON[a.reason || ''] || '';
+  switch (a.code) {
+    case 'fetch_failed':
+      return `货源「${supplier}」报价拉取失败，请稍后重试`;
+    case 'price_increase':
+      return `货源「${supplier}」进货价涨幅超过 ${a.thresholdPercent ?? ''}%，已标记涨价预警`;
+    case 'primary_locked':
+      return `主供应商「${supplier}」${a.reason === 'out_of_stock' ? '断货' : '涨价预警'}，但已锁定，需人工处理`;
+    case 'no_backup':
+      return `主供应商「${supplier}」${a.reason === 'out_of_stock' ? '断货' : '涨价预警'}，且无可用备选货源`;
+    case 'switch_suggested':
+      return `建议将主供应商切换到「${supplier}」（${reason || '建议切换'}），可在下方切换审计中采纳或忽略`;
+    case 'auto_switched':
+      return `主供应商已自动切换到「${supplier}」（${reason || '自动切换'}）`;
+    default:
+      return `货源「${supplier}」出现预警（${a.code}）`;
+  }
+}
+
+const SUGGESTION_STATUS_TAG: Record<string, { text: string; color: string }> = {
+  open: { text: '待处理', color: 'orange' },
+  adopted: { text: '已采纳', color: 'green' },
+  ignored: { text: '已忽略', color: 'default' },
+};
+
 export default function ProductSourcesPage() {
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: { role?: string } };
+  };
+  const writable = !isReadonly(initialState?.currentUser?.role);
+  const location = useLocation();
+  const initialProductId = useMemo(() => {
+    const v = new URLSearchParams(location.search).get('productId')?.trim();
+    return v || undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [products, setProducts] = useState<ProductListRow[]>([]);
-  const [productId, setProductId] = useState<string>();
+  const [productId, setProductId] = useState<string | undefined>(initialProductId);
   const [productDetail, setProductDetail] = useState<ProductDetail | null>(null);
   const [sources, setSources] = useState<ProductSource[]>([]);
   const [events, setEvents] = useState<SourceSwitchEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [alerts, setAlerts] = useState<string[]>([]);
+  const [alerts, setAlerts] = useState<RefreshAlert[]>([]);
 
   const [bindOpen, setBindOpen] = useState(false);
   const [bindForm] = Form.useForm();
 
   const [mappingSource, setMappingSource] = useState<ProductSource | null>(null);
   const [mappingRows, setMappingRows] = useState<
-    { localSkuId: string; skuName: string; externalSkuId?: string; currentPrice?: number; currentStock?: number }[]
+    {
+      localSkuId: string;
+      skuName: string;
+      mappingId?: string;
+      externalSkuId?: string;
+      currentPrice?: number;
+      currentStock?: number;
+    }[]
   >([]);
 
   const [historySku, setHistorySku] = useState<ProductSourceSKU | null>(null);
   const [historyRows, setHistoryRows] = useState<SourcePriceHistoryRow[]>([]);
+  const [alertRows, setAlertRows] = useState<SourceAlertRow[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(false);
 
   useEffect(() => {
     fetchProducts({ page: 1, pageSize: 100 })
@@ -88,16 +143,18 @@ export default function ProductSourcesPage() {
     if (!productId) return;
     setLoading(true);
     try {
-      const [src, ev, detail] = await Promise.all([
+      const [src, ev, detail] = await Promise.allSettled([
         fetchProductSources(productId),
         fetchSwitchEvents({ productId, page: 1, pageSize: 20 }),
         fetchProductDetail(productId),
       ]);
-      setSources(src.items || []);
-      setEvents(ev.items || []);
-      setProductDetail(detail);
-    } catch (e) {
-      message.error((e as Error).message || '加载货源失败');
+      if (src.status === 'fulfilled') {
+        setSources(src.value.items || []);
+      } else {
+        message.error((src.reason as Error)?.message || '加载货源失败');
+      }
+      setEvents(ev.status === 'fulfilled' ? ev.value.items || [] : []);
+      setProductDetail(detail.status === 'fulfilled' ? detail.value : null);
     } finally {
       setLoading(false);
     }
@@ -107,7 +164,24 @@ export default function ProductSourcesPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (productId) return;
+    setAlertsLoading(true);
+    fetchSourceAlerts()
+      .then((res) => setAlertRows(res.items || []))
+      .catch(() => message.error('加载预警货源失败'))
+      .finally(() => setAlertsLoading(false));
+  }, [productId]);
+
   const localSkus = useMemo(() => productDetail?.skus || [], [productDetail]);
+
+  const sourceLabel = useCallback(
+    (id: string) => {
+      const s = sources.find((x) => x.id === id);
+      return s?.supplier?.name || id.slice(0, 8);
+    },
+    [sources],
+  );
 
   const openMapping = (src: ProductSource) => {
     setMappingSource(src);
@@ -118,6 +192,7 @@ export default function ProductSourcesPage() {
         return {
           localSkuId: sku.id,
           skuName: sku.skuName || sku.skuCode,
+          mappingId: m?.id,
           externalSkuId: m?.externalSkuId,
           currentPrice: m?.currentPrice,
           currentStock: m?.currentStock,
@@ -165,9 +240,12 @@ export default function ProductSourcesPage() {
           onChange={(v) => setProductId(v)}
           options={products.map((p) => ({ value: p.id, label: p.title }))}
         />
+        {writable && (
         <Button type="primary" disabled={!productId} onClick={() => setBindOpen(true)}>
           绑定货源
         </Button>
+        )}
+        {writable && (
         <Button
           disabled={!productId || sources.length === 0}
           loading={refreshing}
@@ -188,6 +266,7 @@ export default function ProductSourcesPage() {
         >
           刷新价格/库存（mock）
         </Button>
+        )}
       </Space>
       {alerts.length > 0 && (
         <Alert
@@ -196,14 +275,61 @@ export default function ProductSourcesPage() {
           style={{ marginBottom: 16 }}
           message="切换规则提示"
           description={alerts.map((a, i) => (
-            <div key={i}>{a}</div>
+            <div key={i}>{renderRefreshAlert(a)}</div>
           ))}
           closable
           onClose={() => setAlerts([])}
         />
       )}
       {!productId ? (
-        <Empty description="请选择商品查看货源档案" />
+        alertRows.length === 0 && !alertsLoading ? (
+          <Empty description="暂无涨价/断货预警，请选择商品查看货源档案" />
+        ) : (
+          <>
+            <Typography.Title level={5}>预警货源（涨价 / 断货）</Typography.Title>
+            <Table<SourceAlertRow>
+              rowKey="sourceId"
+              size="small"
+              loading={alertsLoading}
+              dataSource={alertRows}
+              pagination={false}
+              scroll={{ x: 800 }}
+              columns={[
+                { title: '商品', dataIndex: 'productTitle', ellipsis: true },
+                { title: '供应商', dataIndex: 'supplierName', width: 160, render: (v) => v || '-' },
+                {
+                  title: '状态',
+                  dataIndex: 'status',
+                  width: 110,
+                  render: (v: string) => {
+                    const cfg = SOURCE_STATUS_TAG[v] || { text: v, color: 'default' };
+                    return <Tag color={cfg.color}>{cfg.text}</Tag>;
+                  },
+                },
+                {
+                  title: '主供应商',
+                  dataIndex: 'isPrimary',
+                  width: 100,
+                  render: (v: boolean) => (v ? <Tag color="blue">主</Tag> : '-'),
+                },
+                {
+                  title: '待处理建议',
+                  dataIndex: 'openSuggestions',
+                  width: 110,
+                  render: (v: number) => (v > 0 ? <Tag color="orange">{v}</Tag> : '-'),
+                },
+                { title: '最近检查', dataIndex: 'lastCheckedAt', width: 180, render: (v) => v || '-' },
+                {
+                  title: '操作',
+                  width: 110,
+                  render: (_, row) => (
+                    <a onClick={() => setProductId(row.productId)}>查看档案</a>
+                  ),
+                },
+              ]}
+            />
+          </>
+        )
       ) : (
         <>
           <Table<ProductSource>
@@ -274,6 +400,7 @@ export default function ProductSourcesPage() {
                 render: (v: boolean, row) => (
                   <Switch
                     size="small"
+                    disabled={!writable}
                     checked={v}
                     onChange={async (checked) => {
                       try {
@@ -299,7 +426,10 @@ export default function ProductSourcesPage() {
               {
                 title: '操作',
                 width: 220,
-                render: (_, row) => (
+                render: (_, row) =>
+                  !writable ? (
+                    '-'
+                  ) : (
                   <Space>
                     {!row.isPrimary && (
                       <a
@@ -318,7 +448,7 @@ export default function ProductSourcesPage() {
                     )}
                     <a onClick={() => openMapping(row)}>SKU映射</a>
                   </Space>
-                ),
+                  ),
               },
             ]}
           />
@@ -347,9 +477,57 @@ export default function ProductSourcesPage() {
               {
                 title: '原货源',
                 dataIndex: 'fromSourceId',
-                render: (v?: string) => (v ? v.slice(0, 8) : '-'),
+                render: (v?: string) => (v ? sourceLabel(v) : '-'),
               },
-              { title: '新货源', dataIndex: 'toSourceId', render: (v: string) => v.slice(0, 8) },
+              { title: '新货源', dataIndex: 'toSourceId', render: (v: string) => sourceLabel(v) },
+              {
+                title: '处理状态',
+                dataIndex: 'status',
+                width: 100,
+                render: (v: string | undefined, row) => {
+                  if (row.mode !== 'suggested') return '-';
+                  const cfg = SUGGESTION_STATUS_TAG[v || ''] || { text: v || '-', color: 'default' };
+                  return <Tag color={cfg.color}>{cfg.text}</Tag>;
+                },
+              },
+              {
+                title: '操作',
+                width: 160,
+                render: (_, row) =>
+                  writable && row.mode === 'suggested' && row.status === 'open' ? (
+                    <Space>
+                      <Popconfirm
+                        title="采纳建议并把主供应商切换为该备选货源？"
+                        onConfirm={async () => {
+                          try {
+                            await adoptSwitchSuggestion(row.id);
+                            message.success('已采纳建议并切换主供应商');
+                            void load();
+                          } catch (e) {
+                            message.error((e as Error).message || '采纳失败');
+                          }
+                        }}
+                      >
+                        <a>采纳建议</a>
+                      </Popconfirm>
+                      <a
+                        onClick={async () => {
+                          try {
+                            await ignoreSwitchSuggestion(row.id);
+                            message.success('已忽略该建议');
+                            void load();
+                          } catch (e) {
+                            message.error((e as Error).message || '操作失败');
+                          }
+                        }}
+                      >
+                        忽略
+                      </a>
+                    </Space>
+                  ) : (
+                    '-'
+                  ),
+              },
             ]}
           />
         </>
@@ -471,6 +649,35 @@ export default function ProductSourcesPage() {
                     }}
                   />
                 ),
+              },
+              {
+                title: '操作',
+                width: 90,
+                render: (_, row, idx) =>
+                  row.mappingId ? (
+                    <Popconfirm
+                      title="删除该 SKU 映射？删除后订单将无法按该映射生成采购单"
+                      onConfirm={async () => {
+                        try {
+                          await deleteSkuMapping(row.mappingId!);
+                          message.success('映射已删除');
+                          const next = [...mappingRows];
+                          next[idx] = {
+                            localSkuId: row.localSkuId,
+                            skuName: row.skuName,
+                          };
+                          setMappingRows(next);
+                          void load();
+                        } catch (e) {
+                          message.error((e as Error).message || '删除失败');
+                        }
+                      }}
+                    >
+                      <Typography.Link type="danger">删除映射</Typography.Link>
+                    </Popconfirm>
+                  ) : (
+                    '-'
+                  ),
               },
             ]}
           />

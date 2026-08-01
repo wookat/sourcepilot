@@ -107,6 +107,15 @@ func (s *Service) applyTenantListFilter(q *gorm.DB, p ListFailureParams) *gorm.D
 	return q
 }
 
+// applyTenantListFilterVia 适用于源表自身没有 tenant_id 列的失败源：
+// 通过关联表（批次/商品）的租户列限定，cond 中含一个 tenant_id 占位符。
+func (s *Service) applyTenantListFilterVia(q *gorm.DB, p ListFailureParams, cond string) *gorm.DB {
+	if p.TenantID > 0 {
+		return q.Where(cond, p.TenantID)
+	}
+	return q
+}
+
 func (s *Service) summarizeGlobalMarks(ctx context.Context) (ignored int64, handled int64, err error) {
 	if s == nil || s.DB == nil {
 		return 0, 0, fmt.Errorf("taskcenter: no db")

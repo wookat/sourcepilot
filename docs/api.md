@@ -526,8 +526,12 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `POST` | `/api/v1/product-sources/:id/set-primary` | 人工切换主供应商，写入 `source_switch_events`。 |
 | `POST` | `/api/v1/product-sources/:id/sku-mappings` | 批量保存本地 SKU ↔ 外部 SKU 映射；价格变化写 `source_price_history`。 |
 | `GET` | `/api/v1/product-source-skus/:id/price-history?days=90` | 历史进价（默认 90 天）。 |
-| `POST` | `/api/v1/products/:id/sources/refresh` | 通过 Source Info Provider（当前 mock）刷新价格/库存，并按切换规则处理断货/涨价。 |
-| `GET` | `/api/v1/source-switch-events?productId=` | 货源切换审计（auto / manual / suggested）。 |
+| `DELETE` | `/api/v1/product-source-skus/:id` | 删除单条 SKU 映射（软删除）；删除后该映射不再参与采购单生成与采购受阻判定。 |
+| `POST` | `/api/v1/products/:id/sources/refresh` | 通过 Source Info Provider（当前 mock）刷新价格/库存，并按切换规则处理断货/涨价；`alerts` 为结构化对象数组（`code` + `sourceId` + `supplierName` + `reason` + `thresholdPercent`，code 取值 `fetch_failed / price_increase / primary_locked / no_backup / switch_suggested / auto_switched`），由前端渲染中文文案。 |
+| `GET` | `/api/v1/source-switch-events?productId=` | 货源切换审计（auto / manual / suggested）；suggested 事件带处理状态（open / adopted / ignored）。 |
+| `POST` | `/api/v1/source-switch-events/:id/adopt` | 采纳一条待处理的切换建议：主供应商切换为建议的备选货源并标记 adopted，写操作日志；非待处理建议返回 409。 |
+| `POST` | `/api/v1/source-switch-events/:id/ignore` | 忽略一条待处理的切换建议（标记 ignored），写操作日志。 |
+| `GET` | `/api/v1/product-source-alerts` | 预警货源总览：当前处于涨价预警/断货状态的货源（含商品标题、供应商、是否主供应商、该商品待处理建议数）。 |
 
 切换规则：`priority` 越小越优先；主货源断货且未锁定时自动切换到最优可用备用源并记 `auto` 事件；涨价超过阈值（settings `sourcing` 组，默认 10%）仅生成 `suggested` 建议事件，不自动切换；`locked` 货源不参与自动切换。
 
@@ -537,20 +541,81 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回；支持 `idempotencyKey` 幂等。 |
-| `GET` | `/api/v1/procurement/orders?status=` | 采购单列表。 |
+| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回；映射无参考价时自动回退到最近历史进价，仍缺价以 `warnings`（`price.missing`）返回；支持 `idempotencyKey` 幂等；明细行已被未取消/未失败采购单覆盖时跳过并以 `warnings`（`line.covered`）返回，取消原采购单后可重新生成。 |
+| `GET` | `/api/v1/procurement/orders?status=&salesOrderId=` | 采购单列表；`salesOrderId` 按来源销售订单过滤（订单详情「关联采购单」用），非法 UUID 返回 400。 |
+| `GET` | `/api/v1/procurement/cost-estimates/:id` | 销售订单成本/毛利估算（id 为销售订单）：按主货源 SKU 映射参考价（缺价回退最近历史进价）逐行估算 CNY 成本；订单币种为 CNY 或配置了 `settings.pricing.exchangeRate`（CNY→订单币种）时折算 `estimatedCost/grossProfit/marginPercent`，任一行缺价时不计算毛利，问题行以 `issueCode`（`sku.unmatched`/`source.missing`/`mapping.missing`/`price.missing`）返回。 |
+| `POST` | `/api/v1/procurement/cost-estimates/batch` | 批量成本/毛利估算（订单列表用）：body `{"orderIds": ["..."]}`（≤50 个），返回 `items`（orderId → 汇总：`estimatedCostCny/exchangeRate/estimatedCost/grossProfit/marginPercent/missingLines`），不存在的订单被省略。 |
 | `GET` | `/api/v1/procurement/orders/:id` | 详情（items / events / logistics）。 |
 | `GET` | `/api/v1/procurement/orders/:id/export.csv` | 导出采购清单 CSV（含 1688 链接、外部 SKU、数量、参考价，UTF-8 BOM）。 |
+| `GET` | `/api/v1/procurement/purchase-lists/export.csv?ids=` | 批量导出合并采购清单 CSV：`ids` 为逗号分隔采购单 UUID（去重后 ≤50 个），逐单合并明细行（「采购单号」列区分来源），任一 id 不存在返回 404。 |
 | `POST` | `/api/v1/procurement/orders/:id/submit` | draft → pending_confirm（经 Provider PreviewOrder）。 |
 | `POST` | `/api/v1/procurement/orders/:id/confirm` | pending_confirm → placing（记录确认人/时间，调用 mock CreateOrder，人工模式）。 |
 | `POST` | `/api/v1/procurement/orders/:id/mark-placed` | 回填 1688 订单号，placing → placed。 |
 | `POST` | `/api/v1/procurement/orders/:id/mark-paid` | 人工标记付款，placed → paid。 |
 | `POST` | `/api/v1/procurement/orders/:id/logistics` | 回填运单号/承运商，paid → shipped。 |
-| `POST` | `/api/v1/procurement/orders/:id/mark-delivered` | shipped → delivered。 |
+| `POST` | `/api/v1/procurement/orders/:id/mark-delivered` | shipped → delivered；同事务将各明细数量加回本地 SKU 库存并写 `inventory_change_logs`（`purchase_inbound`，按 business_event_key 幂等）。 |
 | `POST` | `/api/v1/procurement/orders/:id/retry` | failed → placing。 |
 | `POST` | `/api/v1/procurement/orders/:id/cancel` | 取消（终态前均可）。 |
+| `PUT` | `/api/v1/procurement/orders/:id/items/:itemId/price` | 补填/修改明细参考价：`{expectedPrice}`（>0），仅 draft / pending_confirm 状态可改，重算采购单 `totalAmount` 并返回详情。 |
+| `POST` | `/api/v1/procurement/orders/batch-mark-placed` | 批量回填 1688 订单号：`{items:[{purchaseOrderId, externalOrderId}]}`，单批 ≤200 行，逐行独立处理返回 `{succeeded, failed, results[]}`（部分成功不回滚）。 |
+| `POST` | `/api/v1/procurement/orders/batch-logistics` | 批量回填运单号：`{items:[{externalOrderId, trackingNo, carrier?}]}`，按 1688 外部订单号匹配采购单（placed 状态会先自动 mark-paid），返回逐行结果。 |
 
 所有状态流转写入 `purchase_order_events`；对应管理端页面为 `/procurement/orders`。
+
+范围口径：全部采购协同接口按当前租户过滤；非管理员进一步限制到被授权店铺（采购单经明细行来源销售订单的 `shop_id` 判定，无店铺授权列表为空）。范围外的采购单/销售订单 ID 一律返回 404（不泄露存在性），批量接口逐行按「不存在」处理或省略。
+
+### 销售订单批量导入（人工建单过渡）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/orders/import` | 批量创建手工销售订单：`{orders:[CreateBody], matchSkus?}`，单批 ≤200 张；订单号已存在（库内或批内重复）返回 `skipped_duplicate` 不重复建单，单张失败不影响其余；`matchSkus=true` 时创建后自动按 SKU 编码匹配本地规格。返回 `{total, created, duplicate, failed, results[]}`（含逐单 `itemsMatched`）。手工订单创建（含单张 `POST /orders`）会写入当前租户 `tenant_id`；`CreateBody.shopId` 可选（导入弹窗可选一个店铺应用到整批），仅允许当前账号可见的店铺。 |
+
+`GET /api/v1/orders` 支持可选 `hasPurchase` 过滤（`1`/`true`＝已有未取消/未失败采购单覆盖任一明细行，`0`/`false`＝无；缺省不过滤），与生成采购单防重的覆盖判定同一口径；首页「订单待采购」待办卡使用 `payStatus=paid&hasPurchase=0` 直达。
+
+对应管理端入口：`/orders` 工具栏「批量导入订单」，粘贴格式 `订单号,客户名,商品标题,SKU编码,数量,单价[,币种]`，同订单号多行合并为多明细。
+
+### 销售订单发货（物流回填与状态流转）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/orders/stats/sales` | 经营概览统计：返回 `{generatedAt, windows:[{key: today|7d|30d, orderCount, paidCount, shippedCount, paidAmounts:[{currency, amount, orders}]}]}`，按创建时间窗口在租户内统计订单数/已付款/已发货与分币种已付款销售额。 |
+| `GET` | `/api/v1/orders/shipping-list/export.csv?ids=` | 批量导出发货清单 CSV：`ids` 为逗号分隔销售订单 UUID（去重后 ≤50 个），逐单合并明细行（「订单号」列区分来源，含客户名/电话/商品/SKU/数量/币种/金额），「快递单号(回填)」「承运商(回填)」列留空供线下打单后回填批量发货；任一 id 不在租户内返回 404。 |
+| `POST` | `/api/v1/orders/shipments/batch` | 批量发货：`{items:[{orderNo, trackingNo, carrier?}]}`（≤200 条），按订单号在租户内匹配销售订单并新增 `shipped` 物流（订单自动流转）；未付款/已取消/未找到/重复订单号逐行失败，返回 `{succeeded, failed, results[]}`。 |
+| `POST` | `/api/v1/orders/:id/shipments` | 新增物流记录：`{carrier, trackingNo?, trackingUrl?, status?, shippedAt?, deliveredAt?}`；`status` 缺省 `pending`。 |
+| `PUT` | `/api/v1/orders/:id/shipments/:shipmentId` | 更新物流记录（同上字段）。 |
+| `DELETE` | `/api/v1/orders/:id/shipments/:shipmentId` | 删除物流记录。 |
+
+物流写入时的自动流转（仅前进、不回退，按订单生命周期 rank 判定）：
+
+- 物流状态 `shipped` / `in_transit` → 订单 `status=shipped`、`fulfillmentStatus=fulfilled`，缺省补 `shippedAt`；
+- 物流状态 `delivered` → 订单 `status=delivered`，缺省补 `shippedAt` / `deliveredAt`；
+- `pending` / `exception` / `returned` 不触发订单状态变化；已取消/退款/关闭订单不会被回退或改写。
+
+首页待办新增 `order_await_shipment`「订单待发货」（已付款且 `fulfillmentStatus=unfulfilled` 且未发货/关闭的订单数），链接 `/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled`。
+
+### 订单异常工作台：采购受阻（procurement_blocked）
+
+`GET /api/v1/orders/exceptions` 新增聚合异常类型 `procurement_blocked`：已付款、未发货且未取消/退款/关闭的销售订单行，若已绑定本地 SKU 但商品缺可用主货源（`source_missing`）或主货源缺该 SKU 映射（`mapping_missing`），且未被任何未取消/未失败的采购单行覆盖，则以 `sourceType=order_item` 进入工作台。返回体：
+
+- `summary.procurementBlocked`：未处理数量。
+- 行内 `sourcingUrl`：`/sourcing/product-sources?productId=<productId>`，用于跳转货源档案绑定主货源/补 SKU 映射。
+- 处理/忽略沿用现有 mark 接口（`exceptionType=procurement_blocked`）。
+
+Dashboard 同步：`GET /api/v1/dashboard/product-operations` 的 `summary.procurementBlockedOrderItems`，以及统一待办 `procurement_blocked`（P0，链接 `/orders/exceptions?exceptionType=procurement_blocked`）。货源档案页 `/sourcing/product-sources` 支持 `?productId=` 直达指定商品。
+
+### 订单异常工作台：利润为负（negative_margin）
+
+`GET /api/v1/orders/exceptions` 新增聚合异常类型 `negative_margin`：已付款、未发货且未取消/退款/关闭的销售订单，按主货源参考价成本估算（与 `/procurement/cost-estimates` 同一口径）预估毛利为负时，以 `sourceType=order` 进入工作台（每次列表最多扫描最近更新的 200 个候选订单）。缺参考价或未配汇率导致毛利不可算的订单不会误报。返回体：
+
+- `summary.negativeMargin`：未处理数量。
+- 行内 `errorMessage` 含售价、预估成本（CNY）、预估毛利与毛利率；`orderUrl` 直达订单详情复核。
+- 处理/忽略沿用现有 mark 接口（`exceptionType=negative_margin`，`sourceType=order`，`sourceId=订单 ID`）。
+
+Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_negative_margin`（P0，链接 `/orders/exceptions?exceptionType=negative_margin`）。
+
+### 订单异常工作台：全部视图
+
+`GET /api/v1/orders/exceptions` 查询参数除 `handled=true`（只看已处理标记）、`ignored=true`（只看已忽略标记）外，支持 `all=true`：同时返回未处理、已处理与已忽略的行（`summary` 口径不变，仍只统计未处理）。默认（不带三者）只返回未处理行。
 
 ## 修改 API 时的同步要求
 

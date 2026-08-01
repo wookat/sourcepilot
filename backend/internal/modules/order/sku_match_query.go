@@ -20,6 +20,10 @@ func (s *Service) ListSKUMatchRowsForOrder(c *gin.Context, orderID uuid.UUID) ([
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
+	var o Order
+	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ? AND deleted_at IS NULL", orderID).Error; err != nil {
+		return nil, err
+	}
 	var items []OrderItem
 	if err := s.DB.WithContext(c.Request.Context()).Where("order_id = ?", orderID).Order("created_at ASC, id ASC").Find(&items).Error; err != nil {
 		return nil, err
@@ -30,6 +34,19 @@ func (s *Service) ListSKUMatchRowsForOrder(c *gin.Context, orderID uuid.UUID) ([
 		if err := s.DB.WithContext(c.Request.Context()).Where("order_item_id = ?", it.ID).First(&mrow).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
+		if mrow.OrderItemID == uuid.Nil {
+			mrow.OrderID = it.OrderID
+			mrow.OrderItemID = it.ID
+			mrow.Platform = o.Platform
+			mrow.ExternalOrderID = o.ExternalOrderID
+			mrow.ExternalItemID = it.ExternalItemID
+			mrow.ExternalSKUID = it.ExternalSKUID
+			mrow.SellerSKU = it.SellerSKU
+			mrow.SKUCode = it.SKUCode
+			mrow.MatchType = MatchTypeNone
+			mrow.MatchStatus = MatchStatusUnmatched
+			mrow.Reason = "尚未执行自动匹配"
+		}
 		dto := SKUMatchDetailDTO{
 			OrderItemSKUMatch: mrow,
 			ProductTitle:      strings.TrimSpace(it.ProductTitle),
@@ -37,7 +54,7 @@ func (s *Service) ListSKUMatchRowsForOrder(c *gin.Context, orderID uuid.UUID) ([
 		}
 		if it.ProductSKUID != nil && *it.ProductSKUID != uuid.Nil {
 			var loc product.ProductSKU
-			if err := s.DB.WithContext(c.Request.Context()).First(&loc, "id = ? AND deleted_at IS NULL", *it.ProductSKUID).Error; err == nil {
+			if err := s.DB.WithContext(c.Request.Context()).First(&loc, "id = ?", *it.ProductSKUID).Error; err == nil {
 				dto.LocalSkuCode = strings.TrimSpace(loc.SKUCode)
 			}
 		}
@@ -153,7 +170,7 @@ func (s *Service) ListSKUMatchGlobal(c *gin.Context, q SKUMatchListQuery) ([]SKU
 		}
 		if m.ProductSKUID != nil && *m.ProductSKUID != uuid.Nil {
 			var psku product.ProductSKU
-			if err := s.DB.WithContext(c.Request.Context()).First(&psku, "id = ? AND deleted_at IS NULL", *m.ProductSKUID).Error; err == nil {
+			if err := s.DB.WithContext(c.Request.Context()).First(&psku, "id = ?", *m.ProductSKUID).Error; err == nil {
 				row.LocalSkuCode = strings.TrimSpace(psku.SKUCode)
 			}
 		}

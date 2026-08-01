@@ -2,6 +2,11 @@
 
 declare module '*.less';
 
+declare module '*.png' {
+  const url: string;
+  export default url;
+}
+
 declare namespace API {
   type StorePermission = {
     storeId: string;

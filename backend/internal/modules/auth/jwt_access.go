@@ -155,7 +155,7 @@ func ParseAccessToken(cfg *config.Config, ks *KeySet, tokenStr string) (*AccessC
 }
 
 // LegacyMintToken issues JWT without session binding (legacy_local_storage mode).
-func LegacyMintToken(cfg *config.Config, adminID uuid.UUID, username string) (string, time.Time, error) {
+func LegacyMintToken(cfg *config.Config, adminID uuid.UUID, username string, tenantID int64) (string, time.Time, error) {
 	ks, err := BuildKeySet(cfg)
 	if err != nil {
 		return "", time.Time{}, err
@@ -163,7 +163,7 @@ func LegacyMintToken(cfg *config.Config, adminID uuid.UUID, username string) (st
 	return MintAccessToken(cfg, ks, MintAccessInput{
 		UserID:       adminID,
 		Username:     username,
-		TenantID:     0,
+		TenantID:     tenantID,
 		SessionID:    uuid.Nil,
 		TokenVersion: 1,
 	})

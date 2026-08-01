@@ -2,7 +2,7 @@ import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-des
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
-import { history } from '@umijs/max';
+import { history, useModel } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -21,10 +21,11 @@ import {
   Tag,
   Typography,
   Descriptions,
+  Grid,
   message,
 } from 'antd';
 import dayjs from 'dayjs';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type Key, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { OrderExceptionRow, OrderExceptionSummary } from '@/services/orderExceptions';
 import {
   deleteOrderExceptionMark,
@@ -43,6 +44,7 @@ import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
 import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { appendSourceToUrl, parsePositiveInt, queryTimeRange } from '@/utils/urlState';
+import { isReadonly } from '@/utils/permission';
 
 const EXCEPTION_QUERY_KEYS = [
   'page',
@@ -68,6 +70,8 @@ const EX_TYPES: Record<string, { text: string }> = {
   inventory_sync_failed: { text: '库存同步失败' },
   order_sync_partial_failed: { text: '页级同步失败' },
   missing_order_item: { text: '缺明细' },
+  procurement_blocked: { text: '采购受阻' },
+  negative_margin: { text: '利润为负' },
   unknown: { text: '未知' },
 };
 
@@ -141,6 +145,17 @@ function candTrustBadge(conf: number) {
 }
 
 export default function OrderExceptionsPage() {
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: { role?: string } };
+  };
+  const writable = !isReadonly(initialState?.currentUser?.role);
+  const screens = Grid.useBreakpoint();
+  const [wideScreen, setWideScreen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 768,
+  );
+  useEffect(() => {
+    if (screens.md !== undefined) setWideScreen(screens.md);
+  }, [screens.md]);
   const emptyLocale = useListEmptyLocale('orderExceptions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -161,6 +176,8 @@ export default function OrderExceptionsPage() {
     setTablePage,
   });
   const [summary, setSummary] = useState<OrderExceptionSummary | null>(null);
+  const [selectedRows, setSelectedRows] = useState<OrderExceptionRow[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<Key[]>([]);
   const [shopOpts, setShopOpts] = useState<{ label: string; value: string }[]>([]);
 
   const [bindOpen, setBindOpen] = useState(false);
@@ -221,6 +238,92 @@ export default function OrderExceptionsPage() {
   const reload = useCallback(() => {
     actionRef.current?.reload();
   }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedRows([]);
+    setSelectedKeys([]);
+  }, []);
+
+  const runBatchMark = useCallback(
+    async (rows: OrderExceptionRow[], run: (r: OrderExceptionRow) => Promise<unknown>, label: string) => {
+      let ok = 0;
+      let fail = 0;
+      let firstErr = '';
+      for (const r of rows) {
+        try {
+          await run(r);
+          ok += 1;
+        } catch (e: unknown) {
+          fail += 1;
+          if (!firstErr) firstErr = (e as Error)?.message || '';
+        }
+      }
+      if (fail === 0) {
+        message.success(`${label}完成：成功 ${ok} 条`);
+      } else {
+        message.warning(`${label}：成功 ${ok} 条，失败 ${fail} 条${firstErr ? `（首个错误：${firstErr}）` : ''}`);
+      }
+      clearSelection();
+      reload();
+    },
+    [clearSelection, reload],
+  );
+
+  const openRows = useMemo(() => selectedRows.filter((r) => !r.handled && !r.ignored), [selectedRows]);
+  const markedRows = useMemo(() => selectedRows.filter((r) => r.handled || r.ignored), [selectedRows]);
+
+  const batchHandle = useCallback(() => {
+    if (!openRows.length) return;
+    let remark = '';
+    Modal.confirm({
+      title: `批量标记已处理（${openRows.length} 条）`,
+      content: (
+        <Input.TextArea
+          rows={3}
+          placeholder="备注（可选，应用到所选全部行）"
+          onChange={(e) => {
+            remark = e.target.value;
+          }}
+        />
+      ),
+      onOk: () =>
+        runBatchMark(
+          openRows,
+          (r) =>
+            postOrderExceptionHandle(r.sourceType, r.sourceId, {
+              exceptionType: r.exceptionType,
+              remark: remark.trim(),
+            }),
+          '批量标记已处理',
+        ),
+    });
+  }, [openRows, runBatchMark]);
+
+  const batchIgnore = useCallback(() => {
+    if (!openRows.length) return;
+    Modal.confirm({
+      title: `批量忽略（${openRows.length} 条，仅影响工作台视图）`,
+      onOk: () =>
+        runBatchMark(
+          openRows,
+          (r) => postOrderExceptionIgnore(r.sourceType, r.sourceId, { exceptionType: r.exceptionType }),
+          '批量忽略',
+        ),
+    });
+  }, [openRows, runBatchMark]);
+
+  const batchUnmark = useCallback(() => {
+    if (!markedRows.length) return;
+    Modal.confirm({
+      title: `批量取消标记（${markedRows.length} 条，回到待处理列表）`,
+      onOk: () =>
+        runBatchMark(
+          markedRows,
+          (r) => deleteOrderExceptionMark(r.sourceType, r.sourceId),
+          '批量取消标记',
+        ),
+    });
+  }, [markedRows, runBatchMark]);
 
   const openBind = useCallback((row: OrderExceptionRow) => {
     setBindRow(row);
@@ -334,6 +437,7 @@ export default function OrderExceptionsPage() {
           open: { text: '未处理（默认）' },
           handled: { text: '已处理（标记）' },
           ignored: { text: '已忽略（标记）' },
+          all: { text: '全部' },
         },
       },
       {
@@ -434,7 +538,7 @@ export default function OrderExceptionsPage() {
         title: '操作',
         valueType: 'option',
         width: 360,
-        fixed: 'right',
+        fixed: wideScreen ? 'right' : undefined,
         render: (_, r) => (
           <Space wrap size={4}>
             {r.orderId ? (
@@ -469,10 +573,10 @@ export default function OrderExceptionsPage() {
             {(r.exceptionType === 'sku_unmatched' || r.exceptionType === 'sku_ambiguous') && (
               <>
                 <a onClick={() => void openCandModalOnly(r)}>查看候选</a>
-                <a onClick={() => openBind(r)}>绑定 SKU（候选）</a>
+                {writable && <a onClick={() => openBind(r)}>绑定 SKU（候选）</a>}
               </>
             )}
-            {r.orderId &&
+            {writable && r.orderId &&
               (r.exceptionType === 'insufficient_stock' ||
                 r.exceptionType === 'inventory_deduct_failed' ||
                 r.exceptionType === 'sku_unmatched') && (
@@ -491,7 +595,13 @@ export default function OrderExceptionsPage() {
                   <a>重试扣库存</a>
                 </Popconfirm>
               )}
-            {r.exceptionType === 'inventory_sync_failed' && (
+            {r.exceptionType === 'procurement_blocked' && r.sourcingUrl && (
+              <a onClick={() => history.push(r.sourcingUrl!)}>去货源档案</a>
+            )}
+            {r.exceptionType === 'negative_margin' && r.orderUrl && (
+              <a onClick={() => history.push(r.orderUrl!)}>去订单复核</a>
+            )}
+            {writable && r.exceptionType === 'inventory_sync_failed' && (
               <Popconfirm
                 title="重试该库存同步任务？"
                 onConfirm={async () => {
@@ -518,6 +628,7 @@ export default function OrderExceptionsPage() {
             >
               详情
             </a>
+            {writable && (
             <a
               onClick={() => {
                 let remark = '';
@@ -545,6 +656,8 @@ export default function OrderExceptionsPage() {
             >
               已处理
             </a>
+            )}
+            {writable && (
             <a
               onClick={() => {
                 Modal.confirm({
@@ -559,6 +672,8 @@ export default function OrderExceptionsPage() {
             >
               忽略
             </a>
+            )}
+            {writable && (
             <Popconfirm
               title="取消标记并回到待处理列表？"
               onConfirm={async () => {
@@ -569,11 +684,12 @@ export default function OrderExceptionsPage() {
             >
               <a>取消标记</a>
             </Popconfirm>
+            )}
           </Space>
         ),
       },
     ],
-    [reload, shopOpts, openCandModalOnly, openBind, keywordFieldProps],
+    [reload, shopOpts, openCandModalOnly, openBind, keywordFieldProps, writable, wideScreen],
   );
 
   return (
@@ -618,28 +734,78 @@ export default function OrderExceptionsPage() {
               <Statistic title="库存同步失败" value={summary.inventorySyncFailed} />
             </Card>
           </Col>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card size="small">
+              <Statistic title="采购受阻" value={summary.procurementBlocked ?? 0} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card size="small">
+              <Statistic title="利润为负" value={summary.negativeMargin ?? 0} />
+            </Card>
+          </Col>
         </Row>
       ) : null}
 
       <ProTable<OrderExceptionRow>
+        key={wideScreen ? 'wide' : 'narrow'}
         rowKey={(r) => `${r.exceptionType}-${r.sourceType}-${r.sourceId}`}
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
+        rowSelection={
+          writable
+            ? {
+                selectedRowKeys: selectedKeys,
+                preserveSelectedRowKeys: true,
+                alwaysShowAlert: true,
+                onChange: (keys, rows) => {
+                  setSelectedKeys(keys);
+                  setSelectedRows(rows);
+                },
+              }
+            : undefined
+        }
+        tableAlertOptionRender={() => (
+          <Space wrap size={8}>
+            <Button size="small" type="primary" disabled={!openRows.length} onClick={batchHandle}>
+              批量已处理（{openRows.length}）
+            </Button>
+            <Button size="small" disabled={!openRows.length} onClick={batchIgnore}>
+              批量忽略（{openRows.length}）
+            </Button>
+            <Button size="small" disabled={!markedRows.length} onClick={batchUnmark}>
+              批量取消标记（{markedRows.length}）
+            </Button>
+            <a onClick={clearSelection}>取消选择</a>
+          </Space>
+        )}
         params={{
           current: tablePage,
           pageSize: tablePageSize,
-          keyword: urlState.keyword,
-          exceptionType: urlState.exceptionType,
-          severity: urlState.severity,
-          platform: urlState.platform,
-          shopId: urlState.shopId,
-          orderId: urlState.orderId,
-          status: urlState.status,
-          start: urlState.start,
-          end: urlState.end,
         }}
         search={{ layout: 'vertical', defaultCollapsed: false }}
+        onSubmit={() => {
+          // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
+          const v = (formRef.current?.getFieldsValue?.() ?? {}) as Record<string, unknown>;
+          const range = v.createdAt as [unknown, unknown] | undefined;
+          setTablePage(1);
+          setUrlState(
+            {
+              page: undefined,
+              keyword: prepareKeyword(v.keyword) || undefined,
+              exceptionType: (v.exceptionType as string | undefined)?.trim() || undefined,
+              severity: (v.severity as string | undefined)?.trim() || undefined,
+              platform: (v.platform as string | undefined)?.trim() || undefined,
+              shopId: (v.shopId as string | undefined)?.trim() || undefined,
+              status: (v.status as string | undefined) || undefined,
+              orderId: (v.orderId as string | undefined)?.trim() || undefined,
+              start: range?.[0] ? dayjs(range[0] as string).toISOString() : undefined,
+              end: range?.[1] ? dayjs(range[1] as string).toISOString() : undefined,
+            },
+            { replace: true },
+          );
+        }}
         onReset={() => {
           setTablePage(1);
           setTablePageSize(20);
@@ -660,41 +826,27 @@ export default function OrderExceptionsPage() {
         }}
         locale={emptyLocale}
         request={async (params) => {
+          // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
           let handled: boolean | undefined;
           let ignored: boolean | undefined;
-          const st = params.status as string | undefined;
+          let all: boolean | undefined;
+          const st = urlState.status;
           if (st === 'handled') handled = true;
           else if (st === 'ignored') ignored = true;
+          else if (st === 'all') all = true;
 
           const qp = {
             page: params.current ?? tablePage,
             pageSize: params.pageSize ?? tablePageSize,
-            exceptionType: (params.exceptionType as string | undefined)?.trim(),
-            severity: (params.severity as string | undefined)?.trim(),
-            platform: (params.platform as string | undefined)?.trim(),
-            shopId: (params.shopId as string | undefined)?.trim(),
-            orderId: (params.orderId as string | undefined)?.trim(),
-            keyword: prepareKeyword(params.keyword),
-            start: typeof params.start === 'string' ? params.start : undefined,
-            end: typeof params.end === 'string' ? params.end : undefined,
+            exceptionType: urlState.exceptionType?.trim(),
+            severity: urlState.severity?.trim(),
+            platform: urlState.platform?.trim(),
+            shopId: urlState.shopId?.trim(),
+            orderId: urlState.orderId?.trim(),
+            keyword: prepareKeyword(urlState.keyword),
+            start: urlState.start,
+            end: urlState.end,
           };
-          setUrlState(
-            {
-              page: Number(qp.page) > 1 ? qp.page : undefined,
-              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
-              keyword: qp.keyword,
-              exceptionType: qp.exceptionType,
-              severity: qp.severity,
-              platform: qp.platform,
-              shopId: qp.shopId,
-              status: st,
-              orderId: qp.orderId,
-              start: qp.start,
-              end: qp.end,
-              source: urlState.source,
-            },
-            { replace: true },
-          );
 
           const res = await queryOrderExceptions({
             page: qp.page,
@@ -707,6 +859,7 @@ export default function OrderExceptionsPage() {
             keyword: qp.keyword,
             handled,
             ignored,
+            all,
             start: qp.start,
             end: qp.end,
           });

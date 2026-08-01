@@ -28,6 +28,17 @@ func (h *Handler) denyWrite(c *gin.Context) bool {
 	return false
 }
 
+// requireWrite is the route-level guard for order write endpoints.
+func (h *Handler) requireWrite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if h.denyWrite(c) {
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 // Handler exposes order HTTP routes.
 type Handler struct {
 	Svc *Service
@@ -71,6 +82,55 @@ func atoiQ(c *gin.Context, key string, def int) int {
 	return n
 }
 
+// MaxShippingListExportOrders caps how many sales orders one merged shipping CSV can cover.
+const MaxShippingListExportOrders = 50
+
+// ExportShippingListCSV GET /orders/shipping-list/export.csv?ids=id1,id2
+func (h *Handler) ExportShippingListCSV(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	raw := strings.Split(c.Query("ids"), ",")
+	ids := make([]uuid.UUID, 0, len(raw))
+	seen := map[uuid.UUID]bool{}
+	for _, r := range raw {
+		r = strings.TrimSpace(r)
+		if r == "" {
+			continue
+		}
+		u, err := uuid.Parse(r)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid order id")
+			return
+		}
+		if seen[u] {
+			continue
+		}
+		seen[u] = true
+		ids = append(ids, u)
+	}
+	if len(ids) == 0 {
+		response.Fail(c, 400, response.CodeBadRequest, "ids required")
+		return
+	}
+	if len(ids) > MaxShippingListExportOrders {
+		response.Fail(c, 400, response.CodeBadRequest, "too many ids")
+		return
+	}
+	data, name, err := h.Svc.ExportShippingListCSV(c, ids)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="`+name+`"`)
+	c.Data(200, "text/csv; charset=utf-8", data)
+}
+
 // List GET /orders
 func (h *Handler) List(c *gin.Context) {
 	if h == nil || h.Svc == nil {
@@ -94,6 +154,10 @@ func (h *Handler) List(c *gin.Context) {
 		SyncStatus:            c.Query("syncStatus"),
 		HasException: strings.EqualFold(strings.TrimSpace(c.Query("hasException")), "true") ||
 			strings.TrimSpace(c.Query("hasException")) == "1",
+	}
+	if raw := strings.TrimSpace(c.Query("hasPurchase")); raw != "" {
+		v := strings.EqualFold(raw, "true") || raw == "1"
+		q.HasPurchase = &v
 	}
 	q.UseCursor = q.Cursor != "" || q.Limit > 0
 	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
@@ -169,6 +233,28 @@ func (h *Handler) Create(c *gin.Context) {
 		}
 	}
 	h.enrichOrderInventoryMini(c, out)
+	response.OK(c, out)
+}
+
+// Import POST /orders/import
+func (h *Handler) Import(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
+		return
+	}
+	var body ImportBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.ImportOrders(c, body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
 	response.OK(c, out)
 }
 
@@ -410,6 +496,39 @@ func (h *Handler) PostShipment(c *gin.Context) {
 		return
 	}
 	response.OK(c, row)
+}
+
+// PostBatchShipments POST /orders/shipments/batch
+func (h *Handler) PostBatchShipments(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	var body BatchShipmentsBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	res, err := h.Svc.BatchShipments(c, body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, res)
+}
+
+// GetSalesStats GET /orders/stats/sales
+func (h *Handler) GetSalesStats(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	res, err := h.Svc.SalesStats(c)
+	if err != nil {
+		response.Fail(c, 500, response.CodeInternalError, err.Error())
+		return
+	}
+	response.OK(c, res)
 }
 
 // PutShipment PUT /orders/:id/shipments/:shipmentId

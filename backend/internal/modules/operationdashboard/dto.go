@@ -48,6 +48,23 @@ type Summary struct {
 	OrderExceptionTotal           int64 `json:"orderExceptionTotal"`
 	SKUUnmatchedOrderItems        int64 `json:"skuUnmatchedOrderItems"`
 	InventoryDeductFailedOrders   int64 `json:"inventoryDeductFailedOrders"`
+	ProcurementBlockedOrderItems  int64 `json:"procurementBlockedOrderItems"`
+	NegativeMarginOrderCount      int64 `json:"negativeMarginOrderCount"`
+	AwaitShipmentOrderCount       int64 `json:"awaitShipmentOrderCount"`
+	InTransitOrderCount           int64 `json:"inTransitOrderCount"`
+	AwaitProcurementOrderCount    int64 `json:"awaitProcurementOrderCount"`
+	AwaitPaymentOrderCount        int64 `json:"awaitPaymentOrderCount"`
+
+	// 选品 / 货源 / 采购协同（selection & procurement collaboration）
+	SelectionReviewCount           int64 `json:"selectionReviewCount"`
+	SelectionFailedTasks           int64 `json:"selectionFailedTasks"`
+	SourcePriceAlertCount          int64 `json:"sourcePriceAlertCount"`
+	SourceOutOfStockCount          int64 `json:"sourceOutOfStockCount"`
+	ProcurementPendingConfirmCount int64 `json:"procurementPendingConfirmCount"`
+	ProcurementPlacingCount        int64 `json:"procurementPlacingCount"`
+	ProcurementUnpaidCount         int64 `json:"procurementUnpaidCount"`
+	ProcurementAwaitTrackingCount  int64 `json:"procurementAwaitTrackingCount"`
+	ProcurementAwaitReceiptCount   int64 `json:"procurementAwaitReceiptCount"`
 
 	// Compact KPI aliases for the workbench overview cards.
 	DraftTotal           int64 `json:"draftTotal"`

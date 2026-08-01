@@ -124,6 +124,74 @@ func TestSaveSKUMappingsWritesPriceHistory(t *testing.T) {
 	}
 }
 
+func TestDeleteSKUMapping(t *testing.T) {
+	svc := newTestService(t)
+	productID := uuid.New()
+	src := mustBind(t, svc, productID, "supplier-a", "111", 10)
+	localSKU := uuid.New()
+	price := 9.9
+	rows, err := svc.SaveSKUMappings(context.Background(), src.ID, []SKUMappingBody{
+		{LocalSKUID: localSKU.String(), ExternalSKUID: "ext-1", CurrentPrice: &price},
+	}, nil)
+	if err != nil {
+		t.Fatalf("save mappings: %v", err)
+	}
+	if err := svc.DeleteSKUMapping(context.Background(), rows[0].ID, nil); err != nil {
+		t.Fatalf("delete mapping: %v", err)
+	}
+	var cnt int64
+	if err := svc.DB.Model(&ProductSourceSKU{}).Where("id = ?", rows[0].ID).Count(&cnt).Error; err != nil {
+		t.Fatal(err)
+	}
+	if cnt != 0 {
+		t.Fatalf("mapping should be soft-deleted, still visible: %d", cnt)
+	}
+	var raw int64
+	if err := svc.DB.Unscoped().Model(&ProductSourceSKU{}).Where("id = ?", rows[0].ID).Count(&raw).Error; err != nil {
+		t.Fatal(err)
+	}
+	if raw != 1 {
+		t.Fatalf("soft delete expected, row missing entirely")
+	}
+	if err := svc.DeleteSKUMapping(context.Background(), rows[0].ID, nil); err == nil {
+		t.Fatalf("second delete should return not found")
+	}
+}
+
+func TestSaveSKUMappingsRevivesSoftDeletedRow(t *testing.T) {
+	svc := newTestService(t)
+	productID := uuid.New()
+	src := mustBind(t, svc, productID, "supplier-a", "111", 10)
+	localSKU := uuid.New()
+	price := 9.9
+	rows, err := svc.SaveSKUMappings(context.Background(), src.ID, []SKUMappingBody{
+		{LocalSKUID: localSKU.String(), ExternalSKUID: "ext-1", CurrentPrice: &price},
+	}, nil)
+	if err != nil {
+		t.Fatalf("save mappings: %v", err)
+	}
+	if err := svc.DeleteSKUMapping(context.Background(), rows[0].ID, nil); err != nil {
+		t.Fatalf("delete mapping: %v", err)
+	}
+	price2 := 12.5
+	revived, err := svc.SaveSKUMappings(context.Background(), src.ID, []SKUMappingBody{
+		{LocalSKUID: localSKU.String(), ExternalSKUID: "ext-2", CurrentPrice: &price2},
+	}, nil)
+	if err != nil {
+		t.Fatalf("re-save after delete should revive row, got: %v", err)
+	}
+	if len(revived) != 1 || revived[0].ID != rows[0].ID || revived[0].ExternalSKUID != "ext-2" {
+		t.Fatalf("expected revived original row, got %+v", revived)
+	}
+	var cnt int64
+	if err := svc.DB.Model(&ProductSourceSKU{}).Where("id = ?", rows[0].ID).Count(&cnt).Error; err != nil {
+		t.Fatal(err)
+	}
+	if cnt != 1 {
+		t.Fatalf("revived mapping should be visible, got %d", cnt)
+	}
+}
+
 func TestApplySwitchRulesOutOfStockAutoSwitch(t *testing.T) {
 	svc := newTestService(t)
 	productID := uuid.New()
@@ -212,6 +280,66 @@ func TestApplySwitchRulesPriceAlertSuggestsOnly(t *testing.T) {
 	}
 	if ev.Mode != SwitchModeSuggested || ev.Reason != SwitchReasonPriceIncrease || ev.ToSourceID != b.ID {
 		t.Fatalf("unexpected suggestion event %+v", ev)
+	}
+}
+
+func TestSuggestionDedupeAdoptAndIgnore(t *testing.T) {
+	svc := newTestService(t)
+	productID := uuid.New()
+	a := mustBind(t, svc, productID, "supplier-a", "111", 10)
+	b := mustBind(t, svc, productID, "supplier-b", "222", 20)
+
+	if err := svc.DB.Model(&ProductSource{}).Where("id = ?", a.ID).Update("status", SourceStatusPriceAlert).Error; err != nil {
+		t.Fatal(err)
+	}
+	sources, err := svc.ListProductSources(context.Background(), productID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, _, err := svc.applySwitchRules(context.Background(), productID, sources, defaultRuleConfig()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var evs []SourceSwitchEvent
+	if err := svc.DB.Where("product_id = ?", productID).Find(&evs).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 1 || evs[0].Status != SuggestionOpen {
+		t.Fatalf("expected one open suggestion, got %+v", evs)
+	}
+
+	if err := svc.IgnoreSwitchSuggestion(context.Background(), evs[0].ID, nil); err != nil {
+		t.Fatalf("ignore: %v", err)
+	}
+	if err := svc.IgnoreSwitchSuggestion(context.Background(), evs[0].ID, nil); err == nil {
+		t.Fatalf("second ignore should fail (not open)")
+	}
+	if _, err := svc.AdoptSwitchSuggestion(context.Background(), evs[0].ID, nil); err == nil {
+		t.Fatalf("adopt ignored suggestion should fail")
+	}
+
+	// new open suggestion after ignore → adopt switches primary
+	if _, _, err := svc.applySwitchRules(context.Background(), productID, sources, defaultRuleConfig()); err != nil {
+		t.Fatal(err)
+	}
+	var open SourceSwitchEvent
+	if err := svc.DB.Where("product_id = ? AND status = ?", productID, SuggestionOpen).First(&open).Error; err != nil {
+		t.Fatal(err)
+	}
+	out, err := svc.AdoptSwitchSuggestion(context.Background(), open.ID, nil)
+	if err != nil {
+		t.Fatalf("adopt: %v", err)
+	}
+	if out == nil || out.ID != b.ID || !out.IsPrimary {
+		t.Fatalf("expected backup %s to become primary, got %+v", b.ID, out)
+	}
+	var after SourceSwitchEvent
+	if err := svc.DB.First(&after, "id = ?", open.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if after.Status != SuggestionAdopted {
+		t.Fatalf("suggestion should be adopted, got %q", after.Status)
 	}
 }
 

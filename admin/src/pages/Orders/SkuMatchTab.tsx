@@ -1,4 +1,4 @@
-import { Button, Input, Modal, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
+import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
 import { history } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';
@@ -17,6 +17,12 @@ type Props = {
   readOnly?: boolean;
   focusItemId?: string;
 };
+
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+
+function isRealItemId(id: string | null | undefined): id is string {
+  return !!id && id !== ZERO_UUID;
+}
 
 function candTrustBadge(conf: number) {
   if (conf >= 90) return <Tag color="green">高可信</Tag>;
@@ -91,7 +97,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
   }, []);
 
   useEffect(() => {
-    if (!bindOpen || !bindItemId) return;
+    if (!bindOpen || !isRealItemId(bindItemId)) return;
     void refreshBindDrawerCandidates(bindItemId);
   }, [bindOpen, bindItemId, refreshBindDrawerCandidates]);
 
@@ -122,7 +128,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
 
   const expandedRowRender = (r: OrderSkuMatchRow) => {
     const id = r.orderItemId;
-    if (!id || !['unmatched', 'skipped', 'ambiguous'].includes(String(r.matchStatus || ''))) {
+    if (!isRealItemId(id) || !['unmatched', 'skipped', 'ambiguous'].includes(String(r.matchStatus || ''))) {
       return <Typography.Text type="secondary">—</Typography.Text>;
     }
     const list = candCache[id] ?? [];
@@ -269,7 +275,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
           defaultExpandedRowKeys: focusItemId ? [focusItemId] : undefined,
           onExpand: (expanded, record) => {
             const id = record.orderItemId;
-            if (!expanded || !id) return;
+            if (!expanded || !isRealItemId(id)) return;
             void loadRowCandidatesIfNeeded(id);
           },
           expandedRowRender,
@@ -330,7 +336,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
             width: 300,
             render: (_, r) => (
               <Space wrap size="small">
-                {r.orderItemId ? (
+                {isRealItemId(r.orderItemId) ? (
                   <>
                     {['unmatched', 'skipped', 'ambiguous'].includes(String(r.matchStatus || '')) ? (
                       <Typography.Link

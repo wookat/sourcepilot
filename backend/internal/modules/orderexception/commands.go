@@ -86,7 +86,7 @@ func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, bod
 
 	if syncPlat {
 		var sku product.ProductSKU
-		if err := c.Inv.DB.WithContext(ctx).First(&sku, "id = ? AND deleted_at IS NULL", skuID).Error; err != nil {
+		if err := c.Inv.DB.WithContext(ctx).First(&sku, "id = ?", skuID).Error; err != nil {
 			return nil, err
 		}
 		st := 0

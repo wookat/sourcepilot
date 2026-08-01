@@ -33,6 +33,8 @@ const ALLOWED_QUERY_KEYS = new Set([
   'skuStatus',
   'inventoryStatus',
   'fulfillmentStatus',
+  'hasException',
+  'hasPurchase',
   'dateFrom',
   'dateTo',
   'createdFrom',
@@ -54,6 +56,8 @@ const ALLOWED_QUERY_KEYS = new Set([
   'conversationId',
   'suggestionId',
   'productSource',
+  'operationStep',
+  'customerName',
   // legacy deep links (read + write when explicitly set)
   'jumpOrder',
   'orderId',

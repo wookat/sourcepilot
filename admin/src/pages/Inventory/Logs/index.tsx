@@ -1,6 +1,7 @@
 ﻿import { type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { Tag } from 'antd';
+import { INVENTORY_CHANGE_TYPE } from '@/constants/inventoryLabels';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef } from 'react';
@@ -59,6 +60,7 @@ export default function InventoryLogsPage() {
         dataIndex: 'changeType',
         width: 132,
         ellipsis: true,
+        render: (_, r) => INVENTORY_CHANGE_TYPE[r.changeType] ?? r.changeType,
       },
       {
         title: '变更前',

@@ -43,6 +43,7 @@ const CONVERSATION_QUERY_KEYS = [
   'sendFailed',
   'hasOrder',
   'status',
+  'customerName',
 ] as const;
 
 function readConversationLegacyFilters(search: string) {
@@ -124,21 +125,30 @@ export default function CustomerConversationsPage() {
       keyword: urlState.keyword,
       platform: urlState.platform,
       shopId: urlState.shopId,
-      pendingReply: urlFilters.pendingReply ? 'true' : undefined,
-      hasAiSuggestion: urlFilters.hasAiSuggestion ? 'true' : undefined,
-      sendFailed: urlFilters.sendFailed ? 'true' : undefined,
-      hasOrder: urlFilters.hasOrder ? 'true' : undefined,
+      status: urlState.status,
+      customerName: urlState.customerName,
+      pendingReply: urlFilters.pendingReply ? 'true' : urlState.pendingReply === '0' ? 'false' : undefined,
+      hasAiSuggestion: urlFilters.hasAiSuggestion ? 'true' : urlState.hasAiSuggestion === '0' ? 'false' : undefined,
+      sendFailed: urlFilters.sendFailed ? 'true' : urlState.sendFailed === '0' ? 'false' : undefined,
+      hasOrder: urlFilters.hasOrder ? 'true' : urlState.hasOrder === '0' ? 'false' : undefined,
     });
+    actionRef.current?.reload();
   }, [
     urlFilters.hasAiSuggestion,
     urlFilters.hasOrder,
     urlFilters.pendingReply,
     urlFilters.sendFailed,
+    urlState.customerName,
+    urlState.hasAiSuggestion,
+    urlState.hasOrder,
     urlState.keyword,
     urlState.page,
     urlState.pageSize,
+    urlState.pendingReply,
     urlState.platform,
+    urlState.sendFailed,
     urlState.shopId,
+    urlState.status,
   ]);
 
   useEffect(() => {
@@ -332,18 +342,32 @@ export default function CustomerConversationsPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
-        params={{
-          current: tablePage,
-          pageSize: tablePageSize,
-          keyword: urlState.keyword,
-          platform: urlState.platform,
-          shopId: urlState.shopId,
-          pendingReply: urlFilters.pendingReply ? 'true' : undefined,
-          hasAiSuggestion: urlFilters.hasAiSuggestion ? 'true' : undefined,
-          sendFailed: urlFilters.sendFailed ? 'true' : undefined,
-          hasOrder: urlFilters.hasOrder ? 'true' : undefined,
-        }}
         search={{ labelWidth: 'auto' }}
+        onSubmit={() => {
+          // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
+          const v = (formRef.current?.getFieldsValue?.() ?? {}) as Record<string, unknown>;
+          const flag = (raw: unknown) =>
+            String(raw ?? '') === 'true' ? '1' : String(raw ?? '') === 'false' ? '0' : undefined;
+          setTablePage(1);
+          setUrlState(
+            {
+              page: undefined,
+              keyword: prepareKeyword(v.keyword) || undefined,
+              platform: (v.platform as string | undefined)?.trim() || undefined,
+              shopId: (v.shopId as string | undefined)?.trim() || undefined,
+              status: (v.status as string | undefined)?.trim() || undefined,
+              customerName: (v.customerName as string | undefined)?.trim() || undefined,
+              pendingReply: flag(v.pendingReply),
+              hasAiSuggestion: flag(v.hasAiSuggestion),
+              sendFailed: flag(v.sendFailed),
+              hasOrder: flag(v.hasOrder),
+              replyStatus: flag(v.pendingReply) === '1' ? 'pending_reply' : undefined,
+              aiSuggestionStatus: flag(v.hasAiSuggestion) === '1' ? 'pending' : undefined,
+              sendStatus: flag(v.sendFailed) === '1' ? 'failed' : undefined,
+            },
+            { replace: true },
+          );
+        }}
         onReset={() => {
           setTablePage(1);
           setTablePageSize(20);
@@ -382,56 +406,22 @@ export default function CustomerConversationsPage() {
             新建会话
           </Button>,
         ]}
-        request={async (params) => {
-          const qp = {
-            page: params.current ?? tablePage,
-            pageSize: params.pageSize ?? tablePageSize,
-            platform: (params.platform as string | undefined)?.trim(),
-            shopId: (params.shopId as string | undefined)?.trim(),
-            keyword: prepareKeyword(params.keyword),
-            pendingReply: params.pendingReply as boolean | string | undefined,
-            hasAiSuggestion: params.hasAiSuggestion as boolean | string | undefined,
-            sendFailed: params.sendFailed as boolean | string | undefined,
-            hasOrder: params.hasOrder as boolean | string | undefined,
-          };
-          const replyStatus =
-            qp.pendingReply === 'true' || qp.pendingReply === true ? 'pending_reply' : undefined;
-          const aiSuggestionStatus =
-            qp.hasAiSuggestion === 'true' || qp.hasAiSuggestion === true ? 'pending' : undefined;
-          const sendStatus =
-            qp.sendFailed === 'true' || qp.sendFailed === true ? 'failed' : undefined;
-          setUrlState(
-            {
-              page: Number(qp.page) > 1 ? qp.page : undefined,
-              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
-              keyword: qp.keyword,
-              platform: qp.platform,
-              shopId: qp.shopId,
-              replyStatus,
-              aiSuggestionStatus,
-              sendStatus,
-              pendingReply: replyStatus ? '1' : undefined,
-              hasAiSuggestion: aiSuggestionStatus ? '1' : undefined,
-              sendFailed: sendStatus ? '1' : undefined,
-              hasOrder:
-                qp.hasOrder === 'true' || qp.hasOrder === true ? '1' : undefined,
-              suggestionId: urlState.suggestionId || legacyFilters.suggestionId,
-              source: urlState.source,
-            },
-            { replace: true },
-          );
+        request={async () => {
+          // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
+          const flag = (u: string | undefined, legacy: boolean) =>
+            legacy || u === '1' ? 'true' : u === '0' ? 'false' : undefined;
           const res = await queryConversations({
-            page: qp.page,
-            pageSize: qp.pageSize,
-            platform: qp.platform,
-            status: params.status as string | undefined,
-            shopId: qp.shopId,
-            customerName: params.customerName as string | undefined,
-            keyword: qp.keyword,
-            pendingReply: qp.pendingReply,
-            hasAiSuggestion: qp.hasAiSuggestion,
-            sendFailed: qp.sendFailed,
-            hasOrder: qp.hasOrder,
+            page: parsePositiveInt(urlState.page, 1),
+            pageSize: parsePositiveInt(urlState.pageSize, 20),
+            platform: urlState.platform?.trim(),
+            status: urlState.status?.trim(),
+            shopId: urlState.shopId?.trim(),
+            customerName: urlState.customerName?.trim(),
+            keyword: prepareKeyword(urlState.keyword),
+            pendingReply: flag(urlState.pendingReply, urlFilters.pendingReply),
+            hasAiSuggestion: flag(urlState.hasAiSuggestion, urlFilters.hasAiSuggestion),
+            sendFailed: flag(urlState.sendFailed, urlFilters.sendFailed),
+            hasOrder: flag(urlState.hasOrder, urlFilters.hasOrder),
           });
           return {
             data: res.list,

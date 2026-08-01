@@ -1,5 +1,5 @@
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
-import { getJSON, getWithParams, postJSON } from './request';
+import { getJSON, getWithParams, postJSON, putJSON } from './request';
 
 export type PurchaseOrderItem = {
   id: string;
@@ -55,16 +55,68 @@ export type PurchaseOrder = {
   logistics?: PurchaseLogistics[];
 };
 
+export type GenerateIssue = {
+  orderId: string;
+  localSkuId?: string;
+  skuName?: string;
+  code: string;
+  message: string;
+};
+
 export type GenerateResult = {
   orders: PurchaseOrder[];
-  blockers?: {
-    orderId: string;
-    localSkuId?: string;
-    skuName?: string;
-    code: string;
-    message: string;
-  }[];
+  blockers?: GenerateIssue[];
+  warnings?: GenerateIssue[];
 };
+
+export type CostEstimateLine = {
+  orderItemId: string;
+  localSkuId?: string;
+  skuName: string;
+  quantity: number;
+  supplierName?: string;
+  unitCostCny?: number;
+  lineCostCny?: number;
+  issueCode?: string;
+  issueMessage?: string;
+};
+
+export type OrderCostEstimate = {
+  orderId: string;
+  orderNo: string;
+  currency: string;
+  totalAmount: number;
+  estimatedCostCny: number;
+  exchangeRate?: number;
+  estimatedCost?: number;
+  grossProfit?: number;
+  marginPercent?: number;
+  missingLines: number;
+  lines: CostEstimateLine[];
+};
+
+export async function fetchOrderCostEstimate(orderId: string) {
+  return getJSON<OrderCostEstimate>(`/api/v1/procurement/cost-estimates/${orderId}`);
+}
+
+export type OrderCostEstimateSummary = {
+  orderId: string;
+  currency: string;
+  totalAmount: number;
+  estimatedCostCny: number;
+  exchangeRate?: number;
+  estimatedCost?: number;
+  grossProfit?: number;
+  marginPercent?: number;
+  missingLines: number;
+};
+
+export async function fetchOrderCostEstimateBatch(orderIds: string[]) {
+  return postJSON<{ items: Record<string, OrderCostEstimateSummary> }>(
+    '/api/v1/procurement/cost-estimates/batch',
+    { orderIds },
+  );
+}
 
 export async function generatePurchaseOrders(body: {
   orderIds: string[];
@@ -78,10 +130,17 @@ export async function fetchPurchaseOrders(params: {
   pageSize?: number;
   status?: string;
   keyword?: string;
+  salesOrderId?: string;
 }) {
   return getWithParams<{ items: PurchaseOrder[]; total: number; page: number; pageSize: number }>(
     '/api/v1/procurement/orders',
-    { page: params.page, pageSize: params.pageSize, status: params.status, keyword: params.keyword },
+    {
+      page: params.page,
+      pageSize: params.pageSize,
+      status: params.status,
+      keyword: params.keyword,
+      salesOrderId: params.salesOrderId,
+    },
   );
 }
 
@@ -122,8 +181,42 @@ export async function fillPurchaseLogistics(id: string, trackingNo: string, carr
   });
 }
 
+export async function updatePurchaseItemPrice(id: string, itemId: string, expectedPrice: number) {
+  return putJSON<PurchaseOrder, { expectedPrice: number }>(
+    `/api/v1/procurement/orders/${id}/items/${itemId}/price`,
+    { expectedPrice },
+  );
+}
+
 export async function markPurchaseOrderDelivered(id: string) {
   return postJSON<PurchaseOrder>(`/api/v1/procurement/orders/${id}/mark-delivered`);
+}
+
+export type BatchLineResult = {
+  key: string;
+  purchaseOrderId?: string;
+  supplierName?: string;
+  ok: boolean;
+  status?: string;
+  message?: string;
+};
+
+export type BatchResult = {
+  succeeded: number;
+  failed: number;
+  results: BatchLineResult[];
+};
+
+export async function batchMarkPurchaseOrdersPlaced(
+  items: { purchaseOrderId: string; externalOrderId: string }[],
+) {
+  return postJSON<BatchResult>('/api/v1/procurement/orders/batch-mark-placed', { items });
+}
+
+export async function batchFillPurchaseLogistics(
+  items: { externalOrderId: string; trackingNo: string; carrier?: string }[],
+) {
+  return postJSON<BatchResult>('/api/v1/procurement/orders/batch-logistics', { items });
 }
 
 export async function downloadPurchaseOrderCsv(id: string) {
@@ -139,6 +232,28 @@ export async function downloadPurchaseOrderCsv(id: string) {
   const a = document.createElement('a');
   a.href = url;
   a.download = `purchase-list-${id.slice(0, 8)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadPurchaseOrdersBatchCsv(ids: string[]) {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const resp = await fetch(
+    `/api/v1/procurement/purchase-lists/export.csv?ids=${encodeURIComponent(ids.join(','))}`,
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    },
+  );
+  if (!resp.ok) {
+    throw new Error(`export failed: ${resp.status}`);
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `purchase-lists-${ids.length}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();

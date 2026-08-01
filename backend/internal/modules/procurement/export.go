@@ -26,18 +26,7 @@ func offerLink(sourceURL, offerID string) string {
 	return ""
 }
 
-// ExportCSV renders the manual purchase list for one purchase order.
-func (s *Service) ExportCSV(ctx context.Context, id uuid.UUID) ([]byte, string, error) {
-	po, err := s.Detail(ctx, id)
-	if err != nil {
-		return nil, "", err
-	}
-	var buf bytes.Buffer
-	buf.WriteString("\xEF\xBB\xBF") // UTF-8 BOM for Excel
-	w := csv.NewWriter(&buf)
-	if err := w.Write(csvHeader); err != nil {
-		return nil, "", err
-	}
+func writePORows(w *csv.Writer, po *PurchaseOrder) error {
 	for _, it := range po.Items {
 		price := 0.0
 		if it.ActualPrice != nil {
@@ -59,6 +48,50 @@ func (s *Service) ExportCSV(ctx context.Context, id uuid.UUID) ([]byte, string, 
 			po.Status,
 		}
 		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ExportCSV renders the manual purchase list for one purchase order.
+func (s *Service) ExportCSV(ctx context.Context, id uuid.UUID) ([]byte, string, error) {
+	po, err := s.Detail(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+	var buf bytes.Buffer
+	buf.WriteString("\xEF\xBB\xBF") // UTF-8 BOM for Excel
+	w := csv.NewWriter(&buf)
+	if err := w.Write(csvHeader); err != nil {
+		return nil, "", err
+	}
+	if err := writePORows(w, po); err != nil {
+		return nil, "", err
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return nil, "", err
+	}
+	name := fmt.Sprintf("purchase-list-%s.csv", po.ID.String()[:8])
+	return buf.Bytes(), name, nil
+}
+
+// ExportBatchCSV renders one merged manual purchase list covering several
+// purchase orders (one row per item, 采购单号 column distinguishes orders).
+func (s *Service) ExportBatchCSV(ctx context.Context, ids []uuid.UUID) ([]byte, string, error) {
+	var buf bytes.Buffer
+	buf.WriteString("\xEF\xBB\xBF") // UTF-8 BOM for Excel
+	w := csv.NewWriter(&buf)
+	if err := w.Write(csvHeader); err != nil {
+		return nil, "", err
+	}
+	for _, id := range ids {
+		po, err := s.Detail(ctx, id)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := writePORows(w, po); err != nil {
 			return nil, "", err
 		}
 	}
@@ -66,6 +99,6 @@ func (s *Service) ExportCSV(ctx context.Context, id uuid.UUID) ([]byte, string, 
 	if err := w.Error(); err != nil {
 		return nil, "", err
 	}
-	name := fmt.Sprintf("purchase-list-%s.csv", po.ID.String()[:8])
+	name := fmt.Sprintf("purchase-lists-%d.csv", len(ids))
 	return buf.Bytes(), name, nil
 }

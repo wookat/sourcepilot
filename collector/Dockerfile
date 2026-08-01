@@ -12,6 +12,7 @@ RUN apt-get update \
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY scripts ./scripts
 COPY admin ./admin
 COPY collector ./collector
 

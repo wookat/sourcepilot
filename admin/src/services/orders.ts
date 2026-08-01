@@ -1,4 +1,5 @@
 import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
+import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import type { OrderInventoryEffectRow, PaginatedInventory } from '@/services/inventory';
 
 export type OrderShipmentRow = {
@@ -122,6 +123,7 @@ export async function queryOrders(params: {
   inventoryDeductStatus?: string;
   syncStatus?: string;
   hasException?: boolean;
+  hasPurchase?: '0' | '1';
   start?: string;
   end?: string;
 }): Promise<{
@@ -133,6 +135,75 @@ export async function queryOrders(params: {
 
 export async function createOrder(payload: Record<string, unknown>): Promise<OrderDetailDTO> {
   return postJSON('/api/v1/orders', payload);
+}
+
+export type OrderImportRowResult = {
+  orderNo: string;
+  status: 'created' | 'skipped_duplicate' | 'failed' | string;
+  orderId?: string;
+  error?: string;
+  itemsTotal: number;
+  itemsMatched: number;
+};
+
+export type OrderImportSummary = {
+  total: number;
+  created: number;
+  duplicate: number;
+  failed: number;
+  results: OrderImportRowResult[];
+};
+
+export async function importOrders(payload: {
+  orders: Record<string, unknown>[];
+  matchSkus?: boolean;
+}): Promise<OrderImportSummary> {
+  return postJSON('/api/v1/orders/import', payload);
+}
+
+export async function downloadOrdersShippingCsv(ids: string[]) {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const resp = await fetch(
+    `/api/v1/orders/shipping-list/export.csv?ids=${encodeURIComponent(ids.join(','))}`,
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    },
+  );
+  if (!resp.ok) {
+    throw new Error(`export failed: ${resp.status}`);
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `shipping-list-${ids.length}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export type SalesAmount = {
+  currency: string;
+  amount: number;
+  orders: number;
+};
+
+export type SalesWindowStats = {
+  key: string;
+  orderCount: number;
+  paidCount: number;
+  shippedCount: number;
+  paidAmounts: SalesAmount[];
+};
+
+export type SalesStatsDTO = {
+  generatedAt: string;
+  windows: SalesWindowStats[];
+};
+
+export async function fetchOrderSalesStats(): Promise<SalesStatsDTO> {
+  return getJSON('/api/v1/orders/stats/sales');
 }
 
 export async function getOrder(id: string): Promise<OrderDetailDTO> {
@@ -177,6 +248,26 @@ export async function updateOrderShipment(
 
 export async function deleteOrderShipment(orderId: string, shipmentId: string): Promise<{ ok: boolean }> {
   return deleteJSON(`/api/v1/orders/${orderId}/shipments/${shipmentId}`);
+}
+
+export type BatchShipmentLineResult = {
+  key: string;
+  orderId?: string;
+  ok: boolean;
+  status?: string;
+  message?: string;
+};
+
+export type BatchShipmentsResult = {
+  succeeded: number;
+  failed: number;
+  results: BatchShipmentLineResult[];
+};
+
+export async function batchCreateOrderShipments(
+  items: { orderNo: string; trackingNo: string; carrier?: string }[],
+): Promise<BatchShipmentsResult> {
+  return postJSON('/api/v1/orders/shipments/batch', { items });
 }
 
 export async function deductOrderInventory(
@@ -255,6 +346,8 @@ export type OrderSkuMatchListRow = OrderSkuMatchRow & {
   orderNo?: string;
   productTitle?: string;
   localSkuCode?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export async function queryOrderSkuMatches(params: {

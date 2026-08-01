@@ -9,6 +9,8 @@ export type OrderExceptionSummary = {
   inventoryRestoreFailed: number;
   inventorySyncFailed: number;
   orderSyncPartialFailed?: number;
+  procurementBlocked?: number;
+  negativeMargin?: number;
 };
 
 export type OrderExceptionRow = {
@@ -41,6 +43,7 @@ export type OrderExceptionRow = {
   detailUrl?: string;
   orderUrl?: string;
   taskCenterUrl?: string;
+  sourcingUrl?: string;
   syncTaskId?: string;
   handled: boolean;
   ignored: boolean;
@@ -71,6 +74,7 @@ export async function queryOrderExceptions(params: {
   keyword?: string;
   handled?: boolean;
   ignored?: boolean;
+  all?: boolean;
   start?: string;
   end?: string;
 }): Promise<ListOrderExceptionsResponse> {
@@ -85,6 +89,7 @@ export async function queryOrderExceptions(params: {
     keyword: params.keyword,
     handled: params.handled === undefined ? undefined : params.handled ? 'true' : 'false',
     ignored: params.ignored === undefined ? undefined : params.ignored ? 'true' : 'false',
+    all: params.all === undefined ? undefined : params.all ? 'true' : 'false',
     start: params.start,
     end: params.end,
   });

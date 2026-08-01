@@ -866,7 +866,256 @@ Final Production Acceptance Deferred to P10
 - Admin 新增 `/selection/tasks` 选品任务页与 `/selection/tasks/:id` 可上架清单页（排序展示、人工审核、一键转商品草稿进入既有刊登链路）。
 - 边界：未改动货源档案/采购协同（source/procurement）模块；1688 官方 API 保持空壳。
 
+### 变更记录（2026-07-29）迭代第 1 轮：采购批量回填 + 待办导向首页驾驶舱
+
+- 采购批量回填：新增 `POST /procurement/orders/batch-mark-placed`（按采购单 ID 批量回填 1688 订单号）与 `POST /procurement/orders/batch-logistics`（按 1688 外部订单号匹配采购单批量回填运单号，placed 状态自动先 mark-paid），单批 ≤200 行、逐行独立处理、部分成功不回滚、重复行/未知单号/非法 ID 逐行报错，附 service 层单测（`procurement/batch_test.go`）。
+- Admin 采购页新增「批量回填 1688 订单号 / 快递单号」粘贴式弹窗：多行文本解析（空格/逗号/Tab 分隔）、采购单 ID 支持完整 UUID 或唯一前缀（对当前「下单中」采购单解析）、客户端格式校验 + 服务端逐行结果表，解析逻辑独立为 `batchParse.ts` 并附单测；采购列表页支持 `?status=` URL 初始筛选（配合首页待办跳转）。
+- 待办导向首页：dashboard 新增选品/货源/采购统计（选品待审核、选品失败、货源涨价/断货、采购待确认/待下单/待付款/待回填运单），统一待办流与首页「今日待办」新增对应卡片；首页待办改为只展示有数量的待办并按 P0/P1 + 数量排序，全空时给出下一步引导空状态。
+- 同步 `docs/api.md`、`admin/src/services/{procurement,dashboard}.ts`、`admin/src/constants/dashboardDefaults.ts`。
+
+### 变更记录（2026-07-29）迭代第 2 轮：采购单参考价闭环
+
+- 生成采购单时 SKU 映射缺参考价自动回退到最近一条历史进价（`source_price_history`）；仍缺价时采购单照常生成，但以 `warnings`（`price.missing`）逐行提示，避免 0.00 金额误导。
+- 新增 `PUT /procurement/orders/:id/items/:itemId/price`：draft / pending_confirm 状态下补填/修改明细参考价并重算 `totalAmount`，记录操作日志；附 service 层单测（历史价回退、缺价告警、改价重算与状态限制）。
+- Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
+- 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
+
+### 变更记录（2026-08-01）迭代第 13 轮：订单成本/毛利估算
+
+- 新增 `GET /api/v1/procurement/cost-estimates/:id`（id 为销售订单）：按主货源 SKU 映射参考价（缺价回退最近历史进价，与生成采购单同口径）逐行估算 CNY 采购成本；订单币种为 CNY（汇率恒 1）或已配置 `settings.pricing.exchangeRate`（CNY→订单币种）时折算 `estimatedCost` 并计算 `grossProfit`/`marginPercent`（任一行缺价时不计算毛利）；问题行以 `issueCode`（`sku.unmatched`/`source.missing`/`mapping.missing`/`price.missing`）返回。procurement.Service 新增 `SettingsReader` 依赖（接口解耦），附 sqlite 单测（含汇率折算、缺价、CNY 订单三条路径）。
+- Admin 订单详情「订单概览」新增「成本 / 毛利估算」卡：销售额、预估采购成本（CNY + 折算）、预估毛利（正绿负红）、毛利率；缺价行与未配置汇率分别以 Alert 提示。
+- 顺带闭环第 12 轮 P3：库存手工扣减/回滚成功 toast 不再直出后端摘要原文 `ok`，改为结构化中文（成功/幂等跳过 + 原因）。
+
+### 变更记录（2026-08-02）迭代第 16 轮：全站列表页 params 覆盖问题审计修复
+
+- 按第 15 轮根因对全站 ProTable 列表页做同类问题审计：失败任务（TaskCenter/Failures）、商品草稿（Product/Drafts）、客服会话（Customer/Conversations）三页仍在 `params` 中透传 URL 筛选值，存在与订单列表相同的「分页点击/表单提交被旧值冲掉」风险。统一改为「URL query 为唯一筛选来源」模式：移除 `params`、新增 `onSubmit` 写回 URL、urlState 变化 effect 触发 reload、`request` 一律读 urlState/legacy URL 值。
+- `ALLOWED_QUERY_KEYS` 补 `operationStep`（商品草稿运营进度筛选）与 `customerName`（客服会话买家筛选）；客服会话布尔筛选（待回复/有 AI 建议/发送失败/有关联订单）URL 采用 `1`/`0`，兼容既有 `replyStatus`/`aiSuggestionStatus`/`sendStatus` 深链。
+- 修复真实测试发现的既有后端 P1：`GET /api/v1/task-center/failures` 对 tenant>0 用户必报 400（PostgreSQL 42703）。根因是统一的 `tenant_id = ?` 过滤被套到了自身没有 `tenant_id` 列的失败源表上。新增 `applyTenantListFilterVia`：`image_tasks` 经 `products` 限定租户（`product_id IS NULL` 的工具级任务保留可见）、`ai_product_text_items`/`ai_product_image_items` 经各自 batches 表、`customer_failure_events` 经 `shops` 表；附 sqlite DryRun SQL 回归单测。
+
+### 变更记录（2026-08-02）迭代第 22 轮：首页「订单待采购」待办卡 + 订单列表采购覆盖筛选
+
+- `GET /api/v1/orders` 新增可选 `hasPurchase` 三态过滤（`1`/`0`，缺省不过滤），按「任一明细行被未取消/未失败采购单覆盖」判定（与生成采购单防重同一口径的 EXISTS 子查询），并纳入游标分页 scope 指纹。
+- 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
+- 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
+
+### 变更记录（2026-08-02）迭代第 34 轮：订单批量标记送达 + 首页「订单在途待送达」待办卡
+
+- 订单列表批量操作条新增「批量标记送达（N）」：仅统计所选 `status=shipped` 订单，逐单复用既有 `PUT /orders/:id`（`status=delivered` + `deliveredAt`），闭环销售订单生命周期最后一步（导入 → 付款 → 采购 → 发货 → 送达）。
+- 首页/统一待办新增「订单在途待送达」卡（`order_in_transit`）：已发货订单数，直达 `/orders/list?status=shipped`；前端 `DEFAULT_TODOS` 同步补 key（沿用第15/18/22轮 allowlist 经验）。
+
+### 变更记录（2026-08-02）迭代第 36 轮：前端静态资源 contenthash + 缓存策略（部署后免硬刷新）
+
+- Admin 构建开启 `hash: true`：`umi.js`/`umi.css` 等产物文件名带 contenthash，部署新版本后浏览器自动加载新资源，消除「重建部署后浏览器缓存旧 CSS/JS 需硬刷新」的问题（第 35 轮 E2E 备注项）。
+- `admin/nginx.conf`：`index.html` 设 `Cache-Control: no-cache`（始终拿到最新入口），带 hash 的 `.js/.css` 设一年 immutable 长缓存；`/static/` 前缀改为 `^~` 避免被 js/css 正则 location 抢占（保留本地优先、后端回退）。
+
+### 变更记录（2026-08-02）迭代第 35 轮：订单列表批量操作条移动端可触达（换行修复）
+
+- 订单列表 ProTable 批量操作条（tableAlertOptionRender）`Space` 增加 `wrap`，并在 `global.less` 为 `.ant-pro-table-alert-info` 增加 `flex-wrap: wrap`，修复 375px 窄屏下操作条 nowrap 被 `ant-layout-content overflow:hidden` 裁剪、右侧批量按钮（生成采购单/标记已付款/导出发货清单/标记送达）不可见且无法滚动触达的问题（第 34 轮 E2E P3 观察项）。
+
+### 变更记录（2026-08-02）迭代第 33 轮：订单批量导出发货清单 CSV
+
+- 新增 `GET /api/v1/orders/shipping-list/export.csv?ids=`：合并导出所选销售订单（去重后 ≤50 个）的发货清单（订单号/客户名/电话/商品/SKU/数量/币种/金额），「快递单号(回填)」「承运商(回填)」列留空供线下打单后粘贴回「批量发货」；租户隔离，任一 id 不在租户内返回 404，UTF-8 BOM 兼容 Excel（复用采购清单导出模式，附单测）。
+- 订单列表批量操作条新增「批量导出发货清单（N）」，计数与「批量生成采购单」同口径（所选 paid 且非终态订单），导出不清空选择；闭环「待发货订单 → 导出清单打快递单 → 批量发货回填」动线。
+
+### 变更记录（2026-08-02）迭代第 32 轮：订单详情「取消订单」入口 + 订单列表终态行禁选
+
+- 订单详情右上角新增「取消订单」（可写角色且非终态订单，Popconfirm 确认），复用既有 `PUT /orders/:id` 的 `status=cancelled` 更新路径；已扣减库存按既有 `AutoRestoreCancelledOrders` 策略自动回滚，取消后订单自动移出待收款/待采购/待发货待办口径。
+- 订单列表行选择排除终态订单（`cancelled`/`refunded`/`closed` 不可勾选），批量标记付款/批量生成采购单的派生集合同步排除终态，防止对已取消订单误操作。
+
+### 变更记录（2026-08-02）迭代第 31 轮：订单列表批量标记已付款 + 首页「订单待收款确认」待办卡
+
+- 订单列表 `unpaid` 状态行可勾选，批量操作条新增「批量标记已付款（N）」，逐单调用既有 `PUT /orders/:id`（与详情页「标记已付款」同一 API），成功/失败逐单汇总；「批量生成采购单（N）」改为只统计并提交所选中已付款订单。
+- 首页/统一待办新增「订单待收款确认」卡（`order_await_payment`）：未付款且未取消/退款/关闭的销售订单数，直达 `/orders/list?payStatus=unpaid`；`DEFAULT_TODOS` 同步补 key。
+- 订单侧生命周期批量入口闭环：批量导入 → 批量标记已付款 → 批量生成采购单 → 批量发货。
+
+### 变更记录（2026-08-02）迭代第 30 轮：采购单批量标记签收 + 首页「采购单待签收」待办卡
+
+- 采购单列表 `shipped` 状态可勾选，批量操作条新增「批量标记签收（N）」，逐单调用既有 `mark-delivered` API（沿用第11轮签收自动入库与幂等语义），按状态分组计数、逐单汇总失败原因。
+- 首页/统一待办新增「采购单待签收」卡（`procurement_await_receipt`）：已发货采购单数，直达 `/procurement/orders?status=shipped`；`DEFAULT_TODOS` 同步补 key（沿用第15/18/22轮 allowlist 经验）。
+- 采购批量生命周期入口闭环：提交 → 确认 → 导出 → 标记付款 → 标记签收（自动入库）。
+
+### 变更记录（2026-08-02）迭代第 29 轮：首页经营概览统计
+
+- 新增 `GET /api/v1/orders/stats/sales`：按创建时间统计今日/近7日/近30日订单数、已付款数、已发货数与分币种已付款销售额（租户内、软删订单不计入）；附单测。
+- 首页驾驶舱在 KPI 区下方新增「经营概览」卡：三个时间窗口的订单/付款/发货计数与销售额，直达订单列表，回答运营者「今天卖了多少」。
+- 同步 `docs/api.md`。
+
+### 变更记录（2026-08-02）迭代第 28 轮：订单详情页删除订单入口
+
+- 订单详情页右上角新增「删除订单」（仅可写角色，Popconfirm 确认），复用既有 `DELETE /api/v1/orders/:id` 软删除，删除后返回订单列表；与订单列表抽屉里的既有删除入口语义一致，闭环「错误导入/测试订单无法从详情页作废」的缺口（第 27 轮 E2E 反馈项）。
+- 纯前端改动，无后端 / API 变更。
+
+### 变更记录（2026-08-02）迭代第 27 轮：销售订单批量发货（粘贴订单号+快递单号）
+
+- 新增 `POST /api/v1/orders/shipments/batch`：`{items:[{orderNo, trackingNo, carrier?}]}`（≤200 条），按订单号在租户内匹配已付款销售订单并新增 `shipped` 物流（复用既有 AppendShipment，订单自动流转为已发货）；未付款、已取消/关闭/退款、未找到、多重匹配、重复订单号逐行失败并给出中文原因；附单测。
+- 订单列表工具栏新增「批量发货」：粘贴 `订单号 快递单号 [承运商]` 多行文本，行级格式校验 + 逐行结果表，闭环「打完快递单后逐单进详情加物流」的重复操作。
+- 同步 `docs/api.md`。
+
+### 变更记录（2026-08-02）迭代第 26 轮：采购单列表批量标记付款
+
+- 采购单列表批量操作条新增「批量标记付款（N）」：已下单（placed）状态可勾选并批量调用既有 `POST /api/v1/procurement/orders/:id/mark-paid`，逐单汇总成功/失败，闭环「1688 付款后逐单点标记付款」。
+- 批量提交/确认/标记付款统一抽为 `BATCH_ACTIONS` 配置（文案/空选提示/单条 API），行为不变。
+- 纯前端改动，无后端 / API 变更。
+
+### 变更记录（2026-08-02）迭代第 25 轮：采购单批量导出合并采购清单 CSV
+
+- 新增 `GET /api/v1/procurement/purchase-lists/export.csv?ids=`：逗号分隔采购单 UUID（去重后 ≤50），逐单合并明细行为一份采购清单 CSV（「采购单号」列区分来源），复用单单导出的表头/行渲染（`writePORows`），任一 id 不存在返回 404；附单测。
+- 采购单列表批量操作条新增「批量导出清单（N）」；可勾选状态扩展为草稿/待确认/下单中(人工)，覆盖「确认后去 1688 逐单导出」场景，多张采购单一次导出一份合并清单。
+- 同步 `docs/api.md`。
+
+### 变更记录（2026-08-02）迭代第 24 轮：采购单列表批量提交/批量确认 + 生成结果提示统一
+
+- 采购单列表新增行选择（仅草稿/待确认状态可勾选，只读角色不显示）与「批量提交」「批量确认」操作，按状态分组循环调用既有 `POST /api/v1/procurement/orders/:id/submit|confirm`，逐单汇总成功/失败并弹窗列出失败原因，减少待办卡「采购单待确认」后的逐单点击。
+- 采购单列表「从销售订单生成采购单」弹窗的结果提示改用共享组件 `GenerateResultAlerts`，line.covered 已覆盖提示与缺参考进价分组与订单列表/详情统一（修正该页遗留的分组不一致）。
+- 状态筛选变化同步写回 URL query（replace），深链/刷新与筛选保持一致。
+- 纯前端改动，无后端 / API 变更。
+
+### 变更记录（2026-08-02）迭代第 23 轮：订单列表批量生成采购单
+
+- 订单列表新增行选择（仅已付款订单可勾选，只读角色不显示）与「批量生成采购单」批量操作，复用既有 `POST /api/v1/procurement/orders/generate`（本就支持多 orderIds 且带跨请求防重），选中多单一键生成后自动清空选择并刷新列表。
+- 生成结果的 blockers / 已覆盖（line.covered）/ 缺参考进价三组提示抽取为共享组件 `admin/src/components/procurement/GenerateResultAlerts`，订单列表与订单详情共用，消除既有重复。
+- 纯前端改动，无后端 / API 变更。
+
+### 变更记录（2026-08-02）迭代第 21 轮：采购单详情反向直达销售订单 + 生成结果弹窗分组
+
+- 采购单详情补「采购 → 出单」反向直达：概览新增「来源销售订单」（去重短 ID 链接直达订单详情），采购明细每行新增「来源订单」列；纯前端复用既有 `purchase_order_items.salesOrderId`，无后端变更。
+- 订单详情「生成采购单结果」弹窗按 warning code 分组：`line.covered`（已有采购单覆盖，info 样式）与缺参考进价（warning 样式）分开展示，标题不再混用（第20轮 E2E 反馈项闭环）；纯防重结果不再额外弹「没有可进入采购清单的明细行」toast。
+
+### 变更记录（2026-08-02）迭代第 20 轮：订单详情采购协同直达
+
+- 订单详情补「出单 → 采购」直达闭环（此前需跳到采购协同页在下拉里逐个找订单）：已付款订单右上角新增「生成采购单」按钮（复用 `POST /procurement/orders/generate`，blockers/warnings 以弹窗展示）；概览新增「关联采购单」卡片，展示该订单聚合出的采购单（状态 / 供应商 / 金额 / 1688 订单号，链接直达采购单详情）。
+- `GET /procurement/orders` 新增可选 `salesOrderId` 查询参数（经 `purchase_order_items.sales_order_id` 子查询过滤，非法 UUID 返回 400），附单测；既有参数与返回结构不变。
+- `POST /procurement/orders/generate` 增加跨请求防重：订单明细行已被未取消/未失败采购单覆盖时跳过并返回 `line.covered` warning，取消原采购单后可重新生成（E2E 发现重复点击会生成重复采购单，修复并附单测）。
+
+### 变更记录（2026-08-02）迭代第 19 轮：订单详情商品明细行内增删改
+
+- 订单详情「商品明细」Tab 补齐明细行编辑闭环（此前仅列表页抽屉可编辑，详情页只读，手工建单后无法从详情页补明细）：可写角色新增「新增明细」按钮与每行「编辑 / 删除」（Popconfirm 确认），弹窗表单数量/单价变更时自动按 数量 × 单价 重算小计（可手工覆盖），保存后刷新详情、规格匹配与成本估算。复用既有 `POST/PUT/DELETE /orders/:id/items` API，无后端与协议变更。
+- 订单列表「新建手工订单」弹窗补充提示：商品明细在创建后进入订单详情「商品明细」Tab 添加，成本/毛利估算依赖明细行。
+
+### 变更记录（2026-08-02）迭代第 18 轮：负毛利订单自动拦截 + Admin 静态资源 404 修复
+
+- 订单异常工作台新增聚合异常类型 `negative_margin`（利润为负）：已付款、未发货且未取消/退款/关闭的销售订单，按主货源参考价成本估算（复用 `procurement.Service.EstimateOrderCostBatch`，与订单成本卡/列表毛利列同一口径）预估毛利为负时，以 `sourceType=order` 进入工作台，`orderexception.Service` 通过新增 `Cost *procurement.Service` 依赖复用估算逻辑（router 注入），单次列表最多扫描最近更新的 200 个候选订单。缺参考价/未配汇率的订单不误报（毛利不可算即不判定）。
+- 支撑：`summary.negativeMargin` 统计、handled/ignored 标记与详情兼容（`resolveOrderPointers`/`GetOrderExceptionDetail` 支持 `order` source）；Dashboard `summary.negativeMarginOrderCount` + 待办卡/统一待办 `order_negative_margin`（P0，直达 `/orders/exceptions?exceptionType=negative_margin`）；前端异常页新增类型标签、统计卡与「去订单复核」动作；`docs/api.md` 已同步；新增 sqlite 单测覆盖亏损产生/盈利不产生/已履约不产生/忽略隐藏。
+- 修复 Admin 构建产物 `/static/*`（如 logo 哈希资源）404：`admin/nginx.conf` 的 `/static/` 改为 `try_files` 先取本地前端构建产物，未命中再回退代理 backend 上传静态文件。
+
+### 变更记录（2026-08-02）迭代第 17 轮：Admin TypeScript 全量错误清零
+
+- 修复 Admin `tsc --noEmit` 全部 24 个既有类型错误并把 `tests/quality/baselines/admin-typescript.json` 基线 ratchet 到 0（CI「Admin TypeScript baseline ratchet」此后任何新增类型错误直接红灯）。均为类型层修正，无运行时行为变化。
+- 主要修正：`postJSON`/`putJSON` 泛型默认 body 参数、`getWithParams` params 支持 boolean（订单 hasException）；`AppMessageBridge` 改为逐方法显式补丁（消除 union-of-signatures 不可调用问题）；`typings.d.ts` 补 `*.png` 模块声明；`TranslateLayoutSummary` 补 `renderMode`/`eraseMode`、`TranslateTaskOutput` 补 `resultUnavailable`、去除 imageTasks 重复字面量属性；`OrderSkuMatchListRow` 补 `createdAt`/`updatedAt`；Collect 规则编辑 request 新建分支补全表单字段；`attrsToJSON` 返回类型补 null。
+
+### 变更记录（2026-08-01）迭代第 15 轮：订单列表分页/查询交互修复
+
+- 修复订单列表 UI 点击分页器与「查询」按钮不生效的既有问题（第 14 轮测试发现）：此前 `params` 中透传的 URL 筛选值会覆盖表单/分页的新值。现改为与异常工作台一致的「URL query 为唯一筛选来源」模式：`onSubmit` 把表单值写回 URL、urlState 变化 effect 触发 reload、`request` 一律从 urlState 读筛选；`hasException` 补入 URL keys（深链可用）。
+
+### 变更记录（2026-08-01）迭代第 14 轮：订单列表预估毛利列
+
+- 新增 `POST /api/v1/procurement/cost-estimates/batch`：批量（≤50）返回订单成本/毛利汇总（复用单订单估算口径），不存在的订单省略；附单测（去重 + 缺失订单跳过）。
+- Admin 订单列表新增「预估毛利」列：正毛利绿色 / 负毛利红色（含毛利率），缺参考进价显示「缺价」标记、未配置汇率显示「未配汇率」标记（tooltip 说明配置入口）；估算请求异步进行，失败不阻塞列表加载。
+- 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
+
+### 变更记录（2026-08-01）迭代第 12 轮：订单详情补库存手工操作入口
+
+- Admin 订单详情「库存影响」Tab 新增「手工扣库存」「手工回滚库存」按钮（Popconfirm 确认，`canWriteOrders` 权限内可见），分别调既有 `POST /orders/:id/deduct-inventory` / `POST /orders/:id/restore-inventory`（`syncInventory=false`，回滚 reason=`manual_ui`），成功后刷新详情与影响流水。此前该入口位于旧列表页死代码 Drawer 中（第 8 轮详情页化遗留），restore 链路 UI 不可达。后端 API 无改动。
+- 后端 P1 修复：扣库幂等键 `inventory-deduct:{orderId}:{itemId}:{skuId}` 首扣成功后永久 succeeded，导致「扣库→回滚→再扣库」被 `INVENTORY_DEDUCT_KEY_CONFLICT`（400）拒绝。现以行级 restore 流水计数作为轮次（round），再扣库使用 `…:roundN` 幂等键；effect 行仅保留每 effect_type 最新状态（唯一索引不变），完整历史留在 `inventory_change_logs`（restore 流水补 `business_event_key=inventory-restore:…:roundN`）。同轮重复扣减/重复回滚仍幂等跳过。新增回归测试 `TestDeductRestoreDeductCycle`（扣→重复扣→回滚→重复回滚→再扣→再回滚全周期）。API 路由与 payload 无变化。
+
+### 变更记录（2026-08-01）迭代第 11 轮：采购签收自动入库
+
+- 新增：采购单「标记签收」（shipped → delivered）现同事务将每条采购明细数量加回本地 SKU 库存，并写入 `inventory_change_logs`（`change_type=purchase_inbound`，含 before/after/delta 与采购单号 remark），通过 `business_event_key` 每行幂等，重复入库自动跳过。此前签收只改物流状态，采购入库后本地库存不会增加，库存只减不增无法反映真实可售量。缺 SKU/数量≤0/SKU 不存在的行跳过并记录原因，不阻塞签收。签收事件 payload 记录逐行入库结果，操作日志记录累计入库数量。
+- Admin：库存变动日志类型映射新增「采购签收入库」；采购单详情签收成功提示注明已入库。附 sqlite 回归测试（入库 + 幂等重放）。
+- 测试反馈修复①（P2）：库存流水页「变更类型」列此前直出原始 change_type key，新增 `INVENTORY_CHANGE_TYPE` 中文映射并接入渲染。
+- 测试反馈修复②（既有 P1）：`inventory/order_mirror.go` 的 `orderLineMirror.ProductSKUID` 缺 column 标签，GORM 默认命名找 `product_sk_uid` 映射不到（与第 7 轮 `external_sk_uid` 同类），订单扣库全部被 `missing_product_sku_id` 静默跳过。补 `gorm:"column:product_sku_id"` 并附列名映射回归测试。
+
+### 变更记录（2026-08-01）迭代第 10 轮：规格匹配列表零 UUID 行修复
+
+- 修复：导入时未勾「自动匹配」的订单行没有 `order_item_sku_matches` 记录，`GET /orders/:id/sku-matches` 对这类行返回零值匹配行（`orderItemId` 为零 UUID），前端「绑定 SKU」抽屉以零 UUID 调候选接口 404「候选加载失败」，且该行无展开箭头。现后端对无匹配记录的行回填真实 `orderItemId`/`orderId`/平台与行内编码，状态标为 `unmatched`（原因「尚未执行自动匹配」），无需先「自动匹配整单」即可直接展开候选/绑定；前端对零 UUID 行防御性禁用候选加载与绑定入口。附 sqlite 回归测试。
+
+### 变更记录（2026-08-01）迭代第 9 轮：修复 product_skus 硬删除表被按 deleted_at 过滤（42703）
+
+- `product_skus` 为硬删除表（`HardDeleteBase`，无 `deleted_at` 列），但 SKU 候选推荐（`skucandidate`）、规格搜索（`product/sku_search`）、订单库存扣减/回补（`inventory/order_inventory`）、异常工作台（`orderexception`）多处查询按 `deleted_at IS NULL` 过滤，PostgreSQL 上整条查询以 42703 失败：候选推荐 publication/本地编码/历史手工绑定通道全部失效，库存扣减遇到该查询即报错。已全部移除对 `product_skus.deleted_at` 的引用（软删除表 `products`/`product_publications`/`orders` 的过滤保留）。
+- 附 sqlite 回归测试：`skucandidate.SuggestForOrderItem` publication 通道产出候选（修复前该查询直接报错）。
+
+### 变更记录（2026-08-01）迭代第 8 轮：销售订单发货闭环
+
+- 修复（P0）：`POST /orders/:id/shipments` 路由未注册，Admin 订单详情「新增物流」一直 404；现已注册。
+- 新增物流写入自动流转：物流状态 `shipped`/`in_transit` → 订单 `shipped`/`fulfilled`（缺省补 `shippedAt`），`delivered` → 订单 `delivered`（缺省补 `deliveredAt`）；仅前进不回退（按订单生命周期 rank），已取消/退款/关闭订单不受影响。附 sqlite 单测（发货/签收流转、pending 不回退）。
+- 首页待办新增 `order_await_shipment`「订单待发货」（已付款未发货订单数），直达 `/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled`。
+- 同步 `docs/api.md`、`admin/src/constants/dashboardDefaults.ts`。
+
+### 变更记录（2026-08-01）迭代第 7 轮：销售订单批量导入 + 手工订单租户修复
+
+- 新增 `POST /orders/import`：批量创建手工销售订单（≤200 张/批），订单号已存在或批内重复自动跳过（`skipped_duplicate`），单张失败不影响其余，可选创建后自动按 SKU 编码匹配本地规格；Admin 订单列表工具栏新增「批量导入订单」粘贴弹窗（逐行校验 + 同订单号合并明细 + 逐单结果表）。店铺 API 未接入前的订单来源过渡方案。
+- 修复：手工订单创建（`POST /orders`）此前不写 `tenant_id`，租户 >0 的管理员创建后立即查不到该订单（`record not found`）；现从请求上下文写入当前租户。附 service 层单测（创建/去重/单行失败不中断/租户可见性）。
+- 同步 `docs/api.md`、`admin/src/services/orders.ts`。
+
+### 变更记录（2026-08-01）迭代第 6 轮：刷新提示结构化中文化
+
+- `POST /products/:id/sources/refresh` 的 `alerts` 由英文内部字符串（含货源 UUID）改为结构化对象（`code` / `sourceId` / `supplierName` / `reason` / `thresholdPercent`），货源档案页「切换规则提示」按 code 渲染中文文案并显示供应商名称（第 5 轮 E2E 反馈项）。
+- 同步 `docs/api.md`、`admin/src/services/sourcing.ts`。
+
+### 变更记录（2026-08-01）迭代第 5 轮：涨价/断货预警一键动作闭环
+
+- `source_switch_events` 新增 `status` 字段（suggested 事件：open / adopted / ignored），同一商品同一「原货源→备选货源→原因」的待处理建议去重，避免每次刷新报价重复刷屏。
+- 新增 `POST /source-switch-events/:id/adopt`（采纳建议：主供应商切换到建议备选货源并标记 adopted，写操作日志，非待处理返回 409）与 `POST /source-switch-events/:id/ignore`；附 sqlite 单测（去重、采纳切主、重复处理拒绝）。
+- 新增 `GET /product-source-alerts` 预警货源总览（涨价预警/断货货源 + 商品标题 + 供应商 + 待处理建议数）；货源档案页未选商品时展示该总览，一键「查看档案」直达，首页「货源涨价预警/断货」待办卡落地页不再是空态。
+- 货源档案「切换审计」表：suggested 事件展示处理状态，待处理建议提供「采纳建议」（Popconfirm）/「忽略」一键动作；货源列显示供应商名称替代 UUID 截断。
+- 同步 `docs/api.md`、`admin/src/services/sourcing.ts`。
+
+### 变更记录（2026-08-01）迭代第 4 轮：SKU 映射删除入口
+
+- 新增 `DELETE /api/v1/product-source-skus/:id`（软删除单条本地↔外部 SKU 映射，写操作日志，附 sqlite 单测）；此前 UI 只能清空 `external_sku_id`，行仍计为有效映射，导致采购受阻判定与实际不符（E2E 测试反馈项）。
+- 货源档案 SKU 映射弹窗每行新增「删除映射」操作（Popconfirm 确认），删除后行回到未映射状态并刷新档案。
+- 同步 `docs/api.md`、`admin/src/services/sourcing.ts`。
+
+### 变更记录（2026-07-31）迭代第 3 轮：问题订单自动拦截（采购受阻异常）
+
+- 订单异常工作台新增聚合异常类型 `procurement_blocked`：已付款、未发货且未取消/退款/关闭的订单行，已绑定本地 SKU 但缺可用主货源或主货源缺 SKU 映射、且未被任何未取消/未失败采购单行覆盖时，自动进入工作台（`sourceType=order_item`，严重程度 high），错误信息区分「缺主货源 / 缺 SKU 映射」并给出建议动作；附 sqlite service 层单测（缺货源、缺映射、补映射后消失、被采购单覆盖/取消、未付款不拦截、标记已处理）。
+- 行内新增 `sourcingUrl` 跳转货源档案；`/sourcing/product-sources` 支持 `?productId=` 直达；异常页新增「采购受阻」筛选、统计卡与「去货源档案」操作。
+- Dashboard：`summary.procurementBlockedOrderItems` + 统一待办 `procurement_blocked`（P0）；顺带修复待办 `order_sku_unmatched` 链接 query 参数名（`type` → `exceptionType`）导致筛选不生效的问题。
+- 同步 `docs/api.md`、`admin/src/services/{dashboard,orderExceptions}.ts`、`admin/src/constants/dashboardDefaults.ts`。
+
+### 变更记录（2026-07-31）Docker 全栈构建修复与 legacy 登录租户修复
+
+- 修复 `docker-compose.full.yml` 全栈构建失败：admin/collector 镜像缺少 `scripts/patch-pro-field-antd-select.mjs` 导致 `pnpm install` postinstall 报错（Dockerfile 增加 `COPY scripts`、`.dockerignore` 放行该脚本）；admin 基础镜像 node:26 不再内置 corepack，改用 `npm install -g pnpm` 安装。
+- 修复 legacy_local_storage 登录模式 JWT 恒定 `tenant_id=0` 的问题：`LegacyMintToken` 改为携带管理员真实租户，选品等按租户隔离的模块在生产（无 dev 租户 fallback）下不再静默卡 pending，附单测。
+
 ### 变更记录（2026-07-29）生产部署收口与运营手册
 
 - 新增 `ADMIN_BOOTSTRAP_TENANT_ID`：首次创建管理员时指定租户（示例文件默认 1），解决选品 worker 因 tenant_id=0 静默拒绝任务的问题（staging/production 禁用 dev 租户 fallback，故必须在种子阶段落租户）；同步 `.env.example` / `.env.docker.example` / `.env.production.example` / `docs/env.md` / `docs/docker-deployment.md`，附单测。
 - 新增 `docs/operations-manual.md`：日常运营操作手册（选品→上架→出单→采购→发货，1688 人工下单过渡模式），并登记到 `docs/README.md`。
+
+### 变更记录（2026-08-02）迭代第 37 轮：只读角色后端写防线（P0）+ 新建用户继承租户（P1）
+
+- P0：`order`/`procurement` 路由改为在写端点统一挂 `requireWrite()` 守卫（只读账号 403「当前账号为只读权限，无法执行此操作」）。此前仅 Import/库存影响/SKU 匹配少数 handler 调用 `denyWrite`，只读账号可直接调 API 创建/修改/删除订单与操作采购单，前端隐藏是唯一防线；附路由级回归单测。
+- P1：设置→用户 新建用户此前恒为 `tenant_id=0`，与创建者（如 tenant 1）跨租户导致新账号登录后看不到数据；改为继承当前请求租户。
+- 订单列表工具栏（新建订单/批量导入/批量发货）对只读角色整体隐藏。
+
+### 变更记录（2026-08-02）迭代第 38 轮：只读写防线扩展到货源/异常/定价模块
+
+- 新增 `adminperm.RequireWritable(db)` 通用路由级只读守卫中间件；`sourcing`（供应商/货源/SKU 映射/建议采纳忽略/刷新）、`orderexception`（处理/忽略/绑定 SKU/重试）与 `pricing` apply 写端点统一挂守卫（只读账号 403），读端点不受影响；附 sourcing 路由级回归单测。
+- 前端：供应商管理、商品货源档案、订单异常工作台的写入口（新增/编辑/删除、绑定货源、刷新、锁定开关、设为主供应商、SKU 映射、采纳/忽略建议、已处理/忽略/取消标记、重试）对只读角色隐藏或禁用，导航与详情等读操作保留。
+
+### 变更记录（2026-07-29）迭代第 39 轮：异常工作台租户/店铺范围过滤（scope 口径统一）
+
+- 订单异常工作台此前聚合查询无任何租户/店铺范围限制：只读账号（无店铺授权）订单列表为空但异常工作台可见全租户数据，且可跨租户读取异常行。现列表/汇总/详情统一应用范围：所有 collector（SKU 未匹配/歧义、库存扣减失败、库存同步失败、订单同步部分失败、采购受阻、负毛利）按当前租户过滤；非 admin 结果再按授权店铺过滤（无店铺授权返回空，口径与订单列表 `ApplyStoreScope` 一致，无店铺归属的行仅 admin 可见）；详情按 sourceId 越权访问返回 404。附 sqlite 范围回归单测（跨租户隔离、店铺授权过滤、无授权为空、越权详情 404）。
+- Dashboard 汇总/统一待办中的异常计数同步走相同 scope（`operationdashboard.Scope` 新增 `TenantID`），非 admin 首页异常待办不再泄露范围外数据。
+
+### 变更记录（2026-07-29）迭代第 40 轮：异常工作台批量标记已处理/忽略/取消标记
+
+- 订单异常工作台列表新增行选择（仅可写角色显示），批量操作条提供「批量已处理（N）」「批量忽略（N）」「批量取消标记（N）」：前两者只统计所选未标记行，取消标记只统计所选已标记行；逐行复用既有 handle/ignore/mark 删除 API，逐行汇总成功/失败数并展示首个错误。批量已处理支持一次填备注应用到全部所选行。纯前端改动，无 API/权限/状态机变化。
+- 移动端收口：<768px 视口下操作列不再 `fixed: 'right'`（避免固定列盖住选择列导致 checkbox 不可点）。注意 pro-table 的 columnsMap 会固化首帧列 `fixed`，因此宽屏判断用 `useState(() => window.innerWidth >= 768)` 惰性初始化保证移动端首帧即不固定，并以 `key={wide|narrow}` 在跨断点时重挂载表格（选择为父级受控状态，不丢已选）；rowSelection 开启 `preserveSelectedRowKeys` 支持跨视图/分页保留已选行。
+
+### 变更记录（2026-07-29）迭代第 41 轮：异常工作台「全部」视图
+
+- 「视图状态」筛选新增「全部」：`GET /orders/exceptions` 支持 `all=true` 同屏返回未处理/已处理/已忽略行（`summary` 口径不变，仍只统计未处理），未标记与已标记行可同屏混合勾选批量操作，不再需要跨视图切换。附 filterAggRows 视图口径单测。
+
+### 变更记录（2026-07-29）迭代第 42 轮：批量操作条常驻不位移
+
+- 订单列表 / 异常工作台的 ProTable rowSelection 增加 `alwaysShowAlert: true`，采购单列表批量 Alert 改为可写角色常驻显示（导出按钮 0 选中时 disabled）：批量操作条不再在勾选首行时突然出现，消除表格行整体下移导致连续勾选误点的问题（第 41 轮测试反馈项）。纯前端样式/交互改动。
+
+### 变更记录（2026-07-29）迭代第 43 轮：采购协同租户/店铺范围过滤
+
+- 采购协同全部读写接口统一 tenant/store scope（r38/r42 测试遗留的读口径不一致项）：列表按 `purchase_orders.tenant_id` + 授权店铺（经明细行来源销售订单 `shop_id`）过滤；详情/导出/单号回填等 `:id` 路由挂 `scopePO` 守卫，范围外一律 404 不泄露存在性；成本估算（单/批）按来源销售订单 scope 判定；批量回填单号/运单号逐行跳过范围外记录；生成采购单校验来源订单在范围内并把订单租户写入 `purchase_orders.tenant_id`（含存量数据 backfill 迁移）。附 sqlite 范围回归单测（scope_test.go）。API URL/method/payload/状态机不变。
+
+### 变更记录（2026-07-29）迭代第 44 轮：批量导入订单支持店铺归属
+
+- 「批量导入订单」弹窗新增「关联店铺（可选，应用到本次导入的全部订单）」下拉，选中后整批订单写入 `shopId`（复用既有 `CreateBody.shopId` 与后端店铺可见性校验，API 不变）；补齐订单店铺归属入口，使店铺授权（store scope）的正向过滤在手工/导入订单上可用（此前导入订单 shop_id 恒为 NULL，非 admin 授权店铺账号看不到任何导入订单）。纯前端改动。

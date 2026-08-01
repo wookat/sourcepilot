@@ -47,12 +47,24 @@ export const INVENTORY_SYNC_STATUS: Record<string, { text: string; color: string
   cancelled: { text: '已取消', color: 'default' },
 };
 
+/** inventory_change_logs.change_type → 中文文案（库存流水页） */
+export const INVENTORY_CHANGE_TYPE: Record<string, string> = {
+  manual_adjust: '人工修正',
+  sync_success: '同步成功',
+  sync_failed: '同步失败',
+  order_deduct: '订单同步扣减',
+  order_cancel_restore: '系统回滚',
+  import: '导入',
+  purchase_inbound: '采购签收入库',
+};
+
 export const INVENTORY_DEDUCT_SOURCE: Record<string, string> = {
   deduct: '订单同步扣减',
   restore: '系统回滚',
   manual_adjust: '人工修正',
   order_deduct: '订单同步扣减',
   order_cancel_restore: '系统回滚',
+  purchase_inbound: '采购签收入库',
 };
 
 export const INVENTORY_DEDUCT_STATUS: Record<string, { text: string; color: string }> = {

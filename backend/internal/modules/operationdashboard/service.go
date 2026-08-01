@@ -14,9 +14,13 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
+	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier"
 	"gorm.io/gorm"
@@ -202,11 +206,17 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 		Count(&sum.OpenAlertCount).Error
 
 	if s.OrderExceptions != nil {
-		ex, err := s.OrderExceptions.DashboardSummary(ctx, strings.TrimSpace(q.Platform), strings.TrimSpace(q.ShopID), q.Start, q.End)
+		exShops := q.Scope.AllowedShopIDs
+		if q.Scope.IsAdmin {
+			exShops = nil
+		}
+		ex, err := s.OrderExceptions.DashboardSummary(ctx, strings.TrimSpace(q.Platform), strings.TrimSpace(q.ShopID), q.Start, q.End, q.Scope.TenantID, exShops)
 		if err == nil {
 			sum.OrderExceptionTotal = ex.TotalOpen
 			sum.SKUUnmatchedOrderItems = ex.SKUUnmatched
 			sum.InventoryDeductFailedOrders = ex.InsufficientStock + ex.InventoryDeductFailed
+			sum.ProcurementBlockedOrderItems = ex.ProcurementBlocked
+			sum.NegativeMarginOrderCount = ex.NegativeMargin
 		}
 	}
 
@@ -297,6 +307,54 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 		todayNewTx = todayNewTx.Where("products.created_at >= ?", todayStart)
 	}
 	_ = todayNewTx.Count(&sum.TodayNewProducts).Error
+
+	// 选品 / 货源 / 采购协同（manual 1688 mode）
+	_ = s.DB.WithContext(ctx).Model(&selection.SelectionCandidate{}).
+		Where("status = ? AND product_id IS NULL", selection.CandidateScored).
+		Count(&sum.SelectionReviewCount).Error
+	_ = s.DB.WithContext(ctx).Model(&selection.SelectionTask{}).
+		Where("status = ?", selection.StatusFailed).
+		Count(&sum.SelectionFailedTasks).Error
+	_ = s.DB.WithContext(ctx).Model(&sourcing.ProductSource{}).
+		Where("status = ?", sourcing.SourceStatusPriceAlert).
+		Count(&sum.SourcePriceAlertCount).Error
+	_ = s.DB.WithContext(ctx).Model(&sourcing.ProductSource{}).
+		Where("status = ?", sourcing.SourceStatusOutOfStock).
+		Count(&sum.SourceOutOfStockCount).Error
+	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+		Where("status = ?", procurement.StatusPendingConfirm).
+		Count(&sum.ProcurementPendingConfirmCount).Error
+	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+		Where("status = ?", procurement.StatusPlacing).
+		Count(&sum.ProcurementPlacingCount).Error
+	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+		Where("status = ? AND pay_status = ?", procurement.StatusPlaced, procurement.PayStatusUnpaid).
+		Count(&sum.ProcurementUnpaidCount).Error
+	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+		Where("status = ?", procurement.StatusPaid).
+		Count(&sum.ProcurementAwaitTrackingCount).Error
+	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+		Where("status = ?", procurement.StatusShipped).
+		Count(&sum.ProcurementAwaitReceiptCount).Error
+	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+		Where("payment_status = ? AND fulfillment_status = ? AND status NOT IN ?",
+			order.PaymentPaid, order.FulfillmentUnfulfilled,
+			[]string{order.StatusShipped, order.StatusDelivered, order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
+		Count(&sum.AwaitShipmentOrderCount).Error
+	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+		Where("status = ?", order.StatusShipped).
+		Count(&sum.InTransitOrderCount).Error
+	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+		Where("payment_status = ? AND fulfillment_status = ? AND status NOT IN ?",
+			order.PaymentPaid, order.FulfillmentUnfulfilled,
+			[]string{order.StatusShipped, order.StatusDelivered, order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
+		Where("NOT EXISTS (SELECT 1 FROM purchase_order_items poi JOIN purchase_orders po2 ON po2.id = poi.purchase_order_id WHERE poi.sales_order_id = orders.id AND po2.status NOT IN ('cancelled','failed'))").
+		Count(&sum.AwaitProcurementOrderCount).Error
+	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+		Where("payment_status = ? AND status NOT IN ?",
+			order.PaymentUnpaid,
+			[]string{order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
+		Count(&sum.AwaitPaymentOrderCount).Error
 
 	// Compact KPI aliases
 	sum.DraftTotal = sum.DraftProducts + sum.ReadyProducts
@@ -519,6 +577,34 @@ func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 			"刊登到平台时出错，请查看详情后重试", "/product/publish-tasks?status=failed"),
 		todoCard("order_exceptions", "订单异常", sum.OrderExceptionTotal, failureclassifier.SeverityHigh,
 			"含未匹配 SKU 等需人工处理的订单问题", "/orders/exceptions"),
+		todoCard("procurement_blocked", "订单采购受阻", sum.ProcurementBlockedOrderItems, failureclassifier.SeverityCritical,
+			"已付款订单缺主货源或 SKU 映射，无法生成采购单", "/orders/exceptions?exceptionType=procurement_blocked"),
+		todoCard("order_negative_margin", "订单利润为负", sum.NegativeMarginOrderCount, failureclassifier.SeverityHigh,
+			"已付款订单预估毛利为负，发货前请复核价格或货源", "/orders/exceptions?exceptionType=negative_margin"),
+		todoCard("order_sku_unmatched", "订单规格未匹配", sum.SKUUnmatchedOrderItems, failureclassifier.SeverityHigh,
+			"订单行未匹配到本地规格，需人工匹配", "/orders/exceptions?exceptionType=sku_unmatched"),
+		todoCard("selection_review", "选品待审核", sum.SelectionReviewCount, failureclassifier.SeverityMedium,
+			"已打分候选商品等待人工审核或转草稿", "/selection/tasks"),
+		todoCard("source_price_alert", "货源涨价预警", sum.SourcePriceAlertCount, failureclassifier.SeverityHigh,
+			"进货价上涨，建议调价或切换备选货源", "/sourcing/product-sources"),
+		todoCard("source_out_of_stock", "货源断货", sum.SourceOutOfStockCount, failureclassifier.SeverityHigh,
+			"主货源断货，建议切换备选货源或下架", "/sourcing/product-sources"),
+		todoCard("procurement_placing", "待去 1688 下单", sum.ProcurementPlacingCount, failureclassifier.SeverityHigh,
+			"已确认采购单等待到 1688 下单并回填订单号", "/procurement/orders?status=placing"),
+		todoCard("procurement_unpaid", "采购单待付款", sum.ProcurementUnpaidCount, failureclassifier.SeverityHigh,
+			"已下单未付款，请到 1688 完成付款并标记", "/procurement/orders?status=placed"),
+		todoCard("procurement_await_tracking", "待回填运单号", sum.ProcurementAwaitTrackingCount, failureclassifier.SeverityMedium,
+			"已付款采购单等待回填快递单号（支持批量粘贴）", "/procurement/orders?status=paid"),
+		todoCard("procurement_await_receipt", "采购单待签收", sum.ProcurementAwaitReceiptCount, failureclassifier.SeverityMedium,
+			"已发货采购单等待签收，签收后自动入库本地库存", "/procurement/orders?status=shipped"),
+		todoCard("order_await_payment", "订单待收款确认", sum.AwaitPaymentOrderCount, failureclassifier.SeverityMedium,
+			"未付款销售订单，确认买家已付款后可批量标记已付款并进入采购", "/orders/list?payStatus=unpaid"),
+		todoCard("order_await_procurement", "订单待采购", sum.AwaitProcurementOrderCount, failureclassifier.SeverityHigh,
+			"已付款订单尚未生成采购单，请到订单详情生成采购清单", "/orders/list?payStatus=paid&hasPurchase=0"),
+		todoCard("order_await_shipment", "订单待发货", sum.AwaitShipmentOrderCount, failureclassifier.SeverityHigh,
+			"已付款销售订单尚未发货，请添加物流并发货", "/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled"),
+		todoCard("order_in_transit", "订单在途待送达", sum.InTransitOrderCount, failureclassifier.SeverityMedium,
+			"已发货订单等待买家签收，确认送达后可批量标记送达", "/orders/list?status=shipped"),
 		todoCard("customer_pending", "客服待回复", sum.CustomerPendingReplyCount, failureclassifier.SeverityHigh,
 			"买家消息等待人工处理", "/customer/conversations?status=pending_reply"),
 		todoCard("failed_tasks", "失败任务待处理", sum.FailedTaskTotal, failureclassifier.SeverityCritical,
@@ -644,13 +730,19 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 	{
 		var last *time.Time
 		if s.OrderExceptions != nil {
+			exShops := q.Scope.AllowedShopIDs
+			if q.Scope.IsAdmin {
+				exShops = nil
+			}
 			res, err := s.OrderExceptions.ListOrderExceptions(ctx, orderexception.ListOrderExceptionsRequest{
-				Platform: strings.TrimSpace(q.Platform),
-				ShopID:   strings.TrimSpace(q.ShopID),
-				Start:    q.Start,
-				End:      q.End,
-				Page:     1,
-				PageSize: 1,
+				Platform:       strings.TrimSpace(q.Platform),
+				ShopID:         strings.TrimSpace(q.ShopID),
+				Start:          q.Start,
+				End:            q.End,
+				Page:           1,
+				PageSize:       1,
+				TenantID:       q.Scope.TenantID,
+				AllowedShopIDs: exShops,
 			})
 			if err == nil && res != nil && len(res.List) > 0 {
 				t := res.List[0].UpdatedAt

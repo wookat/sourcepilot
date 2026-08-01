@@ -16,10 +16,10 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
-import { MetricCard, OperationToolbar, TmPageContainer, type MetricCardIntent } from '@/components/ui';
+import { EmptyState, MetricCard, OperationToolbar, TmPageContainer, type MetricCardIntent } from '@/components/ui';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { formatDateTime } from '@/utils/formatTime';
-import { history } from '@umijs/max';
+import { history, useLocation } from '@umijs/max';
 import {
   Button,
   Col,
@@ -62,10 +62,48 @@ import {
   type ProductOperationDashboard,
 } from '@/services/dashboard';
 import { queryShops, type ShopListRow } from '@/services/shops';
+import { fetchOrderSalesStats, type SalesStatsDTO, type SalesWindowStats } from '@/services/orders';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { appendSourceToUrl, resolveProductSourceFromQuery } from '@/utils/urlState';
 
 const { RangePicker } = DatePicker;
+
+const SALES_WINDOW_LABELS: Record<string, string> = {
+  today: '今日',
+  '7d': '近 7 日',
+  '30d': '近 30 日',
+};
+
+function SalesWindowCard({ win }: { win: SalesWindowStats }) {
+  const amounts = win.paidAmounts ?? [];
+  return (
+    <ProCard variant="outlined" bodyStyle={{ padding: '12px 16px' }}>
+      <Typography.Text type="secondary">{SALES_WINDOW_LABELS[win.key] || win.key}</Typography.Text>
+      <Space size={16} wrap style={{ marginTop: 8, width: '100%' }}>
+        <span>
+          订单 <Typography.Text strong>{win.orderCount}</Typography.Text>
+        </span>
+        <span>
+          已付款 <Typography.Text strong>{win.paidCount}</Typography.Text>
+        </span>
+        <span>
+          已发货 <Typography.Text strong>{win.shippedCount}</Typography.Text>
+        </span>
+      </Space>
+      <div style={{ marginTop: 8 }}>
+        {amounts.length > 0 ? (
+          amounts.map((a) => (
+            <Typography.Text key={a.currency} strong style={{ marginRight: 12, fontSize: 16 }}>
+              {a.currency} {a.amount.toFixed(2)}
+            </Typography.Text>
+          ))
+        ) : (
+          <Typography.Text type="secondary">暂无已付款销售额</Typography.Text>
+        )}
+      </div>
+    </ProCard>
+  );
+}
 
 const SOURCE_OPTIONS = [
   { label: '1688', value: '1688' },
@@ -743,6 +781,7 @@ function DashboardSkeleton() {
 
 export default function ProductOperationsDashboardPage() {
   const dashboardEmptyLocale = useListEmptyLocale('dashboard');
+  const location = useLocation();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>>(
       DASHBOARD_QUERY_KEYS,
@@ -751,6 +790,7 @@ export default function ProductOperationsDashboardPage() {
   const [shops, setShops] = useState<ShopListRow[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [board, setBoard] = useState<ProductOperationDashboard | null>(null);
+  const [salesStats, setSalesStats] = useState<SalesStatsDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -772,10 +812,12 @@ export default function ProductOperationsDashboardPage() {
   ]);
 
   useEffect(() => {
+    // 路由已离开驾驶舱时不再回写 URL，避免覆盖目标页的 query（如待办卡带筛选直达）
+    if (!location.pathname.startsWith('/dashboard')) return;
     const next = dashboardFiltersToUrlPatch(filters);
     if (sameDashboardUrlPatch(next, urlState)) return;
     setUrlState(next, { replace: true });
-  }, [filters, setUrlState, urlState]);
+  }, [filters, location.pathname, setUrlState, urlState]);
 
   const queryParams = useMemo(() => {
     const [start, end] = filters.range ?? [];
@@ -806,8 +848,25 @@ export default function ProductOperationsDashboardPage() {
     void loadBoard();
   }, [loadBoard]);
 
+  useEffect(() => {
+    void fetchOrderSalesStats()
+      .then((res) => setSalesStats(res ?? null))
+      .catch(() => setSalesStats(null));
+  }, []);
+
   const summary = board?.summary ?? EMPTY_SUMMARY;
-  const todos = useMemo(() => mergeTodos(board?.todos), [board?.todos]);
+  const todos = useMemo(() => {
+    const merged = mergeTodos(board?.todos);
+    const rank = (t: (typeof merged)[number]) => (t.severity === 'high' ? 0 : t.severity === 'medium' ? 1 : 2);
+    return [...merged].sort((a, b) => {
+      const aActive = (a.count || 0) > 0 ? 0 : 1;
+      const bActive = (b.count || 0) > 0 ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      return (b.count || 0) - (a.count || 0);
+    });
+  }, [board?.todos]);
+  const activeTodos = useMemo(() => todos.filter((t) => (t.count || 0) > 0), [todos]);
   const funnelSteps = useMemo(() => mergeFunnel(board?.funnel), [board?.funnel]);
   const exceptions = useMemo(() => mergeExceptions(board?.exceptions), [board?.exceptions]);
   const quickLinks = DEFAULT_QUICK_LINKS;
@@ -958,15 +1017,56 @@ export default function ProductOperationsDashboardPage() {
             </Row>
           </ProCard>
 
+          {/* 1.5 经营概览 */}
+          {salesStats && (salesStats.windows?.length ?? 0) > 0 ? (
+            <ProCard
+              title="经营概览"
+              variant="outlined"
+              style={{ marginBottom: 16 }}
+              extra={
+                <Typography.Link onClick={() => history.push(appendSourceToUrl('/orders/list'))}>
+                  去订单列表 <ArrowRightOutlined />
+                </Typography.Link>
+              }
+            >
+              <Row gutter={[16, 16]}>
+                {(salesStats.windows ?? []).map((w) => (
+                  <Col xs={24} sm={12} md={8} key={w.key}>
+                    <SalesWindowCard win={w} />
+                  </Col>
+                ))}
+              </Row>
+            </ProCard>
+          ) : null}
+
           {/* 2. 今日待办 */}
-          <ProCard title="今日待办" variant="outlined" style={{ marginBottom: 16 }}>
-            <Row gutter={[16, 16]}>
-              {todos.map((item) => (
-                <Col xs={24} sm={12} md={8} lg={6} xl={6} key={item.key || item.id}>
-                  <TodoCardItem item={item} />
-                </Col>
-              ))}
-            </Row>
+          <ProCard
+            title="今日待办"
+            variant="outlined"
+            style={{ marginBottom: 16 }}
+            extra={
+              activeTodos.length > 0 ? (
+                <Typography.Text type="secondary">{activeTodos.length} 项需处理</Typography.Text>
+              ) : null
+            }
+          >
+            {activeTodos.length > 0 ? (
+              <Row gutter={[16, 16]}>
+                {activeTodos.map((item) => (
+                  <Col xs={24} sm={12} md={8} lg={6} xl={6} key={item.key || item.id}>
+                    <TodoCardItem item={item} />
+                  </Col>
+                ))}
+              </Row>
+            ) : (
+              <EmptyState
+                compact
+                title="今天没有待处理事项"
+                description="可以去采集新商品、新建选品任务，或检查可刊登商品"
+                actionLabel="新建选品任务"
+                actionPath="/selection/tasks"
+              />
+            )}
           </ProCard>
 
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>

@@ -10,9 +10,11 @@ import {
   markPurchaseOrderPlaced,
   retryPurchaseOrder,
   submitPurchaseOrder,
+  updatePurchaseItemPrice,
   type PurchaseOrder,
+  type PurchaseOrderItem,
 } from '@/services/procurement';
-import { useParams } from '@umijs/max';
+import { Link, useParams } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -20,6 +22,7 @@ import {
   Empty,
   Form,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Select,
@@ -48,6 +51,8 @@ export default function ProcurementOrderDetailPage() {
   const [logisticsForm] = Form.useForm();
   const [paidOpen, setPaidOpen] = useState(false);
   const [paidForm] = Form.useForm();
+  const [priceEdit, setPriceEdit] = useState<{ itemId: string; value?: number } | null>(null);
+  const [priceSaving, setPriceSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -93,6 +98,30 @@ export default function ProcurementOrderDetailPage() {
 
   const statusCfg = PO_STATUS_TAG[po.status] || { text: po.status, color: 'default' };
   const stepIdx = FLOW.indexOf(po.status);
+  const priceEditable = ['draft', 'pending_confirm'].includes(po.status);
+  const missingPriceCount = (po.items || []).filter(
+    (it) => it.expectedPrice === undefined || it.expectedPrice === null,
+  ).length;
+  const salesOrderIds = Array.from(
+    new Set((po.items || []).map((it) => it.salesOrderId).filter((v): v is string => !!v)),
+  );
+
+  const savePrice = async (itemId: string, value?: number) => {
+    if (value === undefined || value === null || value <= 0) {
+      message.warning('请输入大于 0 的参考价');
+      return;
+    }
+    setPriceSaving(true);
+    try {
+      setPo(await updatePurchaseItemPrice(po.id, itemId, value));
+      message.success('参考价已更新，金额已重算');
+      setPriceEdit(null);
+    } catch (e) {
+      message.error((e as Error).message || '保存失败');
+    } finally {
+      setPriceSaving(false);
+    }
+  };
 
   return (
     <TmPageContainer
@@ -145,7 +174,7 @@ export default function ProcurementOrderDetailPage() {
           </Button>
         )}
         {po.status === 'shipped' && (
-          <Button type="primary" onClick={() => void run(() => markPurchaseOrderDelivered(po.id), '已标记签收')}>
+          <Button type="primary" onClick={() => void run(() => markPurchaseOrderDelivered(po.id), '已标记签收，采购数量已入库到本地库存')}>
             标记签收
           </Button>
         )}
@@ -168,9 +197,33 @@ export default function ProcurementOrderDetailPage() {
         <Descriptions.Item label="支付渠道">{po.payChannel || '-'}</Descriptions.Item>
         <Descriptions.Item label="创建时间">{po.createdAt}</Descriptions.Item>
         <Descriptions.Item label="确认时间">{po.confirmedAt || '-'}</Descriptions.Item>
+        <Descriptions.Item label="来源销售订单" span={2}>
+          {salesOrderIds.length === 0 ? (
+            '-'
+          ) : (
+            <Space wrap>
+              {salesOrderIds.map((sid) => (
+                <Link key={sid} to={`/orders/${sid}`}>{sid.slice(0, 8)}</Link>
+              ))}
+            </Space>
+          )}
+        </Descriptions.Item>
       </Descriptions>
 
       <Typography.Title level={5}>采购明细</Typography.Title>
+      {missingPriceCount > 0 && (
+        <Alert
+          style={{ marginBottom: 12 }}
+          type="warning"
+          showIcon
+          message={`${missingPriceCount} 行缺参考进价，采购单金额不含这些行`}
+          description={
+            priceEditable
+              ? '可直接在下方明细的「参考价」列补填；也可到货源档案的 SKU 映射中维护参考进价'
+              : '当前状态不可修改参考价，可在回填 1688 订单号时填写实际价'
+          }
+        />
+      )}
       <Table
         rowKey="id"
         size="small"
@@ -196,10 +249,56 @@ export default function ProcurementOrderDetailPage() {
           { title: '货源规格', dataIndex: 'externalSkuId', width: 120, render: (v) => v || '-' },
           { title: '数量', dataIndex: 'quantity', width: 80 },
           {
+            title: '来源订单',
+            dataIndex: 'salesOrderId',
+            width: 110,
+            render: (v?: string) => (v ? <Link to={`/orders/${v}`}>{v.slice(0, 8)}</Link> : '-'),
+          },
+          {
             title: '参考价',
             dataIndex: 'expectedPrice',
-            width: 100,
-            render: (v?: number) => (v !== undefined && v !== null ? v.toFixed(2) : '-'),
+            width: 180,
+            render: (v: number | undefined, row: PurchaseOrderItem) => {
+              if (priceEdit && priceEdit.itemId === row.id) {
+                return (
+                  <Space.Compact style={{ width: '100%' }}>
+                    <InputNumber
+                      size="small"
+                      min={0.01}
+                      step={0.01}
+                      style={{ width: '100%' }}
+                      value={priceEdit.value}
+                      onChange={(nv) => setPriceEdit({ itemId: row.id, value: nv ?? undefined })}
+                      onPressEnter={() => void savePrice(row.id, priceEdit.value)}
+                    />
+                    <Button
+                      size="small"
+                      type="primary"
+                      loading={priceSaving}
+                      onClick={() => void savePrice(row.id, priceEdit.value)}
+                    >
+                      保存
+                    </Button>
+                    <Button size="small" disabled={priceSaving} onClick={() => setPriceEdit(null)}>
+                      取消
+                    </Button>
+                  </Space.Compact>
+                );
+              }
+              const text =
+                v !== undefined && v !== null ? (
+                  v.toFixed(2)
+                ) : (
+                  <Tag color="warning">缺参考价</Tag>
+                );
+              if (!priceEditable) return text;
+              return (
+                <Space>
+                  {text}
+                  <a onClick={() => setPriceEdit({ itemId: row.id, value: v ?? undefined })}>填价</a>
+                </Space>
+              );
+            },
           },
           {
             title: '实际价',
