@@ -1,0 +1,15 @@
+# TradeMind 生产反向代理（Caddy 2）
+# - DOMAIN 为公网域名时自动申请 Let's Encrypt 证书（需 DNS A 记录已生效、80/443 可达）。
+# - DOMAIN=localhost 或 IP 时 Caddy 自动改用内部自签 CA（本地/预发验证用）。
+# - 联调 Let's Encrypt Staging：设 ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory
+{
+	email {$ACME_EMAIL:admin@example.com}
+	acme_ca {$ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
+}
+
+{$DOMAIN} {
+	encode gzip
+
+	# 全部流量交给 admin(nginx)：静态资源直出，/api、/static 由 nginx 转发 backend
+	reverse_proxy admin:80
+}
