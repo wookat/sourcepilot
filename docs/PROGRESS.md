@@ -880,6 +880,10 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-08-01）迭代第 10 轮：规格匹配列表零 UUID 行修复
+
+- 修复：导入时未勾「自动匹配」的订单行没有 `order_item_sku_matches` 记录，`GET /orders/:id/sku-matches` 对这类行返回零值匹配行（`orderItemId` 为零 UUID），前端「绑定 SKU」抽屉以零 UUID 调候选接口 404「候选加载失败」，且该行无展开箭头。现后端对无匹配记录的行回填真实 `orderItemId`/`orderId`/平台与行内编码，状态标为 `unmatched`（原因「尚未执行自动匹配」），无需先「自动匹配整单」即可直接展开候选/绑定；前端对零 UUID 行防御性禁用候选加载与绑定入口。附 sqlite 回归测试。
+
 ### 变更记录（2026-08-01）迭代第 9 轮：修复 product_skus 硬删除表被按 deleted_at 过滤（42703）
 
 - `product_skus` 为硬删除表（`HardDeleteBase`，无 `deleted_at` 列），但 SKU 候选推荐（`skucandidate`）、规格搜索（`product/sku_search`）、订单库存扣减/回补（`inventory/order_inventory`）、异常工作台（`orderexception`）多处查询按 `deleted_at IS NULL` 过滤，PostgreSQL 上整条查询以 42703 失败：候选推荐 publication/本地编码/历史手工绑定通道全部失效，库存扣减遇到该查询即报错。已全部移除对 `product_skus.deleted_at` 的引用（软删除表 `products`/`product_publications`/`orders` 的过滤保留）。

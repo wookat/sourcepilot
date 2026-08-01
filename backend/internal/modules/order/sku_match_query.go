@@ -20,6 +20,10 @@ func (s *Service) ListSKUMatchRowsForOrder(c *gin.Context, orderID uuid.UUID) ([
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
+	var o Order
+	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ? AND deleted_at IS NULL", orderID).Error; err != nil {
+		return nil, err
+	}
 	var items []OrderItem
 	if err := s.DB.WithContext(c.Request.Context()).Where("order_id = ?", orderID).Order("created_at ASC, id ASC").Find(&items).Error; err != nil {
 		return nil, err
@@ -29,6 +33,19 @@ func (s *Service) ListSKUMatchRowsForOrder(c *gin.Context, orderID uuid.UUID) ([
 		var mrow OrderItemSKUMatch
 		if err := s.DB.WithContext(c.Request.Context()).Where("order_item_id = ?", it.ID).First(&mrow).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
+		}
+		if mrow.OrderItemID == uuid.Nil {
+			mrow.OrderID = it.OrderID
+			mrow.OrderItemID = it.ID
+			mrow.Platform = o.Platform
+			mrow.ExternalOrderID = o.ExternalOrderID
+			mrow.ExternalItemID = it.ExternalItemID
+			mrow.ExternalSKUID = it.ExternalSKUID
+			mrow.SellerSKU = it.SellerSKU
+			mrow.SKUCode = it.SKUCode
+			mrow.MatchType = MatchTypeNone
+			mrow.MatchStatus = MatchStatusUnmatched
+			mrow.Reason = "尚未执行自动匹配"
 		}
 		dto := SKUMatchDetailDTO{
 			OrderItemSKUMatch: mrow,
