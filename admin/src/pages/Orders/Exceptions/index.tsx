@@ -24,7 +24,7 @@ import {
   message,
 } from 'antd';
 import dayjs from 'dayjs';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type Key, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { OrderExceptionRow, OrderExceptionSummary } from '@/services/orderExceptions';
 import {
   deleteOrderExceptionMark,
@@ -168,6 +168,8 @@ export default function OrderExceptionsPage() {
     setTablePage,
   });
   const [summary, setSummary] = useState<OrderExceptionSummary | null>(null);
+  const [selectedRows, setSelectedRows] = useState<OrderExceptionRow[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<Key[]>([]);
   const [shopOpts, setShopOpts] = useState<{ label: string; value: string }[]>([]);
 
   const [bindOpen, setBindOpen] = useState(false);
@@ -228,6 +230,92 @@ export default function OrderExceptionsPage() {
   const reload = useCallback(() => {
     actionRef.current?.reload();
   }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedRows([]);
+    setSelectedKeys([]);
+  }, []);
+
+  const runBatchMark = useCallback(
+    async (rows: OrderExceptionRow[], run: (r: OrderExceptionRow) => Promise<unknown>, label: string) => {
+      let ok = 0;
+      let fail = 0;
+      let firstErr = '';
+      for (const r of rows) {
+        try {
+          await run(r);
+          ok += 1;
+        } catch (e: unknown) {
+          fail += 1;
+          if (!firstErr) firstErr = (e as Error)?.message || '';
+        }
+      }
+      if (fail === 0) {
+        message.success(`${label}完成：成功 ${ok} 条`);
+      } else {
+        message.warning(`${label}：成功 ${ok} 条，失败 ${fail} 条${firstErr ? `（首个错误：${firstErr}）` : ''}`);
+      }
+      clearSelection();
+      reload();
+    },
+    [clearSelection, reload],
+  );
+
+  const openRows = useMemo(() => selectedRows.filter((r) => !r.handled && !r.ignored), [selectedRows]);
+  const markedRows = useMemo(() => selectedRows.filter((r) => r.handled || r.ignored), [selectedRows]);
+
+  const batchHandle = useCallback(() => {
+    if (!openRows.length) return;
+    let remark = '';
+    Modal.confirm({
+      title: `批量标记已处理（${openRows.length} 条）`,
+      content: (
+        <Input.TextArea
+          rows={3}
+          placeholder="备注（可选，应用到所选全部行）"
+          onChange={(e) => {
+            remark = e.target.value;
+          }}
+        />
+      ),
+      onOk: () =>
+        runBatchMark(
+          openRows,
+          (r) =>
+            postOrderExceptionHandle(r.sourceType, r.sourceId, {
+              exceptionType: r.exceptionType,
+              remark: remark.trim(),
+            }),
+          '批量标记已处理',
+        ),
+    });
+  }, [openRows, runBatchMark]);
+
+  const batchIgnore = useCallback(() => {
+    if (!openRows.length) return;
+    Modal.confirm({
+      title: `批量忽略（${openRows.length} 条，仅影响工作台视图）`,
+      onOk: () =>
+        runBatchMark(
+          openRows,
+          (r) => postOrderExceptionIgnore(r.sourceType, r.sourceId, { exceptionType: r.exceptionType }),
+          '批量忽略',
+        ),
+    });
+  }, [openRows, runBatchMark]);
+
+  const batchUnmark = useCallback(() => {
+    if (!markedRows.length) return;
+    Modal.confirm({
+      title: `批量取消标记（${markedRows.length} 条，回到待处理列表）`,
+      onOk: () =>
+        runBatchMark(
+          markedRows,
+          (r) => deleteOrderExceptionMark(r.sourceType, r.sourceId),
+          '批量取消标记',
+        ),
+    });
+  }, [markedRows, runBatchMark]);
 
   const openBind = useCallback((row: OrderExceptionRow) => {
     setBindRow(row);
@@ -655,6 +743,31 @@ export default function OrderExceptionsPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
+        rowSelection={
+          writable
+            ? {
+                selectedRowKeys: selectedKeys,
+                onChange: (keys, rows) => {
+                  setSelectedKeys(keys);
+                  setSelectedRows(rows);
+                },
+              }
+            : undefined
+        }
+        tableAlertOptionRender={() => (
+          <Space wrap size={8}>
+            <Button size="small" type="primary" disabled={!openRows.length} onClick={batchHandle}>
+              批量已处理（{openRows.length}）
+            </Button>
+            <Button size="small" disabled={!openRows.length} onClick={batchIgnore}>
+              批量忽略（{openRows.length}）
+            </Button>
+            <Button size="small" disabled={!markedRows.length} onClick={batchUnmark}>
+              批量取消标记（{markedRows.length}）
+            </Button>
+            <a onClick={clearSelection}>取消选择</a>
+          </Space>
+        )}
         params={{
           current: tablePage,
           pageSize: tablePageSize,
