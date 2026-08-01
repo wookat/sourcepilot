@@ -514,7 +514,33 @@ func (h *Handler) PostBatchShipments(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
+	h.AnnotateBatchShipmentInventory(c, res)
 	response.OK(c, res)
+}
+
+// AnnotateBatchShipmentInventory marks succeeded batch-shipment lines with
+// whether the order already has a successful stock deduction, so operators can
+// see which shipped orders still need a manual deduction.
+func (h *Handler) AnnotateBatchShipmentInventory(c *gin.Context, res *BatchShipmentsResult) {
+	if h == nil || h.Inv == nil || res == nil {
+		return
+	}
+	for i := range res.Results {
+		line := &res.Results[i]
+		if !line.OK || line.OrderID == "" {
+			continue
+		}
+		oid, err := uuid.Parse(line.OrderID)
+		if err != nil {
+			continue
+		}
+		has, err := h.Inv.HasSuccessfulOrderDeduction(c.Request.Context(), oid)
+		if err != nil {
+			continue
+		}
+		v := has
+		line.InventoryDeducted = &v
+	}
 }
 
 // GetSalesStats GET /orders/stats/sales
@@ -524,6 +550,29 @@ func (h *Handler) GetSalesStats(c *gin.Context) {
 		return
 	}
 	res, err := h.Svc.SalesStats(c)
+	if err != nil {
+		response.Fail(c, 500, response.CodeInternalError, err.Error())
+		return
+	}
+	response.OK(c, res)
+}
+
+// GetDailyStats GET /orders/stats/daily
+func (h *Handler) GetDailyStats(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	days := 0
+	if raw := strings.TrimSpace(c.Query("days")); raw != "" {
+		v, err := strconv.Atoi(raw)
+		if err != nil || v <= 0 {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid days")
+			return
+		}
+		days = v
+	}
+	res, err := h.Svc.DailyStats(c, days)
 	if err != nil {
 		response.Fail(c, 500, response.CodeInternalError, err.Error())
 		return

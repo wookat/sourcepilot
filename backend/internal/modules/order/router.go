@@ -28,6 +28,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	o.POST("/:id/match-skus", w, h.PostMatchOrderSKUs)
 
 	o.GET("/stats/sales", h.GetSalesStats)
+	o.GET("/stats/daily", h.GetDailyStats)
 	o.GET("/shipping-list/export.csv", h.ExportShippingListCSV)
 	o.POST("/shipments/batch", w, h.PostBatchShipments)
 	o.POST("/:id/shipments", w, h.PostShipment)

@@ -28,6 +28,9 @@ type BatchShipmentLineResult struct {
 	OK      bool   `json:"ok"`
 	Status  string `json:"status,omitempty"` // resulting order status
 	Message string `json:"message,omitempty"`
+	// InventoryDeducted is set on succeeded lines only: whether the order
+	// already has a successful stock deduction (shipping itself never deducts).
+	InventoryDeducted *bool `json:"inventoryDeducted,omitempty"`
 }
 
 // BatchShipmentsResult aggregates per-line results.

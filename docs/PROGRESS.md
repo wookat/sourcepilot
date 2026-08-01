@@ -896,6 +896,12 @@ Final Production Acceptance Deferred to P10
 - 供应商管理 / 用户与权限（P1）：次要列（外部ID/评分/备注；邮箱/手机/授权店铺/最近操作）加 `responsive: ['md']` 小屏折叠，小屏无需横向滚动即可触达操作列。
 - 纯前端改动，无 API / 权限 / 状态机变更；修复后五档视口回归 95 项检查根节点均无横向溢出，1440px 桌面端无回归。
 
+### 变更记录（2026-08-01）迭代第 46 轮：首页新手入门引导卡 + 订单列表 375px 移动端优化
+
+- 首页驾驶舱顶部新增「新手入门」引导卡（第 45 轮 UX 走查 Top4）：按业务闭环列 6 步（配置 AI 与存储 → 采集商品 → 完善草稿与货源 → 导入订单 → 生成采购单 → 发货），每步直达对应页面；用既有列表/设置 API（settings、collect/tasks、products、suppliers、orders、procurement/orders）计数自动标记已完成步骤（不新增后端接口），带完成进度条；可关闭，关闭状态经 `localStorage`（`tm_dashboard_onboarding_dismissed_v1`）持久化。
+- 订单列表 375px 优化（第 45 轮 UX 走查 Top5）：次要列（外部单号/平台/店铺/客户/支付/商品数/规格匹配/库存扣减/同步/异常/预估毛利/物流/三个时间列）加 `responsive: ['md']` 在 <768px 折叠，小屏默认仅保留订单号/订单状态/金额/操作四列（复现时 20 列 scrollWidth 2382px vs 视口 295px，修复后无横向滚动）；操作列小屏取消 fixed 并收窄，完整信息进订单详情查看；桌面端列集与交互不变（沿用第 26 轮异常工作台 `Grid.useBreakpoint` + 表格 key 重挂载模式）。
+- 纯前端改动，无 API / 权限 / 状态机变更。
+
 ### 变更记录（2026-08-02）迭代第 16 轮：全站列表页 params 覆盖问题审计修复
 
 - 按第 15 轮根因对全站 ProTable 列表页做同类问题审计：失败任务（TaskCenter/Failures）、商品草稿（Product/Drafts）、客服会话（Customer/Conversations）三页仍在 `params` 中透传 URL 筛选值，存在与订单列表相同的「分页点击/表单提交被旧值冲掉」风险。统一改为「URL query 为唯一筛选来源」模式：移除 `params`、新增 `onSubmit` 写回 URL、urlState 变化 effect 触发 reload、`request` 一律读 urlState/legacy URL 值。
@@ -1129,3 +1135,35 @@ Final Production Acceptance Deferred to P10
 ### 变更记录（2026-07-29）迭代第 44 轮：批量导入订单支持店铺归属
 
 - 「批量导入订单」弹窗新增「关联店铺（可选，应用到本次导入的全部订单）」下拉，选中后整批订单写入 `shopId`（复用既有 `CreateBody.shopId` 与后端店铺可见性校验，API 不变）；补齐订单店铺归属入口，使店铺授权（store scope）的正向过滤在手工/导入订单上可用（此前导入订单 shop_id 恒为 NULL，非 admin 授权店铺账号看不到任何导入订单）。纯前端改动。
+### 变更记录（2026-08-01）迭代第 45 轮：经营报表页（按日趋势）
+
+- 新增 `GET /api/v1/orders/stats/daily?days=30`（默认 30，最大 90）：按本地日历日聚合订单数/已付款数/分币种已付款销售额；口径与 `stats/sales` 一致（当前租户、软删除订单不计入），店铺 scope 与订单列表一致（非 admin 按授权店铺过滤，admin 全量）；空缺日期补零返回，附单测（多币种/软删/跨租户/窗口外/默认与上限 clamp）。
+- 管理端订单组新增「经营报表」页（`/orders/reports`，readonly 可见的只读报表）：近 30 天合计卡（订单数/已付款/分币种销售额）+「每日订单数/已付款数」折线图 +「每日销售额（按币种堆叠）」柱状图，含加载骨架/空数据引导/错误重试，375px 无横向溢出；图表引入 `@ant-design/plots@2.6.8`（AntD 官方图表库，稳定版）。
+- 同步 `docs/api.md`。
+
+### 变更记录（2026-08-01）迭代第 45 轮：用户管理删除入口 + 店铺授权体验收口
+
+- 设置→用户新增「删除用户」入口（Popconfirm 确认，admin 角色可用，不能删除自己）：后端新增 `DELETE /api/v1/admin/users/:id` 软删除端点（`deleted_at` 保留数据，参考订单软删除口径），事务内同时撤销全部店铺授权并递增 `token_version` 使既有会话失效；路由级挂 `adminperm.RequireWritable` 只读守卫，handler 内 `user.manage` 权限校验（仅 admin）；附 sqlite HTTP 单测（软删除落库、撤销授权、不能删自己 400、readonly/operator 403、重复删除 404）。解决测试账号只能禁用不能删除、fixture 越积越多的问题。
+- 修复「店铺权限」保存首次点确定不生效：原实现在二次确认弹窗 onOk 里调用 `permForm.submit()`，而弹窗 `destroyOnClose` 下 Form 首次打开前未挂载，`setFieldsValue`/`submit` 可能落空。改为 Modal `forceRender` 保证 Form 常驻挂载、打开前 `resetFields` 后回填；外层确定先 `validateFields`（校验错误内联展示），二次确认 onOk 改为 async 直接提交（Modal.confirm 呈现 loading，失败 message.error 且弹窗不关闭）。
+- 授权店铺列显示店铺名而非 UUID：后端 `loadStorePerms` 店铺名查询改 `Unscoped`（软删除店铺也能回显名称）；前端缺名时兜底「未知店铺」。
+- 同步 `docs/api.md`（用户与权限管理表）、`admin/src/services/adminUsers.ts`。API 既有端点语义/状态机/readonly 403 文案不变。
+
+### 变更记录（2026-08-01）迭代第 46 轮：生成采购单前置条件阻断引导闭环
+
+- 「生成采购单结果」弹窗的 blockers 每条附可点击直达入口（第 45 轮 UX 走查 P1：新手被 sku.unmatched → source.missing → mapping.missing 3 连环阻断且报错只给文案不给入口）：`sku.unmatched` →「去规格匹配」直达该订单详情规格匹配 Tab（`/orders/:id?tab=sku`，可用 Tab 内既有「自动匹配整单」）；`source.missing` →「去绑定主货源」直达货源档案并自动打开绑定弹窗（`/sourcing/product-sources?productId=…&action=bind`）；`mapping.missing` →「去补 SKU 映射」直达货源档案自动打开主货源 SKU 映射抽屉并高亮对应行（`…&action=mapping&skuId=…`）。点击链接自动关闭结果弹窗；订单列表/订单详情/采购单页三处入口统一生效。
+- 后端 `POST /procurement/orders/generate` 的 `Blocker` 新增可选 `productId` 字段，并为 `source.missing`/`mapping.missing` 补齐 `productId`/`localSkuId`（既有字段语义不变，向后兼容，附单测）；货源档案页新增 `action`/`skuId` 深链定位参数。附 GenerateResultAlerts 组件单测。
+
+### 变更记录（2026-08-01）迭代第 46 轮：会话过期守卫（401 不再整页跳转丢表单）
+
+- 修复第 45 轮 UX 走查 P1：JWT 过期后提交表单遇 401 直接 `window.location.assign` 跳登录页，弹窗内未保存内容全部丢失。新增前端会话守卫（`admin/src/utils/sessionGuard.ts`）：
+  - 401 处理链路改为 umi `responseInterceptors` 内先静默续期（复用后端既有 `POST /api/v1/auth/refresh`，secure_session 走 HttpOnly cookie、legacy 走响应体 refreshToken），成功后原样重放原请求，调用方无感知；续期不可用/失败时在当前页弹「登录已过期」重新登录弹窗（`SessionExpiredModal`，挂载于 innerProvider），重登成功后同样重放请求，页面与表单状态不丢失；用户选择「去登录页」才清凭证跳转。
+  - 临期静默续期：登录/注册开始保存 `expiresAt`（及 legacy 模式的 refreshToken），请求拦截器在 token 剩余有效期 < 5 分钟时先 single-flight 续期再发请求；续期失败有 60s 冷却，legacy 无 refreshToken 时直接跳过续期走重登弹窗。
+  - 兜底：重放后仍 401（如 token_version 已失效）才回退整页跳登录页。API URL/method/payload/权限/状态机均未改，后端零改动。附 sessionGuard 单测（保存/清理、阈值判断、single-flight、冷却、重登协调）。实测覆盖手工建单弹窗、订单详情编辑、设置页保存三场景过期后内容不丢失。
+
+### 变更记录（2026-08-01）迭代第 46 轮：发货与库存扣减口径 UI 传达（第 45 轮 UX 走查 P1）
+
+- 根因结论：**非 bug，是既有「手工扣库」策略使然**。发货（单笔新增物流 / 批量发货）只推进订单生命周期（`advanceOrderOnShipment`），从不调用 `DeductInventoryForOrder`；库存扣减由手工触发（第 12 轮 `POST /orders/:id/deduct-inventory`）或库存策略（如建单自动扣减）触发，取消订单按策略自动回滚（第 32 轮）。本机全栈复现确认：未扣减订单直接发货成功且 `order_inventory_effects` 始终为空。问题在于 UI 未传达该口径，导致「未扣减 + 可发货」看似自相矛盾。
+- 处理（不引入「发货强制扣库存」语义，不改状态机/权限/既有字段语义）：
+  - 订单详情「新增物流」弹窗：当本单尚无成功扣减记录时提示「本单尚未扣减库存……可到库存影响 Tab 手工扣减」（编辑既有物流不提示）。
+  - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
+  - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。

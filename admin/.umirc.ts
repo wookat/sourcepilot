@@ -7,6 +7,8 @@ export default defineConfig({
   npmClient: 'npm',
   /** 构建产物文件名带 contenthash，部署后浏览器自动拉取新版本，无需硬刷新 */
   hash: true,
+  /** 多 chunk 共用 esbuild 压缩 helper 时避免命名冲突（@ant-design/plots 引入后触发） */
+  esbuildMinifyIIFE: true,
   antd: {
     appConfig: {},
     configProvider: {

@@ -161,6 +161,91 @@ func TestGenerateReportsBlockers(t *testing.T) {
 	}
 }
 
+func TestGenerateBlockersCarryStructuredIDs(t *testing.T) {
+	f := setupFixture(t)
+	db := f.svc.DB
+
+	// source.missing: item linked to a product without any primary source
+	noSourceProduct := uuid.New()
+	noSourceSKU := uuid.New()
+	o1 := order.Order{Platform: "tiktok", OrderNo: "SO-3", Status: "paid"}
+	if err := db.Create(&o1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&order.OrderItem{
+		OrderID: o1.ID, ProductID: &noSourceProduct, ProductSKUID: &noSourceSKU,
+		SKUName: "no-source", Quantity: 1,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	res, err := f.svc.Generate(context.Background(), GenerateBody{OrderIDs: []string{o1.ID.String()}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Blockers) != 1 || res.Blockers[0].Code != "source.missing" {
+		t.Fatalf("expected source.missing blocker, got %+v", res)
+	}
+	b := res.Blockers[0]
+	if b.OrderID != o1.ID.String() || b.ProductID != noSourceProduct.String() || b.LocalSKUID != noSourceSKU.String() {
+		t.Fatalf("expected structured ids on source.missing blocker, got %+v", b)
+	}
+
+	// mapping.missing: primary source exists but no SKU mapping for the line
+	sup := sourcing.Supplier{Platform: "1688", Name: "supplier-b", Status: "active"}
+	if err := db.Create(&sup).Error; err != nil {
+		t.Fatal(err)
+	}
+	noMappingProduct := uuid.New()
+	noMappingSKU := uuid.New()
+	if err := db.Create(&sourcing.ProductSource{
+		ProductID: noMappingProduct, SupplierID: sup.ID, IsPrimary: true, Priority: 10,
+		Status: sourcing.SourceStatusActive, SourceOfferID: "222",
+		SourceURL: "https://detail.1688.com/offer/222.html",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	o2 := order.Order{Platform: "tiktok", OrderNo: "SO-4", Status: "paid"}
+	if err := db.Create(&o2).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&order.OrderItem{
+		OrderID: o2.ID, ProductID: &noMappingProduct, ProductSKUID: &noMappingSKU,
+		SKUName: "no-mapping", Quantity: 1,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	res, err = f.svc.Generate(context.Background(), GenerateBody{OrderIDs: []string{o2.ID.String()}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Blockers) != 1 || res.Blockers[0].Code != "mapping.missing" {
+		t.Fatalf("expected mapping.missing blocker, got %+v", res)
+	}
+	b = res.Blockers[0]
+	if b.OrderID != o2.ID.String() || b.ProductID != noMappingProduct.String() || b.LocalSKUID != noMappingSKU.String() {
+		t.Fatalf("expected structured ids on mapping.missing blocker, got %+v", b)
+	}
+
+	// sku.unmatched keeps productId empty (unknown before matching)
+	o3 := order.Order{Platform: "tiktok", OrderNo: "SO-5", Status: "paid"}
+	if err := db.Create(&o3).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&order.OrderItem{OrderID: o3.ID, SKUName: "unmatched", Quantity: 1}).Error; err != nil {
+		t.Fatal(err)
+	}
+	res, err = f.svc.Generate(context.Background(), GenerateBody{OrderIDs: []string{o3.ID.String()}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Blockers) != 1 || res.Blockers[0].Code != "sku.unmatched" {
+		t.Fatalf("expected sku.unmatched blocker, got %+v", res)
+	}
+	if res.Blockers[0].ProductID != "" || res.Blockers[0].OrderID != o3.ID.String() {
+		t.Fatalf("expected empty productId on sku.unmatched, got %+v", res.Blockers[0])
+	}
+}
+
 func TestManualFlowHappyPath(t *testing.T) {
 	f := setupFixture(t)
 	po := generate(t, f, "key-flow").Orders[0]

@@ -57,6 +57,7 @@ export type PurchaseOrder = {
 
 export type GenerateIssue = {
   orderId: string;
+  productId?: string;
   localSkuId?: string;
   skuName?: string;
   code: string;

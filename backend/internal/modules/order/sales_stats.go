@@ -31,7 +31,9 @@ type SalesStatsDTO struct {
 }
 
 // SalesStats aggregates order counts and paid sales amounts (grouped by
-// currency) for the today / last-7-days / last-30-days windows.
+// currency) for the today / last-7-days / last-30-days windows. Scope matches
+// the order list: current tenant, soft-deleted orders excluded, and non-admin
+// principals restricted to their granted shops.
 func (s *Service) SalesStats(c *gin.Context) (*SalesStatsDTO, error) {
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -48,7 +50,10 @@ func (s *Service) SalesStats(c *gin.Context) (*SalesStatsDTO, error) {
 		base := func() (*gorm.DB, error) {
 			tx := s.DB.WithContext(c.Request.Context()).Model(&Order{}).Where("created_at >= ?", w.since)
 			scoped, _, err := adminperm.ApplyTenantScope(c, tx)
-			return scoped, err
+			if err != nil {
+				return nil, err
+			}
+			return adminperm.ApplyStoreScope(c, s.DB, scoped, "shop_id")
 		}
 		st := SalesWindowStats{Key: w.key, PaidAmounts: []SalesAmount{}}
 		tx, err := base()

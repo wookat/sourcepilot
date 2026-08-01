@@ -12,11 +12,11 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "playwright": "^1.60.0"
+    "playwright": "^1.62.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
     "tsx": "^4.19.0",
-    "typescript": "^5.4.0"
+    "typescript": "^7.0.2"
   }
 }

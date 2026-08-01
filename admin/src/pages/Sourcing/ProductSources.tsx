@@ -45,7 +45,7 @@ import {
 } from 'antd';
 import { isReadonly } from '@/utils/permission';
 import { useLocation, useModel } from '@umijs/max';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const SOURCE_STATUS_TAG: Record<string, { text: string; color: string }> = {
   active: { text: '正常', color: 'green' },
@@ -99,11 +99,17 @@ export default function ProductSourcesPage() {
   };
   const writable = !isReadonly(initialState?.currentUser?.role);
   const location = useLocation();
-  const initialProductId = useMemo(() => {
-    const v = new URLSearchParams(location.search).get('productId')?.trim();
-    return v || undefined;
+  const initialParams = useMemo(() => {
+    const sp = new URLSearchParams(location.search);
+    return {
+      productId: sp.get('productId')?.trim() || undefined,
+      action: sp.get('action')?.trim() || undefined,
+      skuId: sp.get('skuId')?.trim() || undefined,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const initialProductId = initialParams.productId;
+  const initialActionDone = useRef(false);
   const [products, setProducts] = useState<ProductListRow[]>([]);
   const [productId, setProductId] = useState<string | undefined>(initialProductId);
   const [productDetail, setProductDetail] = useState<ProductDetail | null>(null);
@@ -217,6 +223,24 @@ export default function ProductSourcesPage() {
       message.error((e as Error).message || '保存失败');
     }
   };
+
+  // 深链定位：?action=bind 直接打开绑定货源弹窗；?action=mapping[&skuId=] 打开主货源的 SKU 映射弹窗
+  useEffect(() => {
+    if (initialActionDone.current || !writable) return;
+    if (!initialParams.action || !initialProductId || productId !== initialProductId) return;
+    if (loading) return;
+    if (initialParams.action === 'bind') {
+      initialActionDone.current = true;
+      if (sources.length === 0) setBindOpen(true);
+      return;
+    }
+    if (initialParams.action === 'mapping') {
+      if (sources.length === 0 || localSkus.length === 0) return;
+      const primary = sources.find((s) => s.isPrimary) || sources[0];
+      initialActionDone.current = true;
+      openMapping(primary);
+    }
+  }, [initialParams, initialProductId, productId, loading, sources, localSkus, writable]);
 
   const openHistory = async (sku: ProductSourceSKU) => {
     setHistorySku(sku);
@@ -600,6 +624,9 @@ export default function ProductSourcesPage() {
             dataSource={mappingRows}
             pagination={false}
             scroll={{ x: 640 }}
+            rowClassName={(r) =>
+              initialParams.skuId && r.localSkuId === initialParams.skuId ? 'ant-table-row-selected' : ''
+            }
             columns={[
               { title: '本地规格', dataIndex: 'skuName', width: 140 },
               {
