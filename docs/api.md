@@ -550,7 +550,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `POST` | `/api/v1/procurement/orders/:id/mark-placed` | 回填 1688 订单号，placing → placed。 |
 | `POST` | `/api/v1/procurement/orders/:id/mark-paid` | 人工标记付款，placed → paid。 |
 | `POST` | `/api/v1/procurement/orders/:id/logistics` | 回填运单号/承运商，paid → shipped。 |
-| `POST` | `/api/v1/procurement/orders/:id/mark-delivered` | shipped → delivered。 |
+| `POST` | `/api/v1/procurement/orders/:id/mark-delivered` | shipped → delivered；同事务将各明细数量加回本地 SKU 库存并写 `inventory_change_logs`（`purchase_inbound`，按 business_event_key 幂等）。 |
 | `POST` | `/api/v1/procurement/orders/:id/retry` | failed → placing。 |
 | `POST` | `/api/v1/procurement/orders/:id/cancel` | 取消（终态前均可）。 |
 | `PUT` | `/api/v1/procurement/orders/:id/items/:itemId/price` | 补填/修改明细参考价：`{expectedPrice}`（>0），仅 draft / pending_confirm 状态可改，重算采购单 `totalAmount` 并返回详情。 |

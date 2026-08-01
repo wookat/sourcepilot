@@ -171,7 +171,7 @@ export default function ProcurementOrderDetailPage() {
           </Button>
         )}
         {po.status === 'shipped' && (
-          <Button type="primary" onClick={() => void run(() => markPurchaseOrderDelivered(po.id), '已标记签收')}>
+          <Button type="primary" onClick={() => void run(() => markPurchaseOrderDelivered(po.id), '已标记签收，采购数量已入库到本地库存')}>
             标记签收
           </Button>
         )}
