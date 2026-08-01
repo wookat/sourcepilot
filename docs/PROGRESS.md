@@ -898,6 +898,13 @@ Final Production Acceptance Deferred to P10
 - 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
 - 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 24 轮：采购单列表批量提交/批量确认 + 生成结果提示统一
+
+- 采购单列表新增行选择（仅草稿/待确认状态可勾选，只读角色不显示）与「批量提交」「批量确认」操作，按状态分组循环调用既有 `POST /api/v1/procurement/orders/:id/submit|confirm`，逐单汇总成功/失败并弹窗列出失败原因，减少待办卡「采购单待确认」后的逐单点击。
+- 采购单列表「从销售订单生成采购单」弹窗的结果提示改用共享组件 `GenerateResultAlerts`，line.covered 已覆盖提示与缺参考进价分组与订单列表/详情统一（修正该页遗留的分组不一致）。
+- 状态筛选变化同步写回 URL query（replace），深链/刷新与筛选保持一致。
+- 纯前端改动，无后端 / API 变更。
+
 ### 变更记录（2026-08-02）迭代第 23 轮：订单列表批量生成采购单
 
 - 订单列表新增行选择（仅已付款订单可勾选，只读角色不显示）与「批量生成采购单」批量操作，复用既有 `POST /api/v1/procurement/orders/generate`（本就支持多 orderIds 且带跨请求防重），选中多单一键生成后自动清空选择并刷新列表。

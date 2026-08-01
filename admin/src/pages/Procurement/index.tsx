@@ -1,3 +1,4 @@
+import GenerateResultAlerts from '@/components/procurement/GenerateResultAlerts';
 import { TmPageContainer } from '@/components/ui';
 import {
   cancelPurchaseOrder,
@@ -10,7 +11,8 @@ import {
   type PurchaseOrder,
 } from '@/services/procurement';
 import { queryOrders, type OrderListRow } from '@/services/orders';
-import { Link, useSearchParams } from '@umijs/max';
+import { isReadonly } from '@/utils/permission';
+import { Link, useModel, useSearchParams } from '@umijs/max';
 import BatchBackfillModal, { type BatchMode } from './BatchBackfillModal';
 import {
   Alert,
@@ -38,8 +40,14 @@ export const PO_STATUS_TAG: Record<string, { text: string; color: string }> = {
   cancelled: { text: '已取消', color: 'default' },
 };
 
+const BATCH_SELECTABLE_STATUSES = ['draft', 'pending_confirm'];
+
 export default function ProcurementOrdersPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: API.CurrentUser };
+  };
+  const writable = !isReadonly(initialState?.currentUser?.role);
   const [rows, setRows] = useState<PurchaseOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -50,6 +58,8 @@ export default function ProcurementOrdersPage() {
   });
   const [batchMode, setBatchMode] = useState<BatchMode | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [batchActionLoading, setBatchActionLoading] = useState(false);
 
   const [genOpen, setGenOpen] = useState(false);
   const [salesOrders, setSalesOrders] = useState<OrderListRow[]>([]);
@@ -73,6 +83,63 @@ export default function ProcurementOrdersPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const runBatchAction = useCallback(
+    async (targetStatus: 'draft' | 'pending_confirm') => {
+      const targets = rows.filter(
+        (r) => selectedRowKeys.includes(r.id) && r.status === targetStatus,
+      );
+      if (targets.length === 0) {
+        message.warning(
+          targetStatus === 'draft' ? '所选中没有草稿状态的采购单' : '所选中没有待确认状态的采购单',
+        );
+        return;
+      }
+      setBatchActionLoading(true);
+      const failures: { id: string; message: string }[] = [];
+      let succeeded = 0;
+      for (const row of targets) {
+        try {
+          if (targetStatus === 'draft') {
+            await submitPurchaseOrder(row.id);
+          } else {
+            await confirmPurchaseOrder(row.id);
+          }
+          succeeded += 1;
+        } catch (e) {
+          failures.push({ id: row.id, message: (e as Error)?.message || '操作失败' });
+        }
+      }
+      setBatchActionLoading(false);
+      const actionText = targetStatus === 'draft' ? '提交' : '确认';
+      if (failures.length === 0) {
+        message.success(`已批量${actionText} ${succeeded} 张采购单`);
+      } else {
+        Modal.warning({
+          title: `批量${actionText}部分失败（成功 ${succeeded} / 失败 ${failures.length}）`,
+          content: (
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {failures.map((f) => (
+                <li key={f.id}>
+                  {f.id.slice(0, 8)}：{f.message}
+                </li>
+              ))}
+            </ul>
+          ),
+        });
+      }
+      setSelectedRowKeys([]);
+      void load();
+    },
+    [rows, selectedRowKeys, load],
+  );
+
+  const selectedDraftCount = rows.filter(
+    (r) => selectedRowKeys.includes(r.id) && r.status === 'draft',
+  ).length;
+  const selectedPendingConfirmCount = rows.filter(
+    (r) => selectedRowKeys.includes(r.id) && r.status === 'pending_confirm',
+  ).length;
 
   const openGenerate = async () => {
     setGenOpen(true);
@@ -127,13 +194,60 @@ export default function ProcurementOrdersPage() {
           onChange={(v) => {
             setPage(1);
             setStatus(v);
+            const next = new URLSearchParams(searchParams);
+            if (v) {
+              next.set('status', v);
+            } else {
+              next.delete('status');
+            }
+            setSearchParams(next, { replace: true });
           }}
           options={Object.entries(PO_STATUS_TAG).map(([value, cfg]) => ({ value, label: cfg.text }))}
         />
       </Space>
+      {writable && selectedRowKeys.length > 0 && (
+        <Alert
+          type="info"
+          style={{ marginBottom: 12 }}
+          message={
+            <Space wrap>
+              <span>已选 {selectedRowKeys.length} 张采购单</span>
+              <Button
+                size="small"
+                type="primary"
+                loading={batchActionLoading}
+                disabled={selectedDraftCount === 0}
+                onClick={() => void runBatchAction('draft')}
+              >
+                批量提交（{selectedDraftCount}）
+              </Button>
+              <Button
+                size="small"
+                loading={batchActionLoading}
+                disabled={selectedPendingConfirmCount === 0}
+                onClick={() => void runBatchAction('pending_confirm')}
+              >
+                批量确认（{selectedPendingConfirmCount}）
+              </Button>
+              <a onClick={() => setSelectedRowKeys([])}>取消选择</a>
+            </Space>
+          }
+        />
+      )}
       <Table<PurchaseOrder>
         rowKey="id"
         loading={loading}
+        rowSelection={
+          writable
+            ? {
+                selectedRowKeys,
+                onChange: (keys) => setSelectedRowKeys(keys.map(String)),
+                getCheckboxProps: (r) => ({
+                  disabled: !BATCH_SELECTABLE_STATUSES.includes(r.status),
+                }),
+              }
+            : undefined
+        }
         dataSource={rows}
         scroll={{ x: 1000 }}
         pagination={{
@@ -270,41 +384,10 @@ export default function ProcurementOrdersPage() {
             label: `${o.orderNo || o.id.slice(0, 8)}（${o.platform} / ${o.status}）`,
           }))}
         />
-        {genResult && (genResult.blockers || []).length > 0 && (
-          <Alert
-            style={{ marginTop: 16 }}
-            type="warning"
-            showIcon
-            message="部分订单行未能进入采购清单"
-            description={
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {(genResult.blockers || []).map((b, i) => (
-                  <li key={i}>
-                    订单 {b.orderId.slice(0, 8)}：{b.message}
-                    {b.skuName ? `（${b.skuName}）` : ''}
-                  </li>
-                ))}
-              </ul>
-            }
-          />
-        )}
-        {genResult && (genResult.warnings || []).length > 0 && (
-          <Alert
-            style={{ marginTop: 16 }}
-            type="warning"
-            showIcon
-            message="部分明细缺参考进价，采购单金额不含这些行"
-            description={
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {(genResult.warnings || []).map((w, i) => (
-                  <li key={i}>
-                    订单 {w.orderId.slice(0, 8)}：{w.message}
-                    {w.skuName ? `（${w.skuName}）` : ''}
-                  </li>
-                ))}
-              </ul>
-            }
-          />
+        {genResult && ((genResult.blockers || []).length > 0 || (genResult.warnings || []).length > 0) && (
+          <div style={{ marginTop: 16 }}>
+            <GenerateResultAlerts blockers={genResult.blockers} warnings={genResult.warnings} />
+          </div>
         )}
       </Modal>
     </TmPageContainer>
