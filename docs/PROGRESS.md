@@ -898,6 +898,11 @@ Final Production Acceptance Deferred to P10
 - 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
 - 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 28 轮：订单详情页删除订单入口
+
+- 订单详情页右上角新增「删除订单」（仅可写角色，Popconfirm 确认），复用既有 `DELETE /api/v1/orders/:id` 软删除，删除后返回订单列表；与订单列表抽屉里的既有删除入口语义一致，闭环「错误导入/测试订单无法从详情页作废」的缺口（第 27 轮 E2E 反馈项）。
+- 纯前端改动，无后端 / API 变更。
+
 ### 变更记录（2026-08-02）迭代第 27 轮：销售订单批量发货（粘贴订单号+快递单号）
 
 - 新增 `POST /api/v1/orders/shipments/batch`：`{items:[{orderNo, trackingNo, carrier?}]}`（≤200 条），按订单号在租户内匹配已付款销售订单并新增 `shipped` 物流（复用既有 AppendShipment，订单自动流转为已发货）；未付款、已取消/关闭/退款、未找到、多重匹配、重复订单号逐行失败并给出中文原因；附单测。

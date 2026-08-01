@@ -38,6 +38,7 @@ import {
   createOrderItem,
   createOrderShipment,
   deductOrderInventory,
+  deleteOrder,
   deleteOrderItem,
   deleteOrderShipment,
   getOrder,
@@ -290,6 +291,23 @@ export default function OrderDetailPage() {
           >
             扣减记录
           </Button>
+          {writable && detail ? (
+            <Popconfirm
+              title="软删除此订单？"
+              description="删除后订单将从列表隐藏，关联的采购单不受影响。"
+              onConfirm={async () => {
+                try {
+                  await deleteOrder(detail.id);
+                  message.success('已删除');
+                  history.push('/orders/list');
+                } catch (e) {
+                  message.error((e as Error)?.message || '删除失败');
+                }
+              }}
+            >
+              <Button danger>删除订单</Button>
+            </Popconfirm>
+          ) : null}
           <Button type="link" onClick={() => history.goBack()}>
             返回列表
           </Button>
