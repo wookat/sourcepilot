@@ -8,6 +8,7 @@ import {
   Descriptions,
   Form,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Row,
@@ -34,16 +35,20 @@ import {
   ORDER_SYNC_SUMMARY,
 } from '@/constants/status';
 import {
+  createOrderItem,
   createOrderShipment,
   deductOrderInventory,
+  deleteOrderItem,
   deleteOrderShipment,
   getOrder,
   getOrderInventoryEffects,
   getOrderSKUMatches,
   restoreOrderInventory,
   updateOrder,
+  updateOrderItem,
   updateOrderShipment,
   type OrderDetailDTO,
+  type OrderItemRow,
   type OrderShipmentRow,
   type OrderSkuMatchRow,
 } from '@/services/orders';
@@ -96,6 +101,10 @@ export default function OrderDetailPage() {
     open: false,
   });
   const [shipForm] = Form.useForm();
+  const [itemModal, setItemModal] = useState<{ open: boolean; row?: OrderItemRow | null }>({
+    open: false,
+  });
+  const [itemForm] = Form.useForm();
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
   const [invActionLoading, setInvActionLoading] = useState(false);
   const [costEst, setCostEst] = useState<OrderCostEstimate | null>(null);
@@ -111,6 +120,21 @@ export default function OrderDetailPage() {
       });
     }
     setShipModal({ open: true, row: row ?? null });
+  };
+
+  const openItemModal = (row?: OrderItemRow) => {
+    itemForm.resetFields();
+    if (row) {
+      itemForm.setFieldsValue({
+        productTitle: row.productTitle,
+        skuCode: row.skuCode,
+        skuName: row.skuName,
+        quantity: row.quantity,
+        unitPrice: row.unitPrice,
+        totalPrice: row.totalPrice,
+      });
+    }
+    setItemModal({ open: true, row: row ?? null });
   };
 
   const load = useCallback(async () => {
@@ -402,7 +426,18 @@ export default function OrderDetailPage() {
               key: 'items',
               label: '商品明细',
               children: (
-                <Table
+                <>
+                  {writable ? (
+                    <Space style={{ marginBottom: 12 }}>
+                      <Button type="primary" onClick={() => openItemModal()}>
+                        新增明细
+                      </Button>
+                      <Typography.Text type="secondary">
+                        明细变化后请复核订单总额与成本估算；新明细可在「规格匹配」中绑定本地规格。
+                      </Typography.Text>
+                    </Space>
+                  ) : null}
+                  <Table
                   rowKey="id"
                   size="small"
                   pagination={false}
@@ -439,8 +474,36 @@ export default function OrderDetailPage() {
                         return m?.confidence ?? '—';
                       },
                     },
+                    ...(writable
+                      ? [
+                          {
+                            title: '操作',
+                            width: 120,
+                            render: (_: unknown, row: OrderItemRow) => (
+                              <Space>
+                                <Typography.Link onClick={() => openItemModal(row)}>编辑</Typography.Link>
+                                <Popconfirm
+                                  title="确认删除该商品明细？"
+                                  onConfirm={async () => {
+                                    try {
+                                      await deleteOrderItem(detail.id, row.id);
+                                      message.success('已删除');
+                                      await load();
+                                    } catch (e: unknown) {
+                                      message.error((e as Error)?.message || '删除失败');
+                                    }
+                                  }}
+                                >
+                                  <Typography.Link type="danger">删除</Typography.Link>
+                                </Popconfirm>
+                              </Space>
+                            ),
+                          },
+                        ]
+                      : []),
                   ]}
-                />
+                  />
+                </>
               ),
             },
             {
@@ -708,6 +771,60 @@ export default function OrderDetailPage() {
       ) : (
         !loading && <Alert type="info" message="未找到订单" description="请从订单列表重新进入，或检查是否有访问权限。" />
       )}
+
+      <Modal
+        title={itemModal.row ? '编辑商品明细' : '新增商品明细'}
+        open={itemModal.open}
+        onCancel={() => setItemModal({ open: false })}
+        destroyOnHidden
+        onOk={async () => {
+          const v = await itemForm.validateFields();
+          if (!detail) return;
+          try {
+            if (itemModal.row) {
+              await updateOrderItem(detail.id, itemModal.row.id, v as Record<string, unknown>);
+            } else {
+              await createOrderItem(detail.id, v as Record<string, unknown>);
+            }
+            message.success('已保存');
+            setItemModal({ open: false });
+            await load();
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '保存失败');
+          }
+        }}
+      >
+        <Form
+          form={itemForm}
+          layout="vertical"
+          onValuesChange={(changed, all) => {
+            if ('quantity' in changed || 'unitPrice' in changed) {
+              const qty = Number(all.quantity) || 0;
+              const price = Number(all.unitPrice) || 0;
+              itemForm.setFieldsValue({ totalPrice: Math.round(qty * price * 100) / 100 });
+            }
+          }}
+        >
+          <Form.Item name="productTitle" label="商品标题" rules={[{ required: true, message: '请填写商品标题' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="skuCode" label="规格编码">
+            <Input />
+          </Form.Item>
+          <Form.Item name="skuName" label="规格名称">
+            <Input />
+          </Form.Item>
+          <Form.Item name="quantity" label="数量" initialValue={1} rules={[{ required: true, message: '请填写数量' }]}>
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="unitPrice" label="单价">
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="totalPrice" label="小计" extra="修改数量或单价时自动按 数量 × 单价 重算，可手工覆盖">
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <Modal
         title={shipModal.row ? '编辑物流' : '新增物流'}

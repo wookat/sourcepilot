@@ -699,6 +699,12 @@ export default function OrdersPage() {
             }}
           >
             <ProFormText name="platform" label="平台" placeholder="manual" extra="手工订单可填 manual 或留空" />
+            <Alert
+              showIcon
+              type="info"
+              style={{ marginBottom: 12 }}
+              message="商品明细可在创建后进入订单详情「商品明细」Tab 添加；成本/毛利估算依赖明细行。"
+            />
             <ProFormSelect
               name="shopId"
               label="关联店铺（可选）"
