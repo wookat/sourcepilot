@@ -57,6 +57,7 @@ import {
   inventoryTagFromMap,
 } from '@/constants/inventoryLabels';
 import { canWriteOrders } from '@/utils/orderPerm';
+import { fetchOrderCostEstimate, type OrderCostEstimate } from '@/services/procurement';
 
 function tagFromMap(raw: string, map: Record<string, { text: string; color: string }>) {
   const cfg = map[raw];
@@ -64,11 +65,12 @@ function tagFromMap(raw: string, map: Record<string, { text: string; color: stri
   return <Tag color={cfg.color}>{cfg.text}</Tag>;
 }
 
-function summarizeInvResp(sum?: Record<string, unknown>) {
-  if (!sum) return '';
-  if (sum.skipped) return `跳过：${String(sum.skipReason || '')}`;
-  if (typeof sum.message === 'string' && sum.message) return sum.message;
-  return '已完成';
+function summarizeInvResp(action: string, sum?: Record<string, unknown>) {
+  if (!sum) return `${action}完成`;
+  if (sum.skipped) return `已跳过（幂等）：${String(sum.skipReason || '无需重复执行')}`;
+  const msg = typeof sum.message === 'string' ? sum.message.trim() : '';
+  if (msg && msg.toLowerCase() !== 'ok') return msg;
+  return `${action}成功，影响流水已更新`;
 }
 
 export default function OrderDetailPage() {
@@ -91,6 +93,7 @@ export default function OrderDetailPage() {
   const [shipForm] = Form.useForm();
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
   const [invActionLoading, setInvActionLoading] = useState(false);
+  const [costEst, setCostEst] = useState<OrderCostEstimate | null>(null);
 
   const openShipModal = (row?: OrderShipmentRow) => {
     shipForm.resetFields();
@@ -117,6 +120,11 @@ export default function OrderDetailPage() {
       setDetail(d);
       setSkuRows(sku.items ?? []);
       setInvRows(inv.list ?? []);
+      try {
+        setCostEst(await fetchOrderCostEstimate(id));
+      } catch {
+        setCostEst(null);
+      }
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载订单失败');
     } finally {
@@ -319,6 +327,55 @@ export default function OrderDetailPage() {
                       {listSummary ? tagFromMap(listSummary.syncSt, ORDER_SYNC_SUMMARY) : '—'}
                     </Card>
                   </Col>
+                  <Col span={24}>
+                    <Card size="small" title="成本 / 毛利估算（基于主货源参考进价）">
+                      {costEst ? (
+                        <>
+                          <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small">
+                            <Descriptions.Item label="销售额">
+                              {costEst.currency} {costEst.totalAmount}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="预估采购成本">
+                              CNY {costEst.estimatedCostCny}
+                              {costEst.estimatedCost != null && costEst.currency !== 'CNY'
+                                ? ` ≈ ${costEst.currency} ${costEst.estimatedCost}`
+                                : ''}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="预估毛利">
+                              {costEst.grossProfit != null ? (
+                                <Typography.Text type={costEst.grossProfit >= 0 ? 'success' : 'danger'} strong>
+                                  {costEst.currency} {costEst.grossProfit}
+                                </Typography.Text>
+                              ) : (
+                                '—'
+                              )}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="毛利率">
+                              {costEst.marginPercent != null ? `${costEst.marginPercent}%` : '—'}
+                            </Descriptions.Item>
+                          </Descriptions>
+                          {costEst.missingLines > 0 ? (
+                            <Alert
+                              showIcon
+                              type="warning"
+                              style={{ marginTop: 8 }}
+                              message={`${costEst.missingLines} 行无法估算成本（未匹配 SKU / 缺主货源 / 缺参考进价），毛利仅在全部行可估算时计算`}
+                            />
+                          ) : null}
+                          {costEst.exchangeRate == null && costEst.currency !== 'CNY' ? (
+                            <Alert
+                              showIcon
+                              type="info"
+                              style={{ marginTop: 8 }}
+                              message="未配置汇率（系统设置 → 定价 exchangeRate），成本仅按 CNY 展示，暂无法折算毛利"
+                            />
+                          ) : null}
+                        </>
+                      ) : (
+                        <Typography.Text type="secondary">暂无可用估算数据</Typography.Text>
+                      )}
+                    </Card>
+                  </Col>
                 </Row>
               ),
             },
@@ -441,7 +498,7 @@ export default function OrderDetailPage() {
                             try {
                               const r = await deductOrderInventory(detail.id, { syncInventory: false });
                               message.success(
-                                summarizeInvResp(r.inventoryDeduction as Record<string, unknown>),
+                                summarizeInvResp('库存扣减', r.inventoryDeduction as Record<string, unknown>),
                               );
                               await load();
                             } catch (e: unknown) {
@@ -465,7 +522,7 @@ export default function OrderDetailPage() {
                                 reason: 'manual_ui',
                               });
                               message.success(
-                                summarizeInvResp(r.inventoryRestoration as Record<string, unknown>),
+                                summarizeInvResp('库存回滚', r.inventoryRestoration as Record<string, unknown>),
                               );
                               await load();
                             } catch (e: unknown) {
