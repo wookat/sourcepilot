@@ -898,6 +898,12 @@ Final Production Acceptance Deferred to P10
 - 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
 - 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 25 轮：采购单批量导出合并采购清单 CSV
+
+- 新增 `GET /api/v1/procurement/purchase-lists/export.csv?ids=`：逗号分隔采购单 UUID（去重后 ≤50），逐单合并明细行为一份采购清单 CSV（「采购单号」列区分来源），复用单单导出的表头/行渲染（`writePORows`），任一 id 不存在返回 404；附单测。
+- 采购单列表批量操作条新增「批量导出清单（N）」；可勾选状态扩展为草稿/待确认/下单中(人工)，覆盖「确认后去 1688 逐单导出」场景，多张采购单一次导出一份合并清单。
+- 同步 `docs/api.md`。
+
 ### 变更记录（2026-08-02）迭代第 24 轮：采购单列表批量提交/批量确认 + 生成结果提示统一
 
 - 采购单列表新增行选择（仅草稿/待确认状态可勾选，只读角色不显示）与「批量提交」「批量确认」操作，按状态分组循环调用既有 `POST /api/v1/procurement/orders/:id/submit|confirm`，逐单汇总成功/失败并弹窗列出失败原因，减少待办卡「采购单待确认」后的逐单点击。

@@ -252,6 +252,28 @@ func TestExportCSVContains1688Link(t *testing.T) {
 	}
 }
 
+func TestExportBatchCSVMergesOrders(t *testing.T) {
+	f := setupFixture(t)
+	po := generate(t, f, "key-batch-csv").Orders[0]
+	data, name, err := f.svc.ExportBatchCSV(context.Background(), []uuid.UUID{po.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "purchase-lists-1.csv" {
+		t.Fatalf("unexpected filename %q", name)
+	}
+	s := string(data)
+	for _, want := range []string{po.ID.String(), "https://detail.1688.com/offer/111.html", "demo product", "29.70"} {
+		if !containsStr(s, want) {
+			t.Fatalf("csv missing %q:\n%s", want, s)
+		}
+	}
+	// unknown id fails cleanly
+	if _, _, err := f.svc.ExportBatchCSV(context.Background(), []uuid.UUID{uuid.New()}); err == nil {
+		t.Fatalf("unknown id must error")
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) >= len(sub) && (func() bool {
 		for i := 0; i+len(sub) <= len(s); i++ {

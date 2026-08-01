@@ -380,3 +380,48 @@ func (h *Handler) ExportCSV(c *gin.Context) {
 	c.Header("Content-Disposition", `attachment; filename="`+name+`"`)
 	c.Data(200, "text/csv; charset=utf-8", data)
 }
+
+// MaxBatchExportOrders caps how many purchase orders one merged CSV can cover.
+const MaxBatchExportOrders = 50
+
+// ExportBatchCSV GET /procurement/purchase-lists/export.csv?ids=id1,id2
+func (h *Handler) ExportBatchCSV(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "procurement unavailable")
+		return
+	}
+	raw := strings.Split(c.Query("ids"), ",")
+	ids := make([]uuid.UUID, 0, len(raw))
+	seen := map[uuid.UUID]bool{}
+	for _, r := range raw {
+		r = strings.TrimSpace(r)
+		if r == "" {
+			continue
+		}
+		u, err := uuid.Parse(r)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid order id")
+			return
+		}
+		if seen[u] {
+			continue
+		}
+		seen[u] = true
+		ids = append(ids, u)
+	}
+	if len(ids) == 0 {
+		response.Fail(c, 400, response.CodeBadRequest, "ids required")
+		return
+	}
+	if len(ids) > MaxBatchExportOrders {
+		response.Fail(c, 400, response.CodeBadRequest, "too many ids")
+		return
+	}
+	data, name, err := h.Svc.ExportBatchCSV(c.Request.Context(), ids)
+	if err != nil {
+		handleProcurementError(c, err)
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="`+name+`"`)
+	c.Data(200, "text/csv; charset=utf-8", data)
+}

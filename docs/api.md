@@ -547,6 +547,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `POST` | `/api/v1/procurement/cost-estimates/batch` | 批量成本/毛利估算（订单列表用）：body `{"orderIds": ["..."]}`（≤50 个），返回 `items`（orderId → 汇总：`estimatedCostCny/exchangeRate/estimatedCost/grossProfit/marginPercent/missingLines`），不存在的订单被省略。 |
 | `GET` | `/api/v1/procurement/orders/:id` | 详情（items / events / logistics）。 |
 | `GET` | `/api/v1/procurement/orders/:id/export.csv` | 导出采购清单 CSV（含 1688 链接、外部 SKU、数量、参考价，UTF-8 BOM）。 |
+| `GET` | `/api/v1/procurement/purchase-lists/export.csv?ids=` | 批量导出合并采购清单 CSV：`ids` 为逗号分隔采购单 UUID（去重后 ≤50 个），逐单合并明细行（「采购单号」列区分来源），任一 id 不存在返回 404。 |
 | `POST` | `/api/v1/procurement/orders/:id/submit` | draft → pending_confirm（经 Provider PreviewOrder）。 |
 | `POST` | `/api/v1/procurement/orders/:id/confirm` | pending_confirm → placing（记录确认人/时间，调用 mock CreateOrder，人工模式）。 |
 | `POST` | `/api/v1/procurement/orders/:id/mark-placed` | 回填 1688 订单号，placing → placed。 |
