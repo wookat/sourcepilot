@@ -106,6 +106,24 @@ func (h *Handler) List(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// CostEstimate GET /procurement/cost-estimates/:id (id = sales order id)
+func (h *Handler) CostEstimate(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "procurement unavailable")
+		return
+	}
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	out, err := h.Svc.EstimateOrderCost(c.Request.Context(), id)
+	if err != nil {
+		handleProcurementError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
 // Detail GET /procurement/orders/:id
 func (h *Handler) Detail(c *gin.Context) {
 	if !h.ok() {

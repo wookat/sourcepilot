@@ -69,6 +69,36 @@ export type GenerateResult = {
   warnings?: GenerateIssue[];
 };
 
+export type CostEstimateLine = {
+  orderItemId: string;
+  localSkuId?: string;
+  skuName: string;
+  quantity: number;
+  supplierName?: string;
+  unitCostCny?: number;
+  lineCostCny?: number;
+  issueCode?: string;
+  issueMessage?: string;
+};
+
+export type OrderCostEstimate = {
+  orderId: string;
+  orderNo: string;
+  currency: string;
+  totalAmount: number;
+  estimatedCostCny: number;
+  exchangeRate?: number;
+  estimatedCost?: number;
+  grossProfit?: number;
+  marginPercent?: number;
+  missingLines: number;
+  lines: CostEstimateLine[];
+};
+
+export async function fetchOrderCostEstimate(orderId: string) {
+  return getJSON<OrderCostEstimate>(`/api/v1/procurement/cost-estimates/${orderId}`);
+}
+
 export async function generatePurchaseOrders(body: {
   orderIds: string[];
   idempotencyKey?: string;

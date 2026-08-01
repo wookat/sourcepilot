@@ -30,6 +30,7 @@ type Service struct {
 	DB       *gorm.DB
 	OpLog    *operationlog.Service
 	Provider trade.Provider
+	Settings SettingsReader
 }
 
 func (s *Service) provider() trade.Provider {

@@ -880,6 +880,13 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-08-01）迭代第 13 轮：订单成本/毛利估算
+
+- 新增 `GET /api/v1/procurement/cost-estimates/:id`（id 为销售订单）：按主货源 SKU 映射参考价（缺价回退最近历史进价，与生成采购单同口径）逐行估算 CNY 采购成本；订单币种为 CNY（汇率恒 1）或已配置 `settings.pricing.exchangeRate`（CNY→订单币种）时折算 `estimatedCost` 并计算 `grossProfit`/`marginPercent`（任一行缺价时不计算毛利）；问题行以 `issueCode`（`sku.unmatched`/`source.missing`/`mapping.missing`/`price.missing`）返回。procurement.Service 新增 `SettingsReader` 依赖（接口解耦），附 sqlite 单测（含汇率折算、缺价、CNY 订单三条路径）。
+- Admin 订单详情「订单概览」新增「成本 / 毛利估算」卡：销售额、预估采购成本（CNY + 折算）、预估毛利（正绿负红）、毛利率；缺价行与未配置汇率分别以 Alert 提示。
+- 顺带闭环第 12 轮 P3：库存手工扣减/回滚成功 toast 不再直出后端摘要原文 `ok`，改为结构化中文（成功/幂等跳过 + 原因）。
+- 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
+
 ### 变更记录（2026-08-01）迭代第 12 轮：订单详情补库存手工操作入口
 
 - Admin 订单详情「库存影响」Tab 新增「手工扣库存」「手工回滚库存」按钮（Popconfirm 确认，`canWriteOrders` 权限内可见），分别调既有 `POST /orders/:id/deduct-inventory` / `POST /orders/:id/restore-inventory`（`syncInventory=false`，回滚 reason=`manual_ui`），成功后刷新详情与影响流水。此前该入口位于旧列表页死代码 Drawer 中（第 8 轮详情页化遗留），restore 链路 UI 不可达。后端 API 无改动。
