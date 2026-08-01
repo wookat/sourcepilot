@@ -156,8 +156,17 @@ func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID u
 	}
 
 	skuID := *it.ProductSKUID
-	eventKey := idempotency.InventoryDeduct(orderID.String(), it.ID.String(), skuID.String())
-	deductJob, _, acqErr := s.acquireDeductLine(ctx, orderID, it.ID, skuID, qty, reasonBase, opts)
+	st, err := loadLineEffectState(tx, it.ID, skuID)
+	if err != nil {
+		return out, err
+	}
+	if st.currentlyDeducted() {
+		out.skipped = true
+		return out, nil
+	}
+	round := int(st.restoreRounds)
+	eventKey := idempotency.InventoryDeductRound(orderID.String(), it.ID.String(), skuID.String(), round)
+	deductJob, _, acqErr := s.acquireDeductLine(ctx, orderID, it.ID, skuID, qty, reasonBase, round, opts)
 	if acqErr != nil {
 		return out, acqErr
 	}
@@ -167,26 +176,6 @@ func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID u
 			return out, err
 		}
 		return existing, nil
-	}
-
-	var hitSuccess int64
-	if err := tx.Model(&OrderInventoryEffect{}).
-		Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, *it.ProductSKUID, EffectTypeDeduct, InventoryEffectSuccess).
-		Count(&hitSuccess).Error; err != nil {
-		return out, err
-	}
-	if hitSuccess > 0 {
-		if deductJob != nil {
-			var eff OrderInventoryEffect
-			if err := tx.Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, skuID, EffectTypeDeduct, InventoryEffectSuccess).
-				First(&eff).Error; err == nil && eff.LogID != nil {
-				_ = s.completeDeductLine(ctx, deductJob, *eff.LogID)
-			} else {
-				s.failDeductLine(ctx, deductJob, "ALREADY_DEDUCTED", false)
-			}
-		}
-		out.skipped = true
-		return out, nil
 	}
 
 	var sku product.ProductSKU
@@ -203,7 +192,7 @@ func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID u
 		if err := upsertFailedDeductEffect(tx, orderID, it, sku.ID, reasonBase, qty, true, opts.CreatedBy); err != nil {
 			return out, err
 		}
-		s.failDeductLine(ctx, deductJob, "INSUFFICIENT_STOCK", false)
+		s.failDeductLine(ctx, tx, deductJob, "INSUFFICIENT_STOCK", false)
 		out.failedInsufficient = true
 		return out, nil
 	}
@@ -212,7 +201,7 @@ func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID u
 		if err := upsertFailedDeductEffect(tx, orderID, it, sku.ID, reasonBase, qty, true, opts.CreatedBy); err != nil {
 			return out, err
 		}
-		s.failDeductLine(ctx, deductJob, "INSUFFICIENT_STOCK", false)
+		s.failDeductLine(ctx, tx, deductJob, "INSUFFICIENT_STOCK", false)
 		out.failedInsufficient = true
 		return out, nil
 	}
@@ -246,8 +235,11 @@ func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID u
 		prodForEff = &pp
 	}
 
-	// Remove prior failed deduct attempt for this line + SKU so we can record success cleanly.
-	_ = tx.Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, sku.ID, EffectTypeDeduct, InventoryEffectFailed).
+	// Effect rows keep only the latest state per effect_type (unique index);
+	// prior-round deduct/restore rows are cleared here, history stays in inventory_change_logs.
+	_ = tx.Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ?", it.ID, sku.ID, EffectTypeDeduct).
+		Delete(&OrderInventoryEffect{}).Error
+	_ = tx.Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, sku.ID, EffectTypeRestore, InventoryEffectSuccess).
 		Delete(&OrderInventoryEffect{}).Error
 
 	eff := OrderInventoryEffect{
@@ -267,7 +259,7 @@ func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID u
 	if err := tx.Create(&eff).Error; err != nil {
 		return out, err
 	}
-	if err := s.completeDeductLine(ctx, deductJob, chg.ID); err != nil {
+	if err := s.completeDeductLine(ctx, tx, deductJob, chg.ID); err != nil {
 		return out, err
 	}
 	out.synced = true
@@ -474,23 +466,11 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 				continue
 			}
 
-			var dHit int64
-			if err := tx.Model(&OrderInventoryEffect{}).
-				Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, *it.ProductSKUID, EffectTypeDeduct, InventoryEffectSuccess).
-				Count(&dHit).Error; err != nil {
+			st, err := loadLineEffectState(tx, it.ID, *it.ProductSKUID)
+			if err != nil {
 				return err
 			}
-			if dHit == 0 {
-				continue
-			}
-
-			var rHit int64
-			if err := tx.Model(&OrderInventoryEffect{}).
-				Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, *it.ProductSKUID, EffectTypeRestore, InventoryEffectSuccess).
-				Count(&rHit).Error; err != nil {
-				return err
-			}
-			if rHit > 0 {
+			if !st.currentlyDeducted() {
 				continue
 			}
 
@@ -503,17 +483,18 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 			after := before + qty
 
 			chg := InventoryChangeLog{
-				ProductID:      sku.ProductID,
-				ProductSKUID:   sku.ID,
-				ChangeType:     ChangeOrderCancel,
-				BeforeStock:    before,
-				AfterStock:     after,
-				Delta:          qty,
-				Reason:         reason,
-				Remark:         clampStr(strings.TrimSpace(rmBase)+" orderItem="+it.ID.String(), 520),
-				CreatedBy:      opts.CreatedBy,
-				RefOrderID:     &orderID,
-				RefOrderItemID: &it.ID,
+				ProductID:        sku.ProductID,
+				ProductSKUID:     sku.ID,
+				ChangeType:       ChangeOrderCancel,
+				BeforeStock:      before,
+				AfterStock:       after,
+				Delta:            qty,
+				Reason:           reason,
+				Remark:           clampStr(strings.TrimSpace(rmBase)+" orderItem="+it.ID.String(), 520),
+				CreatedBy:        opts.CreatedBy,
+				RefOrderID:       &orderID,
+				RefOrderItemID:   &it.ID,
+				BusinessEventKey: idempotency.InventoryRestoreRound(orderID.String(), it.ID.String(), sku.ID.String(), int(st.restoreRounds)),
 			}
 			if err := tx.Create(&chg).Error; err != nil {
 				return err

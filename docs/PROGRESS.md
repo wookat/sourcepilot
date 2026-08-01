@@ -883,6 +883,7 @@ Final Production Acceptance Deferred to P10
 ### 变更记录（2026-08-01）迭代第 12 轮：订单详情补库存手工操作入口
 
 - Admin 订单详情「库存影响」Tab 新增「手工扣库存」「手工回滚库存」按钮（Popconfirm 确认，`canWriteOrders` 权限内可见），分别调既有 `POST /orders/:id/deduct-inventory` / `POST /orders/:id/restore-inventory`（`syncInventory=false`，回滚 reason=`manual_ui`），成功后刷新详情与影响流水。此前该入口位于旧列表页死代码 Drawer 中（第 8 轮详情页化遗留），restore 链路 UI 不可达。后端 API 无改动。
+- 后端 P1 修复：扣库幂等键 `inventory-deduct:{orderId}:{itemId}:{skuId}` 首扣成功后永久 succeeded，导致「扣库→回滚→再扣库」被 `INVENTORY_DEDUCT_KEY_CONFLICT`（400）拒绝。现以行级 restore 流水计数作为轮次（round），再扣库使用 `…:roundN` 幂等键；effect 行仅保留每 effect_type 最新状态（唯一索引不变），完整历史留在 `inventory_change_logs`（restore 流水补 `business_event_key=inventory-restore:…:roundN`）。同轮重复扣减/重复回滚仍幂等跳过。新增回归测试 `TestDeductRestoreDeductCycle`（扣→重复扣→回滚→重复回滚→再扣→再回滚全周期）。API 路由与 payload 无变化。
 
 ### 变更记录（2026-08-01）迭代第 11 轮：采购签收自动入库
 

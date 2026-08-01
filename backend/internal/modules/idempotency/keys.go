@@ -46,6 +46,21 @@ func InventoryDeduct(orderID, orderItemID, skuID string) string {
 		norm(orderID), norm(orderItemID), norm(skuID))
 }
 
+// InventoryDeductRound namespaces repeat deduct rounds after a restore; round 0 keeps the legacy key.
+func InventoryDeductRound(orderID, orderItemID, skuID string, round int) string {
+	key := InventoryDeduct(orderID, orderItemID, skuID)
+	if round > 0 {
+		key = fmt.Sprintf("%s:round%d", key, round)
+	}
+	return key
+}
+
+// InventoryRestoreRound is the business event key for the Nth restore of one order line.
+func InventoryRestoreRound(orderID, orderItemID, skuID string, round int) string {
+	return fmt.Sprintf("inventory-restore:%s:%s:%s:round%d",
+		norm(orderID), norm(orderItemID), norm(skuID), round)
+}
+
 func InventoryCompensate(orderID, orderItemID, skuID, reason string) string {
 	return fmt.Sprintf("inventory-compensate:%s:%s:%s:%s",
 		norm(orderID), norm(orderItemID), norm(skuID), norm(reason))
