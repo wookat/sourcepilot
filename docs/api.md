@@ -576,6 +576,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
+| `GET` | `/api/v1/orders/stats/sales` | 经营概览统计：返回 `{generatedAt, windows:[{key: today|7d|30d, orderCount, paidCount, shippedCount, paidAmounts:[{currency, amount, orders}]}]}`，按创建时间窗口在租户内统计订单数/已付款/已发货与分币种已付款销售额。 |
 | `POST` | `/api/v1/orders/shipments/batch` | 批量发货：`{items:[{orderNo, trackingNo, carrier?}]}`（≤200 条），按订单号在租户内匹配销售订单并新增 `shipped` 物流（订单自动流转）；未付款/已取消/未找到/重复订单号逐行失败，返回 `{succeeded, failed, results[]}`。 |
 | `POST` | `/api/v1/orders/:id/shipments` | 新增物流记录：`{carrier, trackingNo?, trackingUrl?, status?, shippedAt?, deliveredAt?}`；`status` 缺省 `pending`。 |
 | `PUT` | `/api/v1/orders/:id/shipments/:shipmentId` | 更新物流记录（同上字段）。 |
