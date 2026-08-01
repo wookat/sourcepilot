@@ -1142,3 +1142,10 @@ Final Production Acceptance Deferred to P10
 
 - 「生成采购单结果」弹窗的 blockers 每条附可点击直达入口（第 45 轮 UX 走查 P1：新手被 sku.unmatched → source.missing → mapping.missing 3 连环阻断且报错只给文案不给入口）：`sku.unmatched` →「去规格匹配」直达该订单详情规格匹配 Tab（`/orders/:id?tab=sku`，可用 Tab 内既有「自动匹配整单」）；`source.missing` →「去绑定主货源」直达货源档案并自动打开绑定弹窗（`/sourcing/product-sources?productId=…&action=bind`）；`mapping.missing` →「去补 SKU 映射」直达货源档案自动打开主货源 SKU 映射抽屉并高亮对应行（`…&action=mapping&skuId=…`）。点击链接自动关闭结果弹窗；订单列表/订单详情/采购单页三处入口统一生效。
 - 后端 `POST /procurement/orders/generate` 的 `Blocker` 新增可选 `productId` 字段，并为 `source.missing`/`mapping.missing` 补齐 `productId`/`localSkuId`（既有字段语义不变，向后兼容，附单测）；货源档案页新增 `action`/`skuId` 深链定位参数。附 GenerateResultAlerts 组件单测。
+
+### 变更记录（2026-08-01）迭代第 46 轮：会话过期守卫（401 不再整页跳转丢表单）
+
+- 修复第 45 轮 UX 走查 P1：JWT 过期后提交表单遇 401 直接 `window.location.assign` 跳登录页，弹窗内未保存内容全部丢失。新增前端会话守卫（`admin/src/utils/sessionGuard.ts`）：
+  - 401 处理链路改为 umi `responseInterceptors` 内先静默续期（复用后端既有 `POST /api/v1/auth/refresh`，secure_session 走 HttpOnly cookie、legacy 走响应体 refreshToken），成功后原样重放原请求，调用方无感知；续期不可用/失败时在当前页弹「登录已过期」重新登录弹窗（`SessionExpiredModal`，挂载于 innerProvider），重登成功后同样重放请求，页面与表单状态不丢失；用户选择「去登录页」才清凭证跳转。
+  - 临期静默续期：登录/注册开始保存 `expiresAt`（及 legacy 模式的 refreshToken），请求拦截器在 token 剩余有效期 < 5 分钟时先 single-flight 续期再发请求；续期失败有 60s 冷却，legacy 无 refreshToken 时直接跳过续期走重登弹窗。
+  - 兜底：重放后仍 401（如 token_version 已失效）才回退整页跳登录页。API URL/method/payload/权限/状态机均未改，后端零改动。附 sessionGuard 单测（保存/清理、阈值判断、single-flight、冷却、重登协调）。实测覆盖手工建单弹窗、订单详情编辑、设置页保存三场景过期后内容不丢失。
