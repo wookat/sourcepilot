@@ -46,6 +46,25 @@ func (h *Handler) denyWrite(c *gin.Context) bool {
 	return false
 }
 
+// requestScope resolves the trusted tenant/store scope from the authenticated
+// principal. Missing tenant context falls back to nil (legacy/unit-test paths).
+func (h *Handler) requestScope(c *gin.Context) (*int64, []uuid.UUID) {
+	var tenantID *int64
+	if tid, err := adminperm.TenantIDFromGin(c); err == nil {
+		tenantID = &tid
+	}
+	var db *gorm.DB
+	if h != nil && h.Svc != nil {
+		db = h.Svc.DB
+	}
+	p, _ := adminperm.LoadPrincipal(c, db)
+	var allowed []uuid.UUID
+	if p != nil {
+		allowed = p.AllowedStoreIDs()
+	}
+	return tenantID, allowed
+}
+
 func parseRFC3339(s string) (*time.Time, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -109,6 +128,7 @@ func (h *Handler) List(c *gin.Context) {
 		Page:          atoiPage(c.Query("page"), 1, 1),
 		PageSize:      atoiPage(c.Query("pageSize"), 20, 1),
 	}
+	req.TenantID, req.AllowedShopIDs = h.requestScope(c)
 	out, err := h.Svc.ListOrderExceptions(c.Request.Context(), req)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
@@ -125,7 +145,9 @@ func (h *Handler) Detail(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	d, err := h.Svc.GetOrderExceptionDetail(c.Request.Context(), st, sid)
+	var scope ListOrderExceptionsRequest
+	scope.TenantID, scope.AllowedShopIDs = h.requestScope(c)
+	d, err := h.Svc.GetOrderExceptionDetail(c.Request.Context(), st, sid, scope)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")

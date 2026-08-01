@@ -206,7 +206,11 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 		Count(&sum.OpenAlertCount).Error
 
 	if s.OrderExceptions != nil {
-		ex, err := s.OrderExceptions.DashboardSummary(ctx, strings.TrimSpace(q.Platform), strings.TrimSpace(q.ShopID), q.Start, q.End)
+		exShops := q.Scope.AllowedShopIDs
+		if q.Scope.IsAdmin {
+			exShops = nil
+		}
+		ex, err := s.OrderExceptions.DashboardSummary(ctx, strings.TrimSpace(q.Platform), strings.TrimSpace(q.ShopID), q.Start, q.End, q.Scope.TenantID, exShops)
 		if err == nil {
 			sum.OrderExceptionTotal = ex.TotalOpen
 			sum.SKUUnmatchedOrderItems = ex.SKUUnmatched
@@ -726,13 +730,19 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 	{
 		var last *time.Time
 		if s.OrderExceptions != nil {
+			exShops := q.Scope.AllowedShopIDs
+			if q.Scope.IsAdmin {
+				exShops = nil
+			}
 			res, err := s.OrderExceptions.ListOrderExceptions(ctx, orderexception.ListOrderExceptionsRequest{
-				Platform: strings.TrimSpace(q.Platform),
-				ShopID:   strings.TrimSpace(q.ShopID),
-				Start:    q.Start,
-				End:      q.End,
-				Page:     1,
-				PageSize: 1,
+				Platform:       strings.TrimSpace(q.Platform),
+				ShopID:         strings.TrimSpace(q.ShopID),
+				Start:          q.Start,
+				End:            q.End,
+				Page:           1,
+				PageSize:       1,
+				TenantID:       q.Scope.TenantID,
+				AllowedShopIDs: exShops,
 			})
 			if err == nil && res != nil && len(res.List) > 0 {
 				t := res.List[0].UpdatedAt

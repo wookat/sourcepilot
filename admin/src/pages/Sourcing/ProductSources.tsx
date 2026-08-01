@@ -43,7 +43,8 @@ import {
   Typography,
   message,
 } from 'antd';
-import { useLocation } from '@umijs/max';
+import { isReadonly } from '@/utils/permission';
+import { useLocation, useModel } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const SOURCE_STATUS_TAG: Record<string, { text: string; color: string }> = {
@@ -93,6 +94,10 @@ const SUGGESTION_STATUS_TAG: Record<string, { text: string; color: string }> = {
 };
 
 export default function ProductSourcesPage() {
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: { role?: string } };
+  };
+  const writable = !isReadonly(initialState?.currentUser?.role);
   const location = useLocation();
   const initialProductId = useMemo(() => {
     const v = new URLSearchParams(location.search).get('productId')?.trim();
@@ -138,16 +143,18 @@ export default function ProductSourcesPage() {
     if (!productId) return;
     setLoading(true);
     try {
-      const [src, ev, detail] = await Promise.all([
+      const [src, ev, detail] = await Promise.allSettled([
         fetchProductSources(productId),
         fetchSwitchEvents({ productId, page: 1, pageSize: 20 }),
         fetchProductDetail(productId),
       ]);
-      setSources(src.items || []);
-      setEvents(ev.items || []);
-      setProductDetail(detail);
-    } catch (e) {
-      message.error((e as Error).message || '加载货源失败');
+      if (src.status === 'fulfilled') {
+        setSources(src.value.items || []);
+      } else {
+        message.error((src.reason as Error)?.message || '加载货源失败');
+      }
+      setEvents(ev.status === 'fulfilled' ? ev.value.items || [] : []);
+      setProductDetail(detail.status === 'fulfilled' ? detail.value : null);
     } finally {
       setLoading(false);
     }
@@ -233,9 +240,12 @@ export default function ProductSourcesPage() {
           onChange={(v) => setProductId(v)}
           options={products.map((p) => ({ value: p.id, label: p.title }))}
         />
+        {writable && (
         <Button type="primary" disabled={!productId} onClick={() => setBindOpen(true)}>
           绑定货源
         </Button>
+        )}
+        {writable && (
         <Button
           disabled={!productId || sources.length === 0}
           loading={refreshing}
@@ -256,6 +266,7 @@ export default function ProductSourcesPage() {
         >
           刷新价格/库存（mock）
         </Button>
+        )}
       </Space>
       {alerts.length > 0 && (
         <Alert
@@ -389,6 +400,7 @@ export default function ProductSourcesPage() {
                 render: (v: boolean, row) => (
                   <Switch
                     size="small"
+                    disabled={!writable}
                     checked={v}
                     onChange={async (checked) => {
                       try {
@@ -414,7 +426,10 @@ export default function ProductSourcesPage() {
               {
                 title: '操作',
                 width: 220,
-                render: (_, row) => (
+                render: (_, row) =>
+                  !writable ? (
+                    '-'
+                  ) : (
                   <Space>
                     {!row.isPrimary && (
                       <a
@@ -433,7 +448,7 @@ export default function ProductSourcesPage() {
                     )}
                     <a onClick={() => openMapping(row)}>SKU映射</a>
                   </Space>
-                ),
+                  ),
               },
             ]}
           />
@@ -479,7 +494,7 @@ export default function ProductSourcesPage() {
                 title: '操作',
                 width: 160,
                 render: (_, row) =>
-                  row.mode === 'suggested' && row.status === 'open' ? (
+                  writable && row.mode === 'suggested' && row.status === 'open' ? (
                     <Space>
                       <Popconfirm
                         title="采纳建议并把主供应商切换为该备选货源？"

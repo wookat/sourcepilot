@@ -1,6 +1,10 @@
 package orderexception
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // ListOrderExceptionsRequest binds GET /orders/exceptions.
 type ListOrderExceptionsRequest struct {
@@ -17,6 +21,31 @@ type ListOrderExceptionsRequest struct {
 	End           *time.Time
 	Page          int
 	PageSize      int
+
+	// Trusted authorization scope resolved by the HTTP handler from the
+	// authenticated principal. TenantID nil means no tenant restriction
+	// (internal callers). AllowedShopIDs nil means all shops (admin);
+	// an empty slice means no shop is visible.
+	TenantID       *int64
+	AllowedShopIDs []uuid.UUID
+}
+
+// shopAllowed reports whether a row bound to shop sid is inside the
+// principal's store scope. Rows without a shop binding are admin-only,
+// matching ApplyStoreScope semantics on order lists.
+func (req ListOrderExceptionsRequest) shopAllowed(sid *uuid.UUID) bool {
+	if req.AllowedShopIDs == nil {
+		return true
+	}
+	if sid == nil || *sid == uuid.Nil {
+		return false
+	}
+	for _, id := range req.AllowedShopIDs {
+		if id == *sid {
+			return true
+		}
+	}
+	return false
 }
 
 // ExceptionSummaryDTO is returned alongside paginated rows.

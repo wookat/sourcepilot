@@ -19,6 +19,8 @@ import {
   Tag,
   message,
 } from 'antd';
+import { isReadonly } from '@/utils/permission';
+import { useModel } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';
 
 const STATUS_TAG: Record<string, { text: string; color: string }> = {
@@ -27,6 +29,10 @@ const STATUS_TAG: Record<string, { text: string; color: string }> = {
 };
 
 export default function SuppliersPage() {
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: { role?: string } };
+  };
+  const writable = !isReadonly(initialState?.currentUser?.role);
   const [rows, setRows] = useState<Supplier[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -91,9 +97,11 @@ export default function SuppliersPage() {
             setKeyword(v.trim());
           }}
         />
-        <Button type="primary" onClick={() => openModal()}>
-          新增供应商
-        </Button>
+        {writable && (
+          <Button type="primary" onClick={() => openModal()}>
+            新增供应商
+          </Button>
+        )}
       </Space>
       <Table<Supplier>
         rowKey="id"
@@ -125,10 +133,11 @@ export default function SuppliersPage() {
             },
           },
           { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v) => v || '-' },
-          {
+          ...(writable
+            ? [{
             title: '操作',
             width: 160,
-            render: (_, row) => (
+            render: (_: unknown, row: Supplier) => (
               <Space>
                 <a onClick={() => openModal(row)}>编辑</a>
                 <Popconfirm
@@ -148,7 +157,8 @@ export default function SuppliersPage() {
                 </Popconfirm>
               </Space>
             ),
-          },
+          }]
+            : []),
         ]}
       />
       <Modal

@@ -29,6 +29,9 @@ func (s *Service) collectNegativeMargin(ctx context.Context, req ListOrderExcept
 		Where("payment_status = ?", order.PaymentPaid).
 		Where("status NOT IN (?, ?, ?)", order.StatusCancelled, order.StatusRefunded, order.StatusClosed).
 		Where("fulfillment_status = ?", order.FulfillmentUnfulfilled)
+	if req.TenantID != nil {
+		q = q.Where("tenant_id = ?", *req.TenantID)
+	}
 	if req.Platform != "" {
 		q = q.Where("LOWER(platform) = ?", strings.ToLower(strings.TrimSpace(req.Platform)))
 	}
