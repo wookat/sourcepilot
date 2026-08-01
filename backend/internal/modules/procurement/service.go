@@ -364,11 +364,12 @@ func (s *Service) UpdateItemPrice(ctx context.Context, poID, itemID uuid.UUID, p
 
 // ListQuery filters purchase orders.
 type ListQuery struct {
-	Page       int
-	PageSize   int
-	Status     string
-	SupplierID string
-	Keyword    string
+	Page         int
+	PageSize     int
+	Status       string
+	SupplierID   string
+	Keyword      string
+	SalesOrderID string
 }
 
 // ListResult is a paginated purchase-order page.
@@ -393,6 +394,16 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 	}
 	if q.SupplierID != "" {
 		tx = tx.Where("supplier_id = ?", q.SupplierID)
+	}
+	if raw := strings.TrimSpace(q.SalesOrderID); raw != "" {
+		sid, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid salesOrderId", ErrBadRequest)
+		}
+		tx = tx.Where(
+			"id IN (SELECT purchase_order_id FROM purchase_order_items WHERE sales_order_id = ?)",
+			sid,
+		)
 	}
 	if kw := strings.TrimSpace(q.Keyword); kw != "" {
 		like := "%" + kw + "%"

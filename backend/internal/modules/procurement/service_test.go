@@ -377,3 +377,28 @@ func TestStateMachineTable(t *testing.T) {
 		}
 	}
 }
+
+func TestListFilterBySalesOrderID(t *testing.T) {
+	f := setupFixture(t)
+	generate(t, f, "key-sales-filter")
+
+	res, err := f.svc.List(context.Background(), ListQuery{SalesOrderID: f.orderID.String()})
+	if err != nil {
+		t.Fatalf("list by salesOrderId: %v", err)
+	}
+	if res.Total != 1 || len(res.Items) != 1 {
+		t.Fatalf("expected 1 purchase order for sales order, got %+v", res)
+	}
+
+	other, err := f.svc.List(context.Background(), ListQuery{SalesOrderID: uuid.NewString()})
+	if err != nil {
+		t.Fatalf("list by unknown salesOrderId: %v", err)
+	}
+	if other.Total != 0 || len(other.Items) != 0 {
+		t.Fatalf("expected empty result for unrelated sales order, got %+v", other)
+	}
+
+	if _, err := f.svc.List(context.Background(), ListQuery{SalesOrderID: "not-a-uuid"}); err == nil {
+		t.Fatal("expected error for invalid salesOrderId")
+	}
+}

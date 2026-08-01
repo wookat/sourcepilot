@@ -892,6 +892,11 @@ Final Production Acceptance Deferred to P10
 - `ALLOWED_QUERY_KEYS` 补 `operationStep`（商品草稿运营进度筛选）与 `customerName`（客服会话买家筛选）；客服会话布尔筛选（待回复/有 AI 建议/发送失败/有关联订单）URL 采用 `1`/`0`，兼容既有 `replyStatus`/`aiSuggestionStatus`/`sendStatus` 深链。
 - 修复真实测试发现的既有后端 P1：`GET /api/v1/task-center/failures` 对 tenant>0 用户必报 400（PostgreSQL 42703）。根因是统一的 `tenant_id = ?` 过滤被套到了自身没有 `tenant_id` 列的失败源表上。新增 `applyTenantListFilterVia`：`image_tasks` 经 `products` 限定租户（`product_id IS NULL` 的工具级任务保留可见）、`ai_product_text_items`/`ai_product_image_items` 经各自 batches 表、`customer_failure_events` 经 `shops` 表；附 sqlite DryRun SQL 回归单测。
 
+### 变更记录（2026-08-02）迭代第 20 轮：订单详情采购协同直达
+
+- 订单详情补「出单 → 采购」直达闭环（此前需跳到采购协同页在下拉里逐个找订单）：已付款订单右上角新增「生成采购单」按钮（复用 `POST /procurement/orders/generate`，blockers/warnings 以弹窗展示）；概览新增「关联采购单」卡片，展示该订单聚合出的采购单（状态 / 供应商 / 金额 / 1688 订单号，链接直达采购单详情）。
+- `GET /procurement/orders` 新增可选 `salesOrderId` 查询参数（经 `purchase_order_items.sales_order_id` 子查询过滤，非法 UUID 返回 400），附单测；既有参数与返回结构不变。
+
 ### 变更记录（2026-08-02）迭代第 19 轮：订单详情商品明细行内增删改
 
 - 订单详情「商品明细」Tab 补齐明细行编辑闭环（此前仅列表页抽屉可编辑，详情页只读，手工建单后无法从详情页补明细）：可写角色新增「新增明细」按钮与每行「编辑 / 删除」（Popconfirm 确认），弹窗表单数量/单价变更时自动按 数量 × 单价 重算小计（可手工覆盖），保存后刷新详情、规格匹配与成本估算。复用既有 `POST/PUT/DELETE /orders/:id/items` API，无后端与协议变更。

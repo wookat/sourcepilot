@@ -93,11 +93,12 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	out, err := h.Svc.List(c.Request.Context(), ListQuery{
-		Page:       atoiQ(c, "page", 1),
-		PageSize:   atoiQ(c, "pageSize", 20),
-		Status:     c.Query("status"),
-		SupplierID: c.Query("supplierId"),
-		Keyword:    c.Query("keyword"),
+		Page:         atoiQ(c, "page", 1),
+		PageSize:     atoiQ(c, "pageSize", 20),
+		Status:       c.Query("status"),
+		SupplierID:   c.Query("supplierId"),
+		Keyword:      c.Query("keyword"),
+		SalesOrderID: c.Query("salesOrderId"),
 	})
 	if err != nil {
 		handleProcurementError(c, err)

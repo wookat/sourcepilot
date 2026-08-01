@@ -62,7 +62,15 @@ import {
   inventoryTagFromMap,
 } from '@/constants/inventoryLabels';
 import { canWriteOrders } from '@/utils/orderPerm';
-import { fetchOrderCostEstimate, type OrderCostEstimate } from '@/services/procurement';
+import {
+  fetchOrderCostEstimate,
+  fetchPurchaseOrders,
+  generatePurchaseOrders,
+  type GenerateResult,
+  type OrderCostEstimate,
+  type PurchaseOrder,
+} from '@/services/procurement';
+import { PO_STATUS_TAG } from '@/pages/Procurement';
 
 function tagFromMap(raw: string, map: Record<string, { text: string; color: string }>) {
   const cfg = map[raw];
@@ -108,6 +116,9 @@ export default function OrderDetailPage() {
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
   const [invActionLoading, setInvActionLoading] = useState(false);
   const [costEst, setCostEst] = useState<OrderCostEstimate | null>(null);
+  const [relatedPOs, setRelatedPOs] = useState<PurchaseOrder[]>([]);
+  const [genLoading, setGenLoading] = useState(false);
+  const [genResult, setGenResult] = useState<GenerateResult | null>(null);
 
   const openShipModal = (row?: OrderShipmentRow) => {
     shipForm.resetFields();
@@ -153,6 +164,12 @@ export default function OrderDetailPage() {
         setCostEst(await fetchOrderCostEstimate(id));
       } catch {
         setCostEst(null);
+      }
+      try {
+        const pos = await fetchPurchaseOrders({ page: 1, pageSize: 50, salesOrderId: id });
+        setRelatedPOs(pos.items || []);
+      } catch {
+        setRelatedPOs([]);
       }
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载订单失败');
@@ -220,6 +237,31 @@ export default function OrderDetailPage() {
       }}
       extra={
         <Space wrap>
+          {writable && detail?.paymentStatus === 'paid' ? (
+            <Button
+              type="primary"
+              loading={genLoading}
+              onClick={async () => {
+                setGenLoading(true);
+                try {
+                  const res = await generatePurchaseOrders({ orderIds: [id!] });
+                  setGenResult(res);
+                  if ((res.orders || []).length > 0) {
+                    message.success(`已生成 ${res.orders.length} 张采购单`);
+                    await load();
+                  } else if ((res.blockers || []).length === 0) {
+                    message.info('没有可进入采购清单的明细行');
+                  }
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '生成采购单失败');
+                } finally {
+                  setGenLoading(false);
+                }
+              }}
+            >
+              生成采购单
+            </Button>
+          ) : null}
           <Button
             onClick={() =>
               history.push(
@@ -402,6 +444,58 @@ export default function OrderDetailPage() {
                         </>
                       ) : (
                         <Typography.Text type="secondary">暂无可用估算数据</Typography.Text>
+                      )}
+                    </Card>
+                  </Col>
+                  <Col span={24}>
+                    <Card size="small" title="关联采购单">
+                      {relatedPOs.length > 0 ? (
+                        <Table<PurchaseOrder>
+                          rowKey="id"
+                          size="small"
+                          dataSource={relatedPOs}
+                          pagination={false}
+                          scroll={{ x: 640 }}
+                          columns={[
+                            {
+                              title: '采购单',
+                              dataIndex: 'id',
+                              width: 120,
+                              render: (v: string) => (
+                                <Typography.Link onClick={() => history.push(`/procurement/orders/${v}`)}>
+                                  {v.slice(0, 8)}
+                                </Typography.Link>
+                              ),
+                            },
+                            { title: '供应商', dataIndex: 'supplierName', width: 160 },
+                            {
+                              title: '状态',
+                              dataIndex: 'status',
+                              width: 120,
+                              render: (v: string) => tagFromMap(v, PO_STATUS_TAG),
+                            },
+                            {
+                              title: '金额',
+                              dataIndex: 'totalAmount',
+                              width: 120,
+                              render: (v: number, r) => `${r.currency || 'CNY'} ${v}`,
+                            },
+                            { title: '1688 订单号', dataIndex: 'externalOrderId', width: 140, render: (v?: string) => v || '—' },
+                            {
+                              title: '创建时间',
+                              dataIndex: 'createdAt',
+                              width: 170,
+                              render: (v: string) => formatDateTime(v),
+                            },
+                          ]}
+                        />
+                      ) : (
+                        <Typography.Text type="secondary">
+                          该订单暂无关联采购单。
+                          {writable && detail.paymentStatus === 'paid'
+                            ? '可点击右上角「生成采购单」按主货源聚合生成采购清单。'
+                            : '订单标记已付款后可生成采购单。'}
+                        </Typography.Text>
                       )}
                     </Card>
                   </Col>
@@ -771,6 +865,49 @@ export default function OrderDetailPage() {
       ) : (
         !loading && <Alert type="info" message="未找到订单" description="请从订单列表重新进入，或检查是否有访问权限。" />
       )}
+
+      <Modal
+        title="生成采购单结果"
+        open={!!genResult && ((genResult.blockers || []).length > 0 || (genResult.warnings || []).length > 0)}
+        footer={null}
+        onCancel={() => setGenResult(null)}
+      >
+        {(genResult?.blockers || []).length > 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="部分订单行未能进入采购清单"
+            description={
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {(genResult?.blockers || []).map((b, i) => (
+                  <li key={i}>
+                    {b.message}
+                    {b.skuName ? `（${b.skuName}）` : ''}
+                  </li>
+                ))}
+              </ul>
+            }
+          />
+        ) : null}
+        {(genResult?.warnings || []).length > 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="部分明细缺参考进价，采购单金额不含这些行"
+            description={
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {(genResult?.warnings || []).map((w, i) => (
+                  <li key={i}>
+                    {w.message}
+                    {w.skuName ? `（${w.skuName}）` : ''}
+                  </li>
+                ))}
+              </ul>
+            }
+          />
+        ) : null}
+      </Modal>
 
       <Modal
         title={itemModal.row ? '编辑商品明细' : '新增商品明细'}

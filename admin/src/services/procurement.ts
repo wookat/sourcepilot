@@ -130,10 +130,17 @@ export async function fetchPurchaseOrders(params: {
   pageSize?: number;
   status?: string;
   keyword?: string;
+  salesOrderId?: string;
 }) {
   return getWithParams<{ items: PurchaseOrder[]; total: number; page: number; pageSize: number }>(
     '/api/v1/procurement/orders',
-    { page: params.page, pageSize: params.pageSize, status: params.status, keyword: params.keyword },
+    {
+      page: params.page,
+      pageSize: params.pageSize,
+      status: params.status,
+      keyword: params.keyword,
+      salesOrderId: params.salesOrderId,
+    },
   );
 }
 
