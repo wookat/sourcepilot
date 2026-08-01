@@ -204,6 +204,26 @@ export async function deleteOrderShipment(orderId: string, shipmentId: string): 
   return deleteJSON(`/api/v1/orders/${orderId}/shipments/${shipmentId}`);
 }
 
+export type BatchShipmentLineResult = {
+  key: string;
+  orderId?: string;
+  ok: boolean;
+  status?: string;
+  message?: string;
+};
+
+export type BatchShipmentsResult = {
+  succeeded: number;
+  failed: number;
+  results: BatchShipmentLineResult[];
+};
+
+export async function batchCreateOrderShipments(
+  items: { orderNo: string; trackingNo: string; carrier?: string }[],
+): Promise<BatchShipmentsResult> {
+  return postJSON('/api/v1/orders/shipments/batch', { items });
+}
+
 export async function deductOrderInventory(
   orderId: string,
   body?: { syncInventory?: boolean },

@@ -56,6 +56,7 @@ import {
 } from '@/services/orders';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
 import ImportOrdersModal from '@/pages/Orders/ImportOrdersModal';
+import BatchShipModal from '@/pages/Orders/BatchShipModal';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import {
   fetchOrderCostEstimateBatch,
@@ -158,6 +159,7 @@ export default function OrdersPage() {
   const [shipForm] = Form.useForm();
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
   const [importOpen, setImportOpen] = useState(false);
+  const [batchShipOpen, setBatchShipOpen] = useState(false);
   const { search: ordersSearch } = useLocation();
   const [createInvDefaults, setCreateInvDefaults] = useState<{ deduct: boolean; sync: boolean }>({
     deduct: false,
@@ -804,6 +806,13 @@ export default function OrdersPage() {
           <Button key="import" onClick={() => setImportOpen(true)}>
             批量导入订单
           </Button>,
+          ...(writable
+            ? [
+                <Button key="batch-ship" onClick={() => setBatchShipOpen(true)}>
+                  批量发货
+                </Button>,
+              ]
+            : []),
         ]}
         request={async () => {
           // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
@@ -1231,6 +1240,11 @@ export default function OrdersPage() {
       <ImportOrdersModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
+        onDone={() => actionRef.current?.reload()}
+      />
+      <BatchShipModal
+        open={batchShipOpen}
+        onClose={() => setBatchShipOpen(false)}
         onDone={() => actionRef.current?.reload()}
       />
     </TmPageContainer>
