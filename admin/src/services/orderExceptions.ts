@@ -9,6 +9,7 @@ export type OrderExceptionSummary = {
   inventoryRestoreFailed: number;
   inventorySyncFailed: number;
   orderSyncPartialFailed?: number;
+  procurementBlocked?: number;
 };
 
 export type OrderExceptionRow = {
@@ -41,6 +42,7 @@ export type OrderExceptionRow = {
   detailUrl?: string;
   orderUrl?: string;
   taskCenterUrl?: string;
+  sourcingUrl?: string;
   syncTaskId?: string;
   handled: boolean;
   ignored: boolean;

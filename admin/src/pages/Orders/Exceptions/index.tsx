@@ -68,6 +68,7 @@ const EX_TYPES: Record<string, { text: string }> = {
   inventory_sync_failed: { text: '库存同步失败' },
   order_sync_partial_failed: { text: '页级同步失败' },
   missing_order_item: { text: '缺明细' },
+  procurement_blocked: { text: '采购受阻' },
   unknown: { text: '未知' },
 };
 
@@ -491,6 +492,9 @@ export default function OrderExceptionsPage() {
                   <a>重试扣库存</a>
                 </Popconfirm>
               )}
+            {r.exceptionType === 'procurement_blocked' && r.sourcingUrl && (
+              <a onClick={() => history.push(r.sourcingUrl!)}>去货源档案</a>
+            )}
             {r.exceptionType === 'inventory_sync_failed' && (
               <Popconfirm
                 title="重试该库存同步任务？"
@@ -618,6 +622,11 @@ export default function OrderExceptionsPage() {
               <Statistic title="库存同步失败" value={summary.inventorySyncFailed} />
             </Card>
           </Col>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card size="small">
+              <Statistic title="采购受阻" value={summary.procurementBlocked ?? 0} />
+            </Card>
+          </Col>
         </Row>
       ) : null}
 
@@ -629,17 +638,29 @@ export default function OrderExceptionsPage() {
         params={{
           current: tablePage,
           pageSize: tablePageSize,
-          keyword: urlState.keyword,
-          exceptionType: urlState.exceptionType,
-          severity: urlState.severity,
-          platform: urlState.platform,
-          shopId: urlState.shopId,
-          orderId: urlState.orderId,
-          status: urlState.status,
-          start: urlState.start,
-          end: urlState.end,
         }}
         search={{ layout: 'vertical', defaultCollapsed: false }}
+        onSubmit={() => {
+          // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
+          const v = (formRef.current?.getFieldsValue?.() ?? {}) as Record<string, unknown>;
+          const range = v.createdAt as [unknown, unknown] | undefined;
+          setTablePage(1);
+          setUrlState(
+            {
+              page: undefined,
+              keyword: prepareKeyword(v.keyword) || undefined,
+              exceptionType: (v.exceptionType as string | undefined)?.trim() || undefined,
+              severity: (v.severity as string | undefined)?.trim() || undefined,
+              platform: (v.platform as string | undefined)?.trim() || undefined,
+              shopId: (v.shopId as string | undefined)?.trim() || undefined,
+              status: (v.status as string | undefined) || undefined,
+              orderId: (v.orderId as string | undefined)?.trim() || undefined,
+              start: range?.[0] ? dayjs(range[0] as string).toISOString() : undefined,
+              end: range?.[1] ? dayjs(range[1] as string).toISOString() : undefined,
+            },
+            { replace: true },
+          );
+        }}
         onReset={() => {
           setTablePage(1);
           setTablePageSize(20);
@@ -660,41 +681,25 @@ export default function OrderExceptionsPage() {
         }}
         locale={emptyLocale}
         request={async (params) => {
+          // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
           let handled: boolean | undefined;
           let ignored: boolean | undefined;
-          const st = params.status as string | undefined;
+          const st = urlState.status;
           if (st === 'handled') handled = true;
           else if (st === 'ignored') ignored = true;
 
           const qp = {
             page: params.current ?? tablePage,
             pageSize: params.pageSize ?? tablePageSize,
-            exceptionType: (params.exceptionType as string | undefined)?.trim(),
-            severity: (params.severity as string | undefined)?.trim(),
-            platform: (params.platform as string | undefined)?.trim(),
-            shopId: (params.shopId as string | undefined)?.trim(),
-            orderId: (params.orderId as string | undefined)?.trim(),
-            keyword: prepareKeyword(params.keyword),
-            start: typeof params.start === 'string' ? params.start : undefined,
-            end: typeof params.end === 'string' ? params.end : undefined,
+            exceptionType: urlState.exceptionType?.trim(),
+            severity: urlState.severity?.trim(),
+            platform: urlState.platform?.trim(),
+            shopId: urlState.shopId?.trim(),
+            orderId: urlState.orderId?.trim(),
+            keyword: prepareKeyword(urlState.keyword),
+            start: urlState.start,
+            end: urlState.end,
           };
-          setUrlState(
-            {
-              page: Number(qp.page) > 1 ? qp.page : undefined,
-              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
-              keyword: qp.keyword,
-              exceptionType: qp.exceptionType,
-              severity: qp.severity,
-              platform: qp.platform,
-              shopId: qp.shopId,
-              status: st,
-              orderId: qp.orderId,
-              start: qp.start,
-              end: qp.end,
-              source: urlState.source,
-            },
-            { replace: true },
-          );
 
           const res = await queryOrderExceptions({
             page: qp.page,

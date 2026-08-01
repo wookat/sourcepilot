@@ -48,6 +48,7 @@ type Summary struct {
 	OrderExceptionTotal           int64 `json:"orderExceptionTotal"`
 	SKUUnmatchedOrderItems        int64 `json:"skuUnmatchedOrderItems"`
 	InventoryDeductFailedOrders   int64 `json:"inventoryDeductFailedOrders"`
+	ProcurementBlockedOrderItems  int64 `json:"procurementBlockedOrderItems"`
 
 	// 选品 / 货源 / 采购协同（selection & procurement collaboration）
 	SelectionReviewCount           int64 `json:"selectionReviewCount"`

@@ -36,6 +36,7 @@ import {
   Typography,
   message,
 } from 'antd';
+import { useLocation } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const SOURCE_STATUS_TAG: Record<string, { text: string; color: string }> = {
@@ -58,8 +59,14 @@ const SWITCH_MODE: Record<string, string> = {
 };
 
 export default function ProductSourcesPage() {
+  const location = useLocation();
+  const initialProductId = useMemo(() => {
+    const v = new URLSearchParams(location.search).get('productId')?.trim();
+    return v || undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [products, setProducts] = useState<ProductListRow[]>([]);
-  const [productId, setProductId] = useState<string>();
+  const [productId, setProductId] = useState<string | undefined>(initialProductId);
   const [productDetail, setProductDetail] = useState<ProductDetail | null>(null);
   const [sources, setSources] = useState<ProductSource[]>([]);
   const [events, setEvents] = useState<SourceSwitchEvent[]>([]);

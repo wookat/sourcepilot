@@ -34,6 +34,7 @@ export type DashboardSummary = {
   orderExceptionTotal: number;
   skuUnmatchedOrderItems: number;
   inventoryDeductFailedOrders: number;
+  procurementBlockedOrderItems: number;
   /** 选品 / 货源 / 采购协同 */
   selectionReviewCount: number;
   selectionFailedTasks: number;

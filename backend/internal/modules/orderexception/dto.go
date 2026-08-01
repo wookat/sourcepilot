@@ -29,6 +29,7 @@ type ExceptionSummaryDTO struct {
 	InventoryRestoreFailed int64 `json:"inventoryRestoreFailed"`
 	InventorySyncFailed    int64 `json:"inventorySyncFailed"`
 	OrderSyncPartial       int64 `json:"orderSyncPartialFailed"`
+	ProcurementBlocked     int64 `json:"procurementBlocked"`
 }
 
 // ListOrderExceptionsResult is the list payload.
@@ -70,6 +71,7 @@ type OrderExceptionDTO struct {
 	OrderURL        string    `json:"orderUrl,omitempty"`
 	TaskCenterURL   string    `json:"taskCenterUrl,omitempty"`
 	InventoryURL    string    `json:"inventoryUrl,omitempty"`
+	SourcingURL     string    `json:"sourcingUrl,omitempty"`
 	SyncTaskID      string    `json:"syncTaskId,omitempty"`
 	Handled         bool      `json:"handled"`
 	Ignored         bool      `json:"ignored"`
