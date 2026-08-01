@@ -207,6 +207,16 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     link: '/orders/exceptions?exceptionType=negative_margin',
   },
   {
+    id: 'order_await_procurement',
+    key: 'order_await_procurement',
+    title: '订单待采购',
+    count: 0,
+    severity: 'high',
+    level: 'danger',
+    description: '已付款订单尚未生成采购单，请到订单详情生成采购清单',
+    link: '/orders/list?payStatus=paid&hasPurchase=0',
+  },
+  {
     id: 'order_await_shipment',
     key: 'order_await_shipment',
     title: '订单待发货',

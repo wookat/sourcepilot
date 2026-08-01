@@ -122,6 +122,7 @@ export async function queryOrders(params: {
   inventoryDeductStatus?: string;
   syncStatus?: string;
   hasException?: boolean;
+  hasPurchase?: '0' | '1';
   start?: string;
   end?: string;
 }): Promise<{

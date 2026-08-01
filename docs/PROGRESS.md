@@ -892,6 +892,12 @@ Final Production Acceptance Deferred to P10
 - `ALLOWED_QUERY_KEYS` 补 `operationStep`（商品草稿运营进度筛选）与 `customerName`（客服会话买家筛选）；客服会话布尔筛选（待回复/有 AI 建议/发送失败/有关联订单）URL 采用 `1`/`0`，兼容既有 `replyStatus`/`aiSuggestionStatus`/`sendStatus` 深链。
 - 修复真实测试发现的既有后端 P1：`GET /api/v1/task-center/failures` 对 tenant>0 用户必报 400（PostgreSQL 42703）。根因是统一的 `tenant_id = ?` 过滤被套到了自身没有 `tenant_id` 列的失败源表上。新增 `applyTenantListFilterVia`：`image_tasks` 经 `products` 限定租户（`product_id IS NULL` 的工具级任务保留可见）、`ai_product_text_items`/`ai_product_image_items` 经各自 batches 表、`customer_failure_events` 经 `shops` 表；附 sqlite DryRun SQL 回归单测。
 
+### 变更记录（2026-08-02）迭代第 22 轮：首页「订单待采购」待办卡 + 订单列表采购覆盖筛选
+
+- `GET /api/v1/orders` 新增可选 `hasPurchase` 三态过滤（`1`/`0`，缺省不过滤），按「任一明细行被未取消/未失败采购单覆盖」判定（与生成采购单防重同一口径的 EXISTS 子查询），并纳入游标分页 scope 指纹。
+- 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
+- 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
+
 ### 变更记录（2026-08-02）迭代第 21 轮：采购单详情反向直达销售订单 + 生成结果弹窗分组
 
 - 采购单详情补「采购 → 出单」反向直达：概览新增「来源销售订单」（去重短 ID 链接直达订单详情），采购明细每行新增「来源订单」列；纯前端复用既有 `purchase_order_items.salesOrderId`，无后端变更。

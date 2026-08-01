@@ -87,6 +87,7 @@ type ListQuery struct {
 	InventoryDeductStatus string
 	SyncStatus            string
 	HasException          bool
+	HasPurchase           *bool
 	Start                 *time.Time
 	End                   *time.Time
 }
@@ -173,10 +174,25 @@ func orderCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) 
 		"inventoryDeductStatus": q.InventoryDeductStatus,
 		"syncStatus":            q.SyncStatus,
 		"hasException":          q.HasException,
+		"hasPurchase":           hasPurchaseKey(q.HasPurchase),
 		"start":                 q.Start,
 		"end":                   q.End,
 		"sort":                  "created_at_desc_id_desc",
 	}), shopScope
+}
+
+// activePOCoverageExists matches orders having at least one line covered by a
+// non-cancelled / non-failed purchase order (same rule as generate dedupe).
+const activePOCoverageExists = "EXISTS (SELECT 1 FROM purchase_order_items poi JOIN purchase_orders po2 ON po2.id = poi.purchase_order_id WHERE poi.sales_order_id = orders.id AND po2.status NOT IN ('cancelled','failed'))"
+
+func hasPurchaseKey(v *bool) string {
+	if v == nil {
+		return ""
+	}
+	if *v {
+		return "1"
+	}
+	return "0"
 }
 
 func (s *Service) validateShopRef(c *gin.Context, id *uuid.UUID) error {
@@ -484,6 +500,13 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if v := strings.TrimSpace(q.FulfillmentStatus); v != "" {
 		tx = tx.Where("fulfillment_status = ?", v)
+	}
+	if q.HasPurchase != nil {
+		if *q.HasPurchase {
+			tx = tx.Where(activePOCoverageExists)
+		} else {
+			tx = tx.Where("NOT " + activePOCoverageExists)
+		}
 	}
 	if q.Start != nil {
 		tx = tx.Where("created_at >= ?", *q.Start)

@@ -134,6 +134,7 @@ func (s *Service) GetTodos(ctx context.Context, q Query, sc Scope) (*TodosDTO, e
 		unifiedTodo("order_sku_unmatched", "P0", "订单 SKU 未匹配", "平台订单行尚未绑定本地 SKU", "order", "", "/orders/exceptions?exceptionType=sku_unmatched", sum.SKUUnmatchedOrderItems),
 		unifiedTodo("procurement_blocked", "P0", "订单采购受阻", "已付款订单缺主货源或 SKU 映射，无法生成采购单", "procurement", "", "/orders/exceptions?exceptionType=procurement_blocked", sum.ProcurementBlockedOrderItems),
 		unifiedTodo("order_negative_margin", "P0", "订单利润为负", "已付款订单预估毛利为负，发货前请复核价格或货源", "order", "", "/orders/exceptions?exceptionType=negative_margin", sum.NegativeMarginOrderCount),
+		unifiedTodo("order_await_procurement", "P1", "订单待采购", "已付款订单尚未生成采购单，请到订单详情生成采购清单", "procurement", "", "/orders/list?payStatus=paid&hasPurchase=0", sum.AwaitProcurementOrderCount),
 		unifiedTodo("order_await_shipment", "P1", "订单待发货", "已付款销售订单尚未发货，请添加物流并发货", "order", "", "/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled", sum.AwaitShipmentOrderCount),
 		unifiedTodo("selection_review", "P1", "选品待审核", "已打分候选商品等待人工审核或转草稿", "selection", "", "/selection/tasks", sum.SelectionReviewCount),
 		unifiedTodo("selection_failed", "P1", "选品任务失败", "选品任务处理失败，可查看原因后重建", "selection", "", "/selection/tasks", sum.SelectionFailedTasks),

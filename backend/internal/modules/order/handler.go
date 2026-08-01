@@ -95,6 +95,10 @@ func (h *Handler) List(c *gin.Context) {
 		HasException: strings.EqualFold(strings.TrimSpace(c.Query("hasException")), "true") ||
 			strings.TrimSpace(c.Query("hasException")) == "1",
 	}
+	if raw := strings.TrimSpace(c.Query("hasPurchase")); raw != "" {
+		v := strings.EqualFold(raw, "true") || raw == "1"
+		q.HasPurchase = &v
+	}
 	q.UseCursor = q.Cursor != "" || q.Limit > 0
 	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
 		if u, err := uuid.Parse(raw); err == nil {

@@ -567,6 +567,8 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | --- | --- | --- |
 | `POST` | `/api/v1/orders/import` | 批量创建手工销售订单：`{orders:[CreateBody], matchSkus?}`，单批 ≤200 张；订单号已存在（库内或批内重复）返回 `skipped_duplicate` 不重复建单，单张失败不影响其余；`matchSkus=true` 时创建后自动按 SKU 编码匹配本地规格。返回 `{total, created, duplicate, failed, results[]}`（含逐单 `itemsMatched`）。手工订单创建（含单张 `POST /orders`）会写入当前租户 `tenant_id`。 |
 
+`GET /api/v1/orders` 支持可选 `hasPurchase` 过滤（`1`/`true`＝已有未取消/未失败采购单覆盖任一明细行，`0`/`false`＝无；缺省不过滤），与生成采购单防重的覆盖判定同一口径；首页「订单待采购」待办卡使用 `payStatus=paid&hasPurchase=0` 直达。
+
 对应管理端入口：`/orders` 工具栏「批量导入订单」，粘贴格式 `订单号,客户名,商品标题,SKU编码,数量,单价[,币种]`，同订单号多行合并为多明细。
 
 ### 销售订单发货（物流回填与状态流转）

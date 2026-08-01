@@ -81,6 +81,7 @@ const ORDER_QUERY_KEYS = [
   'platform',
   'shopId',
   'hasException',
+  'hasPurchase',
   'source',
   'start',
   'end',
@@ -245,12 +246,14 @@ export default function OrdersPage() {
       platform: urlState.platform,
       shopId: urlState.shopId,
       hasException: urlState.hasException,
+      hasPurchase: urlState.hasPurchase,
       createdAt: queryTimeRange(urlState.start, urlState.end),
     });
     actionRef.current?.reload();
   }, [
     urlState.fulfillmentStatus,
     urlState.hasException,
+    urlState.hasPurchase,
     urlState.inventoryStatus,
     urlState.keyword,
     urlState.page,
@@ -399,6 +402,16 @@ export default function OrdersPage() {
         valueEnum: {
           true: { text: '有异常' },
           false: { text: '无异常' },
+        },
+      },
+      {
+        title: '采购覆盖',
+        dataIndex: 'hasPurchase',
+        hideInTable: true,
+        valueType: 'select',
+        valueEnum: {
+          '1': { text: '已生成采购单' },
+          '0': { text: '未生成采购单' },
         },
       },
       {
@@ -671,6 +684,7 @@ export default function OrdersPage() {
               platform: (v.platform as string | undefined)?.trim() || undefined,
               shopId: (v.shopId as string | undefined)?.trim() || undefined,
               hasException: String(v.hasException ?? '') === 'true' ? 'true' : undefined,
+              hasPurchase: ['0', '1'].includes(String(v.hasPurchase ?? '')) ? String(v.hasPurchase) : undefined,
               start: range?.[0] ? dayjs(range[0] as string).toISOString() : undefined,
               end: range?.[1] ? dayjs(range[1] as string).toISOString() : undefined,
             },
@@ -749,6 +763,9 @@ export default function OrdersPage() {
             status: urlState.status?.trim(),
             fulfillmentStatus: urlState.fulfillmentStatus?.trim(),
             hasException: urlState.hasException === 'true' ? true : undefined,
+            hasPurchase: ['0', '1'].includes(String(urlState.hasPurchase ?? ''))
+              ? (urlState.hasPurchase as '0' | '1')
+              : undefined,
             start: urlState.start,
             end: urlState.end,
           };
@@ -764,6 +781,7 @@ export default function OrdersPage() {
             skuMatchStatus: qp.skuMatchStatus,
             inventoryDeductStatus: qp.inventoryDeductStatus,
             hasException: qp.hasException,
+            hasPurchase: qp.hasPurchase,
             start: qp.start,
             end: qp.end,
           });
