@@ -137,6 +137,7 @@ func (s *Service) GetTodos(ctx context.Context, q Query, sc Scope) (*TodosDTO, e
 		unifiedTodo("order_await_payment", "P1", "订单待收款确认", "未付款销售订单，确认买家已付款后可批量标记已付款并进入采购", "order", "", "/orders/list?payStatus=unpaid", sum.AwaitPaymentOrderCount),
 		unifiedTodo("order_await_procurement", "P1", "订单待采购", "已付款订单尚未生成采购单，请到订单详情生成采购清单", "procurement", "", "/orders/list?payStatus=paid&hasPurchase=0", sum.AwaitProcurementOrderCount),
 		unifiedTodo("order_await_shipment", "P1", "订单待发货", "已付款销售订单尚未发货，请添加物流并发货", "order", "", "/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled", sum.AwaitShipmentOrderCount),
+		unifiedTodo("order_in_transit", "P2", "订单在途待送达", "已发货订单等待买家签收，确认送达后可批量标记送达", "order", "", "/orders/list?status=shipped", sum.InTransitOrderCount),
 		unifiedTodo("selection_review", "P1", "选品待审核", "已打分候选商品等待人工审核或转草稿", "selection", "", "/selection/tasks", sum.SelectionReviewCount),
 		unifiedTodo("selection_failed", "P1", "选品任务失败", "选品任务处理失败，可查看原因后重建", "selection", "", "/selection/tasks", sum.SelectionFailedTasks),
 		unifiedTodo("source_price_alert", "P1", "货源涨价预警", "进货价上涨，建议调价或切换备选货源", "sourcing", "", "/sourcing/product-sources", sum.SourcePriceAlertCount),

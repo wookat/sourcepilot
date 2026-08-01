@@ -181,6 +181,7 @@ export default function OrdersPage() {
   const [batchGenLoading, setBatchGenLoading] = useState(false);
   const [batchPayLoading, setBatchPayLoading] = useState(false);
   const [batchExportLoading, setBatchExportLoading] = useState(false);
+  const [batchDeliverLoading, setBatchDeliverLoading] = useState(false);
   const [genResult, setGenResult] = useState<GenerateResult | null>(null);
 
   const selectedPaidIds = useMemo(
@@ -204,6 +205,13 @@ export default function OrdersPage() {
             r.paymentStatus === 'unpaid' &&
             !TERMINAL_ORDER_STATUSES.includes(r.status),
         )
+        .map((r) => r.id),
+    [tableRows, selectedRowKeys],
+  );
+  const selectedShippedIds = useMemo(
+    () =>
+      tableRows
+        .filter((r) => selectedRowKeys.includes(r.id) && r.status === 'shipped')
         .map((r) => r.id),
     [tableRows, selectedRowKeys],
   );
@@ -245,6 +253,33 @@ export default function OrdersPage() {
       setBatchExportLoading(false);
     }
   }, [selectedPaidIds]);
+
+  const handleBatchMarkDelivered = useCallback(async () => {
+    const ids = selectedShippedIds;
+    if (ids.length === 0) return;
+    setBatchDeliverLoading(true);
+    const failures: string[] = [];
+    let ok = 0;
+    try {
+      for (const id of ids) {
+        try {
+          await updateOrder(id, {
+            status: 'delivered',
+            deliveredAt: new Date().toISOString(),
+          });
+          ok += 1;
+        } catch (e: unknown) {
+          failures.push((e as Error)?.message || id);
+        }
+      }
+      if (ok > 0) message.success(`已标记 ${ok} 单为已送达`);
+      if (failures.length > 0) message.error(`${failures.length} 单标记失败：${failures[0]}`);
+      setSelectedRowKeys([]);
+      actionRef.current?.reload();
+    } finally {
+      setBatchDeliverLoading(false);
+    }
+  }, [selectedShippedIds]);
 
   const handleBatchGenerate = useCallback(async () => {
     const ids = selectedPaidIds;
@@ -809,6 +844,14 @@ export default function OrdersPage() {
               onClick={() => void handleBatchExportShipping()}
             >
               批量导出发货清单（{selectedPaidIds.length}）
+            </Button>
+            <Button
+              size="small"
+              loading={batchDeliverLoading}
+              disabled={selectedShippedIds.length === 0}
+              onClick={() => void handleBatchMarkDelivered()}
+            >
+              批量标记送达（{selectedShippedIds.length}）
             </Button>
             <a onClick={onCleanSelected}>取消选择</a>
           </Space>

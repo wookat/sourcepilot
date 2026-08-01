@@ -338,6 +338,9 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 			[]string{order.StatusShipped, order.StatusDelivered, order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
 		Count(&sum.AwaitShipmentOrderCount).Error
 	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+		Where("status = ?", order.StatusShipped).
+		Count(&sum.InTransitOrderCount).Error
+	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
 		Where("payment_status = ? AND fulfillment_status = ? AND status NOT IN ?",
 			order.PaymentPaid, order.FulfillmentUnfulfilled,
 			[]string{order.StatusShipped, order.StatusDelivered, order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
@@ -596,6 +599,8 @@ func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 			"已付款订单尚未生成采购单，请到订单详情生成采购清单", "/orders/list?payStatus=paid&hasPurchase=0"),
 		todoCard("order_await_shipment", "订单待发货", sum.AwaitShipmentOrderCount, failureclassifier.SeverityHigh,
 			"已付款销售订单尚未发货，请添加物流并发货", "/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled"),
+		todoCard("order_in_transit", "订单在途待送达", sum.InTransitOrderCount, failureclassifier.SeverityMedium,
+			"已发货订单等待买家签收，确认送达后可批量标记送达", "/orders/list?status=shipped"),
 		todoCard("customer_pending", "客服待回复", sum.CustomerPendingReplyCount, failureclassifier.SeverityHigh,
 			"买家消息等待人工处理", "/customer/conversations?status=pending_reply"),
 		todoCard("failed_tasks", "失败任务待处理", sum.FailedTaskTotal, failureclassifier.SeverityCritical,

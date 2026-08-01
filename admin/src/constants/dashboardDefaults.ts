@@ -237,6 +237,16 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     link: '/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled',
   },
   {
+    id: 'order_in_transit',
+    key: 'order_in_transit',
+    title: '订单在途待送达',
+    count: 0,
+    severity: 'medium',
+    level: 'warning',
+    description: '已发货订单等待买家签收，确认送达后可批量标记送达',
+    link: '/orders/list?status=shipped',
+  },
+  {
     id: 'procurement_placing',
     key: 'procurement_placing',
     title: '待去 1688 下单',

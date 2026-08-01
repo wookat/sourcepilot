@@ -51,6 +51,7 @@ type Summary struct {
 	ProcurementBlockedOrderItems  int64 `json:"procurementBlockedOrderItems"`
 	NegativeMarginOrderCount      int64 `json:"negativeMarginOrderCount"`
 	AwaitShipmentOrderCount       int64 `json:"awaitShipmentOrderCount"`
+	InTransitOrderCount           int64 `json:"inTransitOrderCount"`
 	AwaitProcurementOrderCount    int64 `json:"awaitProcurementOrderCount"`
 	AwaitPaymentOrderCount        int64 `json:"awaitPaymentOrderCount"`
 
