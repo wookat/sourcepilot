@@ -885,6 +885,11 @@ Final Production Acceptance Deferred to P10
 - 新增 `GET /api/v1/procurement/cost-estimates/:id`（id 为销售订单）：按主货源 SKU 映射参考价（缺价回退最近历史进价，与生成采购单同口径）逐行估算 CNY 采购成本；订单币种为 CNY（汇率恒 1）或已配置 `settings.pricing.exchangeRate`（CNY→订单币种）时折算 `estimatedCost` 并计算 `grossProfit`/`marginPercent`（任一行缺价时不计算毛利）；问题行以 `issueCode`（`sku.unmatched`/`source.missing`/`mapping.missing`/`price.missing`）返回。procurement.Service 新增 `SettingsReader` 依赖（接口解耦），附 sqlite 单测（含汇率折算、缺价、CNY 订单三条路径）。
 - Admin 订单详情「订单概览」新增「成本 / 毛利估算」卡：销售额、预估采购成本（CNY + 折算）、预估毛利（正绿负红）、毛利率；缺价行与未配置汇率分别以 Alert 提示。
 - 顺带闭环第 12 轮 P3：库存手工扣减/回滚成功 toast 不再直出后端摘要原文 `ok`，改为结构化中文（成功/幂等跳过 + 原因）。
+
+### 变更记录（2026-08-01）迭代第 14 轮：订单列表预估毛利列
+
+- 新增 `POST /api/v1/procurement/cost-estimates/batch`：批量（≤50）返回订单成本/毛利汇总（复用单订单估算口径），不存在的订单省略；附单测（去重 + 缺失订单跳过）。
+- Admin 订单列表新增「预估毛利」列：正毛利绿色 / 负毛利红色（含毛利率），缺参考进价显示「缺价」标记、未配置汇率显示「未配汇率」标记（tooltip 说明配置入口）；估算请求异步进行，失败不阻塞列表加载。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
 ### 变更记录（2026-08-01）迭代第 12 轮：订单详情补库存手工操作入口

@@ -12,6 +12,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/procurement/orders/batch-logistics", h.BatchLogistics)
 	g.GET("/procurement/orders", h.List)
 	g.GET("/procurement/cost-estimates/:id", h.CostEstimate)
+	g.POST("/procurement/cost-estimates/batch", h.CostEstimateBatch)
 	g.GET("/procurement/orders/:id", h.Detail)
 	g.GET("/procurement/orders/:id/export.csv", h.ExportCSV)
 	g.POST("/procurement/orders/:id/submit", h.Submit)

@@ -124,6 +124,40 @@ func (h *Handler) CostEstimate(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// CostEstimateBatch POST /procurement/cost-estimates/batch
+func (h *Handler) CostEstimateBatch(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "procurement unavailable")
+		return
+	}
+	var body struct {
+		OrderIDs []string `json:"orderIds"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || len(body.OrderIDs) == 0 {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
+		return
+	}
+	if len(body.OrderIDs) > MaxBatchEstimateOrders {
+		response.Fail(c, 400, response.CodeBadRequest, "too many orderIds")
+		return
+	}
+	ids := make([]uuid.UUID, 0, len(body.OrderIDs))
+	for _, raw := range body.OrderIDs {
+		u, err := uuid.Parse(strings.TrimSpace(raw))
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid order id")
+			return
+		}
+		ids = append(ids, u)
+	}
+	out, err := h.Svc.EstimateOrderCostBatch(c.Request.Context(), ids)
+	if err != nil {
+		handleProcurementError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"items": out})
+}
+
 // Detail GET /procurement/orders/:id
 func (h *Handler) Detail(c *gin.Context) {
 	if !h.ok() {

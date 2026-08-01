@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 )
@@ -109,6 +110,35 @@ func TestEstimateOrderCostMissingRateAndPrice(t *testing.T) {
 	}
 	if out.MissingLines != 1 || out.Lines[0].IssueCode != "price.missing" {
 		t.Fatalf("expected price.missing line, got %+v", out.Lines)
+	}
+}
+
+func TestEstimateOrderCostBatch(t *testing.T) {
+	f := setupFixture(t)
+	f.svc.Settings = mapSettings{"exchangeRate": "0.14"}
+	if err := f.svc.DB.Model(&order.Order{}).Where("id = ?", f.orderID).
+		Update("total_amount", 30.0).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	missing := uuid.New()
+	out, err := f.svc.EstimateOrderCostBatch(context.Background(),
+		[]uuid.UUID{f.orderID, f.orderID, missing})
+	if err != nil {
+		t.Fatalf("batch estimate: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("expected 1 summary (dedup + missing skipped), got %d", len(out))
+	}
+	sum, ok := out[f.orderID.String()]
+	if !ok {
+		t.Fatalf("missing summary for order, got %+v", out)
+	}
+	if sum.EstimatedCostCNY != 29.7 || sum.GrossProfit == nil || *sum.GrossProfit != 25.84 {
+		t.Fatalf("unexpected summary %+v", sum)
+	}
+	if sum.MissingLines != 0 {
+		t.Fatalf("expected no missing lines, got %+v", sum)
 	}
 }
 

@@ -99,6 +99,25 @@ export async function fetchOrderCostEstimate(orderId: string) {
   return getJSON<OrderCostEstimate>(`/api/v1/procurement/cost-estimates/${orderId}`);
 }
 
+export type OrderCostEstimateSummary = {
+  orderId: string;
+  currency: string;
+  totalAmount: number;
+  estimatedCostCny: number;
+  exchangeRate?: number;
+  estimatedCost?: number;
+  grossProfit?: number;
+  marginPercent?: number;
+  missingLines: number;
+};
+
+export async function fetchOrderCostEstimateBatch(orderIds: string[]) {
+  return postJSON<{ items: Record<string, OrderCostEstimateSummary> }>(
+    '/api/v1/procurement/cost-estimates/batch',
+    { orderIds },
+  );
+}
+
 export async function generatePurchaseOrders(body: {
   orderIds: string[];
   idempotencyKey?: string;

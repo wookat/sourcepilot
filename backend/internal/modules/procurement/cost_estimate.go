@@ -44,6 +44,52 @@ type OrderCostEstimateDTO struct {
 	Lines            []CostEstimateLine `json:"lines"`
 }
 
+// CostEstimateSummary is one order's compact cost/profit summary for list views.
+type CostEstimateSummary struct {
+	OrderID          string   `json:"orderId"`
+	Currency         string   `json:"currency"`
+	TotalAmount      float64  `json:"totalAmount"`
+	EstimatedCostCNY float64  `json:"estimatedCostCny"`
+	ExchangeRate     *float64 `json:"exchangeRate,omitempty"`
+	EstimatedCost    *float64 `json:"estimatedCost,omitempty"`
+	GrossProfit      *float64 `json:"grossProfit,omitempty"`
+	MarginPercent    *float64 `json:"marginPercent,omitempty"`
+	MissingLines     int      `json:"missingLines"`
+}
+
+// MaxBatchEstimateOrders caps POST /procurement/cost-estimates/batch.
+const MaxBatchEstimateOrders = 50
+
+// EstimateOrderCostBatch estimates several orders at once (for list views);
+// orders that no longer exist are omitted from the result map.
+func (s *Service) EstimateOrderCostBatch(ctx context.Context, ids []uuid.UUID) (map[string]CostEstimateSummary, error) {
+	out := make(map[string]CostEstimateSummary, len(ids))
+	for _, id := range ids {
+		if _, done := out[id.String()]; done {
+			continue
+		}
+		est, err := s.EstimateOrderCost(ctx, id)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return nil, err
+		}
+		out[id.String()] = CostEstimateSummary{
+			OrderID:          est.OrderID,
+			Currency:         est.Currency,
+			TotalAmount:      est.TotalAmount,
+			EstimatedCostCNY: est.EstimatedCostCNY,
+			ExchangeRate:     est.ExchangeRate,
+			EstimatedCost:    est.EstimatedCost,
+			GrossProfit:      est.GrossProfit,
+			MarginPercent:    est.MarginPercent,
+			MissingLines:     est.MissingLines,
+		}
+	}
+	return out, nil
+}
+
 // SettingsReader decouples procurement from the settings module implementation.
 type SettingsReader interface {
 	PlainByGroup(ctx context.Context, tenantID int64, groupKey string) (map[string]string, error)

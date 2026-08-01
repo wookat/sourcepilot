@@ -15,6 +15,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from 'antd';
@@ -56,6 +57,10 @@ import {
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
 import ImportOrdersModal from '@/pages/Orders/ImportOrdersModal';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
+import {
+  fetchOrderCostEstimateBatch,
+  type OrderCostEstimateSummary,
+} from '@/services/procurement';
 import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
 import { pickGroup } from '@/utils/settingsForm';
@@ -153,6 +158,7 @@ export default function OrdersPage() {
     sync: false,
   });
   const [invEffectRows, setInvEffectRows] = useState<OrderInventoryEffectRow[]>([]);
+  const [costMap, setCostMap] = useState<Record<string, OrderCostEstimateSummary>>({});
   const [invActionLoading, setInvActionLoading] = useState(false);
   const detailIdRef = useRef<string | undefined>();
 
@@ -419,6 +425,47 @@ export default function OrdersPage() {
         render: (_, r) => `${r.currency} ${r.totalAmount}`,
       },
       {
+        title: '预估毛利',
+        dataIndex: 'estimatedProfit',
+        search: false,
+        width: 132,
+        render: (_, r) => {
+          const est = costMap[r.id];
+          if (!est) return '—';
+          if (est.missingLines > 0) {
+            return (
+              <Tooltip title={`${est.missingLines} 行缺参考进价，无法估算成本`}>
+                <Tag color="warning">缺价</Tag>
+              </Tooltip>
+            );
+          }
+          if (est.exchangeRate == null) {
+            return (
+              <Tooltip title="未配置汇率，无法折算毛利（定价设置 → 默认汇率）">
+                <Tag>未配汇率</Tag>
+              </Tooltip>
+            );
+          }
+          if (est.grossProfit == null) return '—';
+          const color = est.grossProfit >= 0 ? '#3f8600' : '#cf1322';
+          return (
+            <Tooltip
+              title={`预估采购成本 CNY ${est.estimatedCostCny.toFixed(2)}，汇率 ${est.exchangeRate}`}
+            >
+              <span style={{ color, fontWeight: 500 }}>
+                {r.currency} {est.grossProfit.toFixed(2)}
+                {est.marginPercent != null ? (
+                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                    {' '}
+                    {est.marginPercent.toFixed(1)}%
+                  </Typography.Text>
+                ) : null}
+              </span>
+            </Tooltip>
+          );
+        },
+      },
+      {
         title: '物流',
         dataIndex: 'latestShipmentStatus',
         search: false,
@@ -482,7 +529,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [shopOptions, keywordFieldProps],
+    [shopOptions, keywordFieldProps, costMap],
   );
 
   const openItemModal = (row?: OrderItemRow) => {
@@ -720,6 +767,14 @@ export default function OrdersPage() {
             start: qp.start,
             end: qp.end,
           });
+          const ids = res.list.map((r) => r.id).filter(Boolean);
+          if (ids.length > 0) {
+            void fetchOrderCostEstimateBatch(ids.slice(0, 50))
+              .then((out) => setCostMap((prev) => ({ ...prev, ...out.items })))
+              .catch(() => {
+                /* 估算失败不阻塞列表 */
+              });
+          }
           return { data: res.list, total: res.pagination.total, success: true };
         }}
         pagination={{
