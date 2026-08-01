@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -339,5 +340,76 @@ func TestCreateSessionBindsAccessTokenSessionID(t *testing.T) {
 	var refresh AuthRefreshToken
 	if err := db.First(&refresh, "session_id = ?", res.SessionID.String()).Error; err != nil {
 		t.Fatalf("refresh token not bound to session: %v", err)
+	}
+}
+
+func TestRefreshLegacyModePrefersBodyOverStaleCookie(t *testing.T) {
+	testID := uuid.NewString()
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", testID)), &gorm.Config{})
+	if err != nil {
+		t.Skipf("sqlite unavailable: %v", err)
+	}
+	if err := db.AutoMigrate(&AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &admin.AdminUser{}); err != nil {
+		t.Fatal(err)
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte("test-password-123"), bcrypt.MinCost)
+	uid := uuid.New()
+	email := fmt.Sprintf("test-%s@example.com", testID)
+	if err := db.Create(&admin.AdminUser{
+		Base:         model.Base{ID: uid},
+		Username:     "testuser-" + testID,
+		Email:        email,
+		PasswordHash: string(hash),
+		Role:         "admin",
+		Status:       "active",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	secureCfg := &config.Config{
+		JWTSecret: "test-jwt-secret-with-enough-length-32",
+		Auth: config.AuthConfig{
+			SessionMode:           config.AuthSessionModeSecure,
+			AccessTokenTTLMinutes: 15,
+			RefreshTokenTTLDays:   7,
+		},
+	}
+	svc := &SessionService{Cfg: secureCfg, DB: db, Admins: &admin.Store{DB: db}}
+	res, err := svc.CreateSession(context.Background(), email, "test-password-123", "127.0.0.1", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 先旋转一次，制造已作废的旧令牌（模拟 secure_session 时期遗留的 cookie）
+	rotated, err := svc.RotateRefresh(context.Background(), res.RefreshToken, "127.0.0.1", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleCookieToken := res.RefreshToken
+	validBodyToken := rotated.RefreshToken
+
+	legacyCfg := &config.Config{
+		JWTSecret: "test-jwt-secret-with-enough-length-32",
+		Auth: config.AuthConfig{
+			SessionMode:           config.AuthSessionModeLegacy,
+			AccessTokenTTLMinutes: 15,
+			RefreshTokenTTLDays:   7,
+		},
+	}
+	h := &SessionHandler{
+		Cfg:      legacyCfg,
+		Sessions: &SessionService{Cfg: legacyCfg, DB: db, Admins: &admin.Store{DB: db}},
+		DB:       db,
+	}
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest("POST", "/api/v1/auth/refresh",
+		bytes.NewBufferString(fmt.Sprintf(`{"refreshToken":%q}`, validBodyToken)))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: staleCookieToken})
+	req.RemoteAddr = "127.0.0.1:12345"
+	c.Request = req
+	h.Refresh(c)
+	if w.Code != 200 {
+		t.Fatalf("legacy refresh with stale cookie + valid body = %d, want 200 (body=%s)", w.Code, w.Body.String())
 	}
 }
