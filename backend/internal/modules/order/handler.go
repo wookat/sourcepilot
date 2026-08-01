@@ -28,6 +28,17 @@ func (h *Handler) denyWrite(c *gin.Context) bool {
 	return false
 }
 
+// requireWrite is the route-level guard for order write endpoints.
+func (h *Handler) requireWrite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if h.denyWrite(c) {
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 // Handler exposes order HTTP routes.
 type Handler struct {
 	Svc *Service
