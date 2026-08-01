@@ -653,10 +653,6 @@ export default function OrdersPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
-        params={{
-          current: tablePage,
-          pageSize: tablePageSize,
-        }}
         search={{ layout: 'vertical', defaultCollapsed: false }}
         onSubmit={() => {
           // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
@@ -674,7 +670,7 @@ export default function OrdersPage() {
               fulfillmentStatus: (v.fulfillmentStatus as string | undefined)?.trim() || undefined,
               platform: (v.platform as string | undefined)?.trim() || undefined,
               shopId: (v.shopId as string | undefined)?.trim() || undefined,
-              hasException: v.hasException === 'true' ? 'true' : undefined,
+              hasException: String(v.hasException ?? '') === 'true' ? 'true' : undefined,
               start: range?.[0] ? dayjs(range[0] as string).toISOString() : undefined,
               end: range?.[1] ? dayjs(range[1] as string).toISOString() : undefined,
             },
@@ -733,11 +729,11 @@ export default function OrdersPage() {
             批量导入订单
           </Button>,
         ]}
-        request={async (params) => {
+        request={async () => {
           // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
           const qp = {
-            page: params.current ?? tablePage,
-            pageSize: params.pageSize ?? tablePageSize,
+            page: parsePositiveInt(urlState.page, 1),
+            pageSize: parsePositiveInt(urlState.pageSize, 20),
             platform: urlState.platform?.trim(),
             shopId: urlState.shopId?.trim(),
             keyword: prepareKeyword(urlState.keyword),
