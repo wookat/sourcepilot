@@ -903,6 +903,10 @@ Final Production Acceptance Deferred to P10
 - 订单列表批量操作条新增「批量标记送达（N）」：仅统计所选 `status=shipped` 订单，逐单复用既有 `PUT /orders/:id`（`status=delivered` + `deliveredAt`），闭环销售订单生命周期最后一步（导入 → 付款 → 采购 → 发货 → 送达）。
 - 首页/统一待办新增「订单在途待送达」卡（`order_in_transit`）：已发货订单数，直达 `/orders/list?status=shipped`；前端 `DEFAULT_TODOS` 同步补 key（沿用第15/18/22轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 35 轮：订单列表批量操作条移动端可触达（换行修复）
+
+- 订单列表 ProTable 批量操作条（tableAlertOptionRender）`Space` 增加 `wrap`，并在 `global.less` 为 `.ant-pro-table-alert-info` 增加 `flex-wrap: wrap`，修复 375px 窄屏下操作条 nowrap 被 `ant-layout-content overflow:hidden` 裁剪、右侧批量按钮（生成采购单/标记已付款/导出发货清单/标记送达）不可见且无法滚动触达的问题（第 34 轮 E2E P3 观察项）。
+
 ### 变更记录（2026-08-02）迭代第 33 轮：订单批量导出发货清单 CSV
 
 - 新增 `GET /api/v1/orders/shipping-list/export.csv?ids=`：合并导出所选销售订单（去重后 ≤50 个）的发货清单（订单号/客户名/电话/商品/SKU/数量/币种/金额），「快递单号(回填)」「承运商(回填)」列留空供线下打单后粘贴回「批量发货」；租户隔离，任一 id 不在租户内返回 404，UTF-8 BOM 兼容 Excel（复用采购清单导出模式，附单测）。

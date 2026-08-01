@@ -819,7 +819,7 @@ export default function OrdersPage() {
             : undefined
         }
         tableAlertOptionRender={({ onCleanSelected }) => (
-          <Space>
+          <Space wrap>
             <Button
               type="primary"
               size="small"

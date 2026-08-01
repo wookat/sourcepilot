@@ -492,6 +492,16 @@ body,
     gap: 4px;
   }
 
+  /* 批量操作提示条：窄屏下允许换行，避免右侧批量按钮被裁剪不可触达 */
+  .ant-pro-table-alert-info {
+    flex-wrap: wrap;
+    row-gap: 8px;
+
+    &-option {
+      max-width: 100%;
+    }
+  }
+
   .ant-pro-table-list-toolbar-setting-item {
     display: inline-flex !important;
     align-items: center;
