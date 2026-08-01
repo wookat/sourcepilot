@@ -252,7 +252,7 @@ export default function ProcurementOrdersPage() {
           options={Object.entries(PO_STATUS_TAG).map(([value, cfg]) => ({ value, label: cfg.text }))}
         />
       </Space>
-      {writable && selectedRowKeys.length > 0 && (
+      {writable && (
         <Alert
           type="info"
           style={{ marginBottom: 12 }}
@@ -292,7 +292,12 @@ export default function ProcurementOrdersPage() {
               >
                 批量标记签收（{selectedShippedCount}）
               </Button>
-              <Button size="small" loading={batchActionLoading} onClick={() => void runBatchExport()}>
+              <Button
+                size="small"
+                loading={batchActionLoading}
+                disabled={selectedRowKeys.length === 0}
+                onClick={() => void runBatchExport()}
+              >
                 批量导出清单（{selectedRowKeys.length}）
               </Button>
               <a onClick={() => setSelectedRowKeys([])}>取消选择</a>

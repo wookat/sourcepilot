@@ -809,6 +809,7 @@ export default function OrdersPage() {
           writable
             ? {
                 selectedRowKeys,
+                alwaysShowAlert: true,
                 onChange: (keys) => setSelectedRowKeys(keys.map(String)),
                 getCheckboxProps: (r) => ({
                   disabled:
