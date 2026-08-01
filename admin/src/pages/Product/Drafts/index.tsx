@@ -65,6 +65,7 @@ const DRAFT_QUERY_KEYS = [
   'publishStatus',
   'aiStatus',
   'source',
+  'operationStep',
   'missingAiTitle',
   'missingAiDescription',
   'readiness',
@@ -267,15 +268,20 @@ export default function ProductDraftsPage() {
     formRef.current?.setFieldsValue?.({
       keyword: urlState.keyword || urlFilters.keyword,
       status: urlState.status || urlFilters.status,
+      source: urlState.source || urlFilters.navSource,
+      operationStep: urlState.operationStep,
     });
     actionRef.current?.reload();
   }, [
     location.search,
     urlFilters.keyword,
+    urlFilters.navSource,
     urlFilters.status,
     urlState.keyword,
+    urlState.operationStep,
     urlState.page,
     urlState.pageSize,
+    urlState.source,
     urlState.status,
   ]);
 
@@ -625,14 +631,20 @@ export default function ProductDraftsPage() {
         locale={draftTableLocale}
         actionRef={actionRef}
         formRef={formRef}
-        params={{
-          current: tablePage,
-          pageSize: tablePageSize,
-          keyword: urlState.keyword || urlFilters.keyword,
-          status: urlState.status || urlFilters.status,
-          platform: urlState.platform || urlFilters.platform,
-          shopId: urlState.shopId || urlFilters.shopId,
-          source: urlState.source || urlFilters.navSource,
+        onSubmit={() => {
+          // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
+          const v = (formRef.current?.getFieldsValue?.() ?? {}) as Record<string, unknown>;
+          setTablePage(1);
+          setUrlState(
+            {
+              page: undefined,
+              keyword: prepareKeyword(v.keyword) || undefined,
+              status: (v.status as string | undefined)?.trim() || undefined,
+              source: (v.source as string | undefined)?.trim() || undefined,
+              operationStep: (v.operationStep as string | undefined)?.trim() || undefined,
+            },
+            { replace: true },
+          );
         }}
         onReset={() => {
           setTablePage(1);
@@ -673,51 +685,22 @@ export default function ProductDraftsPage() {
         }}
         options={{ reload: true, density: true, setting: true }}
         headerTitle="商品草稿列表"
-        request={async (params) => {
-          setListFilters({
-            keyword: params.keyword as string | undefined,
-            status: params.status as string | undefined,
-            source: params.source as string | undefined,
-            operationStep: params.operationStep as string | undefined,
-          });
+        request={async () => {
+          // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
           const qp = {
-            page: params.current ?? tablePage,
-            pageSize: params.pageSize ?? tablePageSize,
-            keyword: prepareKeyword(params.keyword),
-            status: urlFilters.status || (params.status as string | undefined)?.trim(),
-            source: (params.source as string | undefined)?.trim(),
-            operationStep: (params.operationStep as string | undefined)?.trim(),
+            page: parsePositiveInt(urlState.page, 1),
+            pageSize: parsePositiveInt(urlState.pageSize, 20),
+            keyword: prepareKeyword(urlState.keyword || urlFilters.keyword),
+            status: urlFilters.status || urlState.status?.trim(),
+            source: (urlState.source || urlFilters.navSource)?.trim(),
+            operationStep: urlState.operationStep?.trim(),
           };
-          const nextAiStatus = urlFilters.missingAiTitle
-            ? 'missing_title'
-            : urlFilters.missingAiDescription
-              ? 'missing_description'
-              : undefined;
-          const nextPublishStatus = urlFilters.readinessBlocked
-            ? 'blocked'
-            : urlFilters.publishable
-              ? 'publishable'
-              : qp.status === 'published'
-                ? 'published'
-                : undefined;
-          setUrlState(
-            {
-              page: Number(qp.page) > 1 ? qp.page : undefined,
-              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
-              keyword: qp.keyword,
-              status: qp.status,
-              platform: urlState.platform || urlFilters.platform,
-              shopId: urlState.shopId || urlFilters.shopId,
-              publishStatus: nextPublishStatus,
-              aiStatus: nextAiStatus,
-              source: qp.source || urlFilters.navSource || undefined,
-              missingAiTitle: urlFilters.missingAiTitle ? '1' : undefined,
-              missingAiDescription: urlFilters.missingAiDescription ? '1' : undefined,
-              readiness: urlFilters.readinessBlocked ? 'blocked' : undefined,
-              publishable: urlFilters.publishable ? '1' : undefined,
-            },
-            { replace: true },
-          );
+          setListFilters({
+            keyword: qp.keyword,
+            status: qp.status,
+            source: qp.source,
+            operationStep: qp.operationStep,
+          });
           try {
             const res = await fetchProducts({
               page: qp.page,

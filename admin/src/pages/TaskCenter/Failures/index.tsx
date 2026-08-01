@@ -214,6 +214,7 @@ export default function TaskCenterFailuresPage() {
       keyword: urlState.keyword,
       timeRange: queryTimeRange(urlState.start, urlState.end),
     });
+    actionRef.current?.reload();
   }, [
     urlState.end,
     urlState.failureCategory,
@@ -837,22 +838,30 @@ export default function TaskCenterFailuresPage() {
           columns={columns}
           actionRef={actionRef}
           formRef={formRef}
-          params={{
-            current: tablePage,
-            pageSize: tablePageSize,
-            taskType: urlState.taskType,
-            normalizedStatus: urlState.normalizedStatus,
-            failureCategory: urlState.failureCategory,
-            recoveryStatus: urlState.recoveryStatus,
-            severity: urlState.severity,
-            platform: urlState.platform,
-            shopId: urlState.shopId,
-            keyword: urlState.keyword,
-            start: urlState.start,
-            end: urlState.end,
-          }}
           search={{
             labelWidth: 'auto',
+          }}
+          onSubmit={() => {
+            // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
+            const v = (formRef.current?.getFieldsValue?.() ?? {}) as Record<string, unknown>;
+            const range = v.timeRange as [unknown, unknown] | undefined;
+            setTablePage(1);
+            setUrlState(
+              {
+                page: undefined,
+                taskType: (v.taskType as string | undefined)?.trim() || undefined,
+                normalizedStatus: (v.normalizedStatus as string | undefined)?.trim() || undefined,
+                failureCategory: (v.failureCategory as string | undefined)?.trim() || undefined,
+                recoveryStatus: (v.recoveryStatus as string | undefined)?.trim() || undefined,
+                severity: (v.severity as string | undefined)?.trim() || undefined,
+                platform: (v.platform as string | undefined)?.trim() || undefined,
+                shopId: (v.shopId as string | undefined)?.trim() || undefined,
+                keyword: prepareKeyword(v.keyword) || undefined,
+                start: range?.[0] ? dayjs(range[0] as string).toISOString() : undefined,
+                end: range?.[1] ? dayjs(range[1] as string).toISOString() : undefined,
+              },
+              { replace: true },
+            );
           }}
           onReset={() => {
             listFilterRef.current = { includeResolved: false, includeMarked: false };
@@ -884,20 +893,20 @@ export default function TaskCenterFailuresPage() {
           scroll={{ x: 1680 }}
           tableAlertRender={false}
           locale={emptyLocale}
-          request={async (params, sort, filter) => {
-            const kw = prepareKeyword(params.keyword) ?? '';
+          request={async () => {
+            // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
             try {
               const qp: Record<string, string | number | undefined> = {
-                page: params.current ?? tablePage,
-                pageSize: params.pageSize ?? tablePageSize,
-                taskType: (params.taskType as string | undefined)?.trim(),
-                normalizedStatus: (params.normalizedStatus as string | undefined)?.trim(),
-                platform: (params.platform as string | undefined)?.trim(),
-                shopId: (params.shopId as string | undefined)?.trim(),
-                keyword: kw || undefined,
-                failureCategory: (params.failureCategory as string | undefined)?.trim(),
-                severity: (params.severity as string | undefined)?.trim(),
-                recoveryStatus: (params.recoveryStatus as string | undefined)?.trim(),
+                page: parsePositiveInt(urlState.page, 1),
+                pageSize: parsePositiveInt(urlState.pageSize, 20),
+                taskType: urlState.taskType?.trim(),
+                normalizedStatus: urlState.normalizedStatus?.trim(),
+                platform: urlState.platform?.trim(),
+                shopId: urlState.shopId?.trim(),
+                keyword: prepareKeyword(urlState.keyword) || undefined,
+                failureCategory: urlState.failureCategory?.trim(),
+                severity: urlState.severity?.trim(),
+                recoveryStatus: urlState.recoveryStatus?.trim(),
               };
               if (listFilterRef.current.includeResolved) {
                 qp.includeResolved = 'true';
@@ -905,27 +914,8 @@ export default function TaskCenterFailuresPage() {
               if (listFilterRef.current.includeMarked) {
                 qp.includeMarked = 'true';
               }
-              if (typeof params.start === 'string' && params.start) qp.start = params.start;
-              if (typeof params.end === 'string' && params.end) qp.end = params.end;
-              setUrlState(
-                {
-                  page: Number(qp.page) > 1 ? qp.page : undefined,
-                  pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
-                  taskType: qp.taskType,
-                  normalizedStatus: qp.normalizedStatus,
-                  platform: qp.platform,
-                  shopId: qp.shopId,
-                  keyword: qp.keyword,
-                  failureCategory: qp.failureCategory,
-                  severity: qp.severity,
-                  recoveryStatus: qp.recoveryStatus,
-                  start: qp.start,
-                  end: qp.end,
-                  includeResolved: listFilterRef.current.includeResolved,
-                  includeMarked: listFilterRef.current.includeMarked,
-                },
-                { replace: true },
-              );
+              if (urlState.start) qp.start = urlState.start;
+              if (urlState.end) qp.end = urlState.end;
               const data = await queryTaskFailures(qp);
               setSummary(data.summary);
               return { data: data.list, total: data.total, success: true };
