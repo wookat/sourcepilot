@@ -150,7 +150,12 @@ export default function OrderExceptionsPage() {
   };
   const writable = !isReadonly(initialState?.currentUser?.role);
   const screens = Grid.useBreakpoint();
-  const wideScreen = screens.md !== false;
+  const [wideScreen, setWideScreen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 768,
+  );
+  useEffect(() => {
+    if (screens.md !== undefined) setWideScreen(screens.md);
+  }, [screens.md]);
   const emptyLocale = useListEmptyLocale('orderExceptions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -742,6 +747,7 @@ export default function OrderExceptionsPage() {
       ) : null}
 
       <ProTable<OrderExceptionRow>
+        key={wideScreen ? 'wide' : 'narrow'}
         rowKey={(r) => `${r.exceptionType}-${r.sourceType}-${r.sourceId}`}
         actionRef={actionRef}
         formRef={formRef}
