@@ -35,10 +35,12 @@ import {
 } from '@/constants/status';
 import {
   createOrderShipment,
+  deductOrderInventory,
   deleteOrderShipment,
   getOrder,
   getOrderInventoryEffects,
   getOrderSKUMatches,
+  restoreOrderInventory,
   updateOrder,
   updateOrderShipment,
   type OrderDetailDTO,
@@ -62,6 +64,13 @@ function tagFromMap(raw: string, map: Record<string, { text: string; color: stri
   return <Tag color={cfg.color}>{cfg.text}</Tag>;
 }
 
+function summarizeInvResp(sum?: Record<string, unknown>) {
+  if (!sum) return '';
+  if (sum.skipped) return `跳过：${String(sum.skipReason || '')}`;
+  if (typeof sum.message === 'string' && sum.message) return sum.message;
+  return '已完成';
+}
+
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -81,6 +90,7 @@ export default function OrderDetailPage() {
   });
   const [shipForm] = Form.useForm();
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
+  const [invActionLoading, setInvActionLoading] = useState(false);
 
   const openShipModal = (row?: OrderShipmentRow) => {
     shipForm.resetFields();
@@ -422,6 +432,55 @@ export default function OrderDetailPage() {
                     <Typography.Link href={`/orders/exceptions?orderId=${encodeURIComponent(detail.id)}&exceptionType=inventory`}>
                       库存异常
                     </Typography.Link>
+                    {writable ? (
+                      <>
+                        <Popconfirm
+                          title="扣减绑定 SKU 的本地库存（幂等，重复执行不会重复扣减）"
+                          onConfirm={async () => {
+                            setInvActionLoading(true);
+                            try {
+                              const r = await deductOrderInventory(detail.id, { syncInventory: false });
+                              message.success(
+                                summarizeInvResp(r.inventoryDeduction as Record<string, unknown>),
+                              );
+                              await load();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '失败');
+                            } finally {
+                              setInvActionLoading(false);
+                            }
+                          }}
+                        >
+                          <Button size="small" loading={invActionLoading}>
+                            手工扣库存
+                          </Button>
+                        </Popconfirm>
+                        <Popconfirm
+                          title="回滚本订单已成功扣减的库存（幂等，仅对已成功扣减且未回补的行生效）"
+                          onConfirm={async () => {
+                            setInvActionLoading(true);
+                            try {
+                              const r = await restoreOrderInventory(detail.id, {
+                                syncInventory: false,
+                                reason: 'manual_ui',
+                              });
+                              message.success(
+                                summarizeInvResp(r.inventoryRestoration as Record<string, unknown>),
+                              );
+                              await load();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '失败');
+                            } finally {
+                              setInvActionLoading(false);
+                            }
+                          }}
+                        >
+                          <Button size="small" danger loading={invActionLoading}>
+                            手工回滚库存
+                          </Button>
+                        </Popconfirm>
+                      </>
+                    ) : null}
                   </Space>
                   <Table
                     rowKey="id"

@@ -880,6 +880,10 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-08-01）迭代第 12 轮：订单详情补库存手工操作入口
+
+- Admin 订单详情「库存影响」Tab 新增「手工扣库存」「手工回滚库存」按钮（Popconfirm 确认，`canWriteOrders` 权限内可见），分别调既有 `POST /orders/:id/deduct-inventory` / `POST /orders/:id/restore-inventory`（`syncInventory=false`，回滚 reason=`manual_ui`），成功后刷新详情与影响流水。此前该入口位于旧列表页死代码 Drawer 中（第 8 轮详情页化遗留），restore 链路 UI 不可达。后端 API 无改动。
+
 ### 变更记录（2026-08-01）迭代第 11 轮：采购签收自动入库
 
 - 新增：采购单「标记签收」（shipped → delivered）现同事务将每条采购明细数量加回本地 SKU 库存，并写入 `inventory_change_logs`（`change_type=purchase_inbound`，含 before/after/delta 与采购单号 remark），通过 `business_event_key` 每行幂等，重复入库自动跳过。此前签收只改物流状态，采购入库后本地库存不会增加，库存只减不增无法反映真实可售量。缺 SKU/数量≤0/SKU 不存在的行跳过并记录原因，不阻塞签收。签收事件 payload 记录逐行入库结果，操作日志记录累计入库数量。
