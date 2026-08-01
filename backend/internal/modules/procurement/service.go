@@ -170,6 +170,21 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 				})
 				continue
 			}
+			var covered int64
+			if err := s.DB.WithContext(ctx).Model(&PurchaseOrderItem{}).
+				Joins("JOIN purchase_orders po ON po.id = purchase_order_items.purchase_order_id").
+				Where("purchase_order_items.sales_order_id = ? AND purchase_order_items.local_sku_id = ? AND po.status NOT IN ?",
+					oid, *it.ProductSKUID, []string{StatusCancelled, StatusFailed}).
+				Count(&covered).Error; err != nil {
+				return nil, err
+			}
+			if covered > 0 {
+				res.Warnings = append(res.Warnings, Blocker{
+					OrderID: oid.String(), LocalSKUID: it.ProductSKUID.String(), SKUName: it.SKUName,
+					Code: "line.covered", Message: "该明细已有有效采购单覆盖，未重复生成；如需重新采购请先取消原采购单",
+				})
+				continue
+			}
 			var primary sourcing.ProductSource
 			err := s.DB.WithContext(ctx).Preload("Supplier").
 				Where("product_id = ? AND is_primary = TRUE AND status <> ?", *it.ProductID, sourcing.SourceStatusDisabled).

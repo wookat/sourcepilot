@@ -115,6 +115,32 @@ func TestGenerateAggregatesBySupplierAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestGenerateSkipsLinesCoveredByActivePO(t *testing.T) {
+	f := setupFixture(t)
+	first := generate(t, f, "key-covered-1")
+	if len(first.Orders) != 1 {
+		t.Fatalf("expected 1 purchase order, got %+v", first)
+	}
+	// second request (different idempotency key) must not duplicate covered lines
+	second := generate(t, f, "key-covered-2")
+	if len(second.Orders) != 0 {
+		t.Fatalf("expected no duplicate purchase order, got %+v", second.Orders)
+	}
+	if len(second.Warnings) == 0 || second.Warnings[0].Code != "line.covered" {
+		t.Fatalf("expected line.covered warning, got %+v", second.Warnings)
+	}
+	// cancelling the original purchase order frees the lines again
+	if err := f.svc.DB.Model(&PurchaseOrder{}).
+		Where("id = ?", first.Orders[0].ID).
+		Update("status", StatusCancelled).Error; err != nil {
+		t.Fatal(err)
+	}
+	third := generate(t, f, "key-covered-3")
+	if len(third.Orders) != 1 {
+		t.Fatalf("expected regeneration after cancel, got %+v", third)
+	}
+}
+
 func TestGenerateReportsBlockers(t *testing.T) {
 	f := setupFixture(t)
 	// an order item without local SKU link

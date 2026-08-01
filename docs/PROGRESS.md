@@ -896,6 +896,7 @@ Final Production Acceptance Deferred to P10
 
 - 订单详情补「出单 → 采购」直达闭环（此前需跳到采购协同页在下拉里逐个找订单）：已付款订单右上角新增「生成采购单」按钮（复用 `POST /procurement/orders/generate`，blockers/warnings 以弹窗展示）；概览新增「关联采购单」卡片，展示该订单聚合出的采购单（状态 / 供应商 / 金额 / 1688 订单号，链接直达采购单详情）。
 - `GET /procurement/orders` 新增可选 `salesOrderId` 查询参数（经 `purchase_order_items.sales_order_id` 子查询过滤，非法 UUID 返回 400），附单测；既有参数与返回结构不变。
+- `POST /procurement/orders/generate` 增加跨请求防重：订单明细行已被未取消/未失败采购单覆盖时跳过并返回 `line.covered` warning，取消原采购单后可重新生成（E2E 发现重复点击会生成重复采购单，修复并附单测）。
 
 ### 变更记录（2026-08-02）迭代第 19 轮：订单详情商品明细行内增删改
 
