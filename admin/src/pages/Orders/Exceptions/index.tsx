@@ -2,7 +2,7 @@ import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-des
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
-import { history } from '@umijs/max';
+import { history, useModel } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -43,6 +43,7 @@ import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
 import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { appendSourceToUrl, parsePositiveInt, queryTimeRange } from '@/utils/urlState';
+import { isReadonly } from '@/utils/permission';
 
 const EXCEPTION_QUERY_KEYS = [
   'page',
@@ -143,6 +144,10 @@ function candTrustBadge(conf: number) {
 }
 
 export default function OrderExceptionsPage() {
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: { role?: string } };
+  };
+  const writable = !isReadonly(initialState?.currentUser?.role);
   const emptyLocale = useListEmptyLocale('orderExceptions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -471,10 +476,10 @@ export default function OrderExceptionsPage() {
             {(r.exceptionType === 'sku_unmatched' || r.exceptionType === 'sku_ambiguous') && (
               <>
                 <a onClick={() => void openCandModalOnly(r)}>查看候选</a>
-                <a onClick={() => openBind(r)}>绑定 SKU（候选）</a>
+                {writable && <a onClick={() => openBind(r)}>绑定 SKU（候选）</a>}
               </>
             )}
-            {r.orderId &&
+            {writable && r.orderId &&
               (r.exceptionType === 'insufficient_stock' ||
                 r.exceptionType === 'inventory_deduct_failed' ||
                 r.exceptionType === 'sku_unmatched') && (
@@ -499,7 +504,7 @@ export default function OrderExceptionsPage() {
             {r.exceptionType === 'negative_margin' && r.orderUrl && (
               <a onClick={() => history.push(r.orderUrl!)}>去订单复核</a>
             )}
-            {r.exceptionType === 'inventory_sync_failed' && (
+            {writable && r.exceptionType === 'inventory_sync_failed' && (
               <Popconfirm
                 title="重试该库存同步任务？"
                 onConfirm={async () => {
@@ -526,6 +531,7 @@ export default function OrderExceptionsPage() {
             >
               详情
             </a>
+            {writable && (
             <a
               onClick={() => {
                 let remark = '';
@@ -553,6 +559,8 @@ export default function OrderExceptionsPage() {
             >
               已处理
             </a>
+            )}
+            {writable && (
             <a
               onClick={() => {
                 Modal.confirm({
@@ -567,6 +575,8 @@ export default function OrderExceptionsPage() {
             >
               忽略
             </a>
+            )}
+            {writable && (
             <Popconfirm
               title="取消标记并回到待处理列表？"
               onConfirm={async () => {
@@ -577,11 +587,12 @@ export default function OrderExceptionsPage() {
             >
               <a>取消标记</a>
             </Popconfirm>
+            )}
           </Space>
         ),
       },
     ],
-    [reload, shopOpts, openCandModalOnly, openBind, keywordFieldProps],
+    [reload, shopOpts, openCandModalOnly, openBind, keywordFieldProps, writable],
   );
 
   return (

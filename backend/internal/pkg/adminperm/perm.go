@@ -3,6 +3,8 @@ package adminperm
 import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
 const (
@@ -133,4 +135,18 @@ func CanViewStore(c *gin.Context, db *gorm.DB) bool {
 func CanOperateStore(c *gin.Context, db *gorm.DB) bool {
 	p, _ := LoadPrincipal(c, db)
 	return p != nil && !p.IsReadonly() && p.Can(PermStoreOperate)
+}
+
+// RequireWritable is a route-level middleware that rejects readonly
+// principals on write endpoints with 403.
+func RequireWritable(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		p, _ := LoadPrincipal(c, db)
+		if p == nil || p.IsReadonly() {
+			response.Fail(c, 403, response.CodeForbidden, "当前账号为只读权限，无法执行此操作")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
 }
