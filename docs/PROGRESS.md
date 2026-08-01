@@ -898,6 +898,11 @@ Final Production Acceptance Deferred to P10
 - 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
 - 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 33 轮：订单批量导出发货清单 CSV
+
+- 新增 `GET /api/v1/orders/shipping-list/export.csv?ids=`：合并导出所选销售订单（去重后 ≤50 个）的发货清单（订单号/客户名/电话/商品/SKU/数量/币种/金额），「快递单号(回填)」「承运商(回填)」列留空供线下打单后粘贴回「批量发货」；租户隔离，任一 id 不在租户内返回 404，UTF-8 BOM 兼容 Excel（复用采购清单导出模式，附单测）。
+- 订单列表批量操作条新增「批量导出发货清单（N）」，计数与「批量生成采购单」同口径（所选 paid 且非终态订单），导出不清空选择；闭环「待发货订单 → 导出清单打快递单 → 批量发货回填」动线。
+
 ### 变更记录（2026-08-02）迭代第 32 轮：订单详情「取消订单」入口 + 订单列表终态行禁选
 
 - 订单详情右上角新增「取消订单」（可写角色且非终态订单，Popconfirm 确认），复用既有 `PUT /orders/:id` 的 `status=cancelled` 更新路径；已扣减库存按既有 `AutoRestoreCancelledOrders` 策略自动回滚，取消后订单自动移出待收款/待采购/待发货待办口径。
