@@ -758,6 +758,7 @@ export default function OrderExceptionsPage() {
             ? {
                 selectedRowKeys: selectedKeys,
                 preserveSelectedRowKeys: true,
+                alwaysShowAlert: true,
                 onChange: (keys, rows) => {
                   setSelectedKeys(keys);
                   setSelectedRows(rows);
