@@ -71,6 +71,55 @@ func atoiQ(c *gin.Context, key string, def int) int {
 	return n
 }
 
+// MaxShippingListExportOrders caps how many sales orders one merged shipping CSV can cover.
+const MaxShippingListExportOrders = 50
+
+// ExportShippingListCSV GET /orders/shipping-list/export.csv?ids=id1,id2
+func (h *Handler) ExportShippingListCSV(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	raw := strings.Split(c.Query("ids"), ",")
+	ids := make([]uuid.UUID, 0, len(raw))
+	seen := map[uuid.UUID]bool{}
+	for _, r := range raw {
+		r = strings.TrimSpace(r)
+		if r == "" {
+			continue
+		}
+		u, err := uuid.Parse(r)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid order id")
+			return
+		}
+		if seen[u] {
+			continue
+		}
+		seen[u] = true
+		ids = append(ids, u)
+	}
+	if len(ids) == 0 {
+		response.Fail(c, 400, response.CodeBadRequest, "ids required")
+		return
+	}
+	if len(ids) > MaxShippingListExportOrders {
+		response.Fail(c, 400, response.CodeBadRequest, "too many ids")
+		return
+	}
+	data, name, err := h.Svc.ExportShippingListCSV(c, ids)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="`+name+`"`)
+	c.Data(200, "text/csv; charset=utf-8", data)
+}
+
 // List GET /orders
 func (h *Handler) List(c *gin.Context) {
 	if h == nil || h.Svc == nil {

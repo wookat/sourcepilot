@@ -42,6 +42,7 @@ import {
   deleteOrder,
   deleteOrderItem,
   deleteOrderShipment,
+  downloadOrdersShippingCsv,
   getOrderInventoryEffects,
   getOrder,
   queryOrders,
@@ -179,6 +180,7 @@ export default function OrdersPage() {
   const [tableRows, setTableRows] = useState<OrderListRow[]>([]);
   const [batchGenLoading, setBatchGenLoading] = useState(false);
   const [batchPayLoading, setBatchPayLoading] = useState(false);
+  const [batchExportLoading, setBatchExportLoading] = useState(false);
   const [genResult, setGenResult] = useState<GenerateResult | null>(null);
 
   const selectedPaidIds = useMemo(
@@ -229,6 +231,20 @@ export default function OrdersPage() {
       setBatchPayLoading(false);
     }
   }, [selectedUnpaidIds]);
+
+  const handleBatchExportShipping = useCallback(async () => {
+    const ids = selectedPaidIds;
+    if (ids.length === 0) return;
+    setBatchExportLoading(true);
+    try {
+      await downloadOrdersShippingCsv(ids);
+      message.success(`已导出 ${ids.length} 单发货清单`);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '导出失败');
+    } finally {
+      setBatchExportLoading(false);
+    }
+  }, [selectedPaidIds]);
 
   const handleBatchGenerate = useCallback(async () => {
     const ids = selectedPaidIds;
@@ -785,6 +801,14 @@ export default function OrdersPage() {
               onClick={() => void handleBatchMarkPaid()}
             >
               批量标记已付款（{selectedUnpaidIds.length}）
+            </Button>
+            <Button
+              size="small"
+              loading={batchExportLoading}
+              disabled={selectedPaidIds.length === 0}
+              onClick={() => void handleBatchExportShipping()}
+            >
+              批量导出发货清单（{selectedPaidIds.length}）
             </Button>
             <a onClick={onCleanSelected}>取消选择</a>
           </Space>

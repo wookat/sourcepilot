@@ -1,4 +1,5 @@
 import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
+import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import type { OrderInventoryEffectRow, PaginatedInventory } from '@/services/inventory';
 
 export type OrderShipmentRow = {
@@ -158,6 +159,28 @@ export async function importOrders(payload: {
   matchSkus?: boolean;
 }): Promise<OrderImportSummary> {
   return postJSON('/api/v1/orders/import', payload);
+}
+
+export async function downloadOrdersShippingCsv(ids: string[]) {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const resp = await fetch(
+    `/api/v1/orders/shipping-list/export.csv?ids=${encodeURIComponent(ids.join(','))}`,
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    },
+  );
+  if (!resp.ok) {
+    throw new Error(`export failed: ${resp.status}`);
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `shipping-list-${ids.length}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export type SalesAmount = {
