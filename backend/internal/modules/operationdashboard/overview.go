@@ -144,6 +144,7 @@ func (s *Service) GetTodos(ctx context.Context, q Query, sc Scope) (*TodosDTO, e
 		unifiedTodo("procurement_placing", "P0", "待去 1688 下单", "已确认采购单等待到 1688 下单并回填订单号", "procurement", "", "/procurement/orders?status=placing", sum.ProcurementPlacingCount),
 		unifiedTodo("procurement_unpaid", "P0", "采购单待付款", "已下单未付款，请到 1688 完成付款并标记", "procurement", "", "/procurement/orders?status=placed", sum.ProcurementUnpaidCount),
 		unifiedTodo("procurement_await_tracking", "P1", "待回填运单号", "已付款采购单等待回填快递单号（支持批量粘贴）", "procurement", "", "/procurement/orders?status=paid", sum.ProcurementAwaitTrackingCount),
+		unifiedTodo("procurement_await_receipt", "P1", "采购单待签收", "已发货采购单等待签收，签收后自动入库本地库存", "procurement", "", "/procurement/orders?status=shipped", sum.ProcurementAwaitReceiptCount),
 		unifiedTodo("inventory_sync_failed", "P1", "库存同步失败", "平台库存同步未成功", "inventory", "", "/inventory/sync-tasks?status=failed", sum.InventorySyncFailedCount),
 		unifiedTodo("low_stock", "P1", "低库存 / 零库存", "建议补货或调整预警线", "inventory", "", "/inventory/alerts", sum.LowStockSkus+sum.OutOfStockSkus),
 		unifiedTodo("customer_pending", "P1", "客服待回复", "买家消息等待人工处理", "customer", "", "/customer/conversations?status=pending_reply", sum.CustomerPendingReplyCount),

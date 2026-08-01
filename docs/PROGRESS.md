@@ -898,6 +898,12 @@ Final Production Acceptance Deferred to P10
 - 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
 - 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 30 轮：采购单批量标记签收 + 首页「采购单待签收」待办卡
+
+- 采购单列表 `shipped` 状态可勾选，批量操作条新增「批量标记签收（N）」，逐单调用既有 `mark-delivered` API（沿用第11轮签收自动入库与幂等语义），按状态分组计数、逐单汇总失败原因。
+- 首页/统一待办新增「采购单待签收」卡（`procurement_await_receipt`）：已发货采购单数，直达 `/procurement/orders?status=shipped`；`DEFAULT_TODOS` 同步补 key（沿用第15/18/22轮 allowlist 经验）。
+- 采购批量生命周期入口闭环：提交 → 确认 → 导出 → 标记付款 → 标记签收（自动入库）。
+
 ### 变更记录（2026-08-02）迭代第 29 轮：首页经营概览统计
 
 - 新增 `GET /api/v1/orders/stats/sales`：按创建时间统计今日/近7日/近30日订单数、已付款数、已发货数与分币种已付款销售额（租户内、软删订单不计入）；附单测。

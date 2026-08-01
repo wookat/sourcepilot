@@ -7,6 +7,7 @@ import {
   downloadPurchaseOrdersBatchCsv,
   fetchPurchaseOrders,
   generatePurchaseOrders,
+  markPurchaseOrderDelivered,
   markPurchaseOrderPaid,
   submitPurchaseOrder,
   type GenerateResult,
@@ -42,10 +43,10 @@ export const PO_STATUS_TAG: Record<string, { text: string; color: string }> = {
   cancelled: { text: '已取消', color: 'default' },
 };
 
-const BATCH_SELECTABLE_STATUSES = ['draft', 'pending_confirm', 'placing', 'placed'];
+const BATCH_SELECTABLE_STATUSES = ['draft', 'pending_confirm', 'placing', 'placed', 'shipped'];
 
 const BATCH_ACTIONS: Record<
-  'draft' | 'pending_confirm' | 'placed',
+  'draft' | 'pending_confirm' | 'placed' | 'shipped',
   { actionText: string; emptyText: string; run: (id: string) => Promise<unknown> }
 > = {
   draft: {
@@ -62,6 +63,11 @@ const BATCH_ACTIONS: Record<
     actionText: '标记付款',
     emptyText: '所选中没有已下单状态的采购单',
     run: (id) => markPurchaseOrderPaid(id),
+  },
+  shipped: {
+    actionText: '标记签收',
+    emptyText: '所选中没有已发货状态的采购单',
+    run: (id) => markPurchaseOrderDelivered(id),
   },
 };
 
@@ -108,7 +114,7 @@ export default function ProcurementOrdersPage() {
   }, [load]);
 
   const runBatchAction = useCallback(
-    async (targetStatus: 'draft' | 'pending_confirm' | 'placed') => {
+    async (targetStatus: 'draft' | 'pending_confirm' | 'placed' | 'shipped') => {
       const action = BATCH_ACTIONS[targetStatus];
       const targets = rows.filter(
         (r) => selectedRowKeys.includes(r.id) && r.status === targetStatus,
@@ -173,6 +179,9 @@ export default function ProcurementOrdersPage() {
   ).length;
   const selectedPlacedCount = rows.filter(
     (r) => selectedRowKeys.includes(r.id) && r.status === 'placed',
+  ).length;
+  const selectedShippedCount = rows.filter(
+    (r) => selectedRowKeys.includes(r.id) && r.status === 'shipped',
   ).length;
 
   const openGenerate = async () => {
@@ -270,6 +279,14 @@ export default function ProcurementOrdersPage() {
                 onClick={() => void runBatchAction('placed')}
               >
                 批量标记付款（{selectedPlacedCount}）
+              </Button>
+              <Button
+                size="small"
+                loading={batchActionLoading}
+                disabled={selectedShippedCount === 0}
+                onClick={() => void runBatchAction('shipped')}
+              >
+                批量标记签收（{selectedShippedCount}）
               </Button>
               <Button size="small" loading={batchActionLoading} onClick={() => void runBatchExport()}>
                 批量导出清单（{selectedRowKeys.length}）

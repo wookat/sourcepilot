@@ -256,6 +256,16 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     description: '已付款采购单等待回填快递单号（支持批量粘贴）',
     link: '/procurement/orders?status=paid',
   },
+  {
+    id: 'procurement_await_receipt',
+    key: 'procurement_await_receipt',
+    title: '采购单待签收',
+    count: 0,
+    severity: 'medium',
+    level: 'warning',
+    description: '已发货采购单等待签收，签收后自动入库本地库存',
+    link: '/procurement/orders?status=shipped',
+  },
 ];
 
 export const DEFAULT_EXCEPTIONS: DashboardException[] = [

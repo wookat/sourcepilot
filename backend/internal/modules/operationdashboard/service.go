@@ -329,6 +329,9 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
 		Where("status = ?", procurement.StatusPaid).
 		Count(&sum.ProcurementAwaitTrackingCount).Error
+	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+		Where("status = ?", procurement.StatusShipped).
+		Count(&sum.ProcurementAwaitReceiptCount).Error
 	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
 		Where("payment_status = ? AND fulfillment_status = ? AND status NOT IN ?",
 			order.PaymentPaid, order.FulfillmentUnfulfilled,
@@ -580,6 +583,8 @@ func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 			"已下单未付款，请到 1688 完成付款并标记", "/procurement/orders?status=placed"),
 		todoCard("procurement_await_tracking", "待回填运单号", sum.ProcurementAwaitTrackingCount, failureclassifier.SeverityMedium,
 			"已付款采购单等待回填快递单号（支持批量粘贴）", "/procurement/orders?status=paid"),
+		todoCard("procurement_await_receipt", "采购单待签收", sum.ProcurementAwaitReceiptCount, failureclassifier.SeverityMedium,
+			"已发货采购单等待签收，签收后自动入库本地库存", "/procurement/orders?status=shipped"),
 		todoCard("order_await_procurement", "订单待采购", sum.AwaitProcurementOrderCount, failureclassifier.SeverityHigh,
 			"已付款订单尚未生成采购单，请到订单详情生成采购清单", "/orders/list?payStatus=paid&hasPurchase=0"),
 		todoCard("order_await_shipment", "订单待发货", sum.AwaitShipmentOrderCount, failureclassifier.SeverityHigh,

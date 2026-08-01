@@ -62,6 +62,7 @@ type Summary struct {
 	ProcurementPlacingCount        int64 `json:"procurementPlacingCount"`
 	ProcurementUnpaidCount         int64 `json:"procurementUnpaidCount"`
 	ProcurementAwaitTrackingCount  int64 `json:"procurementAwaitTrackingCount"`
+	ProcurementAwaitReceiptCount   int64 `json:"procurementAwaitReceiptCount"`
 
 	// Compact KPI aliases for the workbench overview cards.
 	DraftTotal           int64 `json:"draftTotal"`
