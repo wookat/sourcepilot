@@ -33,6 +33,7 @@ const ALLOWED_QUERY_KEYS = new Set([
   'skuStatus',
   'inventoryStatus',
   'fulfillmentStatus',
+  'hasException',
   'dateFrom',
   'dateTo',
   'createdFrom',
