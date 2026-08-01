@@ -903,6 +903,11 @@ Final Production Acceptance Deferred to P10
 - 订单列表批量操作条新增「批量标记送达（N）」：仅统计所选 `status=shipped` 订单，逐单复用既有 `PUT /orders/:id`（`status=delivered` + `deliveredAt`），闭环销售订单生命周期最后一步（导入 → 付款 → 采购 → 发货 → 送达）。
 - 首页/统一待办新增「订单在途待送达」卡（`order_in_transit`）：已发货订单数，直达 `/orders/list?status=shipped`；前端 `DEFAULT_TODOS` 同步补 key（沿用第15/18/22轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 36 轮：前端静态资源 contenthash + 缓存策略（部署后免硬刷新）
+
+- Admin 构建开启 `hash: true`：`umi.js`/`umi.css` 等产物文件名带 contenthash，部署新版本后浏览器自动加载新资源，消除「重建部署后浏览器缓存旧 CSS/JS 需硬刷新」的问题（第 35 轮 E2E 备注项）。
+- `admin/nginx.conf`：`index.html` 设 `Cache-Control: no-cache`（始终拿到最新入口），带 hash 的 `.js/.css` 设一年 immutable 长缓存；`/static/` 前缀改为 `^~` 避免被 js/css 正则 location 抢占（保留本地优先、后端回退）。
+
 ### 变更记录（2026-08-02）迭代第 35 轮：订单列表批量操作条移动端可触达（换行修复）
 
 - 订单列表 ProTable 批量操作条（tableAlertOptionRender）`Space` 增加 `wrap`，并在 `global.less` 为 `.ant-pro-table-alert-info` 增加 `flex-wrap: wrap`，修复 375px 窄屏下操作条 nowrap 被 `ant-layout-content overflow:hidden` 裁剪、右侧批量按钮（生成采购单/标记已付款/导出发货清单/标记送达）不可见且无法滚动触达的问题（第 34 轮 E2E P3 观察项）。

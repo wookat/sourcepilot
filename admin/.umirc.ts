@@ -5,6 +5,8 @@ import routes from './config/routes';
 export default defineConfig({
   title: '贸灵 TradeMind',
   npmClient: 'npm',
+  /** 构建产物文件名带 contenthash，部署后浏览器自动拉取新版本，无需硬刷新 */
+  hash: true,
   antd: {
     appConfig: {},
     configProvider: {
