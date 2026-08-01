@@ -4,6 +4,7 @@ import {
   cancelPurchaseOrder,
   confirmPurchaseOrder,
   downloadPurchaseOrderCsv,
+  downloadPurchaseOrdersBatchCsv,
   fetchPurchaseOrders,
   generatePurchaseOrders,
   submitPurchaseOrder,
@@ -40,7 +41,7 @@ export const PO_STATUS_TAG: Record<string, { text: string; color: string }> = {
   cancelled: { text: '已取消', color: 'default' },
 };
 
-const BATCH_SELECTABLE_STATUSES = ['draft', 'pending_confirm'];
+const BATCH_SELECTABLE_STATUSES = ['draft', 'pending_confirm', 'placing'];
 
 export default function ProcurementOrdersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -133,6 +134,19 @@ export default function ProcurementOrdersPage() {
     },
     [rows, selectedRowKeys, load],
   );
+
+  const runBatchExport = useCallback(async () => {
+    if (selectedRowKeys.length === 0) return;
+    setBatchActionLoading(true);
+    try {
+      await downloadPurchaseOrdersBatchCsv(selectedRowKeys);
+      message.success(`已导出 ${selectedRowKeys.length} 张采购单的合并采购清单`);
+    } catch (e) {
+      message.error((e as Error).message || '导出失败');
+    } finally {
+      setBatchActionLoading(false);
+    }
+  }, [selectedRowKeys]);
 
   const selectedDraftCount = rows.filter(
     (r) => selectedRowKeys.includes(r.id) && r.status === 'draft',
@@ -228,6 +242,9 @@ export default function ProcurementOrdersPage() {
                 onClick={() => void runBatchAction('pending_confirm')}
               >
                 批量确认（{selectedPendingConfirmCount}）
+              </Button>
+              <Button size="small" loading={batchActionLoading} onClick={() => void runBatchExport()}>
+                批量导出清单（{selectedRowKeys.length}）
               </Button>
               <a onClick={() => setSelectedRowKeys([])}>取消选择</a>
             </Space>
