@@ -806,6 +806,11 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	if err := s.validateShopRef(c, o.ShopID); err != nil {
 		return nil, err
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	o.TenantID = tid
 	o.CreatedBy = adminID
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(o).Error; err != nil {

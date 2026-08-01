@@ -135,6 +135,30 @@ export async function createOrder(payload: Record<string, unknown>): Promise<Ord
   return postJSON('/api/v1/orders', payload);
 }
 
+export type OrderImportRowResult = {
+  orderNo: string;
+  status: 'created' | 'skipped_duplicate' | 'failed' | string;
+  orderId?: string;
+  error?: string;
+  itemsTotal: number;
+  itemsMatched: number;
+};
+
+export type OrderImportSummary = {
+  total: number;
+  created: number;
+  duplicate: number;
+  failed: number;
+  results: OrderImportRowResult[];
+};
+
+export async function importOrders(payload: {
+  orders: Record<string, unknown>[];
+  matchSkus?: boolean;
+}): Promise<OrderImportSummary> {
+  return postJSON('/api/v1/orders/import', payload);
+}
+
 export async function getOrder(id: string): Promise<OrderDetailDTO> {
   return getJSON(`/api/v1/orders/${id}`);
 }

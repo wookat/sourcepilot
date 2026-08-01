@@ -172,6 +172,28 @@ func (h *Handler) Create(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// Import POST /orders/import
+func (h *Handler) Import(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
+		return
+	}
+	var body ImportBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.ImportOrders(c, body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
 // Get GET /orders/:id
 func (h *Handler) Get(c *gin.Context) {
 	if h == nil || h.Svc == nil {

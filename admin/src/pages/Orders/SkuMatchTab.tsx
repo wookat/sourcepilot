@@ -1,4 +1,4 @@
-import { Button, Input, Modal, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
+import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
 import { history } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';

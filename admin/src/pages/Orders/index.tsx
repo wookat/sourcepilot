@@ -54,6 +54,7 @@ import {
   type OrderShipmentRow,
 } from '@/services/orders';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
+import ImportOrdersModal from '@/pages/Orders/ImportOrdersModal';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
@@ -145,6 +146,7 @@ export default function OrdersPage() {
   const [shipModal, setShipModal] = useState<{ open: boolean; row?: OrderShipmentRow | null }>({ open: false });
   const [shipForm] = Form.useForm();
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
+  const [importOpen, setImportOpen] = useState(false);
   const { search: ordersSearch } = useLocation();
   const [createInvDefaults, setCreateInvDefaults] = useState<{ deduct: boolean; sync: boolean }>({
     deduct: false,
@@ -663,6 +665,9 @@ export default function OrdersPage() {
               tooltip="需在策略中放行并具备刊登出库路由"
             />
           </ModalForm>,
+          <Button key="import" onClick={() => setImportOpen(true)}>
+            批量导入订单
+          </Button>,
         ]}
         request={async (params) => {
           const kw = prepareKeyword(params.keyword);
@@ -1085,6 +1090,11 @@ export default function OrdersPage() {
           </Form.Item>
         </Form>
       </Modal>
+      <ImportOrdersModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onDone={() => actionRef.current?.reload()}
+      />
     </TmPageContainer>
   );
 }

@@ -559,6 +559,14 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 所有状态流转写入 `purchase_order_events`；对应管理端页面为 `/procurement/orders`。
 
+### 销售订单批量导入（人工建单过渡）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/orders/import` | 批量创建手工销售订单：`{orders:[CreateBody], matchSkus?}`，单批 ≤200 张；订单号已存在（库内或批内重复）返回 `skipped_duplicate` 不重复建单，单张失败不影响其余；`matchSkus=true` 时创建后自动按 SKU 编码匹配本地规格。返回 `{total, created, duplicate, failed, results[]}`（含逐单 `itemsMatched`）。手工订单创建（含单张 `POST /orders`）会写入当前租户 `tenant_id`。 |
+
+对应管理端入口：`/orders` 工具栏「批量导入订单」，粘贴格式 `订单号,客户名,商品标题,SKU编码,数量,单价[,币种]`，同订单号多行合并为多明细。
+
 ### 订单异常工作台：采购受阻（procurement_blocked）
 
 `GET /api/v1/orders/exceptions` 新增聚合异常类型 `procurement_blocked`：已付款、未发货且未取消/退款/关闭的销售订单行，若已绑定本地 SKU 但商品缺可用主货源（`source_missing`）或主货源缺该 SKU 映射（`mapping_missing`），且未被任何未取消/未失败的采购单行覆盖，则以 `sourceType=order_item` 进入工作台。返回体：
