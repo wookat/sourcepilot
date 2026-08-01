@@ -95,7 +95,7 @@ func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time
 
 func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{})
-	q = s.applyTenantListFilter(q, p)
+	q = s.applyTenantListFilterVia(q, p, "(product_id IS NULL OR product_id IN (SELECT id FROM products WHERE tenant_id = ?))")
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, true)
 	q = s.applyMarkFilters(q, TaskTypeImage, "image_tasks.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {
@@ -340,7 +340,7 @@ func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, no
 
 func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&aiproducttext.AIProductTextItem{})
-	q = s.applyTenantListFilter(q, p)
+	q = s.applyTenantListFilterVia(q, p, "batch_id IN (SELECT id FROM ai_product_text_batches WHERE tenant_id = ?)")
 	q = aiTextFailureRowFilter(s.applyTimeRange(q, p), p.IncludeResolved)
 	q = s.applyMarkFilters(q, TaskTypeAIText, "ai_product_text_items.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {
@@ -402,7 +402,7 @@ func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, no
 
 func (s *Service) listAIProductImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&aiproductimage.AIProductImageItem{})
-	q = s.applyTenantListFilter(q, p)
+	q = s.applyTenantListFilterVia(q, p, "batch_id IN (SELECT id FROM ai_product_image_batches WHERE tenant_id = ?)")
 	q = aiImageFailureRowFilter(s.applyTimeRange(q, p), p.IncludeResolved)
 	q = s.applyMarkFilters(q, TaskTypeAIImage, "ai_product_image_items.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {
