@@ -563,6 +563,90 @@ func (s *Service) ListSwitchEvents(ctx context.Context, productID *uuid.UUID, pa
 	return map[string]any{"items": items, "total": total, "page": page, "pageSize": pageSize}, nil
 }
 
+// AdoptSwitchSuggestion switches the primary source to the suggested backup
+// and marks the suggestion adopted.
+func (s *Service) AdoptSwitchSuggestion(ctx context.Context, id uuid.UUID, operator *uuid.UUID) (*ProductSource, error) {
+	var ev SourceSwitchEvent
+	if err := s.DB.WithContext(ctx).First(&ev, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if ev.Mode != SwitchModeSuggested || ev.Status != SuggestionOpen {
+		return nil, fmt.Errorf("%w: suggestion is not open", ErrConflict)
+	}
+	out, err := s.SetPrimary(ctx, ev.ToSourceID, operator)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.DB.WithContext(ctx).Model(&SourceSwitchEvent{}).Where("id = ?", id).
+		Updates(map[string]any{"status": SuggestionAdopted, "operator": operator}).Error; err != nil {
+		return nil, err
+	}
+	s.logOp(ctx, operator, "sourcing.switch_suggestion.adopt", id.String(), ev.ToSourceID.String())
+	return out, nil
+}
+
+// IgnoreSwitchSuggestion marks an open suggestion ignored.
+func (s *Service) IgnoreSwitchSuggestion(ctx context.Context, id uuid.UUID, operator *uuid.UUID) error {
+	res := s.DB.WithContext(ctx).Model(&SourceSwitchEvent{}).
+		Where("id = ? AND mode = ? AND status = ?", id, SwitchModeSuggested, SuggestionOpen).
+		Updates(map[string]any{"status": SuggestionIgnored, "operator": operator})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	s.logOp(ctx, operator, "sourcing.switch_suggestion.ignore", id.String(), "")
+	return nil
+}
+
+// SourceAlertRow is one alerted product source (price alert / out of stock).
+type SourceAlertRow struct {
+	SourceID        uuid.UUID  `json:"sourceId"`
+	ProductID       uuid.UUID  `json:"productId"`
+	ProductTitle    string     `json:"productTitle"`
+	SupplierName    string     `json:"supplierName"`
+	Status          string     `json:"status"`
+	IsPrimary       bool       `json:"isPrimary"`
+	LastCheckedAt   *time.Time `json:"lastCheckedAt,omitempty"`
+	OpenSuggestions int64      `json:"openSuggestions"`
+}
+
+// ListSourceAlerts returns sources currently in price_alert / out_of_stock,
+// newest-checked first, with per-product open suggestion counts.
+func (s *Service) ListSourceAlerts(ctx context.Context) ([]SourceAlertRow, error) {
+	var rows []SourceAlertRow
+	err := s.DB.WithContext(ctx).Raw(`
+		SELECT ps.id AS source_id,
+		       ps.product_id,
+		       COALESCE(NULLIF(TRIM(p.title), ''), p.original_title) AS product_title,
+		       COALESCE(sup.name, '') AS supplier_name,
+		       ps.status,
+		       ps.is_primary,
+		       ps.last_checked_at,
+		       (
+		           SELECT COUNT(*) FROM source_switch_events se
+		           WHERE se.product_id = ps.product_id
+		             AND se.mode = ? AND se.status = ?
+		       ) AS open_suggestions
+		FROM product_sources ps
+		JOIN products p ON p.id = ps.product_id AND p.deleted_at IS NULL
+		LEFT JOIN suppliers sup ON sup.id = ps.supplier_id AND sup.deleted_at IS NULL
+		WHERE ps.deleted_at IS NULL
+		  AND ps.status IN (?, ?)
+		ORDER BY ps.last_checked_at DESC NULLS LAST
+		LIMIT 200
+	`, SwitchModeSuggested, SuggestionOpen, SourceStatusPriceAlert, SourceStatusOutOfStock).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // RefreshResult reports one product refresh run.
 type RefreshResult struct {
 	ProductID uuid.UUID       `json:"productId"`

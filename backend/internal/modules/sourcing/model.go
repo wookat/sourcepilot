@@ -33,6 +33,13 @@ const (
 	SwitchModeSuggested = "suggested"
 )
 
+// Suggested switch event statuses (empty for auto/manual events).
+const (
+	SuggestionOpen    = "open"
+	SuggestionAdopted = "adopted"
+	SuggestionIgnored = "ignored"
+)
+
 // Price history capture sources.
 const (
 	CaptureSourceCrawl  = "crawl"
@@ -120,6 +127,7 @@ type SourceSwitchEvent struct {
 	Reason       string         `gorm:"size:32;not null" json:"reason"`
 	Detail       datatypes.JSON `gorm:"type:jsonb" json:"detail,omitempty"`
 	Mode         string         `gorm:"size:16;not null" json:"mode"`
+	Status       string         `gorm:"size:16;not null;default:'';index" json:"status,omitempty"`
 	Operator     *uuid.UUID     `gorm:"type:char(36)" json:"operator,omitempty"`
 }
 

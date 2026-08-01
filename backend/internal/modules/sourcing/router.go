@@ -21,4 +21,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/product-source-skus/:id/price-history", h.PriceHistory)
 	g.DELETE("/product-source-skus/:id", h.DeleteSKUMapping)
 	g.GET("/source-switch-events", h.ListSwitchEvents)
+	g.POST("/source-switch-events/:id/adopt", h.AdoptSwitchSuggestion)
+	g.POST("/source-switch-events/:id/ignore", h.IgnoreSwitchSuggestion)
+	g.GET("/product-source-alerts", h.ListSourceAlerts)
 }
