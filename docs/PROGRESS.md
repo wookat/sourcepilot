@@ -1149,3 +1149,11 @@ Final Production Acceptance Deferred to P10
   - 401 处理链路改为 umi `responseInterceptors` 内先静默续期（复用后端既有 `POST /api/v1/auth/refresh`，secure_session 走 HttpOnly cookie、legacy 走响应体 refreshToken），成功后原样重放原请求，调用方无感知；续期不可用/失败时在当前页弹「登录已过期」重新登录弹窗（`SessionExpiredModal`，挂载于 innerProvider），重登成功后同样重放请求，页面与表单状态不丢失；用户选择「去登录页」才清凭证跳转。
   - 临期静默续期：登录/注册开始保存 `expiresAt`（及 legacy 模式的 refreshToken），请求拦截器在 token 剩余有效期 < 5 分钟时先 single-flight 续期再发请求；续期失败有 60s 冷却，legacy 无 refreshToken 时直接跳过续期走重登弹窗。
   - 兜底：重放后仍 401（如 token_version 已失效）才回退整页跳登录页。API URL/method/payload/权限/状态机均未改，后端零改动。附 sessionGuard 单测（保存/清理、阈值判断、single-flight、冷却、重登协调）。实测覆盖手工建单弹窗、订单详情编辑、设置页保存三场景过期后内容不丢失。
+
+### 变更记录（2026-08-01）迭代第 46 轮：发货与库存扣减口径 UI 传达（第 45 轮 UX 走查 P1）
+
+- 根因结论：**非 bug，是既有「手工扣库」策略使然**。发货（单笔新增物流 / 批量发货）只推进订单生命周期（`advanceOrderOnShipment`），从不调用 `DeductInventoryForOrder`；库存扣减由手工触发（第 12 轮 `POST /orders/:id/deduct-inventory`）或库存策略（如建单自动扣减）触发，取消订单按策略自动回滚（第 32 轮）。本机全栈复现确认：未扣减订单直接发货成功且 `order_inventory_effects` 始终为空。问题在于 UI 未传达该口径，导致「未扣减 + 可发货」看似自相矛盾。
+- 处理（不引入「发货强制扣库存」语义，不改状态机/权限/既有字段语义）：
+  - 订单详情「新增物流」弹窗：当本单尚无成功扣减记录时提示「本单尚未扣减库存……可到库存影响 Tab 手工扣减」（编辑既有物流不提示）。
+  - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
+  - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
