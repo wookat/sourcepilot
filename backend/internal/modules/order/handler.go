@@ -457,6 +457,20 @@ func (h *Handler) PostBatchShipments(c *gin.Context) {
 	response.OK(c, res)
 }
 
+// GetSalesStats GET /orders/stats/sales
+func (h *Handler) GetSalesStats(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	res, err := h.Svc.SalesStats(c)
+	if err != nil {
+		response.Fail(c, 500, response.CodeInternalError, err.Error())
+		return
+	}
+	response.OK(c, res)
+}
+
 // PutShipment PUT /orders/:id/shipments/:shipmentId
 func (h *Handler) PutShipment(c *gin.Context) {
 	if h == nil || h.Svc == nil {

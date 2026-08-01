@@ -62,10 +62,47 @@ import {
   type ProductOperationDashboard,
 } from '@/services/dashboard';
 import { queryShops, type ShopListRow } from '@/services/shops';
+import { fetchOrderSalesStats, type SalesStatsDTO, type SalesWindowStats } from '@/services/orders';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { appendSourceToUrl, resolveProductSourceFromQuery } from '@/utils/urlState';
 
 const { RangePicker } = DatePicker;
+
+const SALES_WINDOW_LABELS: Record<string, string> = {
+  today: '今日',
+  '7d': '近 7 日',
+  '30d': '近 30 日',
+};
+
+function SalesWindowCard({ win }: { win: SalesWindowStats }) {
+  return (
+    <ProCard variant="outlined" bodyStyle={{ padding: '12px 16px' }}>
+      <Typography.Text type="secondary">{SALES_WINDOW_LABELS[win.key] || win.key}</Typography.Text>
+      <Space size={16} wrap style={{ marginTop: 8, width: '100%' }}>
+        <span>
+          订单 <Typography.Text strong>{win.orderCount}</Typography.Text>
+        </span>
+        <span>
+          已付款 <Typography.Text strong>{win.paidCount}</Typography.Text>
+        </span>
+        <span>
+          已发货 <Typography.Text strong>{win.shippedCount}</Typography.Text>
+        </span>
+      </Space>
+      <div style={{ marginTop: 8 }}>
+        {win.paidAmounts.length > 0 ? (
+          win.paidAmounts.map((a) => (
+            <Typography.Text key={a.currency} strong style={{ marginRight: 12, fontSize: 16 }}>
+              {a.currency} {a.amount.toFixed(2)}
+            </Typography.Text>
+          ))
+        ) : (
+          <Typography.Text type="secondary">暂无已付款销售额</Typography.Text>
+        )}
+      </div>
+    </ProCard>
+  );
+}
 
 const SOURCE_OPTIONS = [
   { label: '1688', value: '1688' },
@@ -752,6 +789,7 @@ export default function ProductOperationsDashboardPage() {
   const [shops, setShops] = useState<ShopListRow[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [board, setBoard] = useState<ProductOperationDashboard | null>(null);
+  const [salesStats, setSalesStats] = useState<SalesStatsDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -808,6 +846,12 @@ export default function ProductOperationsDashboardPage() {
   useEffect(() => {
     void loadBoard();
   }, [loadBoard]);
+
+  useEffect(() => {
+    void fetchOrderSalesStats()
+      .then(setSalesStats)
+      .catch(() => setSalesStats(null));
+  }, []);
 
   const summary = board?.summary ?? EMPTY_SUMMARY;
   const todos = useMemo(() => {
@@ -971,6 +1015,28 @@ export default function ProductOperationsDashboardPage() {
               ))}
             </Row>
           </ProCard>
+
+          {/* 1.5 经营概览 */}
+          {salesStats && salesStats.windows.length > 0 ? (
+            <ProCard
+              title="经营概览"
+              variant="outlined"
+              style={{ marginBottom: 16 }}
+              extra={
+                <Typography.Link onClick={() => history.push(appendSourceToUrl('/orders/list'))}>
+                  去订单列表 <ArrowRightOutlined />
+                </Typography.Link>
+              }
+            >
+              <Row gutter={[16, 16]}>
+                {salesStats.windows.map((w) => (
+                  <Col xs={24} sm={12} md={8} key={w.key}>
+                    <SalesWindowCard win={w} />
+                  </Col>
+                ))}
+              </Row>
+            </ProCard>
+          ) : null}
 
           {/* 2. 今日待办 */}
           <ProCard

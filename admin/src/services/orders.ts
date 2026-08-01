@@ -160,6 +160,29 @@ export async function importOrders(payload: {
   return postJSON('/api/v1/orders/import', payload);
 }
 
+export type SalesAmount = {
+  currency: string;
+  amount: number;
+  orders: number;
+};
+
+export type SalesWindowStats = {
+  key: string;
+  orderCount: number;
+  paidCount: number;
+  shippedCount: number;
+  paidAmounts: SalesAmount[];
+};
+
+export type SalesStatsDTO = {
+  generatedAt: string;
+  windows: SalesWindowStats[];
+};
+
+export async function fetchOrderSalesStats(): Promise<SalesStatsDTO> {
+  return getJSON('/api/v1/orders/stats/sales');
+}
+
 export async function getOrder(id: string): Promise<OrderDetailDTO> {
   return getJSON(`/api/v1/orders/${id}`);
 }
