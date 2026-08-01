@@ -892,6 +892,11 @@ Final Production Acceptance Deferred to P10
 - `ALLOWED_QUERY_KEYS` 补 `operationStep`（商品草稿运营进度筛选）与 `customerName`（客服会话买家筛选）；客服会话布尔筛选（待回复/有 AI 建议/发送失败/有关联订单）URL 采用 `1`/`0`，兼容既有 `replyStatus`/`aiSuggestionStatus`/`sendStatus` 深链。
 - 修复真实测试发现的既有后端 P1：`GET /api/v1/task-center/failures` 对 tenant>0 用户必报 400（PostgreSQL 42703）。根因是统一的 `tenant_id = ?` 过滤被套到了自身没有 `tenant_id` 列的失败源表上。新增 `applyTenantListFilterVia`：`image_tasks` 经 `products` 限定租户（`product_id IS NULL` 的工具级任务保留可见）、`ai_product_text_items`/`ai_product_image_items` 经各自 batches 表、`customer_failure_events` 经 `shops` 表；附 sqlite DryRun SQL 回归单测。
 
+### 变更记录（2026-08-02）迭代第 19 轮：订单详情商品明细行内增删改
+
+- 订单详情「商品明细」Tab 补齐明细行编辑闭环（此前仅列表页抽屉可编辑，详情页只读，手工建单后无法从详情页补明细）：可写角色新增「新增明细」按钮与每行「编辑 / 删除」（Popconfirm 确认），弹窗表单数量/单价变更时自动按 数量 × 单价 重算小计（可手工覆盖），保存后刷新详情、规格匹配与成本估算。复用既有 `POST/PUT/DELETE /orders/:id/items` API，无后端与协议变更。
+- 订单列表「新建手工订单」弹窗补充提示：商品明细在创建后进入订单详情「商品明细」Tab 添加，成本/毛利估算依赖明细行。
+
 ### 变更记录（2026-08-02）迭代第 18 轮：负毛利订单自动拦截 + Admin 静态资源 404 修复
 
 - 订单异常工作台新增聚合异常类型 `negative_margin`（利润为负）：已付款、未发货且未取消/退款/关闭的销售订单，按主货源参考价成本估算（复用 `procurement.Service.EstimateOrderCostBatch`，与订单成本卡/列表毛利列同一口径）预估毛利为负时，以 `sourceType=order` 进入工作台，`orderexception.Service` 通过新增 `Cost *procurement.Service` 依赖复用估算逻辑（router 注入），单次列表最多扫描最近更新的 200 个候选订单。缺参考价/未配汇率的订单不误报（毛利不可算即不判定）。
