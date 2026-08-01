@@ -357,6 +357,11 @@ export default [
         name: '异常工作台',
         component: './Orders/Exceptions',
       },
+      {
+        path: '/orders/reports',
+        name: '经营报表',
+        component: './Orders/Reports',
+      },
     ],
   },
   {
