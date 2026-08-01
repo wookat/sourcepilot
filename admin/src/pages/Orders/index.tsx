@@ -80,6 +80,7 @@ const ORDER_QUERY_KEYS = [
   'fulfillmentStatus',
   'platform',
   'shopId',
+  'hasException',
   'source',
   'start',
   'end',
@@ -243,10 +244,13 @@ export default function OrdersPage() {
       fulfillmentStatus: urlState.fulfillmentStatus,
       platform: urlState.platform,
       shopId: urlState.shopId,
+      hasException: urlState.hasException,
       createdAt: queryTimeRange(urlState.start, urlState.end),
     });
+    actionRef.current?.reload();
   }, [
     urlState.fulfillmentStatus,
+    urlState.hasException,
     urlState.inventoryStatus,
     urlState.keyword,
     urlState.page,
@@ -649,21 +653,30 @@ export default function OrdersPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
-        params={{
-          current: tablePage,
-          pageSize: tablePageSize,
-          keyword: urlState.keyword,
-          paymentStatus: urlState.payStatus,
-          skuMatchStatus: urlState.skuStatus,
-          inventoryDeductStatus: urlState.inventoryStatus,
-          status: urlState.status,
-          fulfillmentStatus: urlState.fulfillmentStatus,
-          platform: urlState.platform,
-          shopId: urlState.shopId,
-          start: urlState.start,
-          end: urlState.end,
-        }}
         search={{ layout: 'vertical', defaultCollapsed: false }}
+        onSubmit={() => {
+          // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
+          const v = (formRef.current?.getFieldsValue?.() ?? {}) as Record<string, unknown>;
+          const range = v.createdAt as [unknown, unknown] | undefined;
+          setTablePage(1);
+          setUrlState(
+            {
+              page: undefined,
+              keyword: prepareKeyword(v.keyword) || undefined,
+              payStatus: (v.paymentStatus as string | undefined)?.trim() || undefined,
+              skuStatus: (v.skuMatchStatus as string | undefined)?.trim() || undefined,
+              inventoryStatus: (v.inventoryDeductStatus as string | undefined)?.trim() || undefined,
+              status: (v.status as string | undefined)?.trim() || undefined,
+              fulfillmentStatus: (v.fulfillmentStatus as string | undefined)?.trim() || undefined,
+              platform: (v.platform as string | undefined)?.trim() || undefined,
+              shopId: (v.shopId as string | undefined)?.trim() || undefined,
+              hasException: String(v.hasException ?? '') === 'true' ? 'true' : undefined,
+              start: range?.[0] ? dayjs(range[0] as string).toISOString() : undefined,
+              end: range?.[1] ? dayjs(range[1] as string).toISOString() : undefined,
+            },
+            { replace: true },
+          );
+        }}
         onReset={() => {
           setTablePage(1);
           setTablePageSize(20);
@@ -716,42 +729,23 @@ export default function OrdersPage() {
             批量导入订单
           </Button>,
         ]}
-        request={async (params) => {
-          const kw = prepareKeyword(params.keyword);
+        request={async () => {
+          // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
           const qp = {
-            page: params.current ?? tablePage,
-            pageSize: params.pageSize ?? tablePageSize,
-            platform: (params.platform as string | undefined)?.trim(),
-            shopId: (params.shopId as string | undefined)?.trim(),
-            keyword: kw,
-            paymentStatus: (params.paymentStatus as string | undefined)?.trim(),
-            skuMatchStatus: (params.skuMatchStatus as string | undefined)?.trim(),
-            inventoryDeductStatus: (params.inventoryDeductStatus as string | undefined)?.trim(),
-            status: (params.status as string | undefined)?.trim(),
-            fulfillmentStatus: (params.fulfillmentStatus as string | undefined)?.trim(),
-            hasException:
-              params.hasException === 'true' || params.hasException === true ? true : undefined,
-            start: typeof params.start === 'string' ? params.start : undefined,
-            end: typeof params.end === 'string' ? params.end : undefined,
+            page: parsePositiveInt(urlState.page, 1),
+            pageSize: parsePositiveInt(urlState.pageSize, 20),
+            platform: urlState.platform?.trim(),
+            shopId: urlState.shopId?.trim(),
+            keyword: prepareKeyword(urlState.keyword),
+            paymentStatus: urlState.payStatus?.trim(),
+            skuMatchStatus: urlState.skuStatus?.trim(),
+            inventoryDeductStatus: urlState.inventoryStatus?.trim(),
+            status: urlState.status?.trim(),
+            fulfillmentStatus: urlState.fulfillmentStatus?.trim(),
+            hasException: urlState.hasException === 'true' ? true : undefined,
+            start: urlState.start,
+            end: urlState.end,
           };
-          setUrlState(
-            {
-              page: Number(qp.page) > 1 ? qp.page : undefined,
-              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
-              keyword: qp.keyword,
-              payStatus: qp.paymentStatus,
-              skuStatus: qp.skuMatchStatus,
-              inventoryStatus: qp.inventoryDeductStatus,
-              status: qp.status,
-              fulfillmentStatus: qp.fulfillmentStatus,
-              platform: qp.platform,
-              shopId: qp.shopId,
-              start: qp.start,
-              end: qp.end,
-              source: urlState.source,
-            },
-            { replace: true },
-          );
           const res = await queryOrders({
             page: qp.page,
             pageSize: qp.pageSize,
