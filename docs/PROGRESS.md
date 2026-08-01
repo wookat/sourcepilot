@@ -1119,3 +1119,10 @@ Final Production Acceptance Deferred to P10
 ### 变更记录（2026-07-29）迭代第 44 轮：批量导入订单支持店铺归属
 
 - 「批量导入订单」弹窗新增「关联店铺（可选，应用到本次导入的全部订单）」下拉，选中后整批订单写入 `shopId`（复用既有 `CreateBody.shopId` 与后端店铺可见性校验，API 不变）；补齐订单店铺归属入口，使店铺授权（store scope）的正向过滤在手工/导入订单上可用（此前导入订单 shop_id 恒为 NULL，非 admin 授权店铺账号看不到任何导入订单）。纯前端改动。
+
+### 变更记录（2026-08-01）迭代第 46 轮：会话过期守卫（401 不再整页跳转丢表单）
+
+- 修复第 45 轮 UX 走查 P1：JWT 过期后提交表单遇 401 直接 `window.location.assign` 跳登录页，弹窗内未保存内容全部丢失。新增前端会话守卫（`admin/src/utils/sessionGuard.ts`）：
+  - 401 处理链路改为 umi `responseInterceptors` 内先静默续期（复用后端既有 `POST /api/v1/auth/refresh`，secure_session 走 HttpOnly cookie、legacy 走响应体 refreshToken），成功后原样重放原请求，调用方无感知；续期不可用/失败时在当前页弹「登录已过期」重新登录弹窗（`SessionExpiredModal`，挂载于 innerProvider），重登成功后同样重放请求，页面与表单状态不丢失；用户选择「去登录页」才清凭证跳转。
+  - 临期静默续期：登录/注册开始保存 `expiresAt`（及 legacy 模式的 refreshToken），请求拦截器在 token 剩余有效期 < 5 分钟时先 single-flight 续期再发请求；续期失败有 60s 冷却，legacy 无 refreshToken 时直接跳过续期走重登弹窗。
+  - 兜底：重放后仍 401（如 token_version 已失效）才回退整页跳登录页。API URL/method/payload/权限/状态机均未改，后端零改动。附 sessionGuard 单测（保存/清理、阈值判断、single-flight、冷却、重登协调）。实测覆盖手工建单弹窗、订单详情编辑、设置页保存三场景过期后内容不丢失。

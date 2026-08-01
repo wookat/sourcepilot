@@ -2,14 +2,23 @@ import type { CSSProperties, KeyboardEvent, ReactElement, ReactNode } from 'reac
 import { LogoutOutlined } from '@ant-design/icons';
 import { Avatar, Dropdown, Space, Tooltip } from 'antd';
 import type { MenuDataItem } from '@umijs/route-utils';
-import { history } from '@umijs/max';
+import { history, request as umiRequest } from '@umijs/max';
 import type { RequestConfig, RunTimeLayoutConfig } from '@/typings/umi-runtime';
 import AppMessageBridge from '@/components/AppMessageBridge';
+import SessionExpiredModal from '@/components/SessionExpiredModal';
 import BrandLogo from '@/components/BrandLogo';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { themeTokens, tmSemanticTokens } from '@/constants/layoutTokens';
 import { postJSON } from '@/services/request';
 import { filterMenuByPermission } from '@/utils/menuAccess';
+import {
+  clearSessionCredentials,
+  isAuthUrl,
+  redirectToLoginPage,
+  refreshAccessToken,
+  requireRelogin,
+  shouldRefreshSoon,
+} from '@/utils/sessionGuard';
 import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import type { InitialState, InitialStateModel } from '@/typings/umi-runtime';
 
@@ -35,6 +44,7 @@ export function innerProvider(container: ReactElement) {
   return (
     <>
       <AppMessageBridge />
+      <SessionExpiredModal />
       {container}
     </>
   );
@@ -47,15 +57,46 @@ export async function getInitialState(): Promise<{ currentUser?: API.CurrentUser
   }
   const user = await loadProfileFromToken(token);
   if (!user) {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
+    clearSessionCredentials();
     return {};
   }
   return { currentUser: user };
 }
 
+function onLoginPage() {
+  const path = history.location.pathname;
+  return path === '/user/login' || path.startsWith('/user/login');
+}
+
+/** 401 时先静默续期、失败再弹「登录已过期」重登弹窗，成功后原样重放请求，避免整页跳转丢表单 */
+async function handleUnauthorizedAndRetry(error: {
+  config?: Record<string, unknown> & { url?: string; method?: string; headers?: unknown };
+}) {
+  const cfg = error?.config || {};
+  let ok = await refreshAccessToken();
+  if (!ok) ok = await requireRelogin();
+  if (!ok) {
+    redirectToLoginPage();
+    throw error;
+  }
+  return umiRequest(String(cfg.url || ''), {
+    method: (cfg.method as string) || 'GET',
+    data: cfg.data,
+    params: cfg.params as Record<string, string | number | boolean | undefined> | undefined,
+    headers: { ...((cfg.headers as Record<string, string>) || {}) },
+    sessionGuardRetry: true,
+    skipErrorHandler: true,
+    getResponse: true,
+  });
+}
+
 export const request: RequestConfig = {
   requestInterceptors: [
-    (url, options) => {
+    async (url, options) => {
+      if (!isAuthUrl(url) && shouldRefreshSoon()) {
+        // token 剩余有效期 < 5 分钟：先静默续期再发请求（single-flight，失败则继续用旧 token）
+        await refreshAccessToken();
+      }
       const token = localStorage.getItem(AUTH_TOKEN_KEY);
       const headers: Record<string, string> = {
         ...((options.headers as Record<string, string>) || {}),
@@ -64,6 +105,23 @@ export const request: RequestConfig = {
       return { url, options: { ...options, headers } };
     },
   ],
+  responseInterceptors: [
+    [
+      (response: unknown) => response,
+      async (error: {
+        response?: { status?: number };
+        config?: Record<string, unknown> & { url?: string };
+      }) => {
+        const status = error?.response?.status;
+        const cfg = error?.config || {};
+        const reqUrl = String(cfg.url || '');
+        if (status !== 401 || isAuthUrl(reqUrl) || cfg.sessionGuardRetry || onLoginPage()) {
+          throw error;
+        }
+        return handleUnauthorizedAndRetry(error);
+      },
+    ],
+  ],
   errorConfig: {
     errorHandler: (error: any) => {
       if (error?.info?.skipErrorHandler) {
@@ -71,14 +129,10 @@ export const request: RequestConfig = {
       }
       const status = error?.response?.status;
       const reqUrl = String(error?.config?.url || '');
-      if (status === 401 && !reqUrl.includes('/auth/login')) {
-        localStorage.removeItem(AUTH_TOKEN_KEY);
-        const path = history.location.pathname;
-        if (path !== '/user/login' && !path.startsWith('/user/login')) {
-          const q = encodeURIComponent(path);
-          window.location.assign(`${window.location.origin}/user/login?redirect=${q}`);
-          return;
-        }
+      // 重放后仍 401（如 token_version 已失效）才兜底跳登录页；首个 401 由 responseInterceptors 处理
+      if (status === 401 && error?.config?.sessionGuardRetry && !reqUrl.includes('/auth/login')) {
+        redirectToLoginPage();
+        return;
       }
       throw error;
     },
@@ -100,7 +154,7 @@ async function logoutAndClear(
   } catch {
     /* ignore */
   }
-  localStorage.removeItem(AUTH_TOKEN_KEY);
+  clearSessionCredentials();
   setInitialState((s) => ({ ...s, currentUser: undefined }));
   history.push('/user/login');
 }
