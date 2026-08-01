@@ -68,6 +68,11 @@ function tagFromMap(raw: string, map: Record<string, { text: string; color: stri
 function summarizeInvResp(action: string, sum?: Record<string, unknown>) {
   if (!sum) return `${action}完成`;
   if (sum.skipped) return `已跳过（幂等）：${String(sum.skipReason || '无需重复执行')}`;
+  const synced = typeof sum.linesSynced === 'number' ? sum.linesSynced : 0;
+  const failed = typeof sum.linesFailed === 'number' ? sum.linesFailed : 0;
+  if (synced === 0 && failed === 0 && !sum.error) {
+    return `已跳过（幂等）：没有需要${action}的行，未重复执行`;
+  }
   const msg = typeof sum.message === 'string' ? sum.message.trim() : '';
   if (msg && msg.toLowerCase() !== 'ok') return msg;
   return `${action}成功，影响流水已更新`;
@@ -367,7 +372,7 @@ export default function OrderDetailPage() {
                               showIcon
                               type="info"
                               style={{ marginTop: 8 }}
-                              message="未配置汇率（系统设置 → 定价 exchangeRate），成本仅按 CNY 展示，暂无法折算毛利"
+                              message="未配置汇率（系统设置 → 定价 → 默认汇率），成本仅按 CNY 展示，暂无法折算毛利"
                             />
                           ) : null}
                         </>

@@ -178,9 +178,12 @@ func (s *Service) resolveExchangeRate(ctx context.Context, tenantID int64, curre
 	if err != nil {
 		return 0, false
 	}
-	if v := strings.TrimSpace(m["exchangeRate"]); v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
-			return f, true
+	// default_exchange_rate is the key the pricing settings page writes.
+	for _, k := range []string{"exchangeRate", "default_exchange_rate"} {
+		if v := strings.TrimSpace(m[k]); v != "" {
+			if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+				return f, true
+			}
 		}
 	}
 	return 0, false

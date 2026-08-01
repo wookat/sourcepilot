@@ -51,6 +51,23 @@ func TestEstimateOrderCostWithExchangeRate(t *testing.T) {
 	}
 }
 
+func TestEstimateOrderCostFallbackDefaultExchangeRateKey(t *testing.T) {
+	f := setupFixture(t)
+	// pricing settings page writes default_exchange_rate, not exchangeRate
+	f.svc.Settings = mapSettings{"default_exchange_rate": "0.14"}
+
+	out, err := f.svc.EstimateOrderCost(context.Background(), f.orderID)
+	if err != nil {
+		t.Fatalf("estimate: %v", err)
+	}
+	if out.ExchangeRate == nil || *out.ExchangeRate != 0.14 {
+		t.Fatalf("expected fallback rate 0.14, got %+v", out.ExchangeRate)
+	}
+	if out.EstimatedCost == nil || *out.EstimatedCost != 4.16 {
+		t.Fatalf("expected converted cost 4.16, got %+v", out.EstimatedCost)
+	}
+}
+
 func TestEstimateOrderCostMissingRateAndPrice(t *testing.T) {
 	f := setupFixture(t)
 	// no Settings configured and currency is USD → no conversion/profit
