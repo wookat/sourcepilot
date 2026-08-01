@@ -51,7 +51,10 @@ func EnsurePerformanceBootstrap(ctx context.Context, db *gorm.DB, cfg *config.Co
 		return stats, fmt.Errorf("performance bootstrap: invalid deps")
 	}
 	if config.IsProduction(cfg.AppEnv) {
-		return stats, fmt.Errorf("performance bootstrap: forbidden in production")
+		if cfg.P7.PerformanceTestMode {
+			return stats, fmt.Errorf("performance bootstrap: forbidden in production")
+		}
+		return nil, nil
 	}
 	if cfg.AppEnv != config.EnvPerformance || !cfg.P7.PerformanceTestMode {
 		return nil, nil
