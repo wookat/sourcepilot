@@ -10,13 +10,14 @@ import {
 import { formatDateTime } from '@/utils/formatTime';
 import {
   createAdminUser,
+  deleteAdminUser,
   fetchAdminUsers,
   setAdminUserStorePermissions,
   updateAdminUser,
   type AdminUserRow,
 } from '@/services/adminUsers';
 import { queryShops, type ShopListRow } from '@/services/shops';
-import { Button, Form, Input, Modal, Select, Space, Tag, message } from 'antd';
+import { Button, Form, Input, Modal, Popconfirm, Select, Space, Tag, message } from 'antd';
 import { useCallback, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
@@ -103,7 +104,7 @@ export default function SettingsUsersPage() {
       render: (_, row) =>
         row.role === 'admin'
           ? '全部'
-          : (row.storePermissions || []).map((p) => p.storeName || p.storeId).join('、') || '—',
+          : (row.storePermissions || []).map((p) => p.storeName || '未知店铺').join('、') || '—',
     },
     {
       title: '最近操作',
@@ -115,7 +116,7 @@ export default function SettingsUsersPage() {
     {
       title: '操作',
       valueType: 'option',
-      width: 220,
+      width: 260,
       render: (_, row) => [
         <Button
           key="role"
@@ -164,9 +165,11 @@ export default function SettingsUsersPage() {
             key="perm"
             type="link"
             size="small"
+            disabled={!canManageUsers}
             onClick={async () => {
               setEditUser(row);
               await loadShops();
+              permForm.resetFields();
               permForm.setFieldsValue({
                 items: (row.storePermissions || []).map((p) => ({
                   storeId: p.storeId,
@@ -203,6 +206,30 @@ export default function SettingsUsersPage() {
           >
             {row.status === 'disabled' ? '启用' : '禁用'}
           </Button>
+        ) : null,
+        row.id !== currentUser?.id ? (
+          <Popconfirm
+            key="delete"
+            title="删除用户"
+            description={`将删除用户「${adminUserLabel(row)}」，删除后该账号无法登录。`}
+            okText="确认删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+            disabled={!canManageUsers}
+            onConfirm={async () => {
+              try {
+                await deleteAdminUser(row.id);
+                message.success('用户已删除');
+                actionRef.current?.reload();
+              } catch (e: unknown) {
+                message.error((e as Error)?.message || '删除失败');
+              }
+            }}
+          >
+            <Button key="delete" type="link" size="small" danger disabled={!canManageUsers}>
+              删除
+            </Button>
+          </Popconfirm>
         ) : null,
       ],
     },
@@ -276,23 +303,30 @@ export default function SettingsUsersPage() {
           open={permOpen}
           width={640}
           onCancel={() => setPermOpen(false)}
-          onOk={() => {
+          onOk={async () => {
             if (!editUser) return;
-            confirmAssignStorePermissions(adminUserLabel(editUser), () => permForm.submit());
+            const userId = editUser.id;
+            let values: { items?: { storeId: string; permissionScope: string }[] };
+            try {
+              values = await permForm.validateFields();
+            } catch {
+              return;
+            }
+            confirmAssignStorePermissions(adminUserLabel(editUser), async () => {
+              try {
+                await setAdminUserStorePermissions(userId, values.items || []);
+                message.success('店铺权限已保存');
+                setPermOpen(false);
+                actionRef.current?.reload();
+              } catch (e: unknown) {
+                message.error((e as Error)?.message || '保存失败');
+                throw e;
+              }
+            });
           }}
-          destroyOnClose
+          forceRender
         >
-          <Form
-            form={permForm}
-            layout="vertical"
-            onFinish={async (v) => {
-              if (!editUser) return;
-              await setAdminUserStorePermissions(editUser.id, v.items || []);
-              message.success('店铺权限已保存');
-              setPermOpen(false);
-              actionRef.current?.reload();
-            }}
-          >
+          <Form form={permForm} layout="vertical">
             <Form.List name="items">
               {(fields, { add, remove }) => (
                 <>

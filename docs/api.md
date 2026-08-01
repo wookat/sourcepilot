@@ -449,6 +449,19 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `GET` | `/api/v1/ai/operation-workbench/todos/:id` | 单条待办详情 |
 | `POST` | `/api/v1/ai/operation-workbench/todos/refresh` | 重新聚合待办（只读，不写库、不调平台 API） |
 
+### 用户与权限管理（admin only）
+
+均要求 `user.manage` 权限（仅 admin 角色具备）；只读账号写操作返回 403。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/admin/users` | 分页用户列表（`role` / `status` / `keyword`）；非 admin 用户附 `storePermissions`（含 `storeName`） |
+| `GET` | `/api/v1/admin/users/:id` | 用户详情 |
+| `POST` | `/api/v1/admin/users` | 创建用户（邮箱/手机号 + 初始密码 + 角色） |
+| `PATCH` | `/api/v1/admin/users/:id` | 修改显示名 / 角色 / 状态；不能禁用自己、不能自我降级 |
+| `PUT` | `/api/v1/admin/users/:id/store-permissions` | 整体替换店铺授权（admin 角色无需分配） |
+| `DELETE` | `/api/v1/admin/users/:id` | 软删除用户（`deleted_at`，数据保留）；同时撤销全部店铺授权并递增 `token_version` 使会话失效；不能删除当前登录账号（400）；路由级只读守卫 403 |
+
 ## AI 比价选品引擎 API
 
 候选商品 → 海外在售价 → 1688 同款匹配 → 落地成本/利润模型 → LLM 打分 → 可上架清单。均需 Bearer 认证。

@@ -1130,3 +1130,10 @@ Final Production Acceptance Deferred to P10
 - 新增 `GET /api/v1/orders/stats/daily?days=30`（默认 30，最大 90）：按本地日历日聚合订单数/已付款数/分币种已付款销售额；口径与 `stats/sales` 一致（当前租户、软删除订单不计入），店铺 scope 与订单列表一致（非 admin 按授权店铺过滤，admin 全量）；空缺日期补零返回，附单测（多币种/软删/跨租户/窗口外/默认与上限 clamp）。
 - 管理端订单组新增「经营报表」页（`/orders/reports`，readonly 可见的只读报表）：近 30 天合计卡（订单数/已付款/分币种销售额）+「每日订单数/已付款数」折线图 +「每日销售额（按币种堆叠）」柱状图，含加载骨架/空数据引导/错误重试，375px 无横向溢出；图表引入 `@ant-design/plots@2.6.8`（AntD 官方图表库，稳定版）。
 - 同步 `docs/api.md`。
+
+### 变更记录（2026-08-01）迭代第 45 轮：用户管理删除入口 + 店铺授权体验收口
+
+- 设置→用户新增「删除用户」入口（Popconfirm 确认，admin 角色可用，不能删除自己）：后端新增 `DELETE /api/v1/admin/users/:id` 软删除端点（`deleted_at` 保留数据，参考订单软删除口径），事务内同时撤销全部店铺授权并递增 `token_version` 使既有会话失效；路由级挂 `adminperm.RequireWritable` 只读守卫，handler 内 `user.manage` 权限校验（仅 admin）；附 sqlite HTTP 单测（软删除落库、撤销授权、不能删自己 400、readonly/operator 403、重复删除 404）。解决测试账号只能禁用不能删除、fixture 越积越多的问题。
+- 修复「店铺权限」保存首次点确定不生效：原实现在二次确认弹窗 onOk 里调用 `permForm.submit()`，而弹窗 `destroyOnClose` 下 Form 首次打开前未挂载，`setFieldsValue`/`submit` 可能落空。改为 Modal `forceRender` 保证 Form 常驻挂载、打开前 `resetFields` 后回填；外层确定先 `validateFields`（校验错误内联展示），二次确认 onOk 改为 async 直接提交（Modal.confirm 呈现 loading，失败 message.error 且弹窗不关闭）。
+- 授权店铺列显示店铺名而非 UUID：后端 `loadStorePerms` 店铺名查询改 `Unscoped`（软删除店铺也能回显名称）；前端缺名时兜底「未知店铺」。
+- 同步 `docs/api.md`（用户与权限管理表）、`admin/src/services/adminUsers.ts`。API 既有端点语义/状态机/readonly 403 文案不变。

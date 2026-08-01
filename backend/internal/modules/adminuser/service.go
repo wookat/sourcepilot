@@ -19,6 +19,7 @@ import (
 
 var (
 	ErrSelfDisable       = errors.New("不能禁用当前登录账号")
+	ErrSelfDelete        = errors.New("不能删除当前登录账号")
 	ErrSelfRoleDowngrade = errors.New("不能将当前账号降级为非管理员")
 	ErrDuplicateAccount  = errors.New("邮箱或手机号已被使用")
 )
@@ -129,7 +130,7 @@ func (s *Service) loadStorePerms(ctx context.Context, userID uuid.UUID) ([]Store
 			PermissionScope: admin.NormalizeStorePermScope(r.PermissionScope),
 		}
 		var sh shop.Shop
-		if err := s.DB.WithContext(ctx).Select("shop_name").First(&sh, "id = ?", r.StoreID).Error; err == nil {
+		if err := s.DB.WithContext(ctx).Unscoped().Select("shop_name").First(&sh, "id = ?", r.StoreID).Error; err == nil {
 			sp.StoreName = strings.TrimSpace(sh.ShopName)
 		}
 		out = append(out, sp)
@@ -422,6 +423,45 @@ func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body Set
 		})
 	}
 	return s.Get(c, userID)
+}
+
+// Delete soft-deletes an admin user and revokes all store grants.
+func (s *Service) Delete(c *gin.Context, userID uuid.UUID, actorID *uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("adminuser: no db")
+	}
+	if actorID != nil && *actorID == userID {
+		return ErrSelfDelete
+	}
+	var u admin.AdminUser
+	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ?", userID).Error; err != nil {
+		return err
+	}
+	err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&admin.AdminUser{}).Where("id = ?", userID).
+			UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", userID).Delete(&admin.UserStorePermission{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&admin.AdminUser{}, "id = ?", userID).Error
+	})
+	if err != nil {
+		return err
+	}
+	adminperm.InvalidateUserPermissionCache(userID)
+	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: actorID,
+			Action:      "user.delete",
+			Resource:    "admin_user",
+			ResourceID:  userID.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("userId=%s email=%s", userID.String(), strings.TrimSpace(u.Email)),
+		})
+	}
+	return nil
 }
 
 func (s *Service) invalidateUserPermissions(ctx context.Context, userID uuid.UUID, bumpSecurityVersion bool) {
