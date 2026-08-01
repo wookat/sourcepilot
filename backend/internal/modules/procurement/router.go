@@ -8,6 +8,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 		return
 	}
 	g.POST("/procurement/orders/generate", h.Generate)
+	g.POST("/procurement/orders/batch-mark-placed", h.BatchMarkPlaced)
+	g.POST("/procurement/orders/batch-logistics", h.BatchLogistics)
 	g.GET("/procurement/orders", h.List)
 	g.GET("/procurement/orders/:id", h.Detail)
 	g.GET("/procurement/orders/:id/export.csv", h.ExportCSV)

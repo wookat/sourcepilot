@@ -126,6 +126,33 @@ export async function markPurchaseOrderDelivered(id: string) {
   return postJSON<PurchaseOrder>(`/api/v1/procurement/orders/${id}/mark-delivered`);
 }
 
+export type BatchLineResult = {
+  key: string;
+  purchaseOrderId?: string;
+  supplierName?: string;
+  ok: boolean;
+  status?: string;
+  message?: string;
+};
+
+export type BatchResult = {
+  succeeded: number;
+  failed: number;
+  results: BatchLineResult[];
+};
+
+export async function batchMarkPurchaseOrdersPlaced(
+  items: { purchaseOrderId: string; externalOrderId: string }[],
+) {
+  return postJSON<BatchResult>('/api/v1/procurement/orders/batch-mark-placed', { items });
+}
+
+export async function batchFillPurchaseLogistics(
+  items: { externalOrderId: string; trackingNo: string; carrier?: string }[],
+) {
+  return postJSON<BatchResult>('/api/v1/procurement/orders/batch-logistics', { items });
+}
+
 export async function downloadPurchaseOrderCsv(id: string) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   const resp = await fetch(`/api/v1/procurement/orders/${id}/export.csv`, {

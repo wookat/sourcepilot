@@ -549,6 +549,8 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `POST` | `/api/v1/procurement/orders/:id/mark-delivered` | shipped → delivered。 |
 | `POST` | `/api/v1/procurement/orders/:id/retry` | failed → placing。 |
 | `POST` | `/api/v1/procurement/orders/:id/cancel` | 取消（终态前均可）。 |
+| `POST` | `/api/v1/procurement/orders/batch-mark-placed` | 批量回填 1688 订单号：`{items:[{purchaseOrderId, externalOrderId}]}`，单批 ≤200 行，逐行独立处理返回 `{succeeded, failed, results[]}`（部分成功不回滚）。 |
+| `POST` | `/api/v1/procurement/orders/batch-logistics` | 批量回填运单号：`{items:[{externalOrderId, trackingNo, carrier?}]}`，按 1688 外部订单号匹配采购单（placed 状态会先自动 mark-paid），返回逐行结果。 |
 
 所有状态流转写入 `purchase_order_events`；对应管理端页面为 `/procurement/orders`。
 

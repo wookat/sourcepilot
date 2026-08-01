@@ -16,7 +16,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
-import { MetricCard, OperationToolbar, TmPageContainer, type MetricCardIntent } from '@/components/ui';
+import { EmptyState, MetricCard, OperationToolbar, TmPageContainer, type MetricCardIntent } from '@/components/ui';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { formatDateTime } from '@/utils/formatTime';
 import { history } from '@umijs/max';
@@ -807,7 +807,18 @@ export default function ProductOperationsDashboardPage() {
   }, [loadBoard]);
 
   const summary = board?.summary ?? EMPTY_SUMMARY;
-  const todos = useMemo(() => mergeTodos(board?.todos), [board?.todos]);
+  const todos = useMemo(() => {
+    const merged = mergeTodos(board?.todos);
+    const rank = (t: (typeof merged)[number]) => (t.severity === 'high' ? 0 : t.severity === 'medium' ? 1 : 2);
+    return [...merged].sort((a, b) => {
+      const aActive = (a.count || 0) > 0 ? 0 : 1;
+      const bActive = (b.count || 0) > 0 ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      return (b.count || 0) - (a.count || 0);
+    });
+  }, [board?.todos]);
+  const activeTodos = useMemo(() => todos.filter((t) => (t.count || 0) > 0), [todos]);
   const funnelSteps = useMemo(() => mergeFunnel(board?.funnel), [board?.funnel]);
   const exceptions = useMemo(() => mergeExceptions(board?.exceptions), [board?.exceptions]);
   const quickLinks = DEFAULT_QUICK_LINKS;
@@ -959,14 +970,33 @@ export default function ProductOperationsDashboardPage() {
           </ProCard>
 
           {/* 2. 今日待办 */}
-          <ProCard title="今日待办" variant="outlined" style={{ marginBottom: 16 }}>
-            <Row gutter={[16, 16]}>
-              {todos.map((item) => (
-                <Col xs={24} sm={12} md={8} lg={6} xl={6} key={item.key || item.id}>
-                  <TodoCardItem item={item} />
-                </Col>
-              ))}
-            </Row>
+          <ProCard
+            title="今日待办"
+            variant="outlined"
+            style={{ marginBottom: 16 }}
+            extra={
+              activeTodos.length > 0 ? (
+                <Typography.Text type="secondary">{activeTodos.length} 项需处理</Typography.Text>
+              ) : null
+            }
+          >
+            {activeTodos.length > 0 ? (
+              <Row gutter={[16, 16]}>
+                {activeTodos.map((item) => (
+                  <Col xs={24} sm={12} md={8} lg={6} xl={6} key={item.key || item.id}>
+                    <TodoCardItem item={item} />
+                  </Col>
+                ))}
+              </Row>
+            ) : (
+              <EmptyState
+                compact
+                title="今天没有待处理事项"
+                description="可以去采集新商品、新建选品任务，或检查可刊登商品"
+                actionLabel="新建选品任务"
+                actionPath="/selection/tasks"
+              />
+            )}
           </ProCard>
 
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>

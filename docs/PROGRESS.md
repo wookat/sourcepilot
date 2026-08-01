@@ -866,6 +866,13 @@ Final Production Acceptance Deferred to P10
 - Admin 新增 `/selection/tasks` 选品任务页与 `/selection/tasks/:id` 可上架清单页（排序展示、人工审核、一键转商品草稿进入既有刊登链路）。
 - 边界：未改动货源档案/采购协同（source/procurement）模块；1688 官方 API 保持空壳。
 
+### 变更记录（2026-07-29）迭代第 1 轮：采购批量回填 + 待办导向首页驾驶舱
+
+- 采购批量回填：新增 `POST /procurement/orders/batch-mark-placed`（按采购单 ID 批量回填 1688 订单号）与 `POST /procurement/orders/batch-logistics`（按 1688 外部订单号匹配采购单批量回填运单号，placed 状态自动先 mark-paid），单批 ≤200 行、逐行独立处理、部分成功不回滚、重复行/未知单号/非法 ID 逐行报错，附 service 层单测（`procurement/batch_test.go`）。
+- Admin 采购页新增「批量回填 1688 订单号 / 快递单号」粘贴式弹窗：多行文本解析（空格/逗号/Tab 分隔）、采购单 ID 支持完整 UUID 或唯一前缀（对当前「下单中」采购单解析）、客户端格式校验 + 服务端逐行结果表，解析逻辑独立为 `batchParse.ts` 并附单测；采购列表页支持 `?status=` URL 初始筛选（配合首页待办跳转）。
+- 待办导向首页：dashboard 新增选品/货源/采购统计（选品待审核、选品失败、货源涨价/断货、采购待确认/待下单/待付款/待回填运单），统一待办流与首页「今日待办」新增对应卡片；首页待办改为只展示有数量的待办并按 P0/P1 + 数量排序，全空时给出下一步引导空状态。
+- 同步 `docs/api.md`、`admin/src/services/{procurement,dashboard}.ts`、`admin/src/constants/dashboardDefaults.ts`。
+
 ### 变更记录（2026-07-31）Docker 全栈构建修复与 legacy 登录租户修复
 
 - 修复 `docker-compose.full.yml` 全栈构建失败：admin/collector 镜像缺少 `scripts/patch-pro-field-antd-select.mjs` 导致 `pnpm install` postinstall 报错（Dockerfile 增加 `COPY scripts`、`.dockerignore` 放行该脚本）；admin 基础镜像 node:26 不再内置 corepack，改用 `npm install -g pnpm` 安装。
