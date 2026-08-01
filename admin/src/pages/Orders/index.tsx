@@ -21,7 +21,7 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import { formatDateTime } from '@/utils/formatTime';
-import { history, useLocation } from '@umijs/max';
+import { history, useLocation, useModel } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PAGE_COPY } from '@/constants/copywriting';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
@@ -59,8 +59,12 @@ import ImportOrdersModal from '@/pages/Orders/ImportOrdersModal';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import {
   fetchOrderCostEstimateBatch,
+  generatePurchaseOrders,
+  type GenerateResult,
   type OrderCostEstimateSummary,
 } from '@/services/procurement';
+import GenerateResultAlerts from '@/components/procurement/GenerateResultAlerts';
+import { canWriteOrders } from '@/utils/orderPerm';
 import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
 import { pickGroup } from '@/utils/settingsForm';
@@ -163,6 +167,34 @@ export default function OrdersPage() {
   const [costMap, setCostMap] = useState<Record<string, OrderCostEstimateSummary>>({});
   const [invActionLoading, setInvActionLoading] = useState(false);
   const detailIdRef = useRef<string | undefined>();
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: API.CurrentUser };
+  };
+  const writable = canWriteOrders(initialState?.currentUser?.role);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [batchGenLoading, setBatchGenLoading] = useState(false);
+  const [genResult, setGenResult] = useState<GenerateResult | null>(null);
+
+  const handleBatchGenerate = useCallback(async () => {
+    const ids = selectedRowKeys.map(String).filter(Boolean);
+    if (ids.length === 0) return;
+    setBatchGenLoading(true);
+    try {
+      const res = await generatePurchaseOrders({ orderIds: ids });
+      setGenResult(res);
+      if ((res.orders || []).length > 0) {
+        message.success(`已生成 ${res.orders.length} 张采购单`);
+      } else if ((res.blockers || []).length === 0 && (res.warnings || []).length === 0) {
+        message.info('没有可进入采购清单的明细行');
+      }
+      setSelectedRowKeys([]);
+      actionRef.current?.reload();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '生成采购单失败');
+    } finally {
+      setBatchGenLoading(false);
+    }
+  }, [selectedRowKeys]);
 
   const invEffectFailures = useMemo(
     () => invEffectRows.filter((r) => r.status === 'failed'),
@@ -667,6 +699,30 @@ export default function OrdersPage() {
         formRef={formRef}
         columns={columns}
         search={{ layout: 'vertical', defaultCollapsed: false }}
+        rowSelection={
+          writable
+            ? {
+                selectedRowKeys,
+                onChange: (keys) => setSelectedRowKeys(keys.map(String)),
+                getCheckboxProps: (r) => ({
+                  disabled: r.paymentStatus !== 'paid',
+                }),
+              }
+            : undefined
+        }
+        tableAlertOptionRender={({ onCleanSelected }) => (
+          <Space>
+            <Button
+              type="primary"
+              size="small"
+              loading={batchGenLoading}
+              onClick={() => void handleBatchGenerate()}
+            >
+              批量生成采购单
+            </Button>
+            <a onClick={onCleanSelected}>取消选择</a>
+          </Space>
+        )}
         onSubmit={() => {
           // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
           const v = (formRef.current?.getFieldsValue?.() ?? {}) as Record<string, unknown>;
@@ -809,6 +865,15 @@ export default function OrdersPage() {
           },
         }}
       />
+
+      <Modal
+        title="生成采购单结果"
+        open={!!genResult && ((genResult.blockers || []).length > 0 || (genResult.warnings || []).length > 0)}
+        footer={null}
+        onCancel={() => setGenResult(null)}
+      >
+        <GenerateResultAlerts blockers={genResult?.blockers} warnings={genResult?.warnings} />
+      </Modal>
 
       <Drawer
         title={detail ? `订单 ${detail.orderNo}` : '订单详情'}
