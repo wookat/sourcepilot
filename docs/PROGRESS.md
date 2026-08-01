@@ -1103,3 +1103,11 @@ Final Production Acceptance Deferred to P10
 
 - 订单异常工作台列表新增行选择（仅可写角色显示），批量操作条提供「批量已处理（N）」「批量忽略（N）」「批量取消标记（N）」：前两者只统计所选未标记行，取消标记只统计所选已标记行；逐行复用既有 handle/ignore/mark 删除 API，逐行汇总成功/失败数并展示首个错误。批量已处理支持一次填备注应用到全部所选行。纯前端改动，无 API/权限/状态机变化。
 - 移动端收口：<768px 视口下操作列不再 `fixed: 'right'`（避免固定列盖住选择列导致 checkbox 不可点）。注意 pro-table 的 columnsMap 会固化首帧列 `fixed`，因此宽屏判断用 `useState(() => window.innerWidth >= 768)` 惰性初始化保证移动端首帧即不固定，并以 `key={wide|narrow}` 在跨断点时重挂载表格（选择为父级受控状态，不丢已选）；rowSelection 开启 `preserveSelectedRowKeys` 支持跨视图/分页保留已选行。
+
+### 变更记录（2026-07-29）迭代第 41 轮：异常工作台「全部」视图
+
+- 「视图状态」筛选新增「全部」：`GET /orders/exceptions` 支持 `all=true` 同屏返回未处理/已处理/已忽略行（`summary` 口径不变，仍只统计未处理），未标记与已标记行可同屏混合勾选批量操作，不再需要跨视图切换。附 filterAggRows 视图口径单测。
+
+### 变更记录（2026-07-29）迭代第 42 轮：批量操作条常驻不位移
+
+- 订单列表 / 异常工作台的 ProTable rowSelection 增加 `alwaysShowAlert: true`，采购单列表批量 Alert 改为可写角色常驻显示（导出按钮 0 选中时 disabled）：批量操作条不再在勾选首行时突然出现，消除表格行整体下移导致连续勾选误点的问题（第 41 轮测试反馈项）。纯前端样式/交互改动。

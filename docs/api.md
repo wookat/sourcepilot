@@ -611,6 +611,10 @@ Dashboard 同步：`GET /api/v1/dashboard/product-operations` 的 `summary.procu
 
 Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_negative_margin`（P0，链接 `/orders/exceptions?exceptionType=negative_margin`）。
 
+### 订单异常工作台：全部视图
+
+`GET /api/v1/orders/exceptions` 查询参数除 `handled=true`（只看已处理标记）、`ignored=true`（只看已忽略标记）外，支持 `all=true`：同时返回未处理、已处理与已忽略的行（`summary` 口径不变，仍只统计未处理）。默认（不带三者）只返回未处理行。
+
 ## 修改 API 时的同步要求
 
 - 后端：handler、service、DTO、权限和错误处理一起检查。
