@@ -1119,3 +1119,11 @@ Final Production Acceptance Deferred to P10
 ### 变更记录（2026-07-29）迭代第 44 轮：批量导入订单支持店铺归属
 
 - 「批量导入订单」弹窗新增「关联店铺（可选，应用到本次导入的全部订单）」下拉，选中后整批订单写入 `shopId`（复用既有 `CreateBody.shopId` 与后端店铺可见性校验，API 不变）；补齐订单店铺归属入口，使店铺授权（store scope）的正向过滤在手工/导入订单上可用（此前导入订单 shop_id 恒为 NULL，非 admin 授权店铺账号看不到任何导入订单）。纯前端改动。
+
+### 变更记录（2026-08-01）迭代第 46 轮：发货与库存扣减口径 UI 传达（第 45 轮 UX 走查 P1）
+
+- 根因结论：**非 bug，是既有「手工扣库」策略使然**。发货（单笔新增物流 / 批量发货）只推进订单生命周期（`advanceOrderOnShipment`），从不调用 `DeductInventoryForOrder`；库存扣减由手工触发（第 12 轮 `POST /orders/:id/deduct-inventory`）或库存策略（如建单自动扣减）触发，取消订单按策略自动回滚（第 32 轮）。本机全栈复现确认：未扣减订单直接发货成功且 `order_inventory_effects` 始终为空。问题在于 UI 未传达该口径，导致「未扣减 + 可发货」看似自相矛盾。
+- 处理（不引入「发货强制扣库存」语义，不改状态机/权限/既有字段语义）：
+  - 订单详情「新增物流」弹窗：当本单尚无成功扣减记录时提示「本单尚未扣减库存……可到库存影响 Tab 手工扣减」（编辑既有物流不提示）。
+  - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
+  - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。

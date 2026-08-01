@@ -119,6 +119,7 @@ export default function BatchShipModal({
         showIcon
         style={{ marginBottom: 12 }}
         message="按订单号匹配已付款销售订单并新增「已发货」物流，订单会自动流转为已发货；未付款、已取消订单会逐行提示失败。"
+        description="发货不会自动扣减本地库存；结果中标记「未扣库存」的订单，可到订单详情「库存影响」Tab 手工扣减。"
       />
       {!results && (
         <>
@@ -168,13 +169,20 @@ export default function BatchShipModal({
             {
               title: '说明',
               render: (_, r) =>
-                r.ok
-                  ? `订单状态：${
+                r.ok ? (
+                  <Space size={4} wrap>
+                    {`订单状态：${
                       (ORDER_STATUS as Record<string, { text: string }>)[r.status || '']?.text ||
                       r.status ||
                       '-'
-                    }`
-                  : r.message || '-',
+                    }`}
+                    {r.inventoryDeducted === false ? (
+                      <Tag color="warning">未扣库存</Tag>
+                    ) : null}
+                  </Space>
+                ) : (
+                  r.message || '-'
+                ),
             },
           ]}
         />

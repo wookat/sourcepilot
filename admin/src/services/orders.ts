@@ -256,6 +256,8 @@ export type BatchShipmentLineResult = {
   ok: boolean;
   status?: string;
   message?: string;
+  /** 仅成功行返回：该订单是否已有成功的库存扣减（发货本身不扣库存） */
+  inventoryDeducted?: boolean;
 };
 
 export type BatchShipmentsResult = {
