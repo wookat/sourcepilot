@@ -292,7 +292,12 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	u := &admin.AdminUser{
+		TenantID:     tenantID,
 		Username:     admin.NewInternalUsername(),
 		Email:        em,
 		Phone:        ph,

@@ -1082,3 +1082,9 @@ Final Production Acceptance Deferred to P10
 
 - 新增 `ADMIN_BOOTSTRAP_TENANT_ID`：首次创建管理员时指定租户（示例文件默认 1），解决选品 worker 因 tenant_id=0 静默拒绝任务的问题（staging/production 禁用 dev 租户 fallback，故必须在种子阶段落租户）；同步 `.env.example` / `.env.docker.example` / `.env.production.example` / `docs/env.md` / `docs/docker-deployment.md`，附单测。
 - 新增 `docs/operations-manual.md`：日常运营操作手册（选品→上架→出单→采购→发货，1688 人工下单过渡模式），并登记到 `docs/README.md`。
+
+### 变更记录（2026-08-02）迭代第 37 轮：只读角色后端写防线（P0）+ 新建用户继承租户（P1）
+
+- P0：`order`/`procurement` 路由改为在写端点统一挂 `requireWrite()` 守卫（只读账号 403「当前账号为只读权限，无法执行此操作」）。此前仅 Import/库存影响/SKU 匹配少数 handler 调用 `denyWrite`，只读账号可直接调 API 创建/修改/删除订单与操作采购单，前端隐藏是唯一防线；附路由级回归单测。
+- P1：设置→用户 新建用户此前恒为 `tenant_id=0`，与创建者（如 tenant 1）跨租户导致新账号登录后看不到数据；改为继承当前请求租户。
+- 订单列表工具栏（新建订单/批量导入/批量发货）对只读角色整体隐藏。

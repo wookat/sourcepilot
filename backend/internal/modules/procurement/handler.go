@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
@@ -15,6 +16,18 @@ import (
 // Handler exposes procurement HTTP API.
 type Handler struct {
 	Svc *Service
+}
+
+// requireWrite is the route-level guard for procurement write endpoints.
+func (h *Handler) requireWrite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if h != nil && h.Svc != nil && h.Svc.DB != nil && !adminperm.CanWriteOrders(c, h.Svc.DB) {
+			response.Fail(c, 403, response.CodeForbidden, "当前账号为只读权限，无法执行此操作")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {

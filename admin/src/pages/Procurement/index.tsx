@@ -224,11 +224,15 @@ export default function ProcurementOrdersPage() {
         message="1688 官方 API 暂不可用：当前为人工下单过渡模式。系统生成采购清单（含 1688 链接、SKU、数量、参考价），导出 CSV 后请人工下单，并在详情页回填 1688 订单号 / 运单号。"
       />
       <Space style={{ marginBottom: 16 }} wrap>
-        <Button type="primary" onClick={() => void openGenerate()}>
-          从销售订单生成采购单
-        </Button>
-        <Button onClick={() => setBatchMode('placed')}>批量回填 1688 订单号</Button>
-        <Button onClick={() => setBatchMode('logistics')}>批量回填快递单号</Button>
+        {writable && (
+          <>
+            <Button type="primary" onClick={() => void openGenerate()}>
+              从销售订单生成采购单
+            </Button>
+            <Button onClick={() => setBatchMode('placed')}>批量回填 1688 订单号</Button>
+            <Button onClick={() => setBatchMode('logistics')}>批量回填快递单号</Button>
+          </>
+        )}
         <Select
           allowClear
           placeholder="按状态筛选"
