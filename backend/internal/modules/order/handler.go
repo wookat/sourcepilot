@@ -438,6 +438,25 @@ func (h *Handler) PostShipment(c *gin.Context) {
 	response.OK(c, row)
 }
 
+// PostBatchShipments POST /orders/shipments/batch
+func (h *Handler) PostBatchShipments(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	var body BatchShipmentsBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	res, err := h.Svc.BatchShipments(c, body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, res)
+}
+
 // PutShipment PUT /orders/:id/shipments/:shipmentId
 func (h *Handler) PutShipment(c *gin.Context) {
 	if h == nil || h.Svc == nil {

@@ -898,6 +898,12 @@ Final Production Acceptance Deferred to P10
 - 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
 - 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 27 轮：销售订单批量发货（粘贴订单号+快递单号）
+
+- 新增 `POST /api/v1/orders/shipments/batch`：`{items:[{orderNo, trackingNo, carrier?}]}`（≤200 条），按订单号在租户内匹配已付款销售订单并新增 `shipped` 物流（复用既有 AppendShipment，订单自动流转为已发货）；未付款、已取消/关闭/退款、未找到、多重匹配、重复订单号逐行失败并给出中文原因；附单测。
+- 订单列表工具栏新增「批量发货」：粘贴 `订单号 快递单号 [承运商]` 多行文本，行级格式校验 + 逐行结果表，闭环「打完快递单后逐单进详情加物流」的重复操作。
+- 同步 `docs/api.md`。
+
 ### 变更记录（2026-08-02）迭代第 26 轮：采购单列表批量标记付款
 
 - 采购单列表批量操作条新增「批量标记付款（N）」：已下单（placed）状态可勾选并批量调用既有 `POST /api/v1/procurement/orders/:id/mark-paid`，逐单汇总成功/失败，闭环「1688 付款后逐单点标记付款」。
