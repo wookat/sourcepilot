@@ -52,6 +52,7 @@ type Summary struct {
 	NegativeMarginOrderCount      int64 `json:"negativeMarginOrderCount"`
 	AwaitShipmentOrderCount       int64 `json:"awaitShipmentOrderCount"`
 	AwaitProcurementOrderCount    int64 `json:"awaitProcurementOrderCount"`
+	AwaitPaymentOrderCount        int64 `json:"awaitPaymentOrderCount"`
 
 	// 选品 / 货源 / 采购协同（selection & procurement collaboration）
 	SelectionReviewCount           int64 `json:"selectionReviewCount"`

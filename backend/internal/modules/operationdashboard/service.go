@@ -343,6 +343,11 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 			[]string{order.StatusShipped, order.StatusDelivered, order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
 		Where("NOT EXISTS (SELECT 1 FROM purchase_order_items poi JOIN purchase_orders po2 ON po2.id = poi.purchase_order_id WHERE poi.sales_order_id = orders.id AND po2.status NOT IN ('cancelled','failed'))").
 		Count(&sum.AwaitProcurementOrderCount).Error
+	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+		Where("payment_status = ? AND status NOT IN ?",
+			order.PaymentUnpaid,
+			[]string{order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
+		Count(&sum.AwaitPaymentOrderCount).Error
 
 	// Compact KPI aliases
 	sum.DraftTotal = sum.DraftProducts + sum.ReadyProducts
@@ -585,6 +590,8 @@ func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 			"已付款采购单等待回填快递单号（支持批量粘贴）", "/procurement/orders?status=paid"),
 		todoCard("procurement_await_receipt", "采购单待签收", sum.ProcurementAwaitReceiptCount, failureclassifier.SeverityMedium,
 			"已发货采购单等待签收，签收后自动入库本地库存", "/procurement/orders?status=shipped"),
+		todoCard("order_await_payment", "订单待收款确认", sum.AwaitPaymentOrderCount, failureclassifier.SeverityMedium,
+			"未付款销售订单，确认买家已付款后可批量标记已付款并进入采购", "/orders/list?payStatus=unpaid"),
 		todoCard("order_await_procurement", "订单待采购", sum.AwaitProcurementOrderCount, failureclassifier.SeverityHigh,
 			"已付款订单尚未生成采购单，请到订单详情生成采购清单", "/orders/list?payStatus=paid&hasPurchase=0"),
 		todoCard("order_await_shipment", "订单待发货", sum.AwaitShipmentOrderCount, failureclassifier.SeverityHigh,
