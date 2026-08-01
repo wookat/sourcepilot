@@ -279,6 +279,8 @@ export type OrderSkuMatchListRow = OrderSkuMatchRow & {
   orderNo?: string;
   productTitle?: string;
   localSkuCode?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export async function queryOrderSkuMatches(params: {

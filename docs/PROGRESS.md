@@ -892,6 +892,11 @@ Final Production Acceptance Deferred to P10
 - `ALLOWED_QUERY_KEYS` 补 `operationStep`（商品草稿运营进度筛选）与 `customerName`（客服会话买家筛选）；客服会话布尔筛选（待回复/有 AI 建议/发送失败/有关联订单）URL 采用 `1`/`0`，兼容既有 `replyStatus`/`aiSuggestionStatus`/`sendStatus` 深链。
 - 修复真实测试发现的既有后端 P1：`GET /api/v1/task-center/failures` 对 tenant>0 用户必报 400（PostgreSQL 42703）。根因是统一的 `tenant_id = ?` 过滤被套到了自身没有 `tenant_id` 列的失败源表上。新增 `applyTenantListFilterVia`：`image_tasks` 经 `products` 限定租户（`product_id IS NULL` 的工具级任务保留可见）、`ai_product_text_items`/`ai_product_image_items` 经各自 batches 表、`customer_failure_events` 经 `shops` 表；附 sqlite DryRun SQL 回归单测。
 
+### 变更记录（2026-08-02）迭代第 17 轮：Admin TypeScript 全量错误清零
+
+- 修复 Admin `tsc --noEmit` 全部 24 个既有类型错误并把 `tests/quality/baselines/admin-typescript.json` 基线 ratchet 到 0（CI「Admin TypeScript baseline ratchet」此后任何新增类型错误直接红灯）。均为类型层修正，无运行时行为变化。
+- 主要修正：`postJSON`/`putJSON` 泛型默认 body 参数、`getWithParams` params 支持 boolean（订单 hasException）；`AppMessageBridge` 改为逐方法显式补丁（消除 union-of-signatures 不可调用问题）；`typings.d.ts` 补 `*.png` 模块声明；`TranslateLayoutSummary` 补 `renderMode`/`eraseMode`、`TranslateTaskOutput` 补 `resultUnavailable`、去除 imageTasks 重复字面量属性；`OrderSkuMatchListRow` 补 `createdAt`/`updatedAt`；Collect 规则编辑 request 新建分支补全表单字段；`attrsToJSON` 返回类型补 null。
+
 ### 变更记录（2026-08-01）迭代第 15 轮：订单列表分页/查询交互修复
 
 - 修复订单列表 UI 点击分页器与「查询」按钮不生效的既有问题（第 14 轮测试发现）：此前 `params` 中透传的 URL 筛选值会覆盖表单/分页的新值。现改为与异常工作台一致的「URL query 为唯一筛选来源」模式：`onSubmit` 把表单值写回 URL、urlState 变化 effect 触发 reload、`request` 一律从 urlState 读筛选；`hasException` 补入 URL keys（深链可用）。

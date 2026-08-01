@@ -320,6 +320,8 @@ export default function CollectRulesPage() {
         request={async () => {
           if (!editingId) {
             return {
+              name: '',
+              domain: '',
               priority: 100,
               status: 'enabled',
               ruleJson: DEFAULT_CUSTOM_RULE_TEMPLATE,
