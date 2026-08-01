@@ -174,11 +174,52 @@ export default function OrdersPage() {
   };
   const writable = canWriteOrders(initialState?.currentUser?.role);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [tableRows, setTableRows] = useState<OrderListRow[]>([]);
   const [batchGenLoading, setBatchGenLoading] = useState(false);
+  const [batchPayLoading, setBatchPayLoading] = useState(false);
   const [genResult, setGenResult] = useState<GenerateResult | null>(null);
 
+  const selectedPaidIds = useMemo(
+    () =>
+      tableRows
+        .filter((r) => selectedRowKeys.includes(r.id) && r.paymentStatus === 'paid')
+        .map((r) => r.id),
+    [tableRows, selectedRowKeys],
+  );
+  const selectedUnpaidIds = useMemo(
+    () =>
+      tableRows
+        .filter((r) => selectedRowKeys.includes(r.id) && r.paymentStatus === 'unpaid')
+        .map((r) => r.id),
+    [tableRows, selectedRowKeys],
+  );
+
+  const handleBatchMarkPaid = useCallback(async () => {
+    const ids = selectedUnpaidIds;
+    if (ids.length === 0) return;
+    setBatchPayLoading(true);
+    const failures: string[] = [];
+    let ok = 0;
+    try {
+      for (const id of ids) {
+        try {
+          await updateOrder(id, { paymentStatus: 'paid' });
+          ok += 1;
+        } catch (e: unknown) {
+          failures.push((e as Error)?.message || id);
+        }
+      }
+      if (ok > 0) message.success(`已标记 ${ok} 单为已付款`);
+      if (failures.length > 0) message.error(`${failures.length} 单标记失败：${failures[0]}`);
+      setSelectedRowKeys([]);
+      actionRef.current?.reload();
+    } finally {
+      setBatchPayLoading(false);
+    }
+  }, [selectedUnpaidIds]);
+
   const handleBatchGenerate = useCallback(async () => {
-    const ids = selectedRowKeys.map(String).filter(Boolean);
+    const ids = selectedPaidIds;
     if (ids.length === 0) return;
     setBatchGenLoading(true);
     try {
@@ -196,7 +237,7 @@ export default function OrdersPage() {
     } finally {
       setBatchGenLoading(false);
     }
-  }, [selectedRowKeys]);
+  }, [selectedPaidIds]);
 
   const invEffectFailures = useMemo(
     () => invEffectRows.filter((r) => r.status === 'failed'),
@@ -707,7 +748,7 @@ export default function OrdersPage() {
                 selectedRowKeys,
                 onChange: (keys) => setSelectedRowKeys(keys.map(String)),
                 getCheckboxProps: (r) => ({
-                  disabled: r.paymentStatus !== 'paid',
+                  disabled: r.paymentStatus !== 'paid' && r.paymentStatus !== 'unpaid',
                 }),
               }
             : undefined
@@ -718,9 +759,18 @@ export default function OrdersPage() {
               type="primary"
               size="small"
               loading={batchGenLoading}
+              disabled={selectedPaidIds.length === 0}
               onClick={() => void handleBatchGenerate()}
             >
-              批量生成采购单
+              批量生成采购单（{selectedPaidIds.length}）
+            </Button>
+            <Button
+              size="small"
+              loading={batchPayLoading}
+              disabled={selectedUnpaidIds.length === 0}
+              onClick={() => void handleBatchMarkPaid()}
+            >
+              批量标记已付款（{selectedUnpaidIds.length}）
             </Button>
             <a onClick={onCleanSelected}>取消选择</a>
           </Space>
@@ -850,6 +900,7 @@ export default function OrdersPage() {
             start: qp.start,
             end: qp.end,
           });
+          setTableRows(res.list);
           const ids = res.list.map((r) => r.id).filter(Boolean);
           if (ids.length > 0) {
             void fetchOrderCostEstimateBatch(ids.slice(0, 50))
