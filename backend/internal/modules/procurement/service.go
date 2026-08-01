@@ -95,6 +95,71 @@ func (s *Service) transition(ctx context.Context, id uuid.UUID, to, source strin
 	return &po, nil
 }
 
+// Scope is the trusted tenant/store visibility scope resolved from the
+// authenticated caller. TenantID nil skips tenant filtering (legacy/unit-test
+// paths); AllowedShopIDs nil means all stores (admin), empty means none.
+type Scope struct {
+	TenantID       *int64
+	AllowedShopIDs []uuid.UUID
+}
+
+// POInScope reports whether one purchase order is visible under sc. Purchase
+// orders are tenant-scoped directly; store scope resolves through the sales
+// orders referenced by their items.
+func (s *Service) POInScope(ctx context.Context, id uuid.UUID, sc Scope) (bool, error) {
+	var po PurchaseOrder
+	err := s.DB.WithContext(ctx).Select("id", "tenant_id").First(&po, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if sc.TenantID != nil && po.TenantID != *sc.TenantID {
+		return false, nil
+	}
+	if sc.AllowedShopIDs == nil {
+		return true, nil
+	}
+	if len(sc.AllowedShopIDs) == 0 {
+		return false, nil
+	}
+	var n int64
+	err = s.DB.WithContext(ctx).
+		Table("purchase_order_items").
+		Joins("JOIN orders ON orders.id = purchase_order_items.sales_order_id").
+		Where("purchase_order_items.purchase_order_id = ? AND orders.shop_id IN ?", id, sc.AllowedShopIDs).
+		Count(&n).Error
+	return n > 0, err
+}
+
+// SalesOrderInScope reports whether one sales order is visible under sc.
+func (s *Service) SalesOrderInScope(ctx context.Context, id uuid.UUID, sc Scope) (bool, error) {
+	var o order.Order
+	err := s.DB.WithContext(ctx).Select("id", "tenant_id", "shop_id").First(&o, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if sc.TenantID != nil && o.TenantID != *sc.TenantID {
+		return false, nil
+	}
+	if sc.AllowedShopIDs == nil {
+		return true, nil
+	}
+	if o.ShopID == nil {
+		return false, nil
+	}
+	for _, sid := range sc.AllowedShopIDs {
+		if sid == *o.ShopID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // GenerateBody creates purchase orders from sales orders.
 type GenerateBody struct {
 	OrderIDs       []string       `json:"orderIds"`
@@ -278,6 +343,14 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 			receiverJSON = datatypes.JSON(b)
 		}
 	}
+	// purchase orders inherit the tenant of their source sales orders
+	var poTenantID int64
+	if len(orderIDs) > 0 {
+		var src order.Order
+		if err := s.DB.WithContext(ctx).Select("tenant_id").First(&src, "id = ?", orderIDs[0]).Error; err == nil {
+			poTenantID = src.TenantID
+		}
+	}
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		idx := 0
 		for supplierID, lines := range bySupplier {
@@ -289,6 +362,7 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 				}
 			}
 			po := PurchaseOrder{
+				TenantID:        poTenantID,
 				SupplierID:      supplierID,
 				SupplierName:    lines[0].supplier.Name,
 				SourcePlatform:  lines[0].supplier.Platform,
@@ -385,6 +459,7 @@ type ListQuery struct {
 	SupplierID   string
 	Keyword      string
 	SalesOrderID string
+	Scope        Scope
 }
 
 // ListResult is a paginated purchase-order page.
@@ -404,6 +479,19 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 		q.PageSize = 20
 	}
 	tx := s.DB.WithContext(ctx).Model(&PurchaseOrder{})
+	if q.Scope.TenantID != nil {
+		tx = tx.Where("tenant_id = ?", *q.Scope.TenantID)
+	}
+	if q.Scope.AllowedShopIDs != nil {
+		if len(q.Scope.AllowedShopIDs) == 0 {
+			tx = tx.Where("1 = 0")
+		} else {
+			tx = tx.Where(
+				"id IN (SELECT purchase_order_items.purchase_order_id FROM purchase_order_items JOIN orders ON orders.id = purchase_order_items.sales_order_id WHERE orders.shop_id IN ?)",
+				q.Scope.AllowedShopIDs,
+			)
+		}
+	}
 	if q.Status != "" {
 		tx = tx.Where("status = ?", q.Status)
 	}

@@ -562,11 +562,13 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 所有状态流转写入 `purchase_order_events`；对应管理端页面为 `/procurement/orders`。
 
+范围口径：全部采购协同接口按当前租户过滤；非管理员进一步限制到被授权店铺（采购单经明细行来源销售订单的 `shop_id` 判定，无店铺授权列表为空）。范围外的采购单/销售订单 ID 一律返回 404（不泄露存在性），批量接口逐行按「不存在」处理或省略。
+
 ### 销售订单批量导入（人工建单过渡）
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/orders/import` | 批量创建手工销售订单：`{orders:[CreateBody], matchSkus?}`，单批 ≤200 张；订单号已存在（库内或批内重复）返回 `skipped_duplicate` 不重复建单，单张失败不影响其余；`matchSkus=true` 时创建后自动按 SKU 编码匹配本地规格。返回 `{total, created, duplicate, failed, results[]}`（含逐单 `itemsMatched`）。手工订单创建（含单张 `POST /orders`）会写入当前租户 `tenant_id`。 |
+| `POST` | `/api/v1/orders/import` | 批量创建手工销售订单：`{orders:[CreateBody], matchSkus?}`，单批 ≤200 张；订单号已存在（库内或批内重复）返回 `skipped_duplicate` 不重复建单，单张失败不影响其余；`matchSkus=true` 时创建后自动按 SKU 编码匹配本地规格。返回 `{total, created, duplicate, failed, results[]}`（含逐单 `itemsMatched`）。手工订单创建（含单张 `POST /orders`）会写入当前租户 `tenant_id`；`CreateBody.shopId` 可选（导入弹窗可选一个店铺应用到整批），仅允许当前账号可见的店铺。 |
 
 `GET /api/v1/orders` 支持可选 `hasPurchase` 过滤（`1`/`true`＝已有未取消/未失败采购单覆盖任一明细行，`0`/`false`＝无；缺省不过滤），与生成采购单防重的覆盖判定同一口径；首页「订单待采购」待办卡使用 `payStatus=paid&hasPurchase=0` 直达。
 

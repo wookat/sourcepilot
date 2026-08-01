@@ -32,7 +32,7 @@ func TestBatchMarkPlacedPartialSuccess(t *testing.T) {
 		{PurchaseOrderID: uuid.NewString(), ExternalOrderID: "1688-B-2"}, // not found
 		{PurchaseOrderID: "not-a-uuid", ExternalOrderID: "1688-B-3"},
 		{PurchaseOrderID: po.ID.String(), ExternalOrderID: "1688-B-4"}, // duplicate line
-	}}, nil)
+	}}, Scope{}, nil)
 	if err != nil {
 		t.Fatalf("batch: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestBatchMarkPlacedPartialSuccess(t *testing.T) {
 
 func TestBatchMarkPlacedRejectsEmpty(t *testing.T) {
 	f := setupFixture(t)
-	if _, err := f.svc.BatchMarkPlaced(context.Background(), BatchMarkPlacedBody{}, nil); err == nil {
+	if _, err := f.svc.BatchMarkPlaced(context.Background(), BatchMarkPlacedBody{}, Scope{}, nil); err == nil {
 		t.Fatalf("empty batch must be rejected")
 	}
 }
@@ -68,7 +68,7 @@ func TestBatchFillLogisticsMatchesByExternalOrderID(t *testing.T) {
 		{ExternalOrderID: "1688-L-1", TrackingNo: "SF-888", Carrier: "顺丰"},
 		{ExternalOrderID: "1688-UNKNOWN", TrackingNo: "YT-1"},
 		{ExternalOrderID: "1688-L-1", TrackingNo: "SF-999"}, // duplicate
-	}}, nil)
+	}}, Scope{}, nil)
 	if err != nil {
 		t.Fatalf("batch: %v", err)
 	}

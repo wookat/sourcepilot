@@ -1111,3 +1111,11 @@ Final Production Acceptance Deferred to P10
 ### 变更记录（2026-07-29）迭代第 42 轮：批量操作条常驻不位移
 
 - 订单列表 / 异常工作台的 ProTable rowSelection 增加 `alwaysShowAlert: true`，采购单列表批量 Alert 改为可写角色常驻显示（导出按钮 0 选中时 disabled）：批量操作条不再在勾选首行时突然出现，消除表格行整体下移导致连续勾选误点的问题（第 41 轮测试反馈项）。纯前端样式/交互改动。
+
+### 变更记录（2026-07-29）迭代第 43 轮：采购协同租户/店铺范围过滤
+
+- 采购协同全部读写接口统一 tenant/store scope（r38/r42 测试遗留的读口径不一致项）：列表按 `purchase_orders.tenant_id` + 授权店铺（经明细行来源销售订单 `shop_id`）过滤；详情/导出/单号回填等 `:id` 路由挂 `scopePO` 守卫，范围外一律 404 不泄露存在性；成本估算（单/批）按来源销售订单 scope 判定；批量回填单号/运单号逐行跳过范围外记录；生成采购单校验来源订单在范围内并把订单租户写入 `purchase_orders.tenant_id`（含存量数据 backfill 迁移）。附 sqlite 范围回归单测（scope_test.go）。API URL/method/payload/状态机不变。
+
+### 变更记录（2026-07-29）迭代第 44 轮：批量导入订单支持店铺归属
+
+- 「批量导入订单」弹窗新增「关联店铺（可选，应用到本次导入的全部订单）」下拉，选中后整批订单写入 `shopId`（复用既有 `CreateBody.shopId` 与后端店铺可见性校验，API 不变）；补齐订单店铺归属入口，使店铺授权（store scope）的正向过滤在手工/导入订单上可用（此前导入订单 shop_id 恒为 NULL，非 admin 授权店铺账号看不到任何导入订单）。纯前端改动。
