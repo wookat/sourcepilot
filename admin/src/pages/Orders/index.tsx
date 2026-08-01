@@ -6,6 +6,7 @@ import {
   Button,
   Drawer,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -19,6 +20,7 @@ import {
   Typography,
   message,
 } from 'antd';
+import type { Breakpoint } from 'antd';
 import dayjs from 'dayjs';
 import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation, useModel } from '@umijs/max';
@@ -110,6 +112,9 @@ function summarizeInvResp(sum?: Record<string, unknown>) {
 
 const TERMINAL_ORDER_STATUSES = ['cancelled', 'refunded', 'closed'];
 
+/** 次要列在 <768px 小屏折叠，只保留订单号 / 状态 / 金额 / 操作；完整信息进订单详情查看。 */
+const DESKTOP_ONLY: Breakpoint[] = ['md'];
+
 const ORDER_STATUS_OPTS = Object.keys(ORDER_STATUS).map((v) => ({
   label: ORDER_STATUS[v as keyof typeof ORDER_STATUS].text,
   value: v,
@@ -176,6 +181,13 @@ export default function OrdersPage() {
     initialState?: { currentUser?: API.CurrentUser };
   };
   const writable = canWriteOrders(initialState?.currentUser?.role);
+  const screens = Grid.useBreakpoint();
+  const [wideScreen, setWideScreen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 768,
+  );
+  useEffect(() => {
+    if (screens.md !== undefined) setWideScreen(screens.md);
+  }, [screens.md]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [tableRows, setTableRows] = useState<OrderListRow[]>([]);
   const [batchGenLoading, setBatchGenLoading] = useState(false);
@@ -432,6 +444,7 @@ export default function OrdersPage() {
         title: '外部单号',
         dataIndex: 'externalOrderId',
         width: 140,
+        responsive: DESKTOP_ONLY,
         search: false,
         copyable: true,
         ellipsis: true,
@@ -441,6 +454,7 @@ export default function OrdersPage() {
         title: '平台',
         dataIndex: 'platform',
         width: 96,
+        responsive: DESKTOP_ONLY,
         fieldProps: { allowClear: true },
       },
       {
@@ -448,6 +462,7 @@ export default function OrdersPage() {
         dataIndex: 'shopName',
         search: false,
         width: 140,
+        responsive: DESKTOP_ONLY,
         ellipsis: true,
         render: (_, r) =>
           r.shopName ? (
@@ -459,7 +474,7 @@ export default function OrdersPage() {
             '—'
           ),
       },
-      { title: '客户', dataIndex: 'customerName', ellipsis: true, width: 120 },
+      { title: '客户', dataIndex: 'customerName', ellipsis: true, width: 120, responsive: DESKTOP_ONLY },
       {
         title: '订单状态',
         dataIndex: 'status',
@@ -472,6 +487,7 @@ export default function OrdersPage() {
         title: '支付',
         dataIndex: 'paymentStatus',
         width: 94,
+        responsive: DESKTOP_ONLY,
         valueType: 'select',
         valueEnum: ORDER_PAYMENT_STATUS,
         render: (_, r) => statusTag(r.paymentStatus, ORDER_PAYMENT_STATUS),
@@ -481,12 +497,14 @@ export default function OrdersPage() {
         dataIndex: 'itemCount',
         search: false,
         width: 72,
+        responsive: DESKTOP_ONLY,
         render: (_, r) => r.itemCount ?? '—',
       },
       {
         title: '规格匹配',
         dataIndex: 'skuMatchStatus',
         width: 108,
+        responsive: DESKTOP_ONLY,
         valueType: 'select',
         valueEnum: ORDER_SKU_MATCH_SUMMARY,
         render: (_, r) => {
@@ -510,6 +528,7 @@ export default function OrdersPage() {
         title: '库存扣减',
         dataIndex: 'inventoryDeductStatus',
         width: 100,
+        responsive: DESKTOP_ONLY,
         valueType: 'select',
         valueEnum: ORDER_INVENTORY_DEDUCT_SUMMARY,
         search: false,
@@ -523,6 +542,7 @@ export default function OrdersPage() {
         title: '同步',
         dataIndex: 'syncStatus',
         width: 96,
+        responsive: DESKTOP_ONLY,
         valueType: 'select',
         valueEnum: ORDER_SYNC_SUMMARY,
         search: false,
@@ -556,6 +576,7 @@ export default function OrdersPage() {
         title: '异常',
         dataIndex: 'openExceptionCount',
         width: 72,
+        responsive: DESKTOP_ONLY,
         search: false,
         render: (_, r) =>
           (r.openExceptionCount ?? 0) > 0 ? (
@@ -584,6 +605,7 @@ export default function OrdersPage() {
         dataIndex: 'estimatedProfit',
         search: false,
         width: 132,
+        responsive: DESKTOP_ONLY,
         render: (_, r) => {
           const est = costMap[r.id];
           if (!est) return '—';
@@ -625,6 +647,7 @@ export default function OrdersPage() {
         dataIndex: 'latestShipmentStatus',
         search: false,
         width: 96,
+        responsive: DESKTOP_ONLY,
         render: (_, r) =>
           r.latestShipmentStatus ? statusTag(r.latestShipmentStatus, ORDER_SHIPMENT_STATUS) : '—',
       },
@@ -633,12 +656,14 @@ export default function OrdersPage() {
         dataIndex: 'orderedAt',
         search: false,
         width: 160,
+        responsive: DESKTOP_ONLY,
         render: (_, r) => (r.orderedAt ? formatDateTime(r.orderedAt) : '—'),
       },
       {
         title: '创建时间',
         dataIndex: 'createdAt',
         width: 160,
+        responsive: DESKTOP_ONLY,
         valueType: 'dateTimeRange',
         search: {
           transform: ([start, end]: [unknown, unknown]) => ({
@@ -652,14 +677,15 @@ export default function OrdersPage() {
         title: '更新时间',
         dataIndex: 'updatedAt',
         width: 160,
+        responsive: DESKTOP_ONLY,
         search: false,
         render: (_, r) => (r.updatedAt ? formatDateTime(r.updatedAt) : '—'),
       },
       {
         title: '操作',
         valueType: 'option',
-        width: 220,
-        fixed: 'right',
+        width: wideScreen ? 220 : 128,
+        fixed: wideScreen ? 'right' : undefined,
         render: (_, r) => (
           <Space wrap size={4}>
             <a onClick={() => history.push(`/orders/${encodeURIComponent(r.id)}`)}>详情</a>
@@ -684,7 +710,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [shopOptions, keywordFieldProps, costMap],
+    [shopOptions, keywordFieldProps, costMap, wideScreen],
   );
 
   const openItemModal = (row?: OrderItemRow) => {
@@ -799,6 +825,7 @@ export default function OrdersPage() {
     <TmPageContainer title={PAGE_COPY.orderList.title} subTitle={PAGE_COPY.orderList.description}>
       <KeywordSafetyHint visible={showSensitiveHint} />
       <ProTable<OrderListRow>
+        key={wideScreen ? 'wide' : 'narrow'}
         rowKey="id"
         locale={emptyLocale}
         actionRef={actionRef}

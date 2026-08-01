@@ -886,6 +886,12 @@ Final Production Acceptance Deferred to P10
 - Admin 订单详情「订单概览」新增「成本 / 毛利估算」卡：销售额、预估采购成本（CNY + 折算）、预估毛利（正绿负红）、毛利率；缺价行与未配置汇率分别以 Alert 提示。
 - 顺带闭环第 12 轮 P3：库存手工扣减/回滚成功 toast 不再直出后端摘要原文 `ok`，改为结构化中文（成功/幂等跳过 + 原因）。
 
+### 变更记录（2026-08-01）迭代第 46 轮：首页新手入门引导卡 + 订单列表 375px 移动端优化
+
+- 首页驾驶舱顶部新增「新手入门」引导卡（第 45 轮 UX 走查 Top4）：按业务闭环列 6 步（配置 AI 与存储 → 采集商品 → 完善草稿与货源 → 导入订单 → 生成采购单 → 发货），每步直达对应页面；用既有列表/设置 API（settings、collect/tasks、products、suppliers、orders、procurement/orders）计数自动标记已完成步骤（不新增后端接口），带完成进度条；可关闭，关闭状态经 `localStorage`（`tm_dashboard_onboarding_dismissed_v1`）持久化。
+- 订单列表 375px 优化（第 45 轮 UX 走查 Top5）：次要列（外部单号/平台/店铺/客户/支付/商品数/规格匹配/库存扣减/同步/异常/预估毛利/物流/三个时间列）加 `responsive: ['md']` 在 <768px 折叠，小屏默认仅保留订单号/订单状态/金额/操作四列（复现时 20 列 scrollWidth 2382px vs 视口 295px，修复后无横向滚动）；操作列小屏取消 fixed 并收窄，完整信息进订单详情查看；桌面端列集与交互不变（沿用第 26 轮异常工作台 `Grid.useBreakpoint` + 表格 key 重挂载模式）。
+- 纯前端改动，无 API / 权限 / 状态机变更。
+
 ### 变更记录（2026-08-02）迭代第 16 轮：全站列表页 params 覆盖问题审计修复
 
 - 按第 15 轮根因对全站 ProTable 列表页做同类问题审计：失败任务（TaskCenter/Failures）、商品草稿（Product/Drafts）、客服会话（Customer/Conversations）三页仍在 `params` 中透传 URL 筛选值，存在与订单列表相同的「分页点击/表单提交被旧值冲掉」风险。统一改为「URL query 为唯一筛选来源」模式：移除 `params`、新增 `onSubmit` 写回 URL、urlState 变化 effect 触发 reload、`request` 一律读 urlState/legacy URL 值。
