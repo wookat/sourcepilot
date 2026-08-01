@@ -14,7 +14,7 @@ import {
   type PurchaseOrder,
   type PurchaseOrderItem,
 } from '@/services/procurement';
-import { useParams } from '@umijs/max';
+import { Link, useParams } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -102,6 +102,9 @@ export default function ProcurementOrderDetailPage() {
   const missingPriceCount = (po.items || []).filter(
     (it) => it.expectedPrice === undefined || it.expectedPrice === null,
   ).length;
+  const salesOrderIds = Array.from(
+    new Set((po.items || []).map((it) => it.salesOrderId).filter((v): v is string => !!v)),
+  );
 
   const savePrice = async (itemId: string, value?: number) => {
     if (value === undefined || value === null || value <= 0) {
@@ -194,6 +197,17 @@ export default function ProcurementOrderDetailPage() {
         <Descriptions.Item label="支付渠道">{po.payChannel || '-'}</Descriptions.Item>
         <Descriptions.Item label="创建时间">{po.createdAt}</Descriptions.Item>
         <Descriptions.Item label="确认时间">{po.confirmedAt || '-'}</Descriptions.Item>
+        <Descriptions.Item label="来源销售订单" span={2}>
+          {salesOrderIds.length === 0 ? (
+            '-'
+          ) : (
+            <Space wrap>
+              {salesOrderIds.map((sid) => (
+                <Link key={sid} to={`/orders/${sid}`}>{sid.slice(0, 8)}</Link>
+              ))}
+            </Space>
+          )}
+        </Descriptions.Item>
       </Descriptions>
 
       <Typography.Title level={5}>采购明细</Typography.Title>
@@ -234,6 +248,12 @@ export default function ProcurementOrderDetailPage() {
           },
           { title: '货源规格', dataIndex: 'externalSkuId', width: 120, render: (v) => v || '-' },
           { title: '数量', dataIndex: 'quantity', width: 80 },
+          {
+            title: '来源订单',
+            dataIndex: 'salesOrderId',
+            width: 110,
+            render: (v?: string) => (v ? <Link to={`/orders/${v}`}>{v.slice(0, 8)}</Link> : '-'),
+          },
           {
             title: '参考价',
             dataIndex: 'expectedPrice',

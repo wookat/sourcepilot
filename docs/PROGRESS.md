@@ -892,6 +892,11 @@ Final Production Acceptance Deferred to P10
 - `ALLOWED_QUERY_KEYS` 补 `operationStep`（商品草稿运营进度筛选）与 `customerName`（客服会话买家筛选）；客服会话布尔筛选（待回复/有 AI 建议/发送失败/有关联订单）URL 采用 `1`/`0`，兼容既有 `replyStatus`/`aiSuggestionStatus`/`sendStatus` 深链。
 - 修复真实测试发现的既有后端 P1：`GET /api/v1/task-center/failures` 对 tenant>0 用户必报 400（PostgreSQL 42703）。根因是统一的 `tenant_id = ?` 过滤被套到了自身没有 `tenant_id` 列的失败源表上。新增 `applyTenantListFilterVia`：`image_tasks` 经 `products` 限定租户（`product_id IS NULL` 的工具级任务保留可见）、`ai_product_text_items`/`ai_product_image_items` 经各自 batches 表、`customer_failure_events` 经 `shops` 表；附 sqlite DryRun SQL 回归单测。
 
+### 变更记录（2026-08-02）迭代第 21 轮：采购单详情反向直达销售订单 + 生成结果弹窗分组
+
+- 采购单详情补「采购 → 出单」反向直达：概览新增「来源销售订单」（去重短 ID 链接直达订单详情），采购明细每行新增「来源订单」列；纯前端复用既有 `purchase_order_items.salesOrderId`，无后端变更。
+- 订单详情「生成采购单结果」弹窗按 warning code 分组：`line.covered`（已有采购单覆盖，info 样式）与缺参考进价（warning 样式）分开展示，标题不再混用（第20轮 E2E 反馈项闭环）；纯防重结果不再额外弹「没有可进入采购清单的明细行」toast。
+
 ### 变更记录（2026-08-02）迭代第 20 轮：订单详情采购协同直达
 
 - 订单详情补「出单 → 采购」直达闭环（此前需跳到采购协同页在下拉里逐个找订单）：已付款订单右上角新增「生成采购单」按钮（复用 `POST /procurement/orders/generate`，blockers/warnings 以弹窗展示）；概览新增「关联采购单」卡片，展示该订单聚合出的采购单（状态 / 供应商 / 金额 / 1688 订单号，链接直达采购单详情）。
