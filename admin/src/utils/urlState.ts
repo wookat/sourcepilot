@@ -34,6 +34,7 @@ const ALLOWED_QUERY_KEYS = new Set([
   'inventoryStatus',
   'fulfillmentStatus',
   'hasException',
+  'hasPurchase',
   'dateFrom',
   'dateTo',
   'createdFrom',
