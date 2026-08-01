@@ -625,18 +625,36 @@ func (s *Service) FillLogistics(ctx context.Context, id uuid.UUID, body Logistic
 	return po, nil
 }
 
-// MarkDelivered moves shipped → delivered (cloud warehouse inbound).
+// MarkDelivered moves shipped → delivered (cloud warehouse inbound) and adds
+// each purchase line quantity to local SKU stock (idempotent per line).
 func (s *Service) MarkDelivered(ctx context.Context, id uuid.UUID, operator *uuid.UUID) (*PurchaseOrder, error) {
-	po, err := s.transition(ctx, id, StatusDelivered, EventSourceManual, nil, func(tx *gorm.DB, po *PurchaseOrder) error {
+	payload := map[string]any{}
+	po, err := s.transition(ctx, id, StatusDelivered, EventSourceManual, payload, func(tx *gorm.DB, po *PurchaseOrder) error {
 		now := time.Now().UTC()
-		return tx.Model(&PurchaseLogistics{}).
+		if err := tx.Model(&PurchaseLogistics{}).
 			Where("purchase_order_id = ?", po.ID).
-			Updates(map[string]any{"status": "delivered", "inbound_at": now}).Error
+			Updates(map[string]any{"status": "delivered", "inbound_at": now}).Error; err != nil {
+			return err
+		}
+		lines, err := inboundStockTx(tx, po, operator)
+		if err != nil {
+			return err
+		}
+		payload["inboundLines"] = lines
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	s.logOp(ctx, operator, "procurement.mark_delivered", id.String(), "")
+	inbound := 0
+	if lines, ok := payload["inboundLines"].([]InboundLine); ok {
+		for _, l := range lines {
+			if !l.Skipped {
+				inbound += l.Quantity
+			}
+		}
+	}
+	s.logOp(ctx, operator, "procurement.mark_delivered", id.String(), fmt.Sprintf("inboundQty=%d", inbound))
 	return po, nil
 }
 

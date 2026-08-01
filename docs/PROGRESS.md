@@ -880,6 +880,13 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-08-01）迭代第 11 轮：采购签收自动入库
+
+- 新增：采购单「标记签收」（shipped → delivered）现同事务将每条采购明细数量加回本地 SKU 库存，并写入 `inventory_change_logs`（`change_type=purchase_inbound`，含 before/after/delta 与采购单号 remark），通过 `business_event_key` 每行幂等，重复入库自动跳过。此前签收只改物流状态，采购入库后本地库存不会增加，库存只减不增无法反映真实可售量。缺 SKU/数量≤0/SKU 不存在的行跳过并记录原因，不阻塞签收。签收事件 payload 记录逐行入库结果，操作日志记录累计入库数量。
+- Admin：库存变动日志类型映射新增「采购签收入库」；采购单详情签收成功提示注明已入库。附 sqlite 回归测试（入库 + 幂等重放）。
+- 测试反馈修复①（P2）：库存流水页「变更类型」列此前直出原始 change_type key，新增 `INVENTORY_CHANGE_TYPE` 中文映射并接入渲染。
+- 测试反馈修复②（既有 P1）：`inventory/order_mirror.go` 的 `orderLineMirror.ProductSKUID` 缺 column 标签，GORM 默认命名找 `product_sk_uid` 映射不到（与第 7 轮 `external_sk_uid` 同类），订单扣库全部被 `missing_product_sku_id` 静默跳过。补 `gorm:"column:product_sku_id"` 并附列名映射回归测试。
+
 ### 变更记录（2026-08-01）迭代第 10 轮：规格匹配列表零 UUID 行修复
 
 - 修复：导入时未勾「自动匹配」的订单行没有 `order_item_sku_matches` 记录，`GET /orders/:id/sku-matches` 对这类行返回零值匹配行（`orderItemId` 为零 UUID），前端「绑定 SKU」抽屉以零 UUID 调候选接口 404「候选加载失败」，且该行无展开箭头。现后端对无匹配记录的行回填真实 `orderItemId`/`orderId`/平台与行内编码，状态标为 `unmatched`（原因「尚未执行自动匹配」），无需先「自动匹配整单」即可直接展开候选/绑定；前端对零 UUID 行防御性禁用候选加载与绑定入口。附 sqlite 回归测试。

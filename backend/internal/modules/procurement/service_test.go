@@ -7,6 +7,7 @@ import (
 
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
@@ -27,6 +28,7 @@ func openTestDB(t *testing.T) *gorm.DB {
 		&order.Order{}, &order.OrderItem{},
 		&product.Product{}, &product.ProductSKU{},
 		&PurchaseOrder{}, &PurchaseOrderItem{}, &PurchaseOrderEvent{}, &PurchaseLogistics{},
+		&inventory.InventoryChangeLog{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

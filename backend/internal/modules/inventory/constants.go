@@ -47,6 +47,9 @@ const (
 	ChangeOrderDeduct  = "order_deduct"
 	ChangeOrderCancel  = "order_cancel_restore"
 	ChangeImport       = "import"
+	// ChangePurchaseInbound is written by the procurement module when a
+	// purchase order is marked delivered (cloud warehouse inbound).
+	ChangePurchaseInbound = "purchase_inbound"
 )
 
 // Platform-side snapshot status vs local SKU stock (alerts only).
