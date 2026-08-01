@@ -21,6 +21,7 @@ import {
   Tag,
   Typography,
   Descriptions,
+  Grid,
   message,
 } from 'antd';
 import dayjs from 'dayjs';
@@ -148,6 +149,8 @@ export default function OrderExceptionsPage() {
     initialState?: { currentUser?: { role?: string } };
   };
   const writable = !isReadonly(initialState?.currentUser?.role);
+  const screens = Grid.useBreakpoint();
+  const wideScreen = screens.md !== false;
   const emptyLocale = useListEmptyLocale('orderExceptions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -529,7 +532,7 @@ export default function OrderExceptionsPage() {
         title: '操作',
         valueType: 'option',
         width: 360,
-        fixed: 'right',
+        fixed: wideScreen ? 'right' : undefined,
         render: (_, r) => (
           <Space wrap size={4}>
             {r.orderId ? (
@@ -680,7 +683,7 @@ export default function OrderExceptionsPage() {
         ),
       },
     ],
-    [reload, shopOpts, openCandModalOnly, openBind, keywordFieldProps, writable],
+    [reload, shopOpts, openCandModalOnly, openBind, keywordFieldProps, writable, wideScreen],
   );
 
   return (
@@ -747,6 +750,7 @@ export default function OrderExceptionsPage() {
           writable
             ? {
                 selectedRowKeys: selectedKeys,
+                preserveSelectedRowKeys: true,
                 onChange: (keys, rows) => {
                   setSelectedKeys(keys);
                   setSelectedRows(rows);
