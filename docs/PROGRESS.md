@@ -886,6 +886,10 @@ Final Production Acceptance Deferred to P10
 - Admin 订单详情「订单概览」新增「成本 / 毛利估算」卡：销售额、预估采购成本（CNY + 折算）、预估毛利（正绿负红）、毛利率；缺价行与未配置汇率分别以 Alert 提示。
 - 顺带闭环第 12 轮 P3：库存手工扣减/回滚成功 toast 不再直出后端摘要原文 `ok`，改为结构化中文（成功/幂等跳过 + 原因）。
 
+### 变更记录（2026-08-01）迭代第 15 轮：订单列表分页/查询交互修复
+
+- 修复订单列表 UI 点击分页器与「查询」按钮不生效的既有问题（第 14 轮测试发现）：此前 `params` 中透传的 URL 筛选值会覆盖表单/分页的新值。现改为与异常工作台一致的「URL query 为唯一筛选来源」模式：`onSubmit` 把表单值写回 URL、urlState 变化 effect 触发 reload、`request` 一律从 urlState 读筛选；`hasException` 补入 URL keys（深链可用）。
+
 ### 变更记录（2026-08-01）迭代第 14 轮：订单列表预估毛利列
 
 - 新增 `POST /api/v1/procurement/cost-estimates/batch`：批量（≤50）返回订单成本/毛利汇总（复用单订单估算口径），不存在的订单省略；附单测（去重 + 缺失订单跳过）。
