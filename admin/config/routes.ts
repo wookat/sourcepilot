@@ -337,6 +337,11 @@ export default [
         component: './Orders/index',
       },
       {
+        path: '/orders/reports',
+        name: '经营报表',
+        component: './Orders/Reports',
+      },
+      {
         path: '/orders/:id',
         name: '订单详情',
         hideInMenu: true,
@@ -356,11 +361,6 @@ export default [
         path: '/orders/exceptions',
         name: '异常工作台',
         component: './Orders/Exceptions',
-      },
-      {
-        path: '/orders/reports',
-        name: '经营报表',
-        component: './Orders/Reports',
       },
     ],
   },
