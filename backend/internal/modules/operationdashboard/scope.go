@@ -11,17 +11,22 @@ import (
 type Scope struct {
 	AllowedShopIDs []uuid.UUID // nil = admin (all stores)
 	IsAdmin        bool
+	TenantID       *int64 // nil = no tenant restriction (legacy paths)
 }
 
 func scopeFromContext(c *gin.Context, db *gorm.DB) Scope {
 	if c == nil {
 		return Scope{IsAdmin: true}
 	}
+	var tenantID *int64
+	if tid, err := adminperm.TenantIDFromGin(c); err == nil {
+		tenantID = &tid
+	}
 	p, _ := adminperm.LoadPrincipal(c, db)
 	if p == nil || p.IsAdmin() {
-		return Scope{IsAdmin: true}
+		return Scope{IsAdmin: true, TenantID: tenantID}
 	}
-	return Scope{AllowedShopIDs: p.AllowedStoreIDs()}
+	return Scope{AllowedShopIDs: p.AllowedStoreIDs(), TenantID: tenantID}
 }
 
 func (sc Scope) applyShopColumn(tx *gorm.DB, column string) *gorm.DB {

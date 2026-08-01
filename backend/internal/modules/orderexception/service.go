@@ -178,6 +178,16 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 		}
 	}
 
+	if req.AllowedShopIDs != nil {
+		scoped := rows[:0]
+		for _, r := range rows {
+			if req.shopAllowed(r.shopID) {
+				scoped = append(scoped, r)
+			}
+		}
+		rows = scoped
+	}
+
 	sum := ExceptionSummaryDTO{}
 	for _, r := range rows {
 		mp := marks[markKey(r.exceptionType, r.sourceType, r.sourceID.String())]
@@ -441,6 +451,10 @@ WHERE LOWER(TRIM(o.platform)) NOT IN ('', 'manual')
   AND (m.id IS NULL OR m.match_status <> 'ambiguous')
 `
 	args := []any{}
+	if req.TenantID != nil {
+		q += ` AND o.tenant_id = ?`
+		args = append(args, *req.TenantID)
+	}
 	if req.Platform != "" {
 		q += ` AND LOWER(o.platform) = ?`
 		args = append(args, strings.ToLower(strings.TrimSpace(req.Platform)))
@@ -509,6 +523,9 @@ func (s *Service) collectSKUAmbiguous(ctx context.Context, req ListOrderExceptio
 	tx := s.DB.WithContext(ctx).Model(&order.OrderItemSKUMatch{}).
 		Joins("JOIN orders o ON o.id = order_item_sku_matches.order_id AND o.deleted_at IS NULL").
 		Where("order_item_sku_matches.match_status = ?", order.MatchStatusAmbiguous)
+	if req.TenantID != nil {
+		tx = tx.Where("o.tenant_id = ?", *req.TenantID)
+	}
 	if req.Platform != "" {
 		tx = tx.Where("LOWER(order_item_sku_matches.platform) = ?", strings.ToLower(strings.TrimSpace(req.Platform)))
 	}
@@ -580,6 +597,9 @@ func (s *Service) collectInventoryEffects(ctx context.Context, req ListOrderExce
 	for _, e := range effects {
 		var o order.Order
 		if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", e.OrderID).Error; err != nil {
+			continue
+		}
+		if req.TenantID != nil && o.TenantID != *req.TenantID {
 			continue
 		}
 		if req.Platform != "" && !strings.EqualFold(req.Platform, o.Platform) {
@@ -655,6 +675,9 @@ func (s *Service) collectInventorySyncFailed(ctx context.Context, req ListOrderE
 
 	var tasks []inventory.InventorySyncTask
 	tx := s.DB.WithContext(ctx).Model(dst).Where("status = ?", inventory.StatusFailed)
+	if req.TenantID != nil {
+		tx = tx.Where("tenant_id = ?", *req.TenantID)
+	}
 
 	// When SKU linkage columns exist, only surface failures tied to successful order deducts.
 	hasTaskSKU := s.DB.Migrator().HasColumn(dst, "product_sku_id")
@@ -803,6 +826,10 @@ WHERE o.payment_status = ?
 		order.StatusCancelled, order.StatusRefunded, order.StatusClosed,
 		order.FulfillmentUnfulfilled,
 	}
+	if req.TenantID != nil {
+		q += ` AND o.tenant_id = ?`
+		args = append(args, *req.TenantID)
+	}
 	if hasPOI {
 		q += `  AND NOT EXISTS (
     SELECT 1 FROM purchase_order_items poi
@@ -895,8 +922,9 @@ func derefStr(p *string) string {
 	return strings.TrimSpace(*p)
 }
 
-// GetOrderExceptionDetail loads one exception row by source.
-func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourceID string) (*OrderExceptionDTO, error) {
+// GetOrderExceptionDetail loads one exception row by source. scope carries
+// the caller's tenant/store restrictions; out-of-scope rows read as 404.
+func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourceID string, scope ListOrderExceptionsRequest) (*OrderExceptionDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("orderexception: unavailable")
 	}
@@ -916,9 +944,12 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		if err := s.DB.WithContext(ctx).First(&m, "id = ?", sid).Error; err != nil {
 			return nil, err
 		}
-		r, err := s.rowFromSKUMatch(ctx, m)
+		r, err := s.rowFromSKUMatch(ctx, m, scope)
 		if err != nil {
 			return nil, err
+		}
+		if !scope.shopAllowed(r.shopID) {
+			return nil, gorm.ErrRecordNotFound
 		}
 		d := exceptionToDTO(ctx, s, r)
 		applyMarkDTO(&d, marks)
@@ -928,9 +959,12 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		if err := s.DB.WithContext(ctx).First(&oi, "id = ?", sid).Error; err != nil {
 			return nil, err
 		}
-		r, err := s.rowFromOrderItem(ctx, oi)
+		r, err := s.rowFromOrderItem(ctx, oi, scope)
 		if err != nil {
 			return nil, err
+		}
+		if !scope.shopAllowed(r.shopID) {
+			return nil, gorm.ErrRecordNotFound
 		}
 		d := exceptionToDTO(ctx, s, r)
 		applyMarkDTO(&d, marks)
@@ -940,13 +974,13 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		if err := s.DB.WithContext(ctx).First(&e, "id = ?", sid).Error; err != nil {
 			return nil, err
 		}
-		req := ListOrderExceptionsRequest{}
+		req := ListOrderExceptionsRequest{TenantID: scope.TenantID, AllowedShopIDs: scope.AllowedShopIDs}
 		xs, err := s.collectInventoryEffects(ctx, req, e.EffectType)
 		if err != nil {
 			return nil, err
 		}
 		for _, r := range xs {
-			if r.sourceID == e.ID {
+			if r.sourceID == e.ID && scope.shopAllowed(r.shopID) {
 				d := exceptionToDTO(ctx, s, r)
 				applyMarkDTO(&d, marks)
 				return &d, nil
@@ -961,13 +995,13 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		if t.Status != inventory.StatusFailed || t.ProductSKUID == nil {
 			return nil, gorm.ErrRecordNotFound
 		}
-		req := ListOrderExceptionsRequest{}
+		req := ListOrderExceptionsRequest{TenantID: scope.TenantID, AllowedShopIDs: scope.AllowedShopIDs}
 		xs, err := s.collectInventorySyncFailed(ctx, req)
 		if err != nil {
 			return nil, err
 		}
 		for _, r := range xs {
-			if r.sourceID == t.ID {
+			if r.sourceID == t.ID && scope.shopAllowed(r.shopID) {
 				d := exceptionToDTO(ctx, s, r)
 				applyMarkDTO(&d, marks)
 				return &d, nil
@@ -975,12 +1009,12 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		}
 		return nil, gorm.ErrRecordNotFound
 	case SourceOrder:
-		xs, err := s.collectNegativeMargin(ctx, ListOrderExceptionsRequest{OrderID: sid.String()})
+		xs, err := s.collectNegativeMargin(ctx, ListOrderExceptionsRequest{OrderID: sid.String(), TenantID: scope.TenantID, AllowedShopIDs: scope.AllowedShopIDs})
 		if err != nil {
 			return nil, err
 		}
 		for _, r := range xs {
-			if r.sourceID == sid {
+			if r.sourceID == sid && scope.shopAllowed(r.shopID) {
 				d := exceptionToDTO(ctx, s, r)
 				applyMarkDTO(&d, marks)
 				return &d, nil
@@ -1006,10 +1040,13 @@ func applyMarkDTO(d *OrderExceptionDTO, marks map[string]markPair) {
 	}
 }
 
-func (s *Service) rowFromSKUMatch(ctx context.Context, m order.OrderItemSKUMatch) (aggRow, error) {
+func (s *Service) rowFromSKUMatch(ctx context.Context, m order.OrderItemSKUMatch, scope ListOrderExceptionsRequest) (aggRow, error) {
 	var o order.Order
 	if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", m.OrderID).Error; err != nil {
 		return aggRow{}, err
+	}
+	if scope.TenantID != nil && o.TenantID != *scope.TenantID {
+		return aggRow{}, gorm.ErrRecordNotFound
 	}
 	var oi order.OrderItem
 	if err := s.DB.WithContext(ctx).First(&oi, "id = ?", m.OrderItemID).Error; err != nil {
@@ -1076,10 +1113,13 @@ func (s *Service) rowFromSKUMatch(ctx context.Context, m order.OrderItemSKUMatch
 	}
 }
 
-func (s *Service) rowFromOrderItem(ctx context.Context, oi order.OrderItem) (aggRow, error) {
+func (s *Service) rowFromOrderItem(ctx context.Context, oi order.OrderItem, scope ListOrderExceptionsRequest) (aggRow, error) {
 	var o order.Order
 	if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", oi.OrderID).Error; err != nil {
 		return aggRow{}, err
+	}
+	if scope.TenantID != nil && o.TenantID != *scope.TenantID {
+		return aggRow{}, gorm.ErrRecordNotFound
 	}
 	extOid := ""
 	if o.ExternalOrderID != nil {
@@ -1220,6 +1260,9 @@ func (s *Service) collectOrderSyncPartialFailed(ctx context.Context, req ListOrd
 	}
 	var tasks []ordersync.OrderSyncTask
 	tx := s.DB.WithContext(ctx).Model(dst).Where("status = ?", ordersync.StatusPartialSuccess)
+	if req.TenantID != nil {
+		tx = tx.Where("tenant_id = ?", *req.TenantID)
+	}
 	if req.Platform != "" {
 		tx = tx.Where("LOWER(platform) = ?", strings.ToLower(strings.TrimSpace(req.Platform)))
 	}
@@ -1268,14 +1311,17 @@ func (s *Service) ResolveOrderItemForBind(ctx context.Context, sourceType, sourc
 }
 
 // DashboardSummary returns open-exception counts for the board (read-only).
-func (s *Service) DashboardSummary(ctx context.Context, platform, shopID string, start, end *time.Time) (ExceptionSummaryDTO, error) {
+// tenantID/allowedShops carry the caller's authorization scope (nil = unrestricted).
+func (s *Service) DashboardSummary(ctx context.Context, platform, shopID string, start, end *time.Time, tenantID *int64, allowedShops []uuid.UUID) (ExceptionSummaryDTO, error) {
 	req := ListOrderExceptionsRequest{
-		Platform: strings.TrimSpace(platform),
-		ShopID:   strings.TrimSpace(shopID),
-		Start:    start,
-		End:      end,
-		Page:     1,
-		PageSize: 1,
+		Platform:       strings.TrimSpace(platform),
+		ShopID:         strings.TrimSpace(shopID),
+		Start:          start,
+		End:            end,
+		Page:           1,
+		PageSize:       1,
+		TenantID:       tenantID,
+		AllowedShopIDs: allowedShops,
 	}
 	res, err := s.ListOrderExceptions(ctx, req)
 	if err != nil || res == nil {
