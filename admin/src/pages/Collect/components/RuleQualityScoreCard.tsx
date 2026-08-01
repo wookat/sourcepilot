@@ -1,6 +1,6 @@
 import { CheckCircleOutlined, CloseCircleOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import { Progress, Space, Tag, Typography } from 'antd';
-import type { CollectRuleAIQualityGate } from '@/services/collectRuleAI';
+import type { CollectRuleAIFieldHit, CollectRuleAIQualityGate } from '@/services/collectRuleAI';
 
 const { Text } = Typography;
 
@@ -9,7 +9,7 @@ type Props = {
   confidence?: number;
 };
 
-function hitStatus(hit: CollectRuleAIQualityGate['fieldHits'][number]) {
+function hitStatus(hit: CollectRuleAIFieldHit) {
   if (hit.extracted) return { icon: <CheckCircleOutlined />, color: 'success' as const, text: '已识别' };
   if (hit.inRule) return { icon: <MinusCircleOutlined />, color: 'warning' as const, text: '规则有·未识别' };
   return { icon: <CloseCircleOutlined />, color: 'default' as const, text: '未生成' };
