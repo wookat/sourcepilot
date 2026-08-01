@@ -898,6 +898,12 @@ Final Production Acceptance Deferred to P10
 - 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
 - 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 23 轮：订单列表批量生成采购单
+
+- 订单列表新增行选择（仅已付款订单可勾选，只读角色不显示）与「批量生成采购单」批量操作，复用既有 `POST /api/v1/procurement/orders/generate`（本就支持多 orderIds 且带跨请求防重），选中多单一键生成后自动清空选择并刷新列表。
+- 生成结果的 blockers / 已覆盖（line.covered）/ 缺参考进价三组提示抽取为共享组件 `admin/src/components/procurement/GenerateResultAlerts`，订单列表与订单详情共用，消除既有重复。
+- 纯前端改动，无后端 / API 变更。
+
 ### 变更记录（2026-08-02）迭代第 21 轮：采购单详情反向直达销售订单 + 生成结果弹窗分组
 
 - 采购单详情补「采购 → 出单」反向直达：概览新增「来源销售订单」（去重短 ID 链接直达订单详情），采购明细每行新增「来源订单」列；纯前端复用既有 `purchase_order_items.salesOrderId`，无后端变更。

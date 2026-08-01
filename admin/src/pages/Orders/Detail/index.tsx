@@ -62,6 +62,7 @@ import {
   inventoryTagFromMap,
 } from '@/constants/inventoryLabels';
 import { canWriteOrders } from '@/utils/orderPerm';
+import GenerateResultAlerts from '@/components/procurement/GenerateResultAlerts';
 import {
   fetchOrderCostEstimate,
   fetchPurchaseOrders,
@@ -875,63 +876,7 @@ export default function OrderDetailPage() {
         footer={null}
         onCancel={() => setGenResult(null)}
       >
-        {(genResult?.blockers || []).length > 0 ? (
-          <Alert
-            type="warning"
-            showIcon
-            style={{ marginBottom: 12 }}
-            message="部分订单行未能进入采购清单"
-            description={
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {(genResult?.blockers || []).map((b, i) => (
-                  <li key={i}>
-                    {b.message}
-                    {b.skuName ? `（${b.skuName}）` : ''}
-                  </li>
-                ))}
-              </ul>
-            }
-          />
-        ) : null}
-        {(genResult?.warnings || []).filter((w) => w.code === 'line.covered').length > 0 ? (
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 12 }}
-            message="部分明细已有有效采购单覆盖，未重复生成"
-            description={
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {(genResult?.warnings || [])
-                  .filter((w) => w.code === 'line.covered')
-                  .map((w, i) => (
-                    <li key={i}>
-                      {w.message}
-                      {w.skuName ? `（${w.skuName}）` : ''}
-                    </li>
-                  ))}
-              </ul>
-            }
-          />
-        ) : null}
-        {(genResult?.warnings || []).filter((w) => w.code !== 'line.covered').length > 0 ? (
-          <Alert
-            type="warning"
-            showIcon
-            message="部分明细缺参考进价，采购单金额不含这些行"
-            description={
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {(genResult?.warnings || [])
-                  .filter((w) => w.code !== 'line.covered')
-                  .map((w, i) => (
-                    <li key={i}>
-                      {w.message}
-                      {w.skuName ? `（${w.skuName}）` : ''}
-                    </li>
-                  ))}
-              </ul>
-            }
-          />
-        ) : null}
+        <GenerateResultAlerts blockers={genResult?.blockers} warnings={genResult?.warnings} />
       </Modal>
 
       <Modal
