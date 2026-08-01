@@ -143,16 +143,18 @@ export default function ProductSourcesPage() {
     if (!productId) return;
     setLoading(true);
     try {
-      const [src, ev, detail] = await Promise.all([
+      const [src, ev, detail] = await Promise.allSettled([
         fetchProductSources(productId),
         fetchSwitchEvents({ productId, page: 1, pageSize: 20 }),
         fetchProductDetail(productId),
       ]);
-      setSources(src.items || []);
-      setEvents(ev.items || []);
-      setProductDetail(detail);
-    } catch (e) {
-      message.error((e as Error).message || '加载货源失败');
+      if (src.status === 'fulfilled') {
+        setSources(src.value.items || []);
+      } else {
+        message.error((src.reason as Error)?.message || '加载货源失败');
+      }
+      setEvents(ev.status === 'fulfilled' ? ev.value.items || [] : []);
+      setProductDetail(detail.status === 'fulfilled' ? detail.value : null);
     } finally {
       setLoading(false);
     }
