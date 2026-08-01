@@ -10,6 +10,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | --- | --- |
 | 我想快速了解项目能做什么 | [../README.md](../README.md) · [roadmap.md](roadmap.md) · [PROGRESS.md](PROGRESS.md) · [FULL_PROJECT_FUNCTION_MAP.md](FULL_PROJECT_FUNCTION_MAP.md) |
 | 我想本地跑起来或用 Docker 试用 | [development.md](development.md) · [docker-deployment.md](docker-deployment.md) · [env.md](env.md) |
+| 我想部署到云服务器 + 公网域名 + HTTPS | [production-deployment.md](production-deployment.md) |
 | 我想接 API、改功能、扩 Provider | [architecture.md](architecture.md) · [api.md](api.md) · [provider.md](provider.md) |
 | 我想参与协作或用 AI 工具开发 | [../AGENTS.md](../AGENTS.md) · [ai-workflow.md](ai-workflow.md) · [module-map.md](module-map.md) |
 
@@ -19,6 +20,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | --- | --- | --- |
 | [development.md](development.md) | 本地开发、常用命令、端口、环境变量 | 开发者 |
 | [docker-deployment.md](docker-deployment.md) | Docker Compose 完整部署、端口、日志、数据卷 | 试用者 / 部署者 |
+| [production-deployment.md](production-deployment.md) | 生产部署 SOP：Caddy HTTPS、一键部署、升级/回滚、备份恢复 | 部署者 / 运维 |
 | [operations-manual.md](operations-manual.md) | 日常运营操作手册（选品→上架→采购→发货，1688 人工下单过渡模式） | 店铺运营者 |
 | [ai-workflow.md](ai-workflow.md) | 跨 AI 工具通用工作流、提示词优化、上下文预算、token 节约和经验沉淀 | 开发者 / AI Agent |
 | [ui-copywriting.md](ui-copywriting.md) | 管理端/API 用户可见文案中文化、术语表与 `pnpm check:ui-copy` | 开发者 / AI Agent |
@@ -77,6 +79,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | --- | --- |
 | [development.md](development.md) | 本地开发环境、`pnpm dev`、分服务启动、调试与故障排查 |
 | [docker-deployment.md](docker-deployment.md) | `docker-compose.full.yml`、生产前安全配置、日志与数据管理 |
+| [production-deployment.md](production-deployment.md) | `docker-compose.prod.yml` + Caddy 自动 HTTPS 的从零到上线 SOP |
 | [env.md](env.md) | `.env.example`、`.env.docker.example`、Docker 端口、队列变量和敏感配置说明 |
 
 ## 架构与扩展

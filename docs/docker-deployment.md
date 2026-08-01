@@ -2,6 +2,8 @@
 
 本文说明如何使用 Docker Compose 启动完整 TradeMind 项目。
 
+> 生产环境（云服务器 + 公网域名 + 自动 HTTPS）请使用 `docker-compose.prod.yml`，见 [production-deployment.md](production-deployment.md)。
+
 ## 组成服务
 
 `docker-compose.full.yml` 包含：
