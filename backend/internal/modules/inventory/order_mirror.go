@@ -20,7 +20,7 @@ type orderLineMirror struct {
 	model.HardDeleteBase
 	OrderID        uuid.UUID  `gorm:"type:char(36);index;not null"`
 	ProductID      *uuid.UUID `gorm:"type:char(36);index"`
-	ProductSKUID   *uuid.UUID `gorm:"type:char(36);index"`
+	ProductSKUID   *uuid.UUID `gorm:"column:product_sku_id;type:char(36);index"`
 	ExternalItemID *string    `gorm:"size:255"`
 	Quantity       int        `gorm:"not null"`
 }

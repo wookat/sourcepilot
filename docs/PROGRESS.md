@@ -884,6 +884,8 @@ Final Production Acceptance Deferred to P10
 
 - 新增：采购单「标记签收」（shipped → delivered）现同事务将每条采购明细数量加回本地 SKU 库存，并写入 `inventory_change_logs`（`change_type=purchase_inbound`，含 before/after/delta 与采购单号 remark），通过 `business_event_key` 每行幂等，重复入库自动跳过。此前签收只改物流状态，采购入库后本地库存不会增加，库存只减不增无法反映真实可售量。缺 SKU/数量≤0/SKU 不存在的行跳过并记录原因，不阻塞签收。签收事件 payload 记录逐行入库结果，操作日志记录累计入库数量。
 - Admin：库存变动日志类型映射新增「采购签收入库」；采购单详情签收成功提示注明已入库。附 sqlite 回归测试（入库 + 幂等重放）。
+- 测试反馈修复①（P2）：库存流水页「变更类型」列此前直出原始 change_type key，新增 `INVENTORY_CHANGE_TYPE` 中文映射并接入渲染。
+- 测试反馈修复②（既有 P1）：`inventory/order_mirror.go` 的 `orderLineMirror.ProductSKUID` 缺 column 标签，GORM 默认命名找 `product_sk_uid` 映射不到（与第 7 轮 `external_sk_uid` 同类），订单扣库全部被 `missing_product_sku_id` 静默跳过。补 `gorm:"column:product_sku_id"` 并附列名映射回归测试。
 
 ### 变更记录（2026-08-01）迭代第 10 轮：规格匹配列表零 UUID 行修复
 
