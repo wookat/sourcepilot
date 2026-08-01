@@ -166,6 +166,7 @@ type Paginated<T> = {
 
 function boolQueryFlag(v: boolean | string | undefined): string | undefined {
   if (v === true || v === 'true' || v === '1') return '1';
+  if (v === false || v === 'false' || v === '0') return '0';
   return undefined;
 }
 

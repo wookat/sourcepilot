@@ -134,6 +134,20 @@ func parseBoolQuery(v string) bool {
 	}
 }
 
+// parseTriBoolQuery 区分未传（nil）/ 是 / 否三态，用于列表布尔筛选的「否」分支。
+func parseTriBoolQuery(v string) *bool {
+	switch strings.TrimSpace(strings.ToLower(v)) {
+	case "1", "true", "yes", "on":
+		t := true
+		return &t
+	case "0", "false", "no", "off":
+		f := false
+		return &f
+	default:
+		return nil
+	}
+}
+
 func (s *Service) countOpenFailures(ctx context.Context, conversationID uuid.UUID) int64 {
 	if s == nil || s.DB == nil {
 		return 0

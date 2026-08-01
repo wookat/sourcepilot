@@ -46,10 +46,10 @@ type ListQuery struct {
 	ShopID          *uuid.UUID
 	CustomerName    string
 	Keyword         string
-	PendingReply    bool
-	HasAiSuggestion bool
-	SendFailed      bool
-	HasOrder        bool
+	PendingReply    *bool
+	HasAiSuggestion *bool
+	SendFailed      *bool
+	HasOrder        *bool
 	Start           *time.Time
 	End             *time.Time
 	UpdatedStart    *time.Time
