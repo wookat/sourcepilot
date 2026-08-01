@@ -880,6 +880,11 @@ Final Production Acceptance Deferred to P10
 - Admin 采购单详情：明细「参考价」缺失时显示「缺参考价」标记，可编辑状态下行内「填价」直接补填；详情顶部聚合缺价行提示；生成采购清单弹窗展示缺价 warnings。
 - 同步 `docs/api.md`、`admin/src/services/procurement.ts`。
 
+### 变更记录（2026-08-01）迭代第 9 轮：修复 product_skus 硬删除表被按 deleted_at 过滤（42703）
+
+- `product_skus` 为硬删除表（`HardDeleteBase`，无 `deleted_at` 列），但 SKU 候选推荐（`skucandidate`）、规格搜索（`product/sku_search`）、订单库存扣减/回补（`inventory/order_inventory`）、异常工作台（`orderexception`）多处查询按 `deleted_at IS NULL` 过滤，PostgreSQL 上整条查询以 42703 失败：候选推荐 publication/本地编码/历史手工绑定通道全部失效，库存扣减遇到该查询即报错。已全部移除对 `product_skus.deleted_at` 的引用（软删除表 `products`/`product_publications`/`orders` 的过滤保留）。
+- 附 sqlite 回归测试：`skucandidate.SuggestForOrderItem` publication 通道产出候选（修复前该查询直接报错）。
+
 ### 变更记录（2026-08-01）迭代第 8 轮：销售订单发货闭环
 
 - 修复（P0）：`POST /orders/:id/shipments` 路由未注册，Admin 订单详情「新增物流」一直 404；现已注册。
