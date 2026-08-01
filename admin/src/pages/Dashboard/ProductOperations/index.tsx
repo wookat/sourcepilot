@@ -75,6 +75,7 @@ const SALES_WINDOW_LABELS: Record<string, string> = {
 };
 
 function SalesWindowCard({ win }: { win: SalesWindowStats }) {
+  const amounts = win.paidAmounts ?? [];
   return (
     <ProCard variant="outlined" bodyStyle={{ padding: '12px 16px' }}>
       <Typography.Text type="secondary">{SALES_WINDOW_LABELS[win.key] || win.key}</Typography.Text>
@@ -90,8 +91,8 @@ function SalesWindowCard({ win }: { win: SalesWindowStats }) {
         </span>
       </Space>
       <div style={{ marginTop: 8 }}>
-        {win.paidAmounts.length > 0 ? (
-          win.paidAmounts.map((a) => (
+        {amounts.length > 0 ? (
+          amounts.map((a) => (
             <Typography.Text key={a.currency} strong style={{ marginRight: 12, fontSize: 16 }}>
               {a.currency} {a.amount.toFixed(2)}
             </Typography.Text>
@@ -849,7 +850,7 @@ export default function ProductOperationsDashboardPage() {
 
   useEffect(() => {
     void fetchOrderSalesStats()
-      .then(setSalesStats)
+      .then((res) => setSalesStats(res ?? null))
       .catch(() => setSalesStats(null));
   }, []);
 
@@ -1017,7 +1018,7 @@ export default function ProductOperationsDashboardPage() {
           </ProCard>
 
           {/* 1.5 经营概览 */}
-          {salesStats && salesStats.windows.length > 0 ? (
+          {salesStats && (salesStats.windows?.length ?? 0) > 0 ? (
             <ProCard
               title="经营概览"
               variant="outlined"
@@ -1029,7 +1030,7 @@ export default function ProductOperationsDashboardPage() {
               }
             >
               <Row gutter={[16, 16]}>
-                {salesStats.windows.map((w) => (
+                {(salesStats.windows ?? []).map((w) => (
                   <Col xs={24} sm={12} md={8} key={w.key}>
                     <SalesWindowCard win={w} />
                   </Col>
