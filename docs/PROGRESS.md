@@ -1144,3 +1144,9 @@ Final Production Acceptance Deferred to P10
   - 401 处理链路改为 umi `responseInterceptors` 内先静默续期（复用后端既有 `POST /api/v1/auth/refresh`，secure_session 走 HttpOnly cookie、legacy 走响应体 refreshToken），成功后原样重放原请求，调用方无感知；续期不可用/失败时在当前页弹「登录已过期」重新登录弹窗（`SessionExpiredModal`，挂载于 innerProvider），重登成功后同样重放请求，页面与表单状态不丢失；用户选择「去登录页」才清凭证跳转。
   - 临期静默续期：登录/注册开始保存 `expiresAt`（及 legacy 模式的 refreshToken），请求拦截器在 token 剩余有效期 < 5 分钟时先 single-flight 续期再发请求；续期失败有 60s 冷却，legacy 无 refreshToken 时直接跳过续期走重登弹窗。
   - 兜底：重放后仍 401（如 token_version 已失效）才回退整页跳登录页。API URL/method/payload/权限/状态机均未改，后端零改动。附 sessionGuard 单测（保存/清理、阈值判断、single-flight、冷却、重登协调）。实测覆盖手工建单弹窗、订单详情编辑、设置页保存三场景过期后内容不丢失。
+
+### 变更记录（2026-08-01）第 46 轮会话守卫全栈验证与后端修复
+
+- 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
+- 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
+- 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
