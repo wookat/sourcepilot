@@ -1,4 +1,4 @@
-import { getJSON, getWithParams, patchJSON, postJSON, putJSON } from '@/services/request';
+import { deleteJSON, getJSON, getWithParams, patchJSON, postJSON, putJSON } from '@/services/request';
 
 export type StorePermissionRow = {
   id?: string;
@@ -51,6 +51,10 @@ type SetStorePermissionsBody = {
 
 export async function updateAdminUser(id: string, body: UpdateAdminUserBody) {
   return patchJSON<AdminUserRow, UpdateAdminUserBody>(`/api/v1/admin/users/${id}`, body);
+}
+
+export async function deleteAdminUser(id: string) {
+  return deleteJSON<{ ok: boolean }>(`/api/v1/admin/users/${id}`);
 }
 
 export async function setAdminUserStorePermissions(id: string, items: SetStorePermissionsBody['items']) {

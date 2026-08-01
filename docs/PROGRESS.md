@@ -1119,3 +1119,10 @@ Final Production Acceptance Deferred to P10
 ### 变更记录（2026-07-29）迭代第 44 轮：批量导入订单支持店铺归属
 
 - 「批量导入订单」弹窗新增「关联店铺（可选，应用到本次导入的全部订单）」下拉，选中后整批订单写入 `shopId`（复用既有 `CreateBody.shopId` 与后端店铺可见性校验，API 不变）；补齐订单店铺归属入口，使店铺授权（store scope）的正向过滤在手工/导入订单上可用（此前导入订单 shop_id 恒为 NULL，非 admin 授权店铺账号看不到任何导入订单）。纯前端改动。
+
+### 变更记录（2026-08-01）迭代第 45 轮：用户管理删除入口 + 店铺授权体验收口
+
+- 设置→用户新增「删除用户」入口（Popconfirm 确认，admin 角色可用，不能删除自己）：后端新增 `DELETE /api/v1/admin/users/:id` 软删除端点（`deleted_at` 保留数据，参考订单软删除口径），事务内同时撤销全部店铺授权并递增 `token_version` 使既有会话失效；路由级挂 `adminperm.RequireWritable` 只读守卫，handler 内 `user.manage` 权限校验（仅 admin）；附 sqlite HTTP 单测（软删除落库、撤销授权、不能删自己 400、readonly/operator 403、重复删除 404）。解决测试账号只能禁用不能删除、fixture 越积越多的问题。
+- 修复「店铺权限」保存首次点确定不生效：原实现在二次确认弹窗 onOk 里调用 `permForm.submit()`，而弹窗 `destroyOnClose` 下 Form 首次打开前未挂载，`setFieldsValue`/`submit` 可能落空。改为 Modal `forceRender` 保证 Form 常驻挂载、打开前 `resetFields` 后回填；外层确定先 `validateFields`（校验错误内联展示），二次确认 onOk 改为 async 直接提交（Modal.confirm 呈现 loading，失败 message.error 且弹窗不关闭）。
+- 授权店铺列显示店铺名而非 UUID：后端 `loadStorePerms` 店铺名查询改 `Unscoped`（软删除店铺也能回显名称）；前端缺名时兜底「未知店铺」。
+- 同步 `docs/api.md`（用户与权限管理表）、`admin/src/services/adminUsers.ts`。API 既有端点语义/状态机/readonly 403 文案不变。

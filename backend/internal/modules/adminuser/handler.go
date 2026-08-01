@@ -169,6 +169,30 @@ func (h *Handler) SetStorePermissions(c *gin.Context) {
 	response.OK(c, row)
 }
 
+// Delete DELETE /api/v1/admin/users/:id
+func (h *Handler) Delete(c *gin.Context) {
+	if !h.requireManage(c) {
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "无效的用户 ID")
+		return
+	}
+	if err := h.Svc.Delete(c, id, adminUUID(c)); err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			response.Fail(c, 404, response.CodeNotFound, "用户不存在")
+		case errors.Is(err, ErrSelfDelete):
+			response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
 func atoiQP(c *gin.Context, key string, def int) int {
 	s := strings.TrimSpace(c.Query(key))
 	if s == "" {
