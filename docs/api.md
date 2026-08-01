@@ -449,6 +449,19 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `GET` | `/api/v1/ai/operation-workbench/todos/:id` | 单条待办详情 |
 | `POST` | `/api/v1/ai/operation-workbench/todos/refresh` | 重新聚合待办（只读，不写库、不调平台 API） |
 
+### 用户与权限管理（admin only）
+
+均要求 `user.manage` 权限（仅 admin 角色具备）；只读账号写操作返回 403。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/admin/users` | 分页用户列表（`role` / `status` / `keyword`）；非 admin 用户附 `storePermissions`（含 `storeName`） |
+| `GET` | `/api/v1/admin/users/:id` | 用户详情 |
+| `POST` | `/api/v1/admin/users` | 创建用户（邮箱/手机号 + 初始密码 + 角色） |
+| `PATCH` | `/api/v1/admin/users/:id` | 修改显示名 / 角色 / 状态；不能禁用自己、不能自我降级 |
+| `PUT` | `/api/v1/admin/users/:id/store-permissions` | 整体替换店铺授权（admin 角色无需分配） |
+| `DELETE` | `/api/v1/admin/users/:id` | 软删除用户（`deleted_at`，数据保留）；同时撤销全部店铺授权并递增 `token_version` 使会话失效；不能删除当前登录账号（400）；路由级只读守卫 403 |
+
 ## AI 比价选品引擎 API
 
 候选商品 → 海外在售价 → 1688 同款匹配 → 落地成本/利润模型 → LLM 打分 → 可上架清单。均需 Bearer 认证。
@@ -579,6 +592,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/orders/stats/sales` | 经营概览统计：返回 `{generatedAt, windows:[{key: today|7d|30d, orderCount, paidCount, shippedCount, paidAmounts:[{currency, amount, orders}]}]}`，按创建时间窗口在租户内统计订单数/已付款/已发货与分币种已付款销售额。 |
+| `GET` | `/api/v1/orders/stats/daily` | 经营报表按日统计：`?days=30`（默认 30，最大 90），返回 `{generatedAt, days, items:[{date: YYYY-MM-DD, orderCount, paidCount, paidAmounts:[{currency, amount, orders}]}]}`；口径与 `stats/sales` 一致（当前租户、软删除订单不计入），店铺 scope 与订单列表一致（非 admin 按授权店铺过滤）。 |
 | `GET` | `/api/v1/orders/shipping-list/export.csv?ids=` | 批量导出发货清单 CSV：`ids` 为逗号分隔销售订单 UUID（去重后 ≤50 个），逐单合并明细行（「订单号」列区分来源，含客户名/电话/商品/SKU/数量/币种/金额），「快递单号(回填)」「承运商(回填)」列留空供线下打单后回填批量发货；任一 id 不在租户内返回 404。 |
 | `POST` | `/api/v1/orders/shipments/batch` | 批量发货：`{items:[{orderNo, trackingNo, carrier?}]}`（≤200 条），按订单号在租户内匹配销售订单并新增 `shipped` 物流（订单自动流转）；未付款/已取消/未找到/重复订单号逐行失败，返回 `{succeeded, failed, results[]}`；成功行附 `inventoryDeducted`（该订单是否已有成功库存扣减；发货本身不扣库存，仅提示口径）。 |
 | `POST` | `/api/v1/orders/:id/shipments` | 新增物流记录：`{carrier, trackingNo?, trackingUrl?, status?, shippedAt?, deliveredAt?}`；`status` 缺省 `pending`。 |

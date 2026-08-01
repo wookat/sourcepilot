@@ -14,6 +14,8 @@ on:
     paths:
       - "docker-compose*.yml"
       - ".env.docker.example"
+      - ".env.prod.example"
+      - "deploy/caddy/**"
       - "**/Dockerfile"
       - "**/.dockerignore"
       - ".github/workflows/docker.yml"
@@ -27,6 +29,8 @@ on:
     paths:
       - "docker-compose*.yml"
       - ".env.docker.example"
+      - ".env.prod.example"
+      - "deploy/caddy/**"
       - "**/Dockerfile"
       - "**/.dockerignore"
       - ".github/workflows/docker.yml"
@@ -37,10 +41,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Prepare env file
         run: cp .env.docker.example .env
 
       - name: Validate full compose file
         run: docker compose -f docker-compose.full.yml config
+
+      - name: Prepare prod env file
+        run: |
+          cp .env.prod.example .env
+          sed -i 's/^DOMAIN=$/DOMAIN=ci.example.com/' .env
+          sed -i 's/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=ci_dummy_password/' .env
+
+      - name: Validate prod compose file
+        run: docker compose -f docker-compose.prod.yml config

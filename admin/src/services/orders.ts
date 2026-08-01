@@ -206,6 +206,23 @@ export async function fetchOrderSalesStats(): Promise<SalesStatsDTO> {
   return getJSON('/api/v1/orders/stats/sales');
 }
 
+export type DailyStat = {
+  date: string;
+  orderCount: number;
+  paidCount: number;
+  paidAmounts: SalesAmount[];
+};
+
+export type DailyStatsDTO = {
+  generatedAt: string;
+  days: number;
+  items: DailyStat[];
+};
+
+export async function fetchOrderDailyStats(days = 30): Promise<DailyStatsDTO> {
+  return getJSON(`/api/v1/orders/stats/daily?days=${days}`);
+}
+
 export async function getOrder(id: string): Promise<OrderDetailDTO> {
   return getJSON(`/api/v1/orders/${id}`);
 }
