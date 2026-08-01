@@ -886,6 +886,11 @@ Final Production Acceptance Deferred to P10
 - Admin 订单详情「订单概览」新增「成本 / 毛利估算」卡：销售额、预估采购成本（CNY + 折算）、预估毛利（正绿负红）、毛利率；缺价行与未配置汇率分别以 Alert 提示。
 - 顺带闭环第 12 轮 P3：库存手工扣减/回滚成功 toast 不再直出后端摘要原文 `ok`，改为结构化中文（成功/幂等跳过 + 原因）。
 
+### 变更记录（2026-08-02）迭代第 16 轮：全站列表页 params 覆盖问题审计修复
+
+- 按第 15 轮根因对全站 ProTable 列表页做同类问题审计：失败任务（TaskCenter/Failures）、商品草稿（Product/Drafts）、客服会话（Customer/Conversations）三页仍在 `params` 中透传 URL 筛选值，存在与订单列表相同的「分页点击/表单提交被旧值冲掉」风险。统一改为「URL query 为唯一筛选来源」模式：移除 `params`、新增 `onSubmit` 写回 URL、urlState 变化 effect 触发 reload、`request` 一律读 urlState/legacy URL 值。
+- `ALLOWED_QUERY_KEYS` 补 `operationStep`（商品草稿运营进度筛选）与 `customerName`（客服会话买家筛选）；客服会话布尔筛选（待回复/有 AI 建议/发送失败/有关联订单）URL 采用 `1`/`0`，兼容既有 `replyStatus`/`aiSuggestionStatus`/`sendStatus` 深链。
+
 ### 变更记录（2026-08-01）迭代第 15 轮：订单列表分页/查询交互修复
 
 - 修复订单列表 UI 点击分页器与「查询」按钮不生效的既有问题（第 14 轮测试发现）：此前 `params` 中透传的 URL 筛选值会覆盖表单/分页的新值。现改为与异常工作台一致的「URL query 为唯一筛选来源」模式：`onSubmit` 把表单值写回 URL、urlState 变化 effect 触发 reload、`request` 一律从 urlState 读筛选；`hasException` 补入 URL keys（深链可用）。
