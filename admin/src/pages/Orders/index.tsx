@@ -1370,6 +1370,7 @@ export default function OrdersPage() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onDone={() => actionRef.current?.reload()}
+        shopOptions={shopOptions}
       />
       <BatchShipModal
         open={batchShipOpen}

@@ -1,5 +1,5 @@
 import { importOrders, type OrderImportRowResult } from '@/services/orders';
-import { Alert, Button, Checkbox, Input, Modal, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Checkbox, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { groupImportOrders, parseImportText } from './importParse';
 
@@ -16,13 +16,16 @@ export default function ImportOrdersModal({
   open,
   onClose,
   onDone,
+  shopOptions,
 }: {
   open: boolean;
   onClose: () => void;
   onDone: () => void;
+  shopOptions?: { label: string; value: string }[];
 }) {
   const [text, setText] = useState('');
   const [matchSkus, setMatchSkus] = useState(true);
+  const [shopId, setShopId] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<OrderImportRowResult[] | null>(null);
 
@@ -31,6 +34,7 @@ export default function ImportOrdersModal({
     setText('');
     setResults(null);
     setMatchSkus(true);
+    setShopId(undefined);
   }, [open]);
 
   const parsed = useMemo(() => parseImportText(text), [text]);
@@ -51,6 +55,7 @@ export default function ImportOrdersModal({
           currency: o.currency,
           totalAmount: o.totalAmount,
           items: o.items,
+          ...(shopId ? { shopId } : {}),
         })),
         matchSkus,
       });
@@ -127,6 +132,21 @@ export default function ImportOrdersModal({
               }
             />
           )}
+          <div style={{ marginTop: 12 }}>
+            <Space wrap>
+              <span>关联店铺（可选，应用到本次导入的全部订单）：</span>
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                placeholder="不关联店铺"
+                style={{ minWidth: 220 }}
+                options={shopOptions}
+                value={shopId}
+                onChange={(v) => setShopId(v)}
+              />
+            </Space>
+          </div>
           <div style={{ marginTop: 12 }}>
             <Checkbox checked={matchSkus} onChange={(e) => setMatchSkus(e.target.checked)}>
               导入后自动按 SKU 编码匹配本地商品规格
