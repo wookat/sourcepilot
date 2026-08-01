@@ -64,7 +64,7 @@ func (r *BatchResult) add(line BatchLineResult) {
 // BatchMarkPlaced backfills 1688 order numbers for multiple purchase orders.
 // Each line is processed independently: one illegal transition does not fail
 // the whole batch.
-func (s *Service) BatchMarkPlaced(ctx context.Context, body BatchMarkPlacedBody, operator *uuid.UUID) (*BatchResult, error) {
+func (s *Service) BatchMarkPlaced(ctx context.Context, body BatchMarkPlacedBody, sc Scope, operator *uuid.UUID) (*BatchResult, error) {
 	if len(body.Items) == 0 {
 		return nil, fmt.Errorf("%w: items required", ErrBadRequest)
 	}
@@ -94,6 +94,13 @@ func (s *Service) BatchMarkPlaced(ctx context.Context, body BatchMarkPlacedBody,
 			res.add(line)
 			continue
 		}
+		if visible, err := s.POInScope(ctx, id, sc); err != nil {
+			return nil, err
+		} else if !visible {
+			line.Message = "采购单不存在"
+			res.add(line)
+			continue
+		}
 		po, err := s.MarkPlaced(ctx, id, MarkPlacedBody{ExternalOrderID: ext}, operator)
 		if err != nil {
 			line.Message = batchErrMessage(err)
@@ -113,7 +120,7 @@ func (s *Service) BatchMarkPlaced(ctx context.Context, body BatchMarkPlacedBody,
 // BatchFillLogistics backfills tracking numbers, matching purchase orders by
 // their backfilled 1688 order number (the same key printed on 1688 shipping
 // pages, so operators can paste "订单号 运单号 [快递]" lines directly).
-func (s *Service) BatchFillLogistics(ctx context.Context, body BatchLogisticsBody, operator *uuid.UUID) (*BatchResult, error) {
+func (s *Service) BatchFillLogistics(ctx context.Context, body BatchLogisticsBody, sc Scope, operator *uuid.UUID) (*BatchResult, error) {
 	if len(body.Items) == 0 {
 		return nil, fmt.Errorf("%w: items required", ErrBadRequest)
 	}
@@ -141,6 +148,17 @@ func (s *Service) BatchFillLogistics(ctx context.Context, body BatchLogisticsBod
 		if err := s.DB.WithContext(ctx).Where("external_order_id = ?", ext).Limit(2).Find(&pos).Error; err != nil {
 			return nil, err
 		}
+		scoped := pos[:0]
+		for _, cand := range pos {
+			visible, err := s.POInScope(ctx, cand.ID, sc)
+			if err != nil {
+				return nil, err
+			}
+			if visible {
+				scoped = append(scoped, cand)
+			}
+		}
+		pos = scoped
 		switch len(pos) {
 		case 0:
 			line.Message = "没有找到该 1688 订单号对应的采购单，请先回填订单号"

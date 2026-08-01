@@ -562,6 +562,8 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 所有状态流转写入 `purchase_order_events`；对应管理端页面为 `/procurement/orders`。
 
+范围口径：全部采购协同接口按当前租户过滤；非管理员进一步限制到被授权店铺（采购单经明细行来源销售订单的 `shop_id` 判定，无店铺授权列表为空）。范围外的采购单/销售订单 ID 一律返回 404（不泄露存在性），批量接口逐行按「不存在」处理或省略。
+
 ### 销售订单批量导入（人工建单过渡）
 
 | 方法 | 路径 | 说明 |
