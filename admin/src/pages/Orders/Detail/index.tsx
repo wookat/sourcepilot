@@ -116,6 +116,7 @@ export default function OrderDetailPage() {
   });
   const [itemForm] = Form.useForm();
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [invActionLoading, setInvActionLoading] = useState(false);
   const [costEst, setCostEst] = useState<OrderCostEstimate | null>(null);
   const [relatedPOs, setRelatedPOs] = useState<PurchaseOrder[]>([]);
@@ -291,6 +292,30 @@ export default function OrderDetailPage() {
           >
             扣减记录
           </Button>
+          {writable &&
+          detail &&
+          !['cancelled', 'refunded', 'closed'].includes(detail.status) ? (
+            <Popconfirm
+              title="取消此订单？"
+              description="取消后订单退出待收款/待采购/待发货流程；已扣减的库存按库存策略自动回滚。"
+              onConfirm={async () => {
+                setCancelLoading(true);
+                try {
+                  await updateOrder(detail.id, { status: 'cancelled' });
+                  message.success('订单已取消');
+                  await load();
+                } catch (e) {
+                  message.error((e as Error)?.message || '取消失败');
+                } finally {
+                  setCancelLoading(false);
+                }
+              }}
+            >
+              <Button danger loading={cancelLoading}>
+                取消订单
+              </Button>
+            </Popconfirm>
+          ) : null}
           {writable && detail ? (
             <Popconfirm
               title="软删除此订单？"

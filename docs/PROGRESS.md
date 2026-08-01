@@ -898,6 +898,11 @@ Final Production Acceptance Deferred to P10
 - 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
 - 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 32 轮：订单详情「取消订单」入口 + 订单列表终态行禁选
+
+- 订单详情右上角新增「取消订单」（可写角色且非终态订单，Popconfirm 确认），复用既有 `PUT /orders/:id` 的 `status=cancelled` 更新路径；已扣减库存按既有 `AutoRestoreCancelledOrders` 策略自动回滚，取消后订单自动移出待收款/待采购/待发货待办口径。
+- 订单列表行选择排除终态订单（`cancelled`/`refunded`/`closed` 不可勾选），批量标记付款/批量生成采购单的派生集合同步排除终态，防止对已取消订单误操作。
+
 ### 变更记录（2026-08-02）迭代第 31 轮：订单列表批量标记已付款 + 首页「订单待收款确认」待办卡
 
 - 订单列表 `unpaid` 状态行可勾选，批量操作条新增「批量标记已付款（N）」，逐单调用既有 `PUT /orders/:id`（与详情页「标记已付款」同一 API），成功/失败逐单汇总；「批量生成采购单（N）」改为只统计并提交所选中已付款订单。

@@ -107,6 +107,8 @@ function summarizeInvResp(sum?: Record<string, unknown>) {
   return '已完成';
 }
 
+const TERMINAL_ORDER_STATUSES = ['cancelled', 'refunded', 'closed'];
+
 const ORDER_STATUS_OPTS = Object.keys(ORDER_STATUS).map((v) => ({
   label: ORDER_STATUS[v as keyof typeof ORDER_STATUS].text,
   value: v,
@@ -182,14 +184,24 @@ export default function OrdersPage() {
   const selectedPaidIds = useMemo(
     () =>
       tableRows
-        .filter((r) => selectedRowKeys.includes(r.id) && r.paymentStatus === 'paid')
+        .filter(
+          (r) =>
+            selectedRowKeys.includes(r.id) &&
+            r.paymentStatus === 'paid' &&
+            !TERMINAL_ORDER_STATUSES.includes(r.status),
+        )
         .map((r) => r.id),
     [tableRows, selectedRowKeys],
   );
   const selectedUnpaidIds = useMemo(
     () =>
       tableRows
-        .filter((r) => selectedRowKeys.includes(r.id) && r.paymentStatus === 'unpaid')
+        .filter(
+          (r) =>
+            selectedRowKeys.includes(r.id) &&
+            r.paymentStatus === 'unpaid' &&
+            !TERMINAL_ORDER_STATUSES.includes(r.status),
+        )
         .map((r) => r.id),
     [tableRows, selectedRowKeys],
   );
@@ -748,7 +760,9 @@ export default function OrdersPage() {
                 selectedRowKeys,
                 onChange: (keys) => setSelectedRowKeys(keys.map(String)),
                 getCheckboxProps: (r) => ({
-                  disabled: r.paymentStatus !== 'paid' && r.paymentStatus !== 'unpaid',
+                  disabled:
+                    (r.paymentStatus !== 'paid' && r.paymentStatus !== 'unpaid') ||
+                    TERMINAL_ORDER_STATUSES.includes(r.status),
                 }),
               }
             : undefined
