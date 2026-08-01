@@ -890,6 +890,7 @@ Final Production Acceptance Deferred to P10
 
 - 按第 15 轮根因对全站 ProTable 列表页做同类问题审计：失败任务（TaskCenter/Failures）、商品草稿（Product/Drafts）、客服会话（Customer/Conversations）三页仍在 `params` 中透传 URL 筛选值，存在与订单列表相同的「分页点击/表单提交被旧值冲掉」风险。统一改为「URL query 为唯一筛选来源」模式：移除 `params`、新增 `onSubmit` 写回 URL、urlState 变化 effect 触发 reload、`request` 一律读 urlState/legacy URL 值。
 - `ALLOWED_QUERY_KEYS` 补 `operationStep`（商品草稿运营进度筛选）与 `customerName`（客服会话买家筛选）；客服会话布尔筛选（待回复/有 AI 建议/发送失败/有关联订单）URL 采用 `1`/`0`，兼容既有 `replyStatus`/`aiSuggestionStatus`/`sendStatus` 深链。
+- 修复真实测试发现的既有后端 P1：`GET /api/v1/task-center/failures` 对 tenant>0 用户必报 400（PostgreSQL 42703）。根因是统一的 `tenant_id = ?` 过滤被套到了自身没有 `tenant_id` 列的失败源表上。新增 `applyTenantListFilterVia`：`image_tasks` 经 `products` 限定租户（`product_id IS NULL` 的工具级任务保留可见）、`ai_product_text_items`/`ai_product_image_items` 经各自 batches 表、`customer_failure_events` 经 `shops` 表；附 sqlite DryRun SQL 回归单测。
 
 ### 变更记录（2026-08-01）迭代第 15 轮：订单列表分页/查询交互修复
 
