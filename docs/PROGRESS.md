@@ -898,6 +898,12 @@ Final Production Acceptance Deferred to P10
 - 首页/统一待办新增「订单待采购」卡（`order_await_procurement`）：已付款未发货且无采购覆盖的订单数，直达 `/orders/list?payStatus=paid&hasPurchase=0`，补齐每日「出单 → 采购」漏斗的入口缺口。
 - 订单列表新增「采购覆盖」查询项（已生成/未生成采购单），URL query 单一来源模式，`ORDER_QUERY_KEYS` 补 `hasPurchase`（沿用第15/18轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 26 轮：采购单列表批量标记付款
+
+- 采购单列表批量操作条新增「批量标记付款（N）」：已下单（placed）状态可勾选并批量调用既有 `POST /api/v1/procurement/orders/:id/mark-paid`，逐单汇总成功/失败，闭环「1688 付款后逐单点标记付款」。
+- 批量提交/确认/标记付款统一抽为 `BATCH_ACTIONS` 配置（文案/空选提示/单条 API），行为不变。
+- 纯前端改动，无后端 / API 变更。
+
 ### 变更记录（2026-08-02）迭代第 25 轮：采购单批量导出合并采购清单 CSV
 
 - 新增 `GET /api/v1/procurement/purchase-lists/export.csv?ids=`：逗号分隔采购单 UUID（去重后 ≤50），逐单合并明细行为一份采购清单 CSV（「采购单号」列区分来源），复用单单导出的表头/行渲染（`writePORows`），任一 id 不存在返回 404；附单测。

@@ -7,6 +7,7 @@ import {
   downloadPurchaseOrdersBatchCsv,
   fetchPurchaseOrders,
   generatePurchaseOrders,
+  markPurchaseOrderPaid,
   submitPurchaseOrder,
   type GenerateResult,
   type PurchaseOrder,
@@ -41,7 +42,28 @@ export const PO_STATUS_TAG: Record<string, { text: string; color: string }> = {
   cancelled: { text: '已取消', color: 'default' },
 };
 
-const BATCH_SELECTABLE_STATUSES = ['draft', 'pending_confirm', 'placing'];
+const BATCH_SELECTABLE_STATUSES = ['draft', 'pending_confirm', 'placing', 'placed'];
+
+const BATCH_ACTIONS: Record<
+  'draft' | 'pending_confirm' | 'placed',
+  { actionText: string; emptyText: string; run: (id: string) => Promise<unknown> }
+> = {
+  draft: {
+    actionText: '提交',
+    emptyText: '所选中没有草稿状态的采购单',
+    run: (id) => submitPurchaseOrder(id),
+  },
+  pending_confirm: {
+    actionText: '确认',
+    emptyText: '所选中没有待确认状态的采购单',
+    run: (id) => confirmPurchaseOrder(id),
+  },
+  placed: {
+    actionText: '标记付款',
+    emptyText: '所选中没有已下单状态的采购单',
+    run: (id) => markPurchaseOrderPaid(id),
+  },
+};
 
 export default function ProcurementOrdersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -86,14 +108,13 @@ export default function ProcurementOrdersPage() {
   }, [load]);
 
   const runBatchAction = useCallback(
-    async (targetStatus: 'draft' | 'pending_confirm') => {
+    async (targetStatus: 'draft' | 'pending_confirm' | 'placed') => {
+      const action = BATCH_ACTIONS[targetStatus];
       const targets = rows.filter(
         (r) => selectedRowKeys.includes(r.id) && r.status === targetStatus,
       );
       if (targets.length === 0) {
-        message.warning(
-          targetStatus === 'draft' ? '所选中没有草稿状态的采购单' : '所选中没有待确认状态的采购单',
-        );
+        message.warning(action.emptyText);
         return;
       }
       setBatchActionLoading(true);
@@ -101,18 +122,14 @@ export default function ProcurementOrdersPage() {
       let succeeded = 0;
       for (const row of targets) {
         try {
-          if (targetStatus === 'draft') {
-            await submitPurchaseOrder(row.id);
-          } else {
-            await confirmPurchaseOrder(row.id);
-          }
+          await action.run(row.id);
           succeeded += 1;
         } catch (e) {
           failures.push({ id: row.id, message: (e as Error)?.message || '操作失败' });
         }
       }
       setBatchActionLoading(false);
-      const actionText = targetStatus === 'draft' ? '提交' : '确认';
+      const { actionText } = action;
       if (failures.length === 0) {
         message.success(`已批量${actionText} ${succeeded} 张采购单`);
       } else {
@@ -153,6 +170,9 @@ export default function ProcurementOrdersPage() {
   ).length;
   const selectedPendingConfirmCount = rows.filter(
     (r) => selectedRowKeys.includes(r.id) && r.status === 'pending_confirm',
+  ).length;
+  const selectedPlacedCount = rows.filter(
+    (r) => selectedRowKeys.includes(r.id) && r.status === 'placed',
   ).length;
 
   const openGenerate = async () => {
@@ -242,6 +262,14 @@ export default function ProcurementOrdersPage() {
                 onClick={() => void runBatchAction('pending_confirm')}
               >
                 批量确认（{selectedPendingConfirmCount}）
+              </Button>
+              <Button
+                size="small"
+                loading={batchActionLoading}
+                disabled={selectedPlacedCount === 0}
+                onClick={() => void runBatchAction('placed')}
+              >
+                批量标记付款（{selectedPlacedCount}）
               </Button>
               <Button size="small" loading={batchActionLoading} onClick={() => void runBatchExport()}>
                 批量导出清单（{selectedRowKeys.length}）
