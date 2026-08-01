@@ -885,7 +885,7 @@ export default function OrdersPage() {
           setTablePageSize(20);
           clearUrlState(ORDER_QUERY_KEYS, { replace: true });
         }}
-        toolBarRender={() => [
+        toolBarRender={() => (writable ? [
           <ModalForm
             key={`c-${createInvDefaults.deduct}-${createInvDefaults.sync}`}
             initialValues={{
@@ -937,14 +937,10 @@ export default function OrdersPage() {
           <Button key="import" onClick={() => setImportOpen(true)}>
             批量导入订单
           </Button>,
-          ...(writable
-            ? [
-                <Button key="batch-ship" onClick={() => setBatchShipOpen(true)}>
-                  批量发货
-                </Button>,
-              ]
-            : []),
-        ]}
+          <Button key="batch-ship" onClick={() => setBatchShipOpen(true)}>
+            批量发货
+          </Button>,
+        ] : [])}
         request={async () => {
           // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
           const qp = {

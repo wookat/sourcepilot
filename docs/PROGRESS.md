@@ -903,6 +903,11 @@ Final Production Acceptance Deferred to P10
 - 订单列表批量操作条新增「批量标记送达（N）」：仅统计所选 `status=shipped` 订单，逐单复用既有 `PUT /orders/:id`（`status=delivered` + `deliveredAt`），闭环销售订单生命周期最后一步（导入 → 付款 → 采购 → 发货 → 送达）。
 - 首页/统一待办新增「订单在途待送达」卡（`order_in_transit`）：已发货订单数，直达 `/orders/list?status=shipped`；前端 `DEFAULT_TODOS` 同步补 key（沿用第15/18/22轮 allowlist 经验）。
 
+### 变更记录（2026-08-02）迭代第 36 轮：前端静态资源 contenthash + 缓存策略（部署后免硬刷新）
+
+- Admin 构建开启 `hash: true`：`umi.js`/`umi.css` 等产物文件名带 contenthash，部署新版本后浏览器自动加载新资源，消除「重建部署后浏览器缓存旧 CSS/JS 需硬刷新」的问题（第 35 轮 E2E 备注项）。
+- `admin/nginx.conf`：`index.html` 设 `Cache-Control: no-cache`（始终拿到最新入口），带 hash 的 `.js/.css` 设一年 immutable 长缓存；`/static/` 前缀改为 `^~` 避免被 js/css 正则 location 抢占（保留本地优先、后端回退）。
+
 ### 变更记录（2026-08-02）迭代第 35 轮：订单列表批量操作条移动端可触达（换行修复）
 
 - 订单列表 ProTable 批量操作条（tableAlertOptionRender）`Space` 增加 `wrap`，并在 `global.less` 为 `.ant-pro-table-alert-info` 增加 `flex-wrap: wrap`，修复 375px 窄屏下操作条 nowrap 被 `ant-layout-content overflow:hidden` 裁剪、右侧批量按钮（生成采购单/标记已付款/导出发货清单/标记送达）不可见且无法滚动触达的问题（第 34 轮 E2E P3 观察项）。
@@ -1077,3 +1082,9 @@ Final Production Acceptance Deferred to P10
 
 - 新增 `ADMIN_BOOTSTRAP_TENANT_ID`：首次创建管理员时指定租户（示例文件默认 1），解决选品 worker 因 tenant_id=0 静默拒绝任务的问题（staging/production 禁用 dev 租户 fallback，故必须在种子阶段落租户）；同步 `.env.example` / `.env.docker.example` / `.env.production.example` / `docs/env.md` / `docs/docker-deployment.md`，附单测。
 - 新增 `docs/operations-manual.md`：日常运营操作手册（选品→上架→出单→采购→发货，1688 人工下单过渡模式），并登记到 `docs/README.md`。
+
+### 变更记录（2026-08-02）迭代第 37 轮：只读角色后端写防线（P0）+ 新建用户继承租户（P1）
+
+- P0：`order`/`procurement` 路由改为在写端点统一挂 `requireWrite()` 守卫（只读账号 403「当前账号为只读权限，无法执行此操作」）。此前仅 Import/库存影响/SKU 匹配少数 handler 调用 `denyWrite`，只读账号可直接调 API 创建/修改/删除订单与操作采购单，前端隐藏是唯一防线；附路由级回归单测。
+- P1：设置→用户 新建用户此前恒为 `tenant_id=0`，与创建者（如 tenant 1）跨租户导致新账号登录后看不到数据；改为继承当前请求租户。
+- 订单列表工具栏（新建订单/批量导入/批量发货）对只读角色整体隐藏。
