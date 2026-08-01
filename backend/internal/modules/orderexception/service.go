@@ -259,19 +259,20 @@ func filterAggRows(rows []aggRow, marks map[string]markPair, req ListOrderExcept
 	var out []aggRow
 	kw := strings.ToLower(strings.TrimSpace(req.Keyword))
 
+	showAll := req.All != nil && *req.All
 	showHandled := req.Handled != nil && *req.Handled
 	showIgnored := req.Ignored != nil && *req.Ignored
-	defaultOpen := !(showHandled || showIgnored)
+	defaultOpen := !showAll && !(showHandled || showIgnored)
 
 	for _, r := range rows {
 		mp := marks[markKey(r.exceptionType, r.sourceType, r.sourceID.String())]
 		if defaultOpen && (mp.handled || mp.ignored) {
 			continue
 		}
-		if showHandled && !mp.handled {
+		if !showAll && showHandled && !mp.handled {
 			continue
 		}
-		if showIgnored && !mp.ignored {
+		if !showAll && showIgnored && !mp.ignored {
 			continue
 		}
 

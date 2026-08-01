@@ -437,6 +437,7 @@ export default function OrderExceptionsPage() {
           open: { text: '未处理（默认）' },
           handled: { text: '已处理（标记）' },
           ignored: { text: '已忽略（标记）' },
+          all: { text: '全部' },
         },
       },
       {
@@ -827,9 +828,11 @@ export default function OrderExceptionsPage() {
           // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
           let handled: boolean | undefined;
           let ignored: boolean | undefined;
+          let all: boolean | undefined;
           const st = urlState.status;
           if (st === 'handled') handled = true;
           else if (st === 'ignored') ignored = true;
+          else if (st === 'all') all = true;
 
           const qp = {
             page: params.current ?? tablePage,
@@ -855,6 +858,7 @@ export default function OrderExceptionsPage() {
             keyword: qp.keyword,
             handled,
             ignored,
+            all,
             start: qp.start,
             end: qp.end,
           });

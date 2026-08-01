@@ -17,6 +17,7 @@ type ListOrderExceptionsRequest struct {
 	Keyword       string
 	Ignored       *bool // explicit filter
 	Handled       *bool
+	All           *bool // true => include open + handled + ignored
 	Start         *time.Time
 	End           *time.Time
 	Page          int

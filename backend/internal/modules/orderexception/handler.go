@@ -123,6 +123,7 @@ func (h *Handler) List(c *gin.Context) {
 		Keyword:       strings.TrimSpace(c.Query("keyword")),
 		Handled:       parseOptionalBoolQuery(c, "handled"),
 		Ignored:       parseOptionalBoolQuery(c, "ignored"),
+		All:           parseOptionalBoolQuery(c, "all"),
 		Start:         startPtr,
 		End:           endPtr,
 		Page:          atoiPage(c.Query("page"), 1, 1),
