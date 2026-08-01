@@ -197,6 +197,16 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     link: '/orders/exceptions?exceptionType=procurement_blocked',
   },
   {
+    id: 'order_negative_margin',
+    key: 'order_negative_margin',
+    title: '订单利润为负',
+    count: 0,
+    severity: 'high',
+    level: 'danger',
+    description: '已付款订单预估毛利为负，发货前请复核价格或货源',
+    link: '/orders/exceptions?exceptionType=negative_margin',
+  },
+  {
     id: 'order_await_shipment',
     key: 'order_await_shipment',
     title: '订单待发货',
