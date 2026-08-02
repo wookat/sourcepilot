@@ -1245,4 +1245,3 @@ Final Production Acceptance Deferred to P10
 - 备份下载通道：新增 `GET /api/v1/ops/backups/:id/download`（`backup.download` 权限，仅 admin；readonly/operator 403，不存在/越权 404），仅允许下载校验通过的 completed 备份，下载前重验 SHA-256，流式返回，成功/失败均写操作日志（action=`backup.download`）；管理端备份列表新增「下载」按钮。
 - 备份校验修复：未启用加密（local 模式）时加密检查按「未启用（跳过）」处理，不再恒 failed；校验结果新增 `details.checks` 结构化检查项（校验和 / manifest / 加密 / pg_restore 结构），管理端弹窗中文结构化展示。
 - 恢复演练真实化（本地/开发限定）：`POST /ops/restores/:id/verify` 与 `POST /ops/dr/drills` 真实执行备份文件完整性（SHA-256）与 `pg_restore --list` 结构校验两项检查，替换原六项硬编码 passed 桩；其余检查项（迁移版本/租户隔离/RBAC/审计链/对象清单/密钥密文、RPO/RTO/应用切换）在 `details.checks`/`reportJson.checks` 中明确标注 `not_implemented`；`APP_ENV=production` 下两接口直接拒绝，恢复安全门（隔离目标、`trademind_p6v_restore_` 前缀、二次确认、高风险确认）保持不变。附 backup/restore 服务层单测；同步 `docs/api.md` 与 `docs/docker-deployment.md` 生产备份 SOP 章节。
-
