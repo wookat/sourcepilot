@@ -1169,3 +1169,10 @@ Final Production Acceptance Deferred to P10
 - 备份下载通道：新增 `GET /api/v1/ops/backups/:id/download`（`backup.download` 权限，仅 admin；readonly/operator 403，不存在/越权 404），仅允许下载校验通过的 completed 备份，下载前重验 SHA-256，流式返回，成功/失败均写操作日志（action=`backup.download`）；管理端备份列表新增「下载」按钮。
 - 备份校验修复：未启用加密（local 模式）时加密检查按「未启用（跳过）」处理，不再恒 failed；校验结果新增 `details.checks` 结构化检查项（校验和 / manifest / 加密 / pg_restore 结构），管理端弹窗中文结构化展示。
 - 恢复演练真实化（本地/开发限定）：`POST /ops/restores/:id/verify` 与 `POST /ops/dr/drills` 真实执行备份文件完整性（SHA-256）与 `pg_restore --list` 结构校验两项检查，替换原六项硬编码 passed 桩；其余检查项（迁移版本/租户隔离/RBAC/审计链/对象清单/密钥密文、RPO/RTO/应用切换）在 `details.checks`/`reportJson.checks` 中明确标注 `not_implemented`；`APP_ENV=production` 下两接口直接拒绝，恢复安全门（隔离目标、`trademind_p6v_restore_` 前缀、二次确认、高风险确认）保持不变。附 backup/restore 服务层单测；同步 `docs/api.md` 与 `docs/docker-deployment.md` 生产备份 SOP 章节。
+
+### 变更记录（2026-08-02）迭代第 58 轮：Ops P2 修复（备份校验状态门 / 安全门原因透传 / 库存口径 / demo 采购单清理）
+
+- 备份管理：`manual_review`（及其他非 completed）状态的「校验备份」按钮禁用，Tooltip 中文说明需先在环境启用 `BACKUP_ENABLED` 并通过人工审查后重新创建备份才能校验；不改后端校验行为。附 helper 单测。
+- 恢复验证：安全门拒绝（`RESTORE_TARGET_FORBIDDEN` / `RESTORE_APP_ENV_FORBIDDEN` / `RESTORE_TARGET_NOT_ISOLATED` / 前缀 / 二次确认 / 备份未校验 / 目标库非空等 14 个结构化错误码）在 `errorMessages.ts` 补齐中文映射，创建失败 toast 透出具体原因；恢复记录表新增「失败原因」列展示 `errorSummary`。不弱化任何安全门。附映射单测。
+- 批量发货 / 订单详情：结果区补「未扣库存属手工扣库存策略的预期行为」口径 Alert 与 Tag Tooltip（Tag 文案改为「未扣库存（预期）」）；订单详情「物流」Tab 说明补同一口径。沿用 R46 口径传达模式，不改库存扣减逻辑与接口。
+- demo seed clean：`seed:demo:full:clean` 清理采购单从仅按 `idempotency_key LIKE 'DEMO-%'` 扩展为并集：`external_order_id`/`supplier_name` 带 DEMO- 前缀、挂在 DEMO- 供应商名下、或采购行关联 DEMO- 销售订单（覆盖测试期 UI 建的采购单）；verify 同步扩展。仅清 DEMO 关联数据，不动真实采购单。附 `collectDemoPurchaseOrderIDs` 单测（真实采购单不被匹配）。
