@@ -33,6 +33,7 @@ type LoginSessionResult struct {
 	AccessExp    time.Time
 	RefreshToken string
 	SessionID    uuid.UUID
+	TenantID     int64
 	User         userView
 }
 
@@ -94,16 +95,16 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 		p7diag.Path(p7diag.RouteAuthInvalidLogin, "wrong_password")
 		p7diag.Path(p7diag.RouteAuthInvalidLogin, p7diag.PathKnownWrongPassword)
 		_ = guard.RecordFailure(ctx, account, ip)
-		return nil, errors.New(ErrInvalidCredentials)
+		return nil, withAuditTenant(u.TenantID, errors.New(ErrInvalidCredentials))
 	}
 	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "password_verify", p7diag.OutcomeSuccess, stageStart)
 	p7diag.ObservePasswordVerify(p7diag.PathSuccessVerify, p7diag.PasswordAlgoBcrypt, cost, 1, stageStart)
 	p7diag.Count(p7diag.RouteAuthInvalidLogin, "passwordVerifyCount", 1)
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
-		return nil, errors.New(ErrUserDisabled)
+		return nil, withAuditTenant(u.TenantID, errors.New(ErrUserDisabled))
 	}
 	if u.MustChangePassword {
-		return nil, errors.New(ErrPasswordChangeRequired)
+		return nil, withAuditTenant(u.TenantID, errors.New(ErrPasswordChangeRequired))
 	}
 	_ = guard.ClearFailures(ctx, account, ip)
 
@@ -173,6 +174,7 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 		AccessExp:    exp,
 		RefreshToken: refreshRaw,
 		SessionID:    session.ID,
+		TenantID:     u.TenantID,
 		User: userView{
 			ID:          u.ID.String(),
 			Username:    label,

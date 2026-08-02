@@ -1,5 +1,34 @@
 package auth
 
+import "errors"
+
+// auditTenantError wraps a login failure for a known account so the audit
+// layer can attribute the operation log row to the account's tenant.
+type auditTenantError struct {
+	tenantID int64
+	err      error
+}
+
+func (e *auditTenantError) Error() string { return e.err.Error() }
+func (e *auditTenantError) Unwrap() error { return e.err }
+
+func withAuditTenant(tenantID int64, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &auditTenantError{tenantID: tenantID, err: err}
+}
+
+// LoginAuditTenant returns the tenant of the account behind a failed login,
+// or 0 when the account is unknown (platform-level security audit rows).
+func LoginAuditTenant(err error) int64 {
+	var ae *auditTenantError
+	if errors.As(err, &ae) {
+		return ae.tenantID
+	}
+	return 0
+}
+
 // Auth error codes for API responses.
 const (
 	ErrAccessTokenExpired       = "AUTH_ACCESS_TOKEN_EXPIRED"
