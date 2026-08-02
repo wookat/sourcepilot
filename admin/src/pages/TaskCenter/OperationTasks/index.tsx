@@ -194,7 +194,7 @@ export default function OperationTasksPage() {
           }
           ok += 1;
         } catch (e) {
-          failures.push(operationErrorMessage(extractOperationTaskAPIError(e)));
+          failures.push(operationErrorMessage(extractOperationTaskAPIError(e)) ?? '操作失败，请稍后重试。');
         }
       }
       if (ok > 0) message.success(`已${kind === 'approve' ? '批准' : '驳回'} ${ok} 个任务`);
