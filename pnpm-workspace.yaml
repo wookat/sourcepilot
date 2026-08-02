@@ -1,3 +1,9 @@
 packages:
   - "admin"
   - "collector"
+
+# pnpm 10 只从这里读取 overrides；package.json 的 pnpm.overrides 供 pnpm 9 使用，两处需保持一致
+overrides:
+  rc-resize-observer: 1.4.3
+  react: 18.2.0
+  react-dom: 18.2.0
