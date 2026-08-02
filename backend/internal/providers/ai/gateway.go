@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/trademind-ai/trademind/backend/internal/providers/ai/errmap"
 )
 
 // SettingsReader loads decrypted settings groups (implemented by settings.Service).
@@ -61,11 +63,11 @@ func (g *Gateway) chatWithPlain(ctx context.Context, plain map[string]string, re
 
 	base := ResolveProviderBaseURL(plain, pname)
 	if base == "" {
-		return nil, fmt.Errorf("请配置 base_url")
+		return nil, errmap.NotConfigured("请配置 base_url")
 	}
 	apiKey := ResolveProviderAPIKey(plain, pname)
 	if apiKey == "" {
-		return nil, fmt.Errorf("请配置 API Key")
+		return nil, errmap.NotConfigured("请配置 API Key")
 	}
 
 	model := ResolveProviderModel(plain, pname, req.Model)
