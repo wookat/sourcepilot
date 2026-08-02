@@ -57,6 +57,7 @@ func TestSourcingWriteRoutesRejectReadonly(t *testing.T) {
 		{http.MethodPost, "/api/v1/products/" + id + "/sources"},
 		{http.MethodPost, "/api/v1/products/" + id + "/sources/refresh"},
 		{http.MethodPut, "/api/v1/product-sources/" + id},
+		{http.MethodDelete, "/api/v1/product-sources/" + id},
 		{http.MethodPost, "/api/v1/product-sources/" + id + "/set-primary"},
 		{http.MethodPost, "/api/v1/product-sources/" + id + "/sku-mappings"},
 		{http.MethodDelete, "/api/v1/product-source-skus/" + id},

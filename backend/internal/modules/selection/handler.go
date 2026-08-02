@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
@@ -67,9 +68,14 @@ func (h *Handler) ListTasks(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "selection unavailable")
 		return
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
-	out, err := h.Svc.ListTasks(c.Request.Context(), page, pageSize, c.Query("status"))
+	out, err := h.Svc.ListTasks(c.Request.Context(), tenantID, page, pageSize, c.Query("status"))
 	if err != nil {
 		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, err.Error())
 		return
@@ -87,7 +93,12 @@ func (h *Handler) GetTask(c *gin.Context) {
 	if !ok {
 		return
 	}
-	out, err := h.Svc.GetTask(c.Request.Context(), id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
+	out, err := h.Svc.GetTask(c.Request.Context(), tenantID, id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "task not found")
@@ -109,8 +120,17 @@ func (h *Handler) ListCandidates(c *gin.Context) {
 	if !ok {
 		return
 	}
-	out, err := h.Svc.ListCandidates(c.Request.Context(), id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
+	out, err := h.Svc.ListCandidates(c.Request.Context(), tenantID, id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "task not found")
+			return
+		}
 		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, err.Error())
 		return
 	}
@@ -134,6 +154,10 @@ func (h *Handler) Decide(c *gin.Context) {
 	}
 	out, err := h.Svc.Decide(c, id, body.Decision, selectionAdminUUID(c))
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "candidate not found")
+			return
+		}
 		if errors.Is(err, ErrNotScored) {
 			response.Fail(c, http.StatusConflict, response.CodeBadRequest, "candidate not scored yet")
 			return
@@ -183,7 +207,12 @@ func (h *Handler) Retry(c *gin.Context) {
 	if !ok {
 		return
 	}
-	out, err := h.Svc.Retry(c.Request.Context(), id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
+	out, err := h.Svc.Retry(c.Request.Context(), tenantID, id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "task not found")

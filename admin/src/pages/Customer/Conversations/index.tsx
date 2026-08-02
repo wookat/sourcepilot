@@ -10,6 +10,7 @@ import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
 import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
+import { extractApiErrorMessage } from '@/utils/apiErrorMessage';
 import { parsePositiveInt } from '@/utils/urlState';
 import {
   CUSTOMER_CONVERSATION_STATUS,
@@ -451,7 +452,7 @@ export default function CustomerConversationsPage() {
               limit: vals.limit as number | undefined,
             });
           } catch (e: unknown) {
-            message.error(e instanceof Error ? e.message : '提交失败');
+            message.error(extractApiErrorMessage(e, '提交失败'));
             return false;
           }
           message.success('客服消息同步任务已提交');

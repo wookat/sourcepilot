@@ -3,6 +3,7 @@ import { CustomProfileSessionManager } from './profile-sessions.js';
 import { BrowserSessionManager } from './session-manager.js';
 import { PAGE_EVALUATE_POLYFILL } from './evaluate-in-page.js';
 import { getBrowserHeadless, getDefaultNavigationTimeoutMs } from '../config/env.js';
+import { getCollectorProxyOption, resolveCollectorUserAgent } from './launch-options.js';
 
 /**
  * 统一管理 Chromium 实例，避免各 Provider 自行 newBrowser 导致泄漏。
@@ -20,9 +21,11 @@ export class BrowserManager {
 
   async ensureBrowser(): Promise<Browser> {
     if (this.browser) return this.browser;
+    const proxy = getCollectorProxyOption();
     this.browser = await chromium.launch({
       headless: getBrowserHeadless(),
       args: ['--disable-blink-features=AutomationControlled'],
+      ...(proxy ? { proxy } : {}),
     });
     return this.browser;
   }
@@ -46,9 +49,7 @@ export class BrowserManager {
   async withPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
     const browser = await this.ensureBrowser();
     const context = await browser.newContext({
-      userAgent:
-        process.env.COLLECTOR_USER_AGENT ??
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      userAgent: await resolveCollectorUserAgent(),
       locale: 'zh-CN',
     });
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
