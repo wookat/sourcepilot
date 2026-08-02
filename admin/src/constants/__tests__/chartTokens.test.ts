@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chartTokens, formatAmount, formatCount } from '../chartTokens';
+import { chartAxisXLabel, chartTokens, formatAmount, formatCount } from '../chartTokens';
 import { themeTokens } from '../layoutTokens';
 
 describe('图表 token（R64）', () => {
@@ -11,6 +11,18 @@ describe('图表 token（R64）', () => {
     const colors = [...chartTokens.seriesColors];
     for (const c of colors) expect(c).toMatch(/^#[0-9a-f]{6}$/i);
     expect(new Set(colors).size).toBe(colors.length);
+  });
+});
+
+describe('图表 token（R66）', () => {
+  it('Column 单柱宽度上限不超过 40px', () => {
+    expect(chartTokens.barMaxWidth).toBeGreaterThan(0);
+    expect(chartTokens.barMaxWidth).toBeLessThanOrEqual(40);
+  });
+
+  it('x 轴标签公共配置包含自动抽样与自动旋转', () => {
+    expect(chartAxisXLabel.labelAutoHide).toBe(true);
+    expect(chartAxisXLabel.labelAutoRotate).toBe(true);
   });
 });
 

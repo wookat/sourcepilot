@@ -9,6 +9,7 @@ import {
 import {
   MetricCard,
   OperationToolbar,
+  PlatformTag,
   SectionCard,
   TmPageContainer,
   TechnicalDetails,
@@ -368,10 +369,14 @@ export default function AIOperationWorkbenchPage() {
       width: 140,
       ellipsis: true,
       render: (_, row) => {
-        const plat = row.platformLabel || row.platform;
         const shop = row.shopName || row.shopId;
-        if (!plat && !shop) return '—';
-        return [plat, shop].filter(Boolean).join(' · ');
+        if (!row.platform && !shop) return '—';
+        return (
+          <Space size={4}>
+            {row.platform ? <PlatformTag platform={row.platform} /> : null}
+            {shop ? <Typography.Text ellipsis={{ tooltip: shop }}>{shop}</Typography.Text> : null}
+          </Space>
+        );
       },
     },
     {
