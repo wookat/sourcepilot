@@ -580,6 +580,30 @@ func (h *Handler) GetDailyStats(c *gin.Context) {
 	response.OK(c, res)
 }
 
+// ExportDailyStatsCSV GET /orders/stats/daily/export.csv?days=30
+func (h *Handler) ExportDailyStatsCSV(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	days := 0
+	if raw := strings.TrimSpace(c.Query("days")); raw != "" {
+		v, err := strconv.Atoi(raw)
+		if err != nil || v <= 0 {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid days")
+			return
+		}
+		days = v
+	}
+	data, name, err := h.Svc.ExportDailyStatsCSV(c, days)
+	if err != nil {
+		response.Fail(c, 500, response.CodeInternalError, err.Error())
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="`+name+`"`)
+	c.Data(200, "text/csv; charset=utf-8", data)
+}
+
 // PutShipment PUT /orders/:id/shipments/:shipmentId
 func (h *Handler) PutShipment(c *gin.Context) {
 	if h == nil || h.Svc == nil {

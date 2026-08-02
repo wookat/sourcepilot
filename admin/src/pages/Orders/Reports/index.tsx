@@ -1,11 +1,16 @@
+import { DownloadOutlined } from '@ant-design/icons';
 import { Column, Line } from '@ant-design/plots';
 import { ProCard } from '@ant-design/pro-components';
-import { Alert, Col, Row, Skeleton, Statistic, Typography } from 'antd';
+import { Alert, Button, Col, Row, Segmented, Skeleton, Space, Statistic, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState, TmPageContainer } from '@/components/ui';
-import { fetchOrderDailyStats, type DailyStatsDTO } from '@/services/orders';
+import { downloadDailyReportCsv, fetchOrderDailyStats, type DailyStatsDTO } from '@/services/orders';
 
-const DAYS = 30;
+const DAY_OPTIONS = [
+  { label: '近 7 天', value: 7 },
+  { label: '近 30 天', value: 30 },
+  { label: '近 90 天', value: 90 },
+];
 
 type CountPoint = { date: string; type: string; value: number };
 type AmountPoint = { date: string; currency: string; amount: number };
@@ -29,20 +34,30 @@ function toAmountPoints(res: DailyStatsDTO): AmountPoint[] {
   return out;
 }
 
-/** 经营报表：近 30 天按日订单趋势（口径与首页经营概览 stats/sales 一致） */
+/** 经营报表：近 N 天按日订单趋势（口径与首页经营概览 stats/sales 一致），支持导出 CSV */
 export default function OrderReports() {
+  const [days, setDays] = useState(30);
   const [data, setData] = useState<DailyStatsDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchOrderDailyStats(DAYS)
+    fetchOrderDailyStats(days)
       .then((res) => setData(res ?? null))
       .catch((e: unknown) => setError(e instanceof Error ? e.message : '加载失败，请稍后重试'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [days]);
+
+  const exportCsv = useCallback(() => {
+    setExporting(true);
+    downloadDailyReportCsv(days)
+      .then(() => message.success('已导出 CSV'))
+      .catch(() => message.error('导出失败，请稍后重试'))
+      .finally(() => setExporting(false));
+  }, [days]);
 
   useEffect(() => {
     load();
@@ -68,7 +83,23 @@ export default function OrderReports() {
   const amountPoints = useMemo(() => (data ? toAmountPoints(data) : []), [data]);
 
   return (
-    <TmPageContainer title="经营报表" subTitle={`近 ${DAYS} 天按日趋势，统计口径与首页经营概览一致`}>
+    <TmPageContainer
+      title="经营报表"
+      subTitle={`近 ${days} 天按日趋势，统计口径与首页经营概览一致`}
+      extra={
+        <Space wrap className="tm-page-header-extra">
+          <Segmented
+            options={DAY_OPTIONS}
+            value={days}
+            onChange={(v) => setDays(v as number)}
+            aria-label="统计天数"
+          />
+          <Button icon={<DownloadOutlined />} loading={exporting} onClick={exportCsv}>
+            导出 CSV
+          </Button>
+        </Space>
+      }
+    >
       {error ? (
         <Alert
           type="error"
@@ -80,7 +111,7 @@ export default function OrderReports() {
         />
       ) : null}
 
-      <ProCard variant="outlined" style={{ marginBottom: 16 }} title={`近 ${DAYS} 天合计`}>
+      <ProCard variant="outlined" style={{ marginBottom: 16 }} title={`近 ${days} 天合计`}>
         {loading ? (
           <Skeleton active paragraph={{ rows: 2 }} />
         ) : (
@@ -121,7 +152,7 @@ export default function OrderReports() {
         ) : (
           <EmptyState
             compact
-            title="近 30 天暂无订单"
+            title={`近 ${days} 天暂无订单`}
             description="创建或导入订单后，这里会展示按日趋势"
             actionLabel="去订单列表"
             actionPath="/orders/list"
@@ -146,7 +177,7 @@ export default function OrderReports() {
         ) : (
           <EmptyState
             compact
-            title="近 30 天暂无已付款订单"
+            title={`近 ${days} 天暂无已付款订单`}
             description="订单完成付款后，这里会按币种展示每日销售额"
           />
         )}
