@@ -22,7 +22,7 @@ export class ApiRequestError extends Error {
   data: unknown;
 
   constructor(res: ApiResponse<unknown>) {
-    super(res.message || 'request_failed');
+    super(res.message || '请求失败，请稍后重试');
     this.name = 'ApiRequestError';
     this.code = res.code;
     this.traceId = res.traceId;

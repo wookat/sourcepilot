@@ -1,5 +1,6 @@
 import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
+import { responseErrorMessage } from '@/utils/httpErrorCopy';
 import type { OrderInventoryEffectRow, PaginatedInventory } from '@/services/inventory';
 
 export type OrderShipmentRow = {
@@ -170,7 +171,7 @@ export async function downloadOrdersShippingCsv(ids: string[]) {
     },
   );
   if (!resp.ok) {
-    throw new Error(`export failed: ${resp.status}`);
+    throw new Error(await responseErrorMessage(resp));
   }
   const blob = await resp.blob();
   const url = URL.createObjectURL(blob);

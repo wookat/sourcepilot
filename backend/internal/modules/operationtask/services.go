@@ -188,7 +188,7 @@ func (s *DraftVersionService) createDraftVersion(ctx context.Context, in DraftVe
 			if !errors.Is(latestErr, ErrNotFound) {
 				return latestErr
 			}
-			if err := sm.ValidateTransition(task.Status, OperationTaskStatusPendingReview); err != nil {
+			if err := validateInitialDraftTransition(sm, task.Status); err != nil {
 				return err
 			}
 			out = newDraftFromInput(task, in, 1, hash)
@@ -234,6 +234,20 @@ func (s *DraftVersionService) createDraftVersion(ctx context.Context, in DraftVe
 		return nil, err
 	}
 	return &out, nil
+}
+
+// validateInitialDraftTransition checks that an initial draft can move the
+// task to pending_review, allowing the canonical
+// suggested -> draft_preparing -> pending_review path as a single step.
+func validateInitialDraftTransition(sm *TaskStateMachine, from string) error {
+	if sm.CanTransition(from, OperationTaskStatusPendingReview) {
+		return nil
+	}
+	if sm.CanTransition(from, OperationTaskStatusDraftPreparing) &&
+		sm.CanTransition(OperationTaskStatusDraftPreparing, OperationTaskStatusPendingReview) {
+		return nil
+	}
+	return sm.ValidateTransition(from, OperationTaskStatusPendingReview)
 }
 
 type ApprovalAuthorizer interface {

@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-02 — **Round 48 数据处置缺口（UX P2-7/P2-8）closed**：采购单新增 `voided` 软作废状态（仅 `delivered / failed / cancelled` 可作废，`POST /procurement/orders/:id/void`，可写角色专属，保留 `purchase_order_events` 审计与 `procurement.void` 操作日志，已入库库存不自动回滚）；作废单不再参与统计/待办/生成防重覆盖判定（order `hasPurchase`、orderexception 采购受阻、operationdashboard 待采购、procurement generate 口径同步排除 `voided`）。货源档案新增孤儿货源处置：`GET /product-sources/orphans` 列出关联商品已删除的货源，`DELETE /product-sources/:id` 解绑（软删除货源及 SKU 映射，商品仍存在时 409），解绑后供应商可删除；供应商管理页内置孤儿货源列表，商品删除弹窗提示绑定货源数。后端单测覆盖作废状态机/审计/统计排除/readonly 403 与孤儿识别/解绑/供应商删除链路。
+
 **Stage update**: 2026-07-28 — **Phase P9 Batch 1 Domain Persistence Completed Locally / Full Verification Pending**：完成 `P9-501` Inventory Sync Run Model、`P9-502` Inventory Snapshot Model、`P9-503` SKU Binding Model、`P9-504` SKU Binding Calibration Model、`P9-505` Manual Binding Fallback Model、`P9-506` Migration, Repository and Persistence Verification 的 Batch 1 领域及持久化基础。新增 `backend/internal/modules/inventorysyncp9`，包含五类 GORM 领域模型、tenant-scoped Repository、稳定领域错误、幂等 key hash + input fingerprint、乐观并发 revision、不可变 snapshot/calibration 历史、Postgres/SQLite 迁移约束与真实 SQLite 持久化/并发测试；`backend/internal/database/migrate.go` 已注册 `inventorysyncp9.Migrate(db)`。新增 [`P9_TASK_BATCH_1_DOMAIN_PERSISTENCE.md`](P9_TASK_BATCH_1_DOMAIN_PERSISTENCE.md) / [`p9-task-batch-1-domain-persistence.json`](p9-task-batch-1-domain-persistence.json)、`scripts/p9-task-batch-1-domain-persistence-gate.mjs` 与 `tests/gates/p9/task-batch-1-domain-persistence.mjs`。本批未实现校准服务、匹配算法服务、同步编排、Worker、Cron/Ticker、队列消费者、HTTP/Gin/REST API、Admin UI、前端 API Client、真实 Douyin Provider、OAuth、真实凭证、真实平台网络、真实库存读取或写入。状态：**P9 In Progress** · **P9 Batch 1 Domain Persistence Completed Locally** · **Verified with known planning gate boundary** · **P9-601..P9-606 Not Started** · **P9 Not Complete** · **Production Ready: No** · **realCredentialsEnabled=false** · **realPlatformNetworkEnabled=false** · **realPlatformReadEnabled=false** · **realPlatformWriteEnabled=false** · **automaticPublishEnabled=false** · **automaticListingEnabled=false** · **P10 boundary preserved**。
 
 **Stage update**: 2026-07-28 — **Phase P9 Canonical Scope Resolved / Owner Scope Decision Approved / Full Implementation Plan Ready / Batch 1 Scope Ready**：从当前 `dev` 分支与真实 `HEAD` 重新完成 P9 发现，归一为 **Douyin Shop inventory sync MVP with SKU binding calibration and manual binding fallback**。仓库内 P9 参考被分为 current / historical / completed / conflicting 四类，当前无冲突，历史 Phase 9 继续保留为实现证据而不直接复用为当前任务名。新增 [`P9_OWNER_SCOPE_DECISION.md`](P9_OWNER_SCOPE_DECISION.md) / [`p9-owner-scope-decision.json`](p9-owner-scope-decision.json)、[`P9_SCOPE_DISCOVERY.md`](P9_SCOPE_DISCOVERY.md) / [`p9-scope-discovery.json`](p9-scope-discovery.json)、[`P9_EXECUTION_PLAN.md`](P9_EXECUTION_PLAN.md) / [`p9-execution-plan.json`](p9-execution-plan.json)、[`P9_TASK_BATCH_1_SCOPE.md`](P9_TASK_BATCH_1_SCOPE.md) / [`p9-task-batch-1-scope.json`](p9-task-batch-1-scope.json)、`scripts/p9-entry-gate.mjs`、`tests/gates/p9/entry.mjs`、`scripts/p9-plan-final-gate.mjs`、`tests/gates/p9/plan.mjs`、`scripts/p9-task-batch-1-scope-gate.mjs`、`tests/gates/p9/task-batch-1-scope.mjs`。状态：**P9 Scope Resolved** · **P9 Owner Scope Decision Approved** · **P9 Execution Plan Ready** · **P9 Batch 1 Scope Ready** · **P9 Implementation Not Started at planning gate time** · **Production Ready: No** · **realCredentialsEnabled=false** · **realPlatformWriteEnabled=false** · **automaticPublishEnabled=false** · **automaticListingEnabled=false** · **P10 boundary preserved**。
@@ -695,6 +697,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-08-02 | **1688 采集链路首次真实实测（Round 51）**：修复采集任务创建未写入 `tenant_id` 导致 Worker 全部拒绝（`任务缺少租户上下文`）的 P0 缺陷（单条 + 批量）；collector 新增 `COLLECTOR_PROXY_SERVER/_USERNAME/_PASSWORD/_BYPASS` 代理配置项（仅配置，不内置代理）；UA 默认按 bundled Chromium 主版本自动生成；风控/验证早期拦截路径补失败快照与 `[1688-collect]` 调试日志；compose 挂载 `./data/snapshots`。实测 6 条真实 1688 链接 0/6 成功、100% 风控跳转登录/验证页，失败上报（`PAGE_BLOCKED_OR_VERIFY_REQUIRED`/「页面需要验证」）准确；报告见 Round 51 实测报告 |
 | 2026-07-11 | **Phase P4.2 全量租户 Worker 与安全 Worker 收口**：`tasktenant` 接入 7 类生产 Worker；`security_secret_reencrypt` + `file_security_scan`；`migrate_p4_2`；`secret_targets`；安全中心 UI 九区块；11 份 `P4_2_*` 文档；`scripts/p4-2-security-final-closure-check.mjs`；IDOR 22 / shop scope 5 自动化；race deferred_on_windows |
 | 2026-07-11 | **P2.2 文档与扫描收口**：AI apply/undo、Webhook HTTP/签名、Worker 租约矩阵、race 占位报告；`p2-2-reliability-closure-check.mjs`；更新 IDEMPOTENCY / TASK_RELIABILITY / P2.1 矩阵 / CHANGELOG / README |
 | 2026-07-11 | **P2.2 AI text/image apply+undo 幂等**：`AITextApply/Undo`、`AIImageApply/Undo` key；apply/undo Acquire/Complete；版本冲突码；生成写回 `status=running` 守卫；set_main undo 恢复 previousBestMain；并发测试通过 |
@@ -885,6 +888,16 @@ Final Production Acceptance Deferred to P10
 - 新增 `GET /api/v1/procurement/cost-estimates/:id`（id 为销售订单）：按主货源 SKU 映射参考价（缺价回退最近历史进价，与生成采购单同口径）逐行估算 CNY 采购成本；订单币种为 CNY（汇率恒 1）或已配置 `settings.pricing.exchangeRate`（CNY→订单币种）时折算 `estimatedCost` 并计算 `grossProfit`/`marginPercent`（任一行缺价时不计算毛利）；问题行以 `issueCode`（`sku.unmatched`/`source.missing`/`mapping.missing`/`price.missing`）返回。procurement.Service 新增 `SettingsReader` 依赖（接口解耦），附 sqlite 单测（含汇率折算、缺价、CNY 订单三条路径）。
 - Admin 订单详情「订单概览」新增「成本 / 毛利估算」卡：销售额、预估采购成本（CNY + 折算）、预估毛利（正绿负红）、毛利率；缺价行与未配置汇率分别以 Alert 提示。
 - 顺带闭环第 12 轮 P3：库存手工扣减/回滚成功 toast 不再直出后端摘要原文 `ok`，改为结构化中文（成功/幂等跳过 + 原因）。
+
+### 变更记录（2026-08-01）迭代第 47 轮：商品草稿 / 货源档案 / 设置页移动端走查修复
+
+- 五档视口（375/768/1024/1280/1440）走查商品草稿列表、供应商管理、商品货源档案（含 SKU 映射抽屉）与设置全部子页（含用户与权限），按 P0-P2 分级修复。
+- 商品草稿列表 375px（P0）：商品图（fixed left）+ 操作（fixed right）双固定列把标题列压到约 20px 不可读；商品图/来源/运营进度/创建时间加 `responsive: ['md']` 小屏折叠，固定列小屏取消 fixed（沿用第 46 轮订单列表模式），小屏保留标题/状态/操作。
+- 全站页头标题窄屏截断（P1）：`TmPageContainer` 标题与描述同行导致 375px 下标题省略成「商…」「用户与…」；`global.less` 新增 <768px 规则让 heading-left 换行、标题/副标题整行正常换行展示，桌面端不变。
+- SKU 映射抽屉（P1）：固定 `width={720}` 在 375px 下表格内输入框被压到不可用；改 `width="min(720px, 100vw)"` + 内表 `scroll={{ x: 640 }}` 并给货源规格 ID 列固定宽度，小屏横向滚动可正常录入。
+- 商品货源档案（P1）：商品选择器固定 360px 超出小屏内容区，改 `min(360px, calc(100vw - 48px))`；切换审计表加 `scroll={{ x: 900 }}` 消除表头挤压；历史进价弹窗宽度改 `min(640px, calc(100vw - 32px))`。
+- 供应商管理 / 用户与权限（P1）：次要列（外部ID/评分/备注；邮箱/手机/授权店铺/最近操作）加 `responsive: ['md']` 小屏折叠，小屏无需横向滚动即可触达操作列。
+- 纯前端改动，无 API / 权限 / 状态机变更；修复后五档视口回归 95 项检查根节点均无横向溢出，1440px 桌面端无回归。
 
 ### 变更记录（2026-08-01）迭代第 46 轮：首页新手入门引导卡 + 订单列表 375px 移动端优化
 
@@ -1157,6 +1170,12 @@ Final Production Acceptance Deferred to P10
   - 订单详情「新增物流」弹窗：当本单尚无成功扣减记录时提示「本单尚未扣减库存……可到库存影响 Tab 手工扣减」（编辑既有物流不提示）。
   - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
   - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
+
+### 变更记录（2026-08-01）第 46 轮会话守卫全栈验证与后端修复
+
+- 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
+- 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
+- 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
 
 ### 变更记录（2026-08-02）迭代第 55 轮：经营报表导出 CSV + 移动端收口
 

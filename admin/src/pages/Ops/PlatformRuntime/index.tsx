@@ -112,7 +112,7 @@ export default function PlatformRuntimePage() {
             description="请刷新页面或先在平台接入设置中确认平台接入方已注册。"
           />
         ) : (
-          <Tabs activeKey={activePlatform} onChange={onTabChange} items={tabItems} destroyInactiveTabPane />
+          <Tabs activeKey={activePlatform} onChange={onTabChange} items={tabItems} destroyOnHidden />
         )}
       </Spin>
     </TmPageContainer>

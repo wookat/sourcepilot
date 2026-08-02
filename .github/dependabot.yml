@@ -21,6 +21,32 @@ updates:
     labels:
       - dependencies
       - "area: node"
+    ignore:
+      # React 生态与运行时基座固定大版本，升级须人工评估（react/react-dom 必须同版本成对升级）
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: antd
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@umijs/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@ant-design/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: execa
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
+      - dependency-name: playwright
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@playwright/test"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: gomod
     directory: /backend
