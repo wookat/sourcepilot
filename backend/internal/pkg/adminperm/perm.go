@@ -150,3 +150,27 @@ func RequireWritable(db *gorm.DB) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// RequirePermissionMW is a route-level middleware for read endpoints that need
+// a permission key.
+func RequirePermissionMW(db *gorm.DB, perm string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !RequirePermission(c, db, perm) {
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// RequireWriteMW is a route-level middleware for write endpoints that need a
+// permission key and reject readonly principals.
+func RequireWriteMW(db *gorm.DB, perm string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !RequireWrite(c, db, perm) {
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}

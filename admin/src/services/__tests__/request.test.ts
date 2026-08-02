@@ -37,24 +37,19 @@ describe('request helpers', () => {
     await expect(getJSON('/api/v1/products/missing')).rejects.toThrow('商品不存在');
   });
 
-  it('surfaces backend envelope message on non-2xx HTTP errors', async () => {
-    const axiosLikeError = Object.assign(new Error('Request failed with status code 400'), {
-      response: {
-        status: 400,
-        data: { code: 40001, message: '请配置 base_url', data: null },
-      },
+  it('surfaces the backend Chinese message on non-2xx axios errors', async () => {
+    const axiosErr = Object.assign(new Error('Request failed with status code 400'), {
+      response: { status: 400, data: { code: 40001, message: '接口密钥无效，请检查后重试', data: null } },
     });
-    requestMock.mockRejectedValueOnce(axiosLikeError);
+    requestMock.mockRejectedValueOnce(axiosErr);
 
-    await expect(
-      postJSON('/api/v1/products/p1/ai/optimize-title', {}),
-    ).rejects.toThrow('请配置 base_url');
+    await expect(postJSON('/api/v1/settings/test-ai', {})).rejects.toThrow('接口密钥无效，请检查后重试');
   });
 
-  it('rethrows non-envelope HTTP errors unchanged', async () => {
-    const networkError = new Error('Network Error');
-    requestMock.mockRejectedValueOnce(networkError);
+  it('rethrows non-envelope transport errors unchanged', async () => {
+    const netErr = new Error('Network Error');
+    requestMock.mockRejectedValueOnce(netErr);
 
-    await expect(getJSON('/api/v1/products')).rejects.toThrow('Network Error');
+    await expect(getJSON('/api/v1/settings')).rejects.toBe(netErr);
   });
 });

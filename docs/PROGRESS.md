@@ -1152,6 +1152,15 @@ Final Production Acceptance Deferred to P10
 - 授权店铺列显示店铺名而非 UUID：后端 `loadStorePerms` 店铺名查询改 `Unscoped`（软删除店铺也能回显名称）；前端缺名时兜底「未知店铺」。
 - 同步 `docs/api.md`（用户与权限管理表）、`admin/src/services/adminUsers.ts`。API 既有端点语义/状态机/readonly 403 文案不变。
 
+### 变更记录（2026-08-02）迭代第 59 轮：设置中心系统性安全走查与修复
+
+- 设置中心全量真实走查（docker compose 全栈，15 个 /settings 子页 + /shops/manage）：脱敏（sk-****abcd）、DB 密文、日志无完整密钥、连接测试、持久化、375/768/1440 响应式均复核通过；本轮修复以下问题。
+- P1 租户隔离（QA 回归发现）：`/api/v1/admin/users` 列表与 Get/Update/SetStorePermissions/Delete 未按租户过滤，tenant-2 用户对 tenant-1 admin 可见且可删。修复：`adminuser.Service` 全部操作按 `ctxkey.TenantID` 过滤，跨租户 ID 统一 404「用户不存在」不泄露存在性，店铺权限分配仅限同租户店铺；附 admin/operator/readonly 三角色单测（`tenant_scope_test.go`）。
+- P0 readonly 写入口缺守卫：`DELETE /shops/:id`、`PUT /shops/:id/auth`、`POST /shops(/… test/oauth 写操作)`、`PUT /platform/(publish-)settings/:platform`、`POST /settings/test-image|test-ocr` 此前对 readonly 放行。修复：新增 `adminperm.RequirePermissionMW/RequireWriteMW` 路由中间件，平台设置写走 `settings.manage`、店铺写走 `store.operate`，readonly 一律 403；附路由守卫单测（`router_readonly_test.go`）。Shops 页面同步按 `store.operate` 隐藏全部写控件。
+- P1 连接测试失败提示英文直出：test-ai / test-ocr / 存储公网测试等非 2xx 时 toast 显示 axios 原文。修复：`admin/src/services/request.ts` 统一从后端 Envelope 提取中文 message 抛 `ApiRequestError`。
+- P2 采集设置「页面打开超时」对越界值静默钳制：改为显式 1000~300000 范围中文校验文案。
+- 工程修复：admin `react-dom` 声明 19.2.8 与 react 18.2.0 不一致导致前端单测挂掉；对齐 18.2.0 并把 overrides 同步进 `pnpm-workspace.yaml`（新版 pnpm 只读该文件），`pnpm test:frontend` 恢复全绿。
+
 ### 变更记录（2026-08-02）生产部署本地演练收口（R45 部署包复核）
 
 - 在开发 VM 上按生产口径完整演练 `docker-compose.prod.yml`（APP_ENV=production + Caddy 内部 CA + /etc/hosts 假域名）：从零 env → 构建 → 启动 → bootstrap 管理员 → HTTPS 登录 → 核心页面抽查 < 15 分钟，验证恢复演练生产禁用、错误统一 envelope 不泄露堆栈、静态资源 immutable 缓存。
@@ -1202,4 +1211,3 @@ Final Production Acceptance Deferred to P10
   - **P2**：归档增加二次确认 Popconfirm；新建草稿失败给出 message.error；新建 SKU 保存后延迟拉取真实行修复「新行只有删除按钮」；`operationStep` 筛选加入口径说明 Alert（筛选=该步骤未完成，行内 Tag=当前所处步骤）；批量发布检查抽屉在当前平台无授权店铺时给出空态引导并禁用店铺选择。
   - **修复 main 上 test:frontend 挂掉**：dependabot 将 admin `react-dom` 升到 19.2.8（react 仍 18.2.0）导致 3 个组件测试套件崩溃；回退 `react-dom`/`@types/react-dom` 到 18 系，`pnpm-workspace.yaml` 增加 overrides（pnpm 10 读取位置，与 package.json `pnpm.overrides` 保持一致），root devDependencies 固定 react/react-dom 供 @testing-library/react peer 解析。
 - 遗留（待产品决策）：列表「批量导出上架清单」未实现（现有能力为批量创建刊登草稿）；operator demo 账号无授权店铺，operator 正常店铺 scope 场景未覆盖；商品计数口径（列表 total 与看板数）建议后续统一。
->>>>>>> origin/main

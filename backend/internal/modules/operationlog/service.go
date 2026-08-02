@@ -315,7 +315,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		tx = scoped
 		tenantID = tid
 	}
-	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+	if scoped, err := adminperm.ApplyStoreScopeOrNull(c, s.DB, tx, "shop_id"); err != nil {
 		return nil, err
 	} else {
 		tx = scoped

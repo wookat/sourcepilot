@@ -37,67 +37,63 @@ function unwrap<T>(res: ApiResponse<T>): T {
   return res.data;
 }
 
-function isApiEnvelope(body: unknown): body is ApiResponse<unknown> {
-  return (
-    typeof body === 'object' &&
-    body !== null &&
-    typeof (body as { code?: unknown }).code === 'number' &&
-    typeof (body as { message?: unknown }).message === 'string'
-  );
-}
-
-/**
- * HTTP 非 2xx 时 axios 抛的是 "Request failed with status code xxx"，
- * 会丢掉后端 envelope 里的可行动 message（如「请配置 base_url」）。
- * 这里统一还原为 ApiRequestError，让页面 message.error(e.message) 展示后端文案。
- */
-function normalizeRequestError(error: unknown): never {
-  const body = (error as { response?: { data?: unknown } })?.response?.data;
-  if (isApiEnvelope(body) && body.message) {
-    throw new ApiRequestError(body);
+/** 非 2xx 响应（axios 抛错）时提取后端 Envelope 的中文 message，避免透出英文 axios 原文 */
+function normalizeRequestError(err: unknown): never {
+  const body = (err as { response?: { data?: unknown } })?.response?.data;
+  if (body && typeof body === 'object' && 'code' in body && 'message' in body) {
+    const res = body as ApiResponse<unknown>;
+    if (typeof res.message === 'string' && res.message) {
+      throw new ApiRequestError(res);
+    }
   }
-  throw error;
+  throw err;
 }
 
-async function requestJSON<T>(path: string, options: Record<string, unknown>): Promise<T> {
+async function requestEnvelope<T>(
+  path: string,
+  options: Record<string, unknown>,
+): Promise<ApiResponse<T>> {
   try {
-    const res = await request<ApiResponse<T>>(path, options);
-    return unwrap(res);
-  } catch (error) {
-    normalizeRequestError(error);
+    return await request<ApiResponse<T>>(path, options);
+  } catch (err: unknown) {
+    normalizeRequestError(err);
   }
 }
 
 /** 通用 GET（后续各模块拆分到独立 service 文件） */
 export async function getJSON<T>(path: string): Promise<T> {
-  return requestJSON<T>(path, { method: 'GET' });
+  const res = await requestEnvelope<T>(path, { method: 'GET' });
+  return unwrap(res);
 }
 
 /** 通用 PUT */
 export async function putJSON<T, B extends object = object>(path: string, body: B, options?: RequestOptions): Promise<T> {
-  return requestJSON<T>(path, {
+  const res = await requestEnvelope<T>(path, {
     method: 'PUT',
     data: body,
     ...withOptions(options),
   });
+  return unwrap(res);
 }
 
 /** 通用 PATCH */
 export async function patchJSON<T, B extends object>(path: string, body: B, options?: RequestOptions): Promise<T> {
-  return requestJSON<T>(path, {
+  const res = await requestEnvelope<T>(path, {
     method: 'PATCH',
     data: body,
     ...withOptions(options),
   });
+  return unwrap(res);
 }
 
 /** 通用 POST */
 export async function postJSON<T, B extends object = object>(path: string, body?: B, options?: RequestOptions): Promise<T> {
-  return requestJSON<T>(path, {
+  const res = await requestEnvelope<T>(path, {
     method: 'POST',
     data: body,
     ...withOptions(options),
   });
+  return unwrap(res);
 }
 
 /** GET with query params */
@@ -105,21 +101,24 @@ export async function getWithParams<T>(
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
 ): Promise<T> {
-  return requestJSON<T>(path, {
+  const res = await requestEnvelope<T>(path, {
     method: 'GET',
     params,
   });
+  return unwrap(res);
 }
 
 /** DELETE */
 export async function deleteJSON<T>(path: string): Promise<T> {
-  return requestJSON<T>(path, { method: 'DELETE' });
+  const res = await requestEnvelope<T>(path, { method: 'DELETE' });
+  return unwrap(res);
 }
 
 /** multipart/form-data（如上传）；由 request 识别 FormData，勿手动设 Content-Type */
 export async function postFormData<T>(path: string, data: FormData): Promise<T> {
-  return requestJSON<T>(path, {
+  const res = await requestEnvelope<T>(path, {
     method: 'POST',
     data,
   });
+  return unwrap(res);
 }

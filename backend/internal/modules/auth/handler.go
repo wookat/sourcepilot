@@ -77,6 +77,7 @@ func (h *Handler) Login(c *gin.Context) {
 		if h.OpLog != nil {
 			stageStart = time.Now()
 			_ = h.OpLog.Write(c, operationlog.WriteOpts{
+				TenantID: LoginAuditTenant(err),
 				Username: account,
 				Action:   "login",
 				Resource: "auth",
@@ -103,6 +104,7 @@ func (h *Handler) Login(c *gin.Context) {
 	if perr == nil && h.OpLog != nil {
 		stageStart = time.Now()
 		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+			TenantID:    res.TenantID,
 			AdminUserID: &uid,
 			Username:    res.User.Username,
 			Action:      "login",
