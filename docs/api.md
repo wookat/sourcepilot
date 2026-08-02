@@ -231,7 +231,7 @@
 | `POST` | `/api/v1/collect/tasks` | 创建采集任务。`source=custom` 时若 URL 属于已有 **available/beta** 专用采集器域名，返回业务码 **40002**，`data.errorCode=CUSTOM_COLLECT_PROVIDER_CONFLICT`，含 `recommendedProvider` 与 `message`。 |
 | `GET` | `/api/v1/collect/tasks` | 采集任务列表。 |
 | `GET` | `/api/v1/collect/tasks/:id` | 采集任务详情。 |
-| `POST` | `/api/v1/collect/tasks/:id/retry` | 重试采集任务。 |
+| `POST` | `/api/v1/collect/tasks/:id/retry` | 重试采集任务（重试会重置 `queuedAt`，处理超时重新计时）。 |
 | `POST` | `/api/v1/collect/rules/ai-generate` | AI 根据商品 URL 生成自定义采集规则（分析页面摘要 → AI → 校验 → 自动规则测试）。1688 / AliExpress 等 **available/beta** 专用平台返回 **40002**。规则非法返回 **40003** `AI_RULE_INVALID`。 |
 | `POST` | `/api/v1/collect/rules/ai-generate-and-save` | 同上并直接保存为 `collect_rule`。 |
 | `GET` | `/api/collector/providers/1688/auth-status` | 1688 采集浏览器登录态检测（同 `/api/v1/collector/...`）。 |
@@ -263,6 +263,8 @@
 拼多多 `check-login` 返回扩展字段（无 Cookie/HTML）：`profileKey`（`pinduoduo`）、`checkedUrl`、`finalUrl`、`accessStatus`、`urlType`（`wholesale_detail` | `goods_detail` | `homepage` | `app_redirect` | `unknown`）、`checkMode`、`evidence`（`hasProductTitle` / `hasPrice` / `hasMainImage` 等）。**仅当打开商品详情页且识别到标题/价格/主图之一，且无登录/微信/App 引导时** 才返回 `ok`；**pifa 首页可访问不判已登录**。
 
 `POST open-login-browser` 与 `check-login` 使用同一 **`pinduoduo` Profile**（与 1688、custom 隔离）。采集浏览器登录窗口 **1280×900**。
+
+采集任务 DTO 新增向后兼容字段 `queuedAt`（最近一次入队/重试入队时间，旧数据可能为空，为空时以 `createdAt` 计）。任务在 `pending` / `running` / `retrying` 状态停留超过设置项 `collector.collect_task_processing_timeout_seconds`（默认 600 秒，最小 30 秒，后台「采集设置 → 通用采集设置 → 任务处理超时」可改）时，由 task reaper 自动置为 `failed`，`errorMessage` 标注「任务超时」，事件时间线记录 `task.processing_timeout`，可手动重试。
 
 ## 店铺与平台
 

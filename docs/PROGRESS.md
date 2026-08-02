@@ -1173,3 +1173,9 @@ Final Production Acceptance Deferred to P10
 - 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
 - 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
 - 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
+
+### 变更记录（2026-08-02）迭代第 48 轮：采集任务处理超时终态 + 等待时长/失败原因反馈（UX P1-6）
+
+- 修复采集任务在无外网/采集器异常时长期停留「处理中」无反馈的问题。后端新增采集任务处理超时终态机制：任务在 `pending`/`running`/`retrying` 停留超过 settings `collector.collect_task_processing_timeout_seconds`（默认 600 秒，最小 30 秒，后台「采集设置 → 通用采集设置 → 任务处理超时」可配）时，由 task reaper 周期扫描自动置为 `failed`，`errorMessage` 标注「任务超时」，事件时间线记录 `task.processing_timeout`，操作日志记 `collect.task.processing_timeout`，批次计数同步 reconcile。
+- 任务模型/DTO 新增向后兼容字段 `queuedAt`（最近一次入队/重试入队时间；旧数据为空时以 `createdAt` 计），创建、批量创建、手动重试、批次重试失败任务时写入/重置，保证重试后超时重新计时。
+- 采集中心任务列表：处理中（排队/处理中/重试中）行在状态下方显示「已等待 X 秒/分钟/小时」；失败原因列在错误码/提示缺失时回退展示 `errorMessage`（超时原因可见）；既有「重试」按钮对超时失败任务可用。附后端单测（超时置失败/未超时与终态不动/重试重新计时/旧数据回退 createdAt）。
