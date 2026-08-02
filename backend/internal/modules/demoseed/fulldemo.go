@@ -1,0 +1,756 @@
+package demoseed
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
+	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
+	"gorm.io/gorm"
+)
+
+// DemoPrefix marks every seeded row so cleanup can target demo data only.
+const DemoPrefix = "DEMO-"
+
+// FullDemoSeeder seeds a coherent cross-module demo dataset for one tenant.
+// Seed is idempotent: it always removes previously seeded DEMO- data first,
+// then inserts a fresh, internally consistent dataset.
+type FullDemoSeeder struct {
+	DB       *gorm.DB
+	TenantID int64
+	AppEnv   string
+}
+
+// FullDemoResult reports per-table row counts for seed / cleanup / verify.
+type FullDemoResult struct {
+	Action string           `json:"action"`
+	Counts map[string]int64 `json:"counts"`
+}
+
+// purchaseOrderPlan describes one demo purchase order walked through the real
+// procurement state machine (see statemachine.go).
+type purchaseOrderPlan struct {
+	suffix      string
+	chain       []string // statuses after draft, applied in order
+	payStatus   string
+	externalID  string
+	trackingNo  string
+	withInbound bool
+}
+
+// demoPurchaseOrderPlans covers 草稿→已签收 (draft → delivered) plus failed/cancelled.
+func demoPurchaseOrderPlans() []purchaseOrderPlan {
+	return []purchaseOrderPlan{
+		{suffix: "PO-DRAFT", chain: nil, payStatus: procurement.PayStatusUnpaid},
+		{suffix: "PO-CONFIRM", chain: []string{procurement.StatusPendingConfirm}, payStatus: procurement.PayStatusUnpaid},
+		{suffix: "PO-PLACING", chain: []string{procurement.StatusPendingConfirm, procurement.StatusPlacing}, payStatus: procurement.PayStatusUnpaid},
+		{suffix: "PO-PLACED", chain: []string{procurement.StatusPendingConfirm, procurement.StatusPlacing, procurement.StatusPlaced}, payStatus: procurement.PayStatusUnpaid, externalID: "DEMO-1688-2001"},
+		{suffix: "PO-PAID", chain: []string{procurement.StatusPendingConfirm, procurement.StatusPlacing, procurement.StatusPlaced, procurement.StatusPaid}, payStatus: procurement.PayStatusPaid, externalID: "DEMO-1688-2002"},
+		{suffix: "PO-SHIPPED", chain: []string{procurement.StatusPendingConfirm, procurement.StatusPlacing, procurement.StatusPlaced, procurement.StatusPaid, procurement.StatusShipped}, payStatus: procurement.PayStatusPaid, externalID: "DEMO-1688-2003", trackingNo: "DEMO-TRK-PO-1"},
+		{suffix: "PO-DELIVERED", chain: []string{procurement.StatusPendingConfirm, procurement.StatusPlacing, procurement.StatusPlaced, procurement.StatusPaid, procurement.StatusShipped, procurement.StatusDelivered}, payStatus: procurement.PayStatusPaid, externalID: "DEMO-1688-2004", trackingNo: "DEMO-TRK-PO-2", withInbound: true},
+		{suffix: "PO-FAILED", chain: []string{procurement.StatusPendingConfirm, procurement.StatusPlacing, procurement.StatusFailed}, payStatus: procurement.PayStatusUnpaid},
+		{suffix: "PO-CANCELLED", chain: []string{procurement.StatusCancelled}, payStatus: procurement.PayStatusUnpaid},
+	}
+}
+
+// salesOrderPlan describes one demo sales order; lifecycle steps are validated
+// with order.ValidateOrderStateTransition so no illegal state is produced.
+type salesOrderPlan struct {
+	suffix      string
+	status      string
+	payment     string
+	fulfillment string
+	// steps are intermediate lifecycle points from the initial state.
+	steps         [][3]string
+	withShipment  bool
+	shipmentState string
+	withDeduct    bool
+	unmatchedItem bool
+}
+
+func demoSalesOrderPlans() []salesOrderPlan {
+	return []salesOrderPlan{
+		{suffix: "SO-PENDING", status: order.StatusPending, payment: order.PaymentUnpaid, fulfillment: order.FulfillmentUnfulfilled},
+		{suffix: "SO-PAID", status: order.StatusPaid, payment: order.PaymentPaid, fulfillment: order.FulfillmentUnfulfilled,
+			steps:      [][3]string{{order.StatusPaid, order.PaymentPaid, order.FulfillmentUnfulfilled}},
+			withDeduct: true},
+		{suffix: "SO-SHIPPED", status: order.StatusShipped, payment: order.PaymentPaid, fulfillment: order.FulfillmentFulfilled,
+			steps: [][3]string{
+				{order.StatusPaid, order.PaymentPaid, order.FulfillmentUnfulfilled},
+				{order.StatusShipped, order.PaymentPaid, order.FulfillmentFulfilled},
+			},
+			withShipment: true, shipmentState: order.ShipmentInTransit},
+		{suffix: "SO-DELIVERED", status: order.StatusDelivered, payment: order.PaymentPaid, fulfillment: order.FulfillmentFulfilled,
+			steps: [][3]string{
+				{order.StatusPaid, order.PaymentPaid, order.FulfillmentUnfulfilled},
+				{order.StatusShipped, order.PaymentPaid, order.FulfillmentFulfilled},
+				{order.StatusDelivered, order.PaymentPaid, order.FulfillmentFulfilled},
+			},
+			withShipment: true, shipmentState: order.ShipmentDelivered},
+		{suffix: "SO-CANCELLED", status: order.StatusCancelled, payment: order.PaymentUnpaid, fulfillment: order.FulfillmentUnfulfilled,
+			steps:         [][3]string{{order.StatusCancelled, order.PaymentUnpaid, order.FulfillmentUnfulfilled}},
+			unmatchedItem: true},
+	}
+}
+
+func validatePurchaseChain(plan purchaseOrderPlan) error {
+	from := procurement.StatusDraft
+	for _, to := range plan.chain {
+		if !procurement.CanTransition(from, to) {
+			return procurement.ErrIllegalTransition(from, to)
+		}
+		from = to
+	}
+	return nil
+}
+
+func validateSalesChain(plan salesOrderPlan) error {
+	cur := [3]string{order.StatusPending, order.PaymentUnpaid, order.FulfillmentUnfulfilled}
+	for _, next := range plan.steps {
+		if !order.ValidateOrderStateTransition(cur[0], cur[1], cur[2], next[0], next[1], next[2]) {
+			return fmt.Errorf("demoseed: illegal order transition %v -> %v", cur, next)
+		}
+		cur = next
+	}
+	if cur[0] != plan.status || cur[1] != plan.payment || cur[2] != plan.fulfillment {
+		return fmt.Errorf("demoseed: order plan %s final state mismatch", plan.suffix)
+	}
+	return nil
+}
+
+// Seed removes previous DEMO- data then inserts a fresh demo dataset.
+func (s *FullDemoSeeder) Seed(ctx context.Context) (*FullDemoResult, error) {
+	if err := s.guard(); err != nil {
+		return nil, err
+	}
+	if _, err := s.Cleanup(ctx); err != nil {
+		return nil, err
+	}
+	res := &FullDemoResult{Action: "seed", Counts: map[string]int64{}}
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return s.seedAll(tx, res)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (s *FullDemoSeeder) guard() error {
+	if s == nil {
+		return fmt.Errorf("demoseed: service unavailable")
+	}
+	if strings.EqualFold(strings.TrimSpace(s.AppEnv), "production") {
+		return ErrProductionForbidden
+	}
+	if s.DB == nil {
+		return fmt.Errorf("demoseed: service unavailable")
+	}
+	return nil
+}
+
+//nolint:gocyclo // linear dataset construction
+func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
+	now := time.Now().UTC()
+	count := func(table string, n int64) { res.Counts[table] += n }
+
+	// ---- shops ×2 ----
+	shops := []shop.Shop{
+		{TenantID: s.TenantID, Platform: "douyin_shop", ShopName: "DEMO-抖店旗舰店", ShopCode: "DEMO-SHOP-1",
+			Status: "active", AuthStatus: "authorized", Region: "CN", Currency: "CNY", Remark: "DEMO- 演示店铺（种子数据）"},
+		{TenantID: s.TenantID, Platform: "manual", ShopName: "DEMO-手工渠道店", ShopCode: "DEMO-SHOP-2",
+			Status: "active", AuthStatus: "authorized", Currency: "CNY", Remark: "DEMO- 演示店铺（种子数据）"},
+	}
+	for i := range shops {
+		if err := tx.Create(&shops[i]).Error; err != nil {
+			return fmt.Errorf("demoseed: shop: %w", err)
+		}
+	}
+	count("shops", int64(len(shops)))
+
+	// ---- product drafts（采集来源 + 手动来源，AI 优化前后文案）----
+	type productSpec struct {
+		source, status, title, aiTitle, origTitle, desc, aiDesc, url string
+	}
+	specs := []productSpec{
+		{source: "collect", status: product.StatusReady,
+			origTitle: "DEMO-1688原始标题 陶瓷马克杯 350ml 批发",
+			title:     "DEMO-北欧风陶瓷马克杯 350ml 简约咖啡杯",
+			aiTitle:   "DEMO-AI优化 | Nordic Ceramic Mug 350ml Minimalist Coffee Cup",
+			desc:      "DEMO-采集原始描述：陶瓷马克杯，350ml，多色可选。",
+			aiDesc:    "DEMO-AI 生成描述：北欧极简设计陶瓷马克杯，350ml 黄金容量，釉面细腻，适合咖啡/茶/牛奶，支持洗碗机清洗。",
+			url:       "https://detail.1688.com/offer/DEMO-810001.html"},
+		{source: "collect", status: product.StatusPublished,
+			origTitle: "DEMO-1688原始标题 不锈钢保温杯 500ml",
+			title:     "DEMO-便携不锈钢保温杯 500ml 车载水杯",
+			aiTitle:   "DEMO-AI优化 | Portable Stainless Steel Thermos 500ml",
+			desc:      "DEMO-采集原始描述：304不锈钢保温杯。",
+			aiDesc:    "DEMO-AI 生成描述：304 食品级不锈钢真空保温杯，12 小时长效保温，防漏杯盖，一键开合。",
+			url:       "https://detail.1688.com/offer/DEMO-810002.html"},
+		{source: "collect", status: product.StatusDraft,
+			origTitle: "DEMO-1688原始标题 硅胶手机壳 适用iPhone",
+			title:     "DEMO-液态硅胶手机壳 全包防摔",
+			desc:      "DEMO-采集原始描述：液态硅胶手机壳。",
+			url:       "https://detail.1688.com/offer/DEMO-810003.html"},
+		{source: "manual", status: product.StatusReady,
+			title:   "DEMO-手动录入 桌面收纳盒 三层抽屉式",
+			aiTitle: "DEMO-AI优化 | 3-Tier Desktop Drawer Organizer",
+			desc:    "DEMO-手动录入描述：桌面收纳盒，三层抽屉。",
+			aiDesc:  "DEMO-AI 生成描述：三层抽屉式桌面收纳盒，磨砂质感，适合办公桌、化妆台收纳。"},
+		{source: "manual", status: product.StatusDraft,
+			title: "DEMO-手动录入 帆布托特包 大容量",
+			desc:  "DEMO-手动录入描述：帆布托特包。"},
+	}
+	products := make([]product.Product, 0, len(specs))
+	skus := make([]product.ProductSKU, 0, len(specs)*2)
+	for i, sp := range specs {
+		p := product.Product{TenantID: s.TenantID, Source: sp.source, SourceURL: sp.url,
+			OriginalTitle: sp.origTitle, Title: sp.title, AITitle: sp.aiTitle,
+			Description: sp.desc, AIDescription: sp.aiDesc, Currency: "CNY", Status: sp.status}
+		if err := tx.Create(&p).Error; err != nil {
+			return fmt.Errorf("demoseed: product: %w", err)
+		}
+		products = append(products, p)
+		img := product.ProductImage{ProductID: p.ID, ImageType: product.ImageTypeMain,
+			Source: product.ImageSourceCollect, OriginURL: fmt.Sprintf("https://img.demo.trademind.local/DEMO-%d-main.jpg", i+1), SortOrder: 0}
+		if err := tx.Create(&img).Error; err != nil {
+			return fmt.Errorf("demoseed: product image: %w", err)
+		}
+		count("product_images", 1)
+		for j := 0; j < 2; j++ {
+			stock := 40 + i*10 + j*5
+			price := 19.9 + float64(i*10+j*3)
+			cost := price * 0.45
+			sku := product.ProductSKU{ProductID: p.ID,
+				SKUCode: fmt.Sprintf("DEMO-SKU-%d-%d", i+1, j+1),
+				SKUName: fmt.Sprintf("默认规格-%d", j+1),
+				Price:   &price, CostPrice: &cost, Stock: &stock, WarningStock: 10}
+			if err := tx.Create(&sku).Error; err != nil {
+				return fmt.Errorf("demoseed: sku: %w", err)
+			}
+			skus = append(skus, sku)
+		}
+	}
+	count("products", int64(len(products)))
+	count("product_skus", int64(len(skus)))
+	// one low-stock SKU to light up inventory alerts
+	low := 2
+	if err := tx.Model(&product.ProductSKU{}).Where("id = ?", skus[len(skus)-1].ID).
+		Updates(map[string]any{"stock": low, "stock_status": "low_stock"}).Error; err != nil {
+		return fmt.Errorf("demoseed: low stock sku: %w", err)
+	}
+
+	// ---- supplier + product sources + SKU mappings + price history ----
+	rating := 4.8
+	supplier := sourcing.Supplier{TenantID: s.TenantID, Platform: "1688", ExternalID: "DEMO-SUP-1",
+		Name: "DEMO-义乌市优选家居用品厂", Rating: &rating, Status: sourcing.SupplierStatusActive,
+		Remark: "DEMO- 演示供应商（种子数据）"}
+	if err := tx.Create(&supplier).Error; err != nil {
+		return fmt.Errorf("demoseed: supplier: %w", err)
+	}
+	count("suppliers", 1)
+	moq := 10
+	lead := 3
+	for i := 0; i < 2; i++ {
+		src := sourcing.ProductSource{TenantID: s.TenantID, ProductID: products[i].ID, SupplierID: supplier.ID,
+			SourceURL: products[i].SourceURL, SourceOfferID: fmt.Sprintf("DEMO-OFFER-%d", i+1),
+			Priority: 1, IsPrimary: true, Status: sourcing.SourceStatusActive, MOQ: &moq, LeadTimeDays: &lead}
+		if err := tx.Create(&src).Error; err != nil {
+			return fmt.Errorf("demoseed: product source: %w", err)
+		}
+		count("product_sources", 1)
+		for j := 0; j < 2; j++ {
+			localSKU := skus[i*2+j]
+			price := *localSKU.CostPrice
+			stk := 500
+			ssku := sourcing.ProductSourceSKU{TenantID: s.TenantID, ProductSourceID: src.ID, LocalSKUID: localSKU.ID,
+				ExternalSKUID: fmt.Sprintf("DEMO-EXT-SKU-%d-%d", i+1, j+1),
+				CurrentPrice:  &price, Currency: "CNY", CurrentStock: &stk, Status: "active"}
+			if err := tx.Create(&ssku).Error; err != nil {
+				return fmt.Errorf("demoseed: source sku: %w", err)
+			}
+			count("product_source_skus", 1)
+			hist := sourcing.SourcePriceHistory{TenantID: s.TenantID, SourceSKUID: ssku.ID, Price: price,
+				Stock: &stk, CapturedAt: now.Add(-24 * time.Hour), CaptureSource: sourcing.CaptureSourceManual}
+			if err := tx.Create(&hist).Error; err != nil {
+				return fmt.Errorf("demoseed: price history: %w", err)
+			}
+			count("source_price_history", 1)
+		}
+	}
+
+	// ---- sales orders across all statuses ----
+	plans := demoSalesOrderPlans()
+	for idx, plan := range plans {
+		if err := validateSalesChain(plan); err != nil {
+			return err
+		}
+		sku := skus[idx%len(skus)]
+		unit := 0.0
+		if sku.Price != nil {
+			unit = *sku.Price
+		}
+		qty := 2
+		orderedAt := now.Add(-time.Duration(48-idx*6) * time.Hour)
+		o := order.Order{TenantID: s.TenantID, Platform: shops[idx%2].Platform, ShopID: &shops[idx%2].ID,
+			OrderNo:      fmt.Sprintf("DEMO-%s-%04d", plan.suffix, idx+1),
+			CustomerName: fmt.Sprintf("DEMO-买家%d", idx+1), Status: plan.status,
+			PaymentStatus: plan.payment, FulfillmentStatus: plan.fulfillment,
+			Currency: "CNY", TotalAmount: unit * float64(qty), OrderedAt: &orderedAt,
+			Remark: "DEMO- 演示订单（种子数据）"}
+		if plan.payment == order.PaymentPaid {
+			paidAt := orderedAt.Add(30 * time.Minute)
+			o.PaidAt = &paidAt
+		}
+		if plan.status == order.StatusShipped || plan.status == order.StatusDelivered {
+			shippedAt := orderedAt.Add(6 * time.Hour)
+			o.ShippedAt = &shippedAt
+		}
+		if plan.status == order.StatusDelivered {
+			deliveredAt := orderedAt.Add(48 * time.Hour)
+			o.DeliveredAt = &deliveredAt
+		}
+		if err := tx.Create(&o).Error; err != nil {
+			return fmt.Errorf("demoseed: order: %w", err)
+		}
+		count("orders", 1)
+		item := order.OrderItem{OrderID: o.ID, ProductID: &sku.ProductID, ProductSKUID: &sku.ID,
+			ProductTitle: products[(idx%len(skus))/2].Title, SKUName: sku.SKUName, SKUCode: sku.SKUCode,
+			Quantity: qty, UnitPrice: unit, TotalPrice: unit * float64(qty)}
+		if plan.unmatchedItem {
+			item.ProductID = nil
+			item.ProductSKUID = nil
+			item.SKUCode = ""
+			item.SellerSKU = "DEMO-UNKNOWN-SKU"
+			item.ProductTitle = "DEMO-未匹配商品（演示异常）"
+		}
+		if err := tx.Create(&item).Error; err != nil {
+			return fmt.Errorf("demoseed: order item: %w", err)
+		}
+		count("order_items", 1)
+
+		match := order.OrderItemSKUMatch{OrderID: o.ID, OrderItemID: item.ID, Platform: o.Platform,
+			SellerSKU: item.SellerSKU, SKUCode: item.SKUCode,
+			ProductID: item.ProductID, ProductSKUID: item.ProductSKUID,
+			MatchType: order.MatchTypeLocalSKUCode, MatchStatus: order.MatchStatusMatched, Confidence: 100,
+			Reason: "DEMO- 种子数据本地 SKU 匹配"}
+		if plan.unmatchedItem {
+			match.MatchType = order.MatchTypeNone
+			match.MatchStatus = order.MatchStatusUnmatched
+			match.Confidence = 0
+			match.Reason = "DEMO- 演示：外部 SKU 无法匹配本地档案"
+		}
+		if err := tx.Create(&match).Error; err != nil {
+			return fmt.Errorf("demoseed: sku match: %w", err)
+		}
+		count("order_item_sku_matches", 1)
+
+		if plan.withShipment {
+			sh := order.OrderShipment{OrderID: o.ID, Carrier: "顺丰速运",
+				TrackingNo: fmt.Sprintf("DEMO-TRK-SO-%d", idx+1), Status: plan.shipmentState,
+				ShippedAt: o.ShippedAt, DeliveredAt: o.DeliveredAt}
+			if err := tx.Create(&sh).Error; err != nil {
+				return fmt.Errorf("demoseed: shipment: %w", err)
+			}
+			count("order_shipments", 1)
+		}
+
+		if plan.withDeduct && sku.Stock != nil {
+			before := *sku.Stock
+			after := before - qty
+			log := inventory.InventoryChangeLog{TenantID: s.TenantID, ProductID: sku.ProductID, ProductSKUID: sku.ID,
+				ChangeType: inventory.ChangeOrderDeduct, BeforeStock: before, AfterStock: after, Delta: -qty,
+				Reason: "order_paid", Remark: "DEMO- 订单支付扣减（种子数据）",
+				RefOrderID: &o.ID, RefOrderItemID: &item.ID,
+				BusinessEventKey: fmt.Sprintf("DEMO-EVT-DEDUCT-%d", idx+1)}
+			if err := tx.Create(&log).Error; err != nil {
+				return fmt.Errorf("demoseed: deduct log: %w", err)
+			}
+			count("inventory_change_logs", 1)
+			if err := tx.Model(&product.ProductSKU{}).Where("id = ?", sku.ID).Update("stock", after).Error; err != nil {
+				return fmt.Errorf("demoseed: deduct stock: %w", err)
+			}
+		}
+	}
+
+	// ---- purchase orders via real state machine ----
+	for i, plan := range demoPurchaseOrderPlans() {
+		if err := validatePurchaseChain(plan); err != nil {
+			return err
+		}
+		sku := skus[i%4]
+		srcPrice := 9.9 + float64(i)
+		po := procurement.PurchaseOrder{TenantID: s.TenantID, SupplierID: supplier.ID, SupplierName: supplier.Name,
+			SourcePlatform: "1688", ExternalOrderID: plan.externalID, Status: procurement.StatusDraft,
+			TotalAmount: srcPrice * 5, Currency: "CNY", PayStatus: plan.payStatus,
+			IdempotencyKey: fmt.Sprintf("DEMO-%s", plan.suffix)}
+		if plan.payStatus == procurement.PayStatusPaid {
+			paidAt := now.Add(-time.Duration(24-i) * time.Hour)
+			po.PaidAt = &paidAt
+		}
+		if err := tx.Create(&po).Error; err != nil {
+			return fmt.Errorf("demoseed: purchase order: %w", err)
+		}
+		count("purchase_orders", 1)
+		item := procurement.PurchaseOrderItem{TenantID: s.TenantID, PurchaseOrderID: po.ID,
+			LocalSKUID: sku.ID, SourceSKUID: sku.ID, ProductTitle: "DEMO-采购商品", SKUName: sku.SKUName,
+			Quantity: 5, ExpectedPrice: &srcPrice}
+		if err := tx.Create(&item).Error; err != nil {
+			return fmt.Errorf("demoseed: purchase item: %w", err)
+		}
+		count("purchase_order_items", 1)
+
+		from := procurement.StatusDraft
+		for step, to := range plan.chain {
+			if !procurement.CanTransition(from, to) {
+				return procurement.ErrIllegalTransition(from, to)
+			}
+			ev := procurement.PurchaseOrderEvent{TenantID: s.TenantID, PurchaseOrderID: po.ID,
+				FromStatus: from, ToStatus: to, Source: procurement.EventSourceManual,
+				CreatedAt: now.Add(-time.Duration(len(plan.chain)-step) * time.Hour)}
+			if err := tx.Create(&ev).Error; err != nil {
+				return fmt.Errorf("demoseed: po event: %w", err)
+			}
+			count("purchase_order_events", 1)
+			from = to
+		}
+		if from != procurement.StatusDraft {
+			if err := tx.Model(&procurement.PurchaseOrder{}).Where("id = ?", po.ID).Update("status", from).Error; err != nil {
+				return fmt.Errorf("demoseed: po status: %w", err)
+			}
+		}
+
+		if plan.trackingNo != "" {
+			logi := procurement.PurchaseLogistics{TenantID: s.TenantID, PurchaseOrderID: po.ID,
+				TrackingNo: plan.trackingNo, Carrier: "中通快递", Status: "in_transit"}
+			if plan.withInbound {
+				logi.Status = "delivered"
+				inboundAt := now.Add(-2 * time.Hour)
+				logi.InboundAt = &inboundAt
+			}
+			if err := tx.Create(&logi).Error; err != nil {
+				return fmt.Errorf("demoseed: po logistics: %w", err)
+			}
+			count("purchase_logistics", 1)
+		}
+
+		if plan.withInbound && sku.Stock != nil {
+			var cur product.ProductSKU
+			if err := tx.Where("id = ?", sku.ID).First(&cur).Error; err != nil {
+				return fmt.Errorf("demoseed: inbound sku read: %w", err)
+			}
+			before := 0
+			if cur.Stock != nil {
+				before = *cur.Stock
+			}
+			after := before + item.Quantity
+			log := inventory.InventoryChangeLog{TenantID: s.TenantID, ProductID: sku.ProductID, ProductSKUID: sku.ID,
+				ChangeType: inventory.ChangePurchaseInbound, BeforeStock: before, AfterStock: after, Delta: item.Quantity,
+				Reason: "purchase_delivered", Remark: "DEMO- 采购签收入库（种子数据）",
+				BusinessEventKey: fmt.Sprintf("DEMO-EVT-INBOUND-%d", i+1)}
+			if err := tx.Create(&log).Error; err != nil {
+				return fmt.Errorf("demoseed: inbound log: %w", err)
+			}
+			count("inventory_change_logs", 1)
+			if err := tx.Model(&product.ProductSKU{}).Where("id = ?", sku.ID).Update("stock", after).Error; err != nil {
+				return fmt.Errorf("demoseed: inbound stock: %w", err)
+			}
+		}
+	}
+
+	// ---- manual inventory adjust log ----
+	adjSKU := skus[2]
+	if adjSKU.Stock != nil {
+		before := *adjSKU.Stock
+		after := before + 10
+		log := inventory.InventoryChangeLog{TenantID: s.TenantID, ProductID: adjSKU.ProductID, ProductSKUID: adjSKU.ID,
+			ChangeType: inventory.ChangeManualAdjust, BeforeStock: before, AfterStock: after, Delta: 10,
+			Reason: "restock", Remark: "DEMO- 手动盘点调整（种子数据）",
+			BusinessEventKey: "DEMO-EVT-ADJUST-1"}
+		if err := tx.Create(&log).Error; err != nil {
+			return fmt.Errorf("demoseed: adjust log: %w", err)
+		}
+		count("inventory_change_logs", 1)
+		if err := tx.Model(&product.ProductSKU{}).Where("id = ?", adjSKU.ID).Update("stock", after).Error; err != nil {
+			return fmt.Errorf("demoseed: adjust stock: %w", err)
+		}
+	}
+
+	// ---- inventory sync batch + tasks（成功 + 失败样本）----
+	started := now.Add(-30 * time.Minute)
+	finished := now.Add(-25 * time.Minute)
+	batch := inventory.InventorySyncBatch{TenantID: s.TenantID, BatchNo: "DEMO-INV-BATCH-1",
+		Source: inventory.BatchSourceManual, Status: inventory.BatchStatusPartialSuccess,
+		Platform: shops[0].Platform, ShopID: &shops[0].ID,
+		TotalCount: 2, SuccessCount: 1, FailedCount: 1,
+		StartedAt: &started, FinishedAt: &finished}
+	if err := tx.Create(&batch).Error; err != nil {
+		return fmt.Errorf("demoseed: inv batch: %w", err)
+	}
+	count("inventory_sync_batches", 1)
+	taskStates := []struct {
+		status, errMsg string
+		sku            product.ProductSKU
+	}{
+		{status: inventory.StatusSuccess, sku: skus[0]},
+		{status: inventory.StatusFailed, errMsg: "DEMO- 演示：规格未绑定平台 SKU，库存同步被阻断", sku: skus[1]},
+	}
+	var failedInvTaskID uuid.UUID
+	for _, ts := range taskStates {
+		target := 0
+		if ts.sku.Stock != nil {
+			target = *ts.sku.Stock
+		}
+		t := inventory.InventorySyncTask{TenantID: s.TenantID, BatchID: &batch.ID, BatchNo: batch.BatchNo,
+			ProductID: ts.sku.ProductID, ProductSKUID: &ts.sku.ID, ShopID: shops[0].ID, Platform: shops[0].Platform,
+			TaskType: inventory.TaskTypeInventorySync, Status: ts.status, Mode: inventory.ModeManual,
+			TargetStock: target, StartedAt: &started, FinishedAt: &finished, ErrorMessage: ts.errMsg}
+		if err := tx.Create(&t).Error; err != nil {
+			return fmt.Errorf("demoseed: inv task: %w", err)
+		}
+		count("inventory_sync_tasks", 1)
+		if ts.status == inventory.StatusFailed {
+			failedInvTaskID = t.ID
+		}
+	}
+
+	// ---- order sync task partial_success（异常工作台样本）----
+	syncTask := ordersync.OrderSyncTask{ShopID: shops[0].ID, Platform: shops[0].Platform,
+		TaskType: "order_sync", Status: "partial_success", Mode: "manual",
+		StartedAt: &started, FinishedAt: &finished,
+		TotalCount: 60, SuccessCount: 50, FailedCount: 10,
+		ErrorMessage: "DEMO- 演示：部分订单页同步失败",
+		Input:        mustJSON(map[string]any{"seedPrefix": DemoPrefix}),
+		Output: mustJSON(map[string]any{
+			"totalPages": 3, "successPages": 2, "failedPages": 1,
+			"pageErrors": []map[string]any{{"page": 3, "error": "DEMO- simulated page fetch failure"}},
+		})}
+	if err := tx.Create(&syncTask).Error; err != nil {
+		return fmt.Errorf("demoseed: order sync task: %w", err)
+	}
+	count("order_sync_tasks", 1)
+
+	// ---- exception workbench handled mark（演示处理动作留痕）----
+	mark := orderexception.OrderExceptionMark{
+		ExceptionType: orderexception.TypeInventorySyncFailed,
+		SourceType:    orderexception.SourceInventorySyncTask,
+		SourceID:      failedInvTaskID.String(),
+		MarkType:      orderexception.MarkHandled,
+		Remark:        "DEMO- 演示：已人工确认该库存同步失败样本"}
+	if err := tx.Create(&mark).Error; err != nil {
+		return fmt.Errorf("demoseed: exception mark: %w", err)
+	}
+	count("order_exception_marks", 1)
+
+	return nil
+}
+
+// Cleanup hard-deletes all DEMO- prefixed rows and their children.
+func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
+	if err := s.guard(); err != nil {
+		return nil, err
+	}
+	res := &FullDemoResult{Action: "cleanup", Counts: map[string]int64{}}
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		del := func(table string, q *gorm.DB) error {
+			r := q
+			if r.Error != nil {
+				return fmt.Errorf("demoseed cleanup %s: %w", table, r.Error)
+			}
+			res.Counts[table] += r.RowsAffected
+			return nil
+		}
+		like := DemoPrefix + "%"
+
+		var orderIDs []uuid.UUID
+		if err := tx.Model(&order.Order{}).Unscoped().Where("order_no LIKE ?", like).Pluck("id", &orderIDs).Error; err != nil {
+			return err
+		}
+		if len(orderIDs) > 0 {
+			if err := del("order_item_sku_matches", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderItemSKUMatch{})); err != nil {
+				return err
+			}
+			if err := del("order_items", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderItem{})); err != nil {
+				return err
+			}
+			if err := del("order_shipments", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderShipment{})); err != nil {
+				return err
+			}
+			if err := del("orders", tx.Unscoped().Where("id IN ?", orderIDs).Delete(&order.Order{})); err != nil {
+				return err
+			}
+		}
+
+		var poIDs []uuid.UUID
+		if err := tx.Model(&procurement.PurchaseOrder{}).Unscoped().Where("idempotency_key LIKE ?", like).Pluck("id", &poIDs).Error; err != nil {
+			return err
+		}
+		if len(poIDs) > 0 {
+			if err := del("purchase_order_items", tx.Unscoped().Where("purchase_order_id IN ?", poIDs).Delete(&procurement.PurchaseOrderItem{})); err != nil {
+				return err
+			}
+			if err := del("purchase_order_events", tx.Unscoped().Where("purchase_order_id IN ?", poIDs).Delete(&procurement.PurchaseOrderEvent{})); err != nil {
+				return err
+			}
+			if err := del("purchase_logistics", tx.Unscoped().Where("purchase_order_id IN ?", poIDs).Delete(&procurement.PurchaseLogistics{})); err != nil {
+				return err
+			}
+			if err := del("purchase_orders", tx.Unscoped().Where("id IN ?", poIDs).Delete(&procurement.PurchaseOrder{})); err != nil {
+				return err
+			}
+		}
+
+		var supplierIDs []uuid.UUID
+		if err := tx.Model(&sourcing.Supplier{}).Unscoped().Where("name LIKE ?", like).Pluck("id", &supplierIDs).Error; err != nil {
+			return err
+		}
+		var sourceIDs []uuid.UUID
+		if len(supplierIDs) > 0 {
+			if err := tx.Model(&sourcing.ProductSource{}).Unscoped().Where("supplier_id IN ?", supplierIDs).Pluck("id", &sourceIDs).Error; err != nil {
+				return err
+			}
+		}
+		if len(sourceIDs) > 0 {
+			var sourceSKUIDs []uuid.UUID
+			if err := tx.Model(&sourcing.ProductSourceSKU{}).Unscoped().Where("product_source_id IN ?", sourceIDs).Pluck("id", &sourceSKUIDs).Error; err != nil {
+				return err
+			}
+			if len(sourceSKUIDs) > 0 {
+				if err := del("source_price_history", tx.Unscoped().Where("source_sku_id IN ?", sourceSKUIDs).Delete(&sourcing.SourcePriceHistory{})); err != nil {
+					return err
+				}
+			}
+			if err := del("product_source_skus", tx.Unscoped().Where("product_source_id IN ?", sourceIDs).Delete(&sourcing.ProductSourceSKU{})); err != nil {
+				return err
+			}
+			if err := del("product_sources", tx.Unscoped().Where("id IN ?", sourceIDs).Delete(&sourcing.ProductSource{})); err != nil {
+				return err
+			}
+		}
+		if len(supplierIDs) > 0 {
+			if err := del("suppliers", tx.Unscoped().Where("id IN ?", supplierIDs).Delete(&sourcing.Supplier{})); err != nil {
+				return err
+			}
+		}
+
+		var productIDs []uuid.UUID
+		if err := tx.Model(&product.Product{}).Unscoped().Where("title LIKE ?", like).Pluck("id", &productIDs).Error; err != nil {
+			return err
+		}
+		if len(productIDs) > 0 {
+			if err := del("inventory_change_logs", tx.Unscoped().Where("product_id IN ?", productIDs).Delete(&inventory.InventoryChangeLog{})); err != nil {
+				return err
+			}
+			if err := del("inventory_sync_tasks", tx.Unscoped().Where("product_id IN ?", productIDs).Delete(&inventory.InventorySyncTask{})); err != nil {
+				return err
+			}
+			if err := del("product_skus", tx.Unscoped().Where("product_id IN ?", productIDs).Delete(&product.ProductSKU{})); err != nil {
+				return err
+			}
+			if err := del("product_images", tx.Unscoped().Where("product_id IN ?", productIDs).Delete(&product.ProductImage{})); err != nil {
+				return err
+			}
+			if err := del("products", tx.Unscoped().Where("id IN ?", productIDs).Delete(&product.Product{})); err != nil {
+				return err
+			}
+		}
+
+		if err := del("inventory_sync_batches", tx.Unscoped().Where("batch_no LIKE ?", like).Delete(&inventory.InventorySyncBatch{})); err != nil {
+			return err
+		}
+
+		var shopIDs []uuid.UUID
+		if err := tx.Model(&shop.Shop{}).Unscoped().Where("shop_code LIKE ?", like).Pluck("id", &shopIDs).Error; err != nil {
+			return err
+		}
+		if len(shopIDs) > 0 {
+			if err := del("order_sync_tasks", tx.Unscoped().Where("shop_id IN ? AND error_message LIKE ?", shopIDs, like).Delete(&ordersync.OrderSyncTask{})); err != nil {
+				return err
+			}
+			if err := del("shops", tx.Unscoped().Where("id IN ?", shopIDs).Delete(&shop.Shop{})); err != nil {
+				return err
+			}
+		}
+
+		if err := del("order_exception_marks", tx.Unscoped().Where("remark LIKE ?", like).Delete(&orderexception.OrderExceptionMark{})); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// VerifyClean counts residual DEMO- rows per table (all should be zero after cleanup).
+func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, error) {
+	if err := s.guard(); err != nil {
+		return nil, err
+	}
+	res := &FullDemoResult{Action: "verify", Counts: map[string]int64{}}
+	tx := s.DB.WithContext(ctx)
+	like := DemoPrefix + "%"
+	checks := []struct {
+		table string
+		count func() (int64, error)
+	}{
+		{"shops", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&shop.Shop{}).Unscoped().Where("shop_code LIKE ?", like).Count(&n).Error
+		}},
+		{"products", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&product.Product{}).Unscoped().Where("title LIKE ?", like).Count(&n).Error
+		}},
+		{"product_skus", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&product.ProductSKU{}).Unscoped().Where("sku_code LIKE ?", like).Count(&n).Error
+		}},
+		{"suppliers", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&sourcing.Supplier{}).Unscoped().Where("name LIKE ?", like).Count(&n).Error
+		}},
+		{"orders", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&order.Order{}).Unscoped().Where("order_no LIKE ?", like).Count(&n).Error
+		}},
+		{"purchase_orders", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&procurement.PurchaseOrder{}).Unscoped().Where("idempotency_key LIKE ?", like).Count(&n).Error
+		}},
+		{"inventory_change_logs", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&inventory.InventoryChangeLog{}).Where("business_event_key LIKE ?", like).Count(&n).Error
+		}},
+		{"inventory_sync_batches", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&inventory.InventorySyncBatch{}).Unscoped().Where("batch_no LIKE ?", like).Count(&n).Error
+		}},
+		{"order_sync_tasks", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&ordersync.OrderSyncTask{}).Where("error_message LIKE ?", like).Count(&n).Error
+		}},
+		{"order_exception_marks", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&orderexception.OrderExceptionMark{}).Where("remark LIKE ?", like).Count(&n).Error
+		}},
+	}
+	for _, c := range checks {
+		n, err := c.count()
+		if err != nil {
+			return nil, fmt.Errorf("demoseed verify %s: %w", c.table, err)
+		}
+		res.Counts[c.table] = n
+	}
+	return res, nil
+}

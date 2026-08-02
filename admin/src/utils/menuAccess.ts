@@ -41,6 +41,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/orders/sku-matches': PERMISSIONS.ORDER_VIEW,
   '/orders/exceptions': PERMISSIONS.ORDER_VIEW,
   '/inventory': PERMISSIONS.INVENTORY_VIEW,
+  '/inventory/center': PERMISSIONS.INVENTORY_VIEW,
   '/inventory/alerts': PERMISSIONS.INVENTORY_VIEW,
   '/inventory/deductions': PERMISSIONS.INVENTORY_VIEW,
   '/inventory/sync-tasks': PERMISSIONS.INVENTORY_VIEW,

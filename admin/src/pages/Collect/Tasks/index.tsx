@@ -57,6 +57,19 @@ function providerAllowsSingleCollect(status: CollectProviderStatus) {
   return status === 'available' || status === 'beta';
 }
 
+const PROCESSING_STATUSES = ['pending', 'running', 'retrying'];
+
+function formatWaitingDuration(row: CollectTaskRow): string | null {
+  if (!PROCESSING_STATUSES.includes(row.status)) return null;
+  const since = Date.parse(row.queuedAt ?? row.createdAt);
+  if (Number.isNaN(since)) return null;
+  const sec = Math.max(0, Math.floor((Date.now() - since) / 1000));
+  if (sec < 60) return `已等待 ${sec} 秒`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `已等待 ${min} 分钟`;
+  return `已等待 ${Math.floor(min / 60)} 小时 ${min % 60} 分钟`;
+}
+
 const COLLECT_TASK_QUERY_KEYS = [
   'page',
   'pageSize',
@@ -275,7 +288,17 @@ export default function CollectTasksPage() {
       },
       render: (_, row) => {
         const m = COLLECT_TASK_STATUS[row.status as keyof typeof COLLECT_TASK_STATUS];
-        return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
+        const waiting = formatWaitingDuration(row);
+        return (
+          <Space direction="vertical" size={0}>
+            <Tag color={m?.color}>{m?.text ?? row.status}</Tag>
+            {waiting ? (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {waiting}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        );
       },
     },
     {
@@ -322,6 +345,7 @@ export default function CollectTasksPage() {
         return (
           mapCollectorErrorCodeLabel(row.collectorErrorCode) ||
           row.failureHint ||
+          (row.errorMessage ? mapCollectErrorMessage(row.errorMessage, row.source) : '') ||
           '—'
         );
       },

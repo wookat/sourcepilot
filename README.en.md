@@ -190,6 +190,8 @@ Once the services are up, you can seed a demo dataset covering the whole loop (c
 ```powershell
 pnpm seed:demo-data          # demo dataset
 pnpm seed:demo-permissions   # demo roles and permissions
+pnpm seed:demo:full          # one-command full-loop demo data (DEMO- prefixed)
+pnpm seed:demo:full:clean    # one-command cleanup, deletes DEMO- prefixed data only
 ```
 
 On Linux / macOS, install [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) first, then run `bash scripts/seed-demo-data.sh`. See [docs/DEMO_SEEDING_GUIDE.md](docs/DEMO_SEEDING_GUIDE.md) for details.
