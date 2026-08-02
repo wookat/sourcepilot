@@ -69,6 +69,7 @@ import {
   type OrderCostEstimateSummary,
 } from '@/services/procurement';
 import GenerateResultAlerts from '@/components/procurement/GenerateResultAlerts';
+import { chartTokens, tabularNumsStyle } from '@/constants/chartTokens';
 import { canWriteOrders } from '@/utils/orderPerm';
 import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
@@ -626,12 +627,12 @@ export default function OrdersPage() {
             );
           }
           if (est.grossProfit == null) return '—';
-          const color = est.grossProfit >= 0 ? '#3f8600' : '#cf1322';
+          const color = est.grossProfit >= 0 ? chartTokens.trendUp : chartTokens.trendDown;
           return (
             <Tooltip
               title={`预估采购成本 CNY ${est.estimatedCostCny.toFixed(2)}，汇率 ${est.exchangeRate}`}
             >
-              <span style={{ color, fontWeight: 500 }}>
+              <span style={{ color, fontWeight: 500, ...tabularNumsStyle }}>
                 {r.currency} {est.grossProfit.toFixed(2)}
                 {est.marginPercent != null ? (
                   <Typography.Text type="secondary" style={{ fontSize: 11 }}>
@@ -1011,7 +1012,7 @@ export default function OrdersPage() {
           const ids = res.list.map((r) => r.id).filter(Boolean);
           if (ids.length > 0) {
             void fetchOrderCostEstimateBatch(ids.slice(0, 50))
-              .then((out) => setCostMap((prev) => ({ ...prev, ...out.items })))
+              .then((out) => setCostMap((prev) => ({ ...prev, ...(out?.items ?? {}) })))
               .catch(() => {
                 /* 估算失败不阻塞列表 */
               });
