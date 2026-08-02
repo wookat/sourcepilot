@@ -1237,3 +1237,10 @@ Final Production Acceptance Deferred to P10
 - 错误透传：新增 `extractApiErrorMessage`（`admin/src/services/request.ts`），选品写操作 catch 优先展示后端 envelope 结构化中文 message（如 readonly 403「当前账号为只读权限，无法执行此操作」）。
 - AI 设置：新增「清空当前服务商配置」入口（Popconfirm 确认）；settings `PUT /api/v1/settings` item 新增可选 `clear` 字段（为 true 时强制清空已存值，含加密字段，绕过「空加密值保留旧密钥」语义；不新增端点，遵循既有 settings 模式），附 sqlite 单测（保留语义回归 + clear 清空 + clear 不落敏感值）。
 - E2E：新增 `selection-r57-p2.spec.ts`（状态筛选、失败原因展示、readonly 隐藏、403 中文透传、375px 无横向溢出）；ConsoleGuard 支持单测试级预期输出白名单（故意 mock 的 4xx 等）。
+
+### 变更记录（2026-08-02）第 58 轮：采集模块写守卫与 tenant scope 审计（R54 遗留 P1）
+
+- 修复 readonly 用户可创建采集任务的 P1：collect 全部写端点（`POST /collect/tasks`、`/collect/tasks/:id/retry`、`/collect/batches`、`/collect/batches/:id/retry-failed`、各 `open-login-browser`）路由级补挂 `adminperm.RequireWritable`，readonly 直调返回 403 且数据库零变化；`check-login`/`auth-status` 视为登录态诊断读，不拦截。
+- 读端点补 tenant scope（与订单/选品口径一致）：任务/批次列表按 `tenant_id` 过滤，`GET /collect/tasks/:id`、`/collect/tasks/:id/events`、`/collect/batches/:id`、`/collect/batches/:id/tasks` 及手动重试的对象查询均走 `adminperm.ApplyTenantScope`，跨租户访问返回 404 不泄露存在性；任务/批次创建时落 `tenant_id`（与 integration/round55-preview 上 #88/#93 的 tenant_id 修复方向一致，PR → main 单独说明关系）。
+- 前端采集页对齐 readonly 模式：采集任务/批量采集页隐藏创建表单与重试入口，采集中心禁用单条/批量采集按钮（提示只读文案）；`/collect/rules`、`/collect/browser-profiles`、`/collect/monitor`、`/settings/collector` 原本已由 SETTINGS_MANAGE 菜单权限隔离。
+- 回归单测：三角色路由守卫（readonly 全写端点 403、admin/operator 不误伤、读端点不拦截）+ tenant scope（同租户 200、跨租户 404、列表不泄露、跨租户重试零变化）。同步 `docs/api.md` 采集节权限口径说明。
