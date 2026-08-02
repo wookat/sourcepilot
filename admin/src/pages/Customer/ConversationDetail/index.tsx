@@ -198,7 +198,12 @@ export default function CustomerConversationDetailPage() {
       message.warning('请输入客户消息');
       return;
     }
-    await createMessage(id, { role: 'customer', content: t, language: lang });
+    try {
+      await createMessage(id, { role: 'customer', content: t, language: lang });
+    } catch (e: unknown) {
+      message.error(extractApiErrorMessage(e, '添加失败'));
+      return;
+    }
     setNewCustomerMsg('');
     message.success('已添加');
     loadAll();
@@ -582,8 +587,14 @@ export default function CustomerConversationDetailPage() {
                   onChange={(e) => setNewCustomerMsg(e.target.value)}
                   placeholder="录入客户原话…"
                   style={{ marginTop: 8 }}
+                  disabled={readOnly}
                 />
-                <Button type="primary" style={{ marginTop: 8 }} onClick={() => void onAddCustomerMessage()}>
+                <Button
+                  type="primary"
+                  style={{ marginTop: 8 }}
+                  disabled={readOnly}
+                  onClick={() => void onAddCustomerMessage()}
+                >
                   添加客户消息
                 </Button>
               </div>
