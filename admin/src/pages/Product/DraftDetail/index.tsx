@@ -2067,8 +2067,11 @@ export default function ProductDraftDetailPage() {
     [id, eligibleShopsForPublish],
   );
 
+  // 与页面主体渲染条件一致：Tabs 未挂载时发布页各 Form 未连接，不可调用 form 实例方法
+  const detailReady = !loading && !err && Boolean(data);
+
   useEffect(() => {
-    if (draftTabKey !== 'publish') return;
+    if (draftTabKey !== 'publish' || !detailReady) return;
     douyinForm.setFieldsValue({
       shopId: douyinConfig.shopId,
       categoryId: douyinConfig.categoryId,
@@ -2080,15 +2083,15 @@ export default function ProductDraftDetailPage() {
         description: douyinMapping.description,
       });
     }
-  }, [douyinConfig, douyinForm, douyinMapping, douyinMappingForm, draftTabKey]);
+  }, [detailReady, douyinConfig, douyinForm, douyinMapping, douyinMappingForm, draftTabKey]);
 
   useEffect(() => {
-    if (draftTabKey !== 'publish' || !id) return;
+    if (draftTabKey !== 'publish' || !detailReady || !id) return;
     const sid = publishForm.getFieldValue('shopId') as string | undefined;
     if (sid) void refreshPublishReadiness(String(sid));
     void reloadDouyinPublishTasks();
     void reloadDouyinSkuBindings();
-  }, [draftTabKey, id, publishForm, refreshPublishReadiness, reloadDouyinPublishTasks, reloadDouyinSkuBindings]);
+  }, [detailReady, draftTabKey, id, publishForm, refreshPublishReadiness, reloadDouyinPublishTasks, reloadDouyinSkuBindings]);
 
   const progressBlockerCount = operationProgress?.blockerCount ?? operationProgress?.blockers?.length ?? 0;
   const progressWarningCount = operationProgress?.warningCount ?? operationProgress?.warnings?.length ?? 0;
@@ -4873,7 +4876,7 @@ export default function ProductDraftDetailPage() {
                                 </Button>
                                 <Button
                                   loading={douyinAttrLoading}
-                                  disabled={!douyinForm.getFieldValue('categoryId')}
+                                  disabled={!douyinConfig.categoryId}
                                   onClick={() =>
                                     void reloadDouyinAttrs(
                                       douyinForm.getFieldValue('categoryId'),
@@ -4994,7 +4997,7 @@ export default function ProductDraftDetailPage() {
                                     />
                                   </Form.Item>
                                 </div>
-                                {douyinForm.getFieldValue('categoryId') && douyinAttrs.length === 0 ? (
+                                {douyinConfig.categoryId && douyinAttrs.length === 0 ? (
                                   <Alert type="info" showIcon message="该类目暂无本地属性缓存，请点击「刷新属性」。" />
                                 ) : null}
                                 {douyinAttrs.length > 0 ? (
