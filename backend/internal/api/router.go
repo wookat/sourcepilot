@@ -605,6 +605,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	authed := v1.Group("")
 	authed.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
+	authed.Use(adminperm.ReadonlyWriteGuard(dep.DB))
 	authed.GET("/auth/profile", authH.Profile)
 	authed.POST("/auth/logout", authH.Logout)
 	authed.GET("/auth/sessions", sessionH.ListSessions)
@@ -677,6 +678,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	// 1688 采集浏览器登录态（与 /api/v1/collector/... 等价，便于前端与文档引用）
 	collectorAlias := r.Group("/api/collector")
 	collectorAlias.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
+	collectorAlias.Use(adminperm.ReadonlyWriteGuard(dep.DB))
 	collectorAlias.GET("/providers/1688/auth-status", collectH.Get1688AuthStatus)
 	collectorAlias.POST("/providers/1688/open-login-browser", collectH.Open1688LoginBrowser)
 	collectorAlias.GET("/providers/pinduoduo/auth-status", collectH.GetPinduoduoAuthStatus)

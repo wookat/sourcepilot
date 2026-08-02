@@ -216,6 +216,9 @@ export default function InventoryCenterPage() {
             <Link to={`/inventory/deductions?productSkuId=${encodeURIComponent(r.productSkuId)}`}>
               扣减记录
             </Link>
+            <Link to={`/inventory/logs?productSkuId=${encodeURIComponent(r.productSkuId)}`}>
+              流水
+            </Link>
             <Link to={`/inventory/sync-tasks?productSkuId=${encodeURIComponent(r.productSkuId)}`}>
               同步任务
             </Link>

@@ -105,6 +105,7 @@ type TaskDTO struct {
 	RequestOptions            json.RawMessage `json:"requestOptions,omitempty"`
 	NextRetryAt               *time.Time      `json:"nextRetryAt,omitempty"`
 	RetryEnqueuedAt           *time.Time      `json:"retryEnqueuedAt,omitempty"`
+	QueuedAt                  *time.Time      `json:"queuedAt,omitempty"`
 	CreatedBy                 *uuid.UUID      `json:"createdBy,omitempty"`
 	StartedAt                 *time.Time      `json:"startedAt,omitempty"`
 	FinishedAt                *time.Time      `json:"finishedAt,omitempty"`
@@ -144,6 +145,7 @@ func taskToDTO(t *CollectTask) TaskDTO {
 		RequestOptions:  reqOpts,
 		NextRetryAt:     t.NextRetryAt,
 		RetryEnqueuedAt: t.RetryEnqueuedAt,
+		QueuedAt:        t.QueuedAt,
 		CreatedBy:       t.CreatedBy,
 		StartedAt:       t.StartedAt,
 		FinishedAt:      t.FinishedAt,

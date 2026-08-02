@@ -97,6 +97,7 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/products` | 商品草稿列表；支持 `operationStep`（`collect_review` / `title` / `description` / `images` / `pricing` / `publish_check` / `ready`）筛选，并在列表行返回轻量 `operationProgress` 摘要。 |
+| `GET` | `/api/v1/products/listing-list/export.csv?ids=` | 批量导出草稿上架清单 CSV：`ids` 为逗号分隔商品 UUID（去重后 ≤50 个），每草稿一行（列含标题/副标题(AI标题)/描述/类目/价格/币种/主图URL/规格列表/来源链接等，UTF-8 BOM），租户+店铺 scope 与草稿列表一致，任一 id 不在 scope 内返回 404；导出属读操作，readonly 可用。 |
 | `POST` | `/api/v1/products` | 创建商品草稿。 |
 | `GET` | `/api/v1/products/:id` | 商品详情。 |
 | `GET` | `/api/v1/products/:id/operation-progress` | 商品运营进度摘要；只读聚合商品、图片、SKU 与既有发布前检查，不调用平台 API、不创建任务、不修改商品。 |
@@ -200,6 +201,22 @@
 | `GET` | `/api/v1/ai/tasks` | AI 任务列表。 |
 | `GET` | `/api/v1/ai/tasks/:id` | AI 任务详情。 |
 
+**AI 调用失败的结构化错误码（errorCode）**
+
+`POST /api/v1/products/:id/ai/optimize-title`、`POST /api/v1/products/:id/ai/generate-description`、`POST /api/v1/settings/test-ai` 在 AI Gateway / Provider 调用失败时返回 HTTP 400，`message` 为中文原因；当失败可分类时 `data.errorCode` 返回以下之一（无法分类时省略，成功路径响应结构不变）：
+
+| errorCode | 含义 |
+| --- | --- |
+| `AI_NOT_CONFIGURED` | 未配置 base_url 或 API Key |
+| `AI_INVALID_KEY` | API Key 无效或未授权（上游 401） |
+| `AI_FORBIDDEN` | 无权限访问该模型（上游 403） |
+| `AI_MODEL_NOT_FOUND` | 模型不存在或无权限 |
+| `AI_BAD_BASE_URL` | base_url 不可访问或接口路径错误 |
+| `AI_QUOTA_EXCEEDED` | 请求过于频繁或额度受限（上游 429） |
+| `AI_UPSTREAM_ERROR` | 服务商 5xx 异常 |
+| `AI_TIMEOUT` | 请求超时 |
+| `AI_BAD_RESPONSE` | 响应格式不兼容 |
+
 客服 AI 回复建议见 **`POST /api/v1/customer/conversations/:id/ai/generate-reply`**（非 legacy `/ai/chat`）。
 
 ## Dev / Demo 种子（非 production）
@@ -215,7 +232,7 @@
 | `POST` | `/api/v1/collect/tasks` | 创建采集任务。`source=custom` 时若 URL 属于已有 **available/beta** 专用采集器域名，返回业务码 **40002**，`data.errorCode=CUSTOM_COLLECT_PROVIDER_CONFLICT`，含 `recommendedProvider` 与 `message`。 |
 | `GET` | `/api/v1/collect/tasks` | 采集任务列表。 |
 | `GET` | `/api/v1/collect/tasks/:id` | 采集任务详情。 |
-| `POST` | `/api/v1/collect/tasks/:id/retry` | 重试采集任务。 |
+| `POST` | `/api/v1/collect/tasks/:id/retry` | 重试采集任务（重试会重置 `queuedAt`，处理超时重新计时）。 |
 | `POST` | `/api/v1/collect/rules/ai-generate` | AI 根据商品 URL 生成自定义采集规则（分析页面摘要 → AI → 校验 → 自动规则测试）。1688 / AliExpress 等 **available/beta** 专用平台返回 **40002**。规则非法返回 **40003** `AI_RULE_INVALID`。 |
 | `POST` | `/api/v1/collect/rules/ai-generate-and-save` | 同上并直接保存为 `collect_rule`。 |
 | `GET` | `/api/collector/providers/1688/auth-status` | 1688 采集浏览器登录态检测（同 `/api/v1/collector/...`）。 |
@@ -247,6 +264,8 @@
 拼多多 `check-login` 返回扩展字段（无 Cookie/HTML）：`profileKey`（`pinduoduo`）、`checkedUrl`、`finalUrl`、`accessStatus`、`urlType`（`wholesale_detail` | `goods_detail` | `homepage` | `app_redirect` | `unknown`）、`checkMode`、`evidence`（`hasProductTitle` / `hasPrice` / `hasMainImage` 等）。**仅当打开商品详情页且识别到标题/价格/主图之一，且无登录/微信/App 引导时** 才返回 `ok`；**pifa 首页可访问不判已登录**。
 
 `POST open-login-browser` 与 `check-login` 使用同一 **`pinduoduo` Profile**（与 1688、custom 隔离）。采集浏览器登录窗口 **1280×900**。
+
+采集任务 DTO 新增向后兼容字段 `queuedAt`（最近一次入队/重试入队时间，旧数据可能为空，为空时以 `createdAt` 计）。任务在 `pending` / `running` / `retrying` 状态停留超过设置项 `collector.collect_task_processing_timeout_seconds`（默认 600 秒，最小 30 秒，后台「采集设置 → 通用采集设置 → 任务处理超时」可改）时，由 task reaper 自动置为 `failed`，`errorMessage` 标注「任务超时」，事件时间线记录 `task.processing_timeout`，可手动重试。
 
 ## 店铺与平台
 
@@ -319,7 +338,7 @@
 | `GET` | `/api/v1/inventory` | 库存中心 SKU 列表（F3）；筛选 stockStatus / skuBindStatus / syncStatus / hasException 等。 |
 | `GET` | `/api/v1/inventory/alerts` | 库存预警列表。 |
 | `GET` | `/api/v1/inventory/effects` | 订单库存扣减/回滚影响（扣减记录页数据源）。 |
-| `GET` | `/api/v1/inventory/logs` | 本地库存变更流水。 |
+| `GET` | `/api/v1/inventory/logs` | 本地库存变更流水；行内附带 `productId` / `productSkuId` / `productTitle` / `skuCode` / `skuName` / `refOrderNo`（若有）便于溯源。 |
 | `GET` | `/api/v1/inventory-sync/tasks` | 库存同步任务列表。 |
 | `GET` | `/api/v1/inventory-sync/tasks/:id` | 任务详情。 |
 | `POST` | `/api/v1/inventory-sync/tasks/:id/retry` | 重试 failed 任务。 |
@@ -634,6 +653,16 @@ Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_nega
 ### 订单异常工作台：全部视图
 
 `GET /api/v1/orders/exceptions` 查询参数除 `handled=true`（只看已处理标记）、`ignored=true`（只看已忽略标记）外，支持 `all=true`：同时返回未处理、已处理与已忽略的行（`summary` 口径不变，仍只统计未处理）。默认（不带三者）只返回未处理行。
+
+## 权限矩阵契约（round52）
+
+- 全部已注册路由的「路由 × {admin, operator, readonly, 跨租户}」授权预期登记在
+  `backend/internal/securitytests/permmatrix/matrix.json`，由权限矩阵契约测试逐端点断言；
+  **新增端点未登记预期时测试失败**。运行方式与登记流程见 `docs/permission-matrix.md`。
+- `/api/v1`（登录后）与 `/api/collector` 全部写方法路由（POST/PUT/PATCH/DELETE）挂有
+  路由级只读守卫（`adminperm.ReadonlyWriteGuard`）：readonly 账号一律 403，
+  纯计算类 POST（calculate/check/preview/validate/estimate）与自助 session 管理除外
+  （允许清单见 `backend/internal/pkg/adminperm/write_guard.go`）。
 
 ## 修改 API 时的同步要求
 

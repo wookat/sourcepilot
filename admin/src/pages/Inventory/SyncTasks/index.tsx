@@ -12,6 +12,7 @@ import {
 } from '@/constants/inventoryLabels';
 import { PAGE_COPY } from '@/constants/copywriting';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { usePermission } from '@/hooks/usePermission';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { platformLabel } from '@/constants/userFriendly';
@@ -49,6 +50,7 @@ const BATCH_RETRY_LIMIT = 100;
 
 export default function InventorySyncTasksPage() {
   const emptyLocale = useListEmptyLocale('inventorySyncTasks', { permissionScoped: true });
+  const { canWriteInventory: writable } = usePermission();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof SYNC_TASK_QUERY_KEYS)[number], string | undefined>>(
       SYNC_TASK_QUERY_KEYS,
@@ -247,7 +249,7 @@ export default function InventorySyncTasksPage() {
             >
               查看
             </a>
-            {r.status === 'failed' || r.status === 'partial_success' ? (
+            {writable && (r.status === 'failed' || r.status === 'partial_success') ? (
               <Button
                 type="link"
                 size="small"
@@ -267,7 +269,7 @@ export default function InventorySyncTasksPage() {
         ),
       },
     ],
-    [],
+    [writable],
   );
 
   return (
@@ -323,7 +325,7 @@ export default function InventorySyncTasksPage() {
         }}
         tableAlertRender={false}
         locale={emptyLocale}
-        toolBarRender={() => [
+        toolBarRender={() => (writable ? [
           <Button
             key="batch-retry"
             disabled={failedSelectedIds.length === 0}
@@ -347,7 +349,7 @@ export default function InventorySyncTasksPage() {
           >
             批量重试失败（≤{BATCH_RETRY_LIMIT}）
           </Button>,
-        ]}
+        ] : [])}
         request={async (params) => {
           const bid =
             typeof params.batchId === 'string' && params.batchId.trim()

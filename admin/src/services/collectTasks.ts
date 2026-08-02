@@ -17,6 +17,7 @@ export type CollectTaskRow = {
   maxRetries?: number;
   nextRetryAt?: string;
   retryEnqueuedAt?: string;
+  queuedAt?: string;
   createdBy?: string;
   startedAt?: string;
   finishedAt?: string;

@@ -55,6 +55,7 @@ const FIELDS: Record<string, FieldSpec> = {
   collector_http_addr: {},
   goto_timeout_ms: {},
   headless: {},
+  collect_task_processing_timeout_seconds: {},
   collect_batch_concurrency_1688: {},
   collect_batch_delay_min_ms_1688: {},
   collect_batch_delay_max_ms_1688: {},
@@ -833,6 +834,9 @@ export default function CollectorSettingsPage() {
         collector_http_addr: g.collector_http_addr || ':3100',
         goto_timeout_ms: g.goto_timeout_ms ? Number(g.goto_timeout_ms) : 45000,
         headless: g.headless === '0' || g.headless === 'false' ? false : true,
+        collect_task_processing_timeout_seconds: g.collect_task_processing_timeout_seconds
+          ? Number(g.collect_task_processing_timeout_seconds)
+          : 600,
         collect_batch_concurrency_1688: g.collect_batch_concurrency_1688
           ? Number(g.collect_batch_concurrency_1688)
           : 1,
@@ -995,6 +999,9 @@ export default function CollectorSettingsPage() {
         ...values,
         goto_timeout_ms: String(values.goto_timeout_ms ?? ''),
         headless: values.headless ? '1' : '0',
+        collect_task_processing_timeout_seconds: String(
+          values.collect_task_processing_timeout_seconds ?? 600,
+        ),
         collect_batch_concurrency_1688: String(values.collect_batch_concurrency_1688 ?? 1),
         collect_batch_delay_min_ms_1688: String(values.collect_batch_delay_min_ms_1688 ?? 1500),
         collect_batch_delay_max_ms_1688: String(values.collect_batch_delay_max_ms_1688 ?? 5000),
@@ -1156,6 +1163,16 @@ export default function CollectorSettingsPage() {
                     <Col xs={24} sm={12}>
                       <Form.Item label="无头模式" name="headless" valuePropName="checked">
                         <Switch />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={12}>
+                      <Form.Item
+                        label="任务处理超时（秒）"
+                        name="collect_task_processing_timeout_seconds"
+                        tooltip="采集任务处理（排队/执行/重试）超过该时长仍未完成时，自动置为失败并标注「任务超时」，可手动重试。默认 600 秒（10 分钟）。"
+                        rules={[{ required: true }]}
+                      >
+                        <InputNumber min={30} max={86400} style={{ width: '100%' }} />
                       </Form.Item>
                     </Col>
                   </Row>
