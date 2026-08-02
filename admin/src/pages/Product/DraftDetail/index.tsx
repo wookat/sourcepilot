@@ -1287,7 +1287,7 @@ export default function ProductDraftDetailPage() {
       const progress = await fetchProductOperationProgress(id);
       setOperationProgress(progress);
     } catch (e: unknown) {
-      setOperationProgressError((e as Error)?.message || 'operation progress load failed');
+      setOperationProgressError((e as Error)?.message || '运营进度加载失败');
     } finally {
       setOperationProgressLoading(false);
     }
@@ -1701,7 +1701,7 @@ export default function ProductDraftDetailPage() {
               setOperationProgressError('');
             }
           } catch (e: unknown) {
-            if (!cancelled) setOperationProgressError((e as Error)?.message || 'operation progress load failed');
+            if (!cancelled) setOperationProgressError((e as Error)?.message || '运营进度加载失败');
           }
         }
       } catch (e) {

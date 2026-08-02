@@ -1,0 +1,104 @@
+/**
+ * 全站 HTTP 错误文案兜底：接口失败时优先展示后端 envelope 的结构化中文 message，
+ * 无结构化信息时按 HTTP 状态码映射通用中文提示，杜绝 axios 英文原文
+ * （如 "Request failed with status code 500"）直出到界面。
+ *
+ * 专有处理（401 会话守卫重放、403 只读提示、AI 路径 aiFailureNotice 等）优先，
+ * 本模块只在错误消息缺失或为 axios/网络层英文原文时兜底改写 error.message，
+ * 不改变 error 对象上的 response / status / code / data 等结构，
+ * 因此依赖这些字段的既有分支不受影响。
+ */
+
+const STATUS_COPY: Record<number, string> = {
+  400: '请求参数有误，请检查后重试',
+  401: '登录已过期，请重新登录',
+  403: '没有权限执行该操作',
+  404: '请求的资源不存在或已删除',
+  405: '请求方式不被支持',
+  408: '请求超时，请稍后重试',
+  409: '操作冲突，请刷新页面后重试',
+  413: '提交内容过大，请缩小后重试',
+  429: '操作过于频繁，请稍后再试',
+};
+
+/** axios / 网络层生成的英文原文，一律不允许直出到界面 */
+const RAW_TRANSPORT_MESSAGE =
+  /^(request failed with status code \d+|network error|timeout of .+ exceeded|timeout exceeded|request aborted|canceled|cancelled|failed to fetch|load failed|request_failed)$/i;
+
+export function isRawTransportMessage(message: unknown): boolean {
+  return typeof message === 'string' && RAW_TRANSPORT_MESSAGE.test(message.trim());
+}
+
+/** 按 HTTP 状态码映射通用中文兜底文案 */
+export function httpStatusCopy(status?: number): string {
+  if (typeof status === 'number') {
+    if (STATUS_COPY[status]) return STATUS_COPY[status];
+    if (status >= 500) return '服务异常，请稍后再试';
+    if (status >= 400) return '请求失败，请稍后重试';
+  }
+  return '网络异常，请检查网络后重试';
+}
+
+type EnvelopeLike = { message?: unknown };
+
+type HttpErrorLike = {
+  message?: unknown;
+  response?: { status?: number; data?: EnvelopeLike | null };
+};
+
+function envelopeMessage(error: HttpErrorLike): string {
+  const raw = error?.response?.data?.message;
+  if (typeof raw !== 'string') return '';
+  const msg = raw.trim();
+  return msg && !isRawTransportMessage(msg) ? msg : '';
+}
+
+/**
+ * 从任意接口错误中提取可直接展示给用户的中文消息：
+ * 后端结构化 message > 已有非英文原文的 error.message > 状态码中文兜底 > fallback。
+ */
+export function extractErrorMessage(error: unknown, fallback?: string): string {
+  const err = (error || {}) as HttpErrorLike;
+  const fromEnvelope = envelopeMessage(err);
+  if (fromEnvelope) return fromEnvelope;
+  const own = typeof err.message === 'string' ? err.message.trim() : '';
+  if (own && !isRawTransportMessage(own)) return own;
+  if (fallback) return fallback;
+  return httpStatusCopy(err.response?.status);
+}
+
+/** fetch 直连（如 CSV 导出）失败时读取 envelope 中文 message，否则按状态码兜底 */
+export async function responseErrorMessage(resp: {
+  status: number;
+  json: () => Promise<unknown>;
+}): Promise<string> {
+  try {
+    const body = (await resp.json()) as EnvelopeLike | null;
+    const raw = body?.message;
+    if (typeof raw === 'string') {
+      const msg = raw.trim();
+      if (msg && !isRawTransportMessage(msg)) return msg;
+    }
+  } catch {
+    /* 非 JSON 响应体，走状态码兜底 */
+  }
+  return httpStatusCopy(resp.status);
+}
+
+/**
+ * 原地把 error.message 兜底改写为中文（仅当消息缺失或为 axios 英文原文时），
+ * 保留 response / config / code 等全部原有字段，供响应拦截器统一挂载。
+ */
+export function normalizeHttpErrorMessage<T>(error: T): T {
+  const err = error as HttpErrorLike;
+  if (!err || typeof err !== 'object') return error;
+  const own = typeof err.message === 'string' ? err.message.trim() : '';
+  if (own && !isRawTransportMessage(own)) return error;
+  const next = envelopeMessage(err) || httpStatusCopy(err.response?.status);
+  try {
+    err.message = next;
+  } catch {
+    /* 只读 message（极少数宿主对象）时保持原样 */
+  }
+  return error;
+}
