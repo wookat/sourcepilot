@@ -1,4 +1,5 @@
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
+import { responseErrorMessage } from '@/utils/httpErrorCopy';
 import { getJSON, getWithParams, postJSON, putJSON } from './request';
 
 export type PurchaseOrderItem = {
@@ -230,7 +231,7 @@ export async function downloadPurchaseOrderCsv(id: string) {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (!resp.ok) {
-    throw new Error(`export failed: ${resp.status}`);
+    throw new Error(await responseErrorMessage(resp));
   }
   const blob = await resp.blob();
   const url = URL.createObjectURL(blob);
@@ -252,7 +253,7 @@ export async function downloadPurchaseOrdersBatchCsv(ids: string[]) {
     },
   );
   if (!resp.ok) {
-    throw new Error(`export failed: ${resp.status}`);
+    throw new Error(await responseErrorMessage(resp));
   }
   const blob = await resp.blob();
   const url = URL.createObjectURL(blob);
