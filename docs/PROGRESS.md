@@ -1157,3 +1157,10 @@ Final Production Acceptance Deferred to P10
   - 订单详情「新增物流」弹窗：当本单尚无成功扣减记录时提示「本单尚未扣减库存……可到库存影响 Tab 手工扣减」（编辑既有物流不提示）。
   - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
   - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
+
+### 变更记录（2026-08-02）迭代第 52 轮：权限矩阵契约测试 + 路由级只读守卫收口
+
+- 新增权限矩阵契约测试套件 `backend/internal/securitytests/permmatrix/`：从生产路由器（`api.Register`）实际挂载的全部 486 条路由建立矩阵登记表 `matrix.json`，逐路由 × {admin, operator(有限店铺), readonly(无店铺), 跨租户 admin} 断言授权预期（allow=通过守卫 / forbid=403），并断言匿名 401、跨租户店铺隔离、operator 店铺 scope、readonly 空列表。**新增端点未在 matrix.json 登记预期时 `TestRouteRegistryComplete` 失败**（含陈旧条目检测），`PERM_MATRIX_GENERATE=1` 可打印草稿条目供安全评审。运行与维护方式见 `docs/permission-matrix.md`。
+- P0 修复①：`POST /settings/test-image`、`POST /settings/test-ocr` 缺 `settings.manage` 权限检查（同组其它 settings/test-* 均有），readonly/operator 可触发外部连接测试；已补 `adminperm.RequireWrite(PermSettingsManage)`，回归见 `TestReadonlyWriteGuardRegression`。
+- P0 修复②：新增路由级只读守卫 `adminperm.ReadonlyWriteGuard` 挂在 `/api/v1`（authed 组）与 `/api/collector`：全部写方法路由 readonly 一律 403（fail-closed，新写端点默认被守卫），显式允许清单仅保留自助 session 管理与纯计算类 POST（calculate/check/preview/validate/estimate）。修复前约 190 条写端点无路由级只读守卫、对 readonly 返回 400/404 或放行。
+- 同步 `docs/api.md`（权限矩阵契约一节）、新增 `docs/permission-matrix.md`。
