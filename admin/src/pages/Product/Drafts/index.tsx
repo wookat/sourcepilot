@@ -607,12 +607,14 @@ export default function ProductDraftsPage() {
             新建草稿
           </Button>
         )}
-        <Dropdown
-          menu={{ items: moreActionItems, onClick: onMoreActionClick }}
-          trigger={['click']}
-        >
-          <Button icon={<MoreOutlined />}>更多</Button>
-        </Dropdown>
+        {readonly ? null : (
+          <Dropdown
+            menu={{ items: moreActionItems, onClick: onMoreActionClick }}
+            trigger={['click']}
+          >
+            <Button icon={<MoreOutlined />}>更多</Button>
+          </Dropdown>
+        )}
       </OperationToolbar>
       <DouyinE2EPrecheckBanner blockedByCredentials compact />
       {(urlFilters.missingAiTitle ||

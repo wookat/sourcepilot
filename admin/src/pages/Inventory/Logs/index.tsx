@@ -169,7 +169,7 @@ export default function InventoryLogsPage() {
         columns={columns}
         scroll={{ x: 1400 }}
         form={{ initialValues: initialSearch }}
-        search={{ defaultCollapsed: false }}
+        search={{}}
         pagination={{ pageSize: 20 }}
         locale={emptyLocale}
         request={async (params) => {

@@ -1,7 +1,7 @@
 import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
-import { history } from '@umijs/max';
-import { Button, Card, Col, Form, Row, Select, Space, Typography } from 'antd';
+import { history, useModel } from '@umijs/max';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorAlert, TmPageContainer, TmProTable } from '@/components/ui';
 import { PAGE_COPY } from '@/constants/copywriting';
@@ -12,8 +12,18 @@ import {
 } from '@/constants/operationTasks';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { useUrlQueryState } from '@/hooks/useUrlState';
-import { extractOperationTaskAPIError, listTasks, type OperationTaskAPIError, type OperationTaskSummary } from '@/services/operationTasks';
+import {
+  approveTask,
+  createOperationIdempotencyKey,
+  extractOperationTaskAPIError,
+  getTask,
+  listTasks,
+  rejectTask,
+  type OperationTaskAPIError,
+  type OperationTaskSummary,
+} from '@/services/operationTasks';
 import { formatDateTime } from '@/utils/formatTime';
+import { canReviewOperationTasks } from '@/utils/permission';
 import {
   NonProductionBoundary,
   OperationPriorityTag,
@@ -24,7 +34,7 @@ import {
   taskTypeLabel,
 } from './components/OperationTaskShared';
 
-const { Text } = Typography;
+const { Text, Paragraph } = Typography;
 
 const QUERY_KEYS = ['status', 'platform', 'taskType', 'cursor'] as const;
 const LIMIT = 20;
@@ -38,8 +48,14 @@ function optionsFromLabels(labels: Record<string, string | { zhCN: string }>) {
   }));
 }
 
+type BatchReviewKind = 'approve' | 'reject';
+
 export default function OperationTasksPage() {
   const emptyLocale = useListEmptyLocale('operationTasks');
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: API.CurrentUser };
+  };
+  const reviewable = canReviewOperationTasks(initialState?.currentUser?.role);
   const { state: urlState, setState: setUrlState, clearState } = useUrlQueryState<QueryState>(QUERY_KEYS);
   const [form] = Form.useForm();
   const [items, setItems] = useState<OperationTaskSummary[]>([]);
@@ -48,6 +64,10 @@ export default function OperationTasksPage() {
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [hasMore, setHasMore] = useState(false);
   const [cursorStack, setCursorStack] = useState<string[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [batchModal, setBatchModal] = useState<BatchReviewKind | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchForm] = Form.useForm();
   const requestSeq = useRef(0);
 
   useEffect(() => {
@@ -72,7 +92,9 @@ export default function OperationTasksPage() {
         limit: LIMIT,
       });
       if (requestSeq.current !== seq) return;
-      setItems(page.items || []);
+      const nextItems = page.items || [];
+      setItems(nextItems);
+      setSelectedRowKeys((prev) => prev.filter((id) => nextItems.some((item) => item.id === id)));
       setNextCursor(page.nextCursor);
       setHasMore(page.hasMore);
     } catch (e) {
@@ -119,6 +141,70 @@ export default function OperationTasksPage() {
       setUrlState({ cursor: prevCursor || undefined }, { replace: true });
       return next;
     });
+  };
+
+  const selectedReviewableIds = useMemo(
+    () =>
+      items
+        .filter((item) => selectedRowKeys.includes(item.id) && item.status === 'pending_review')
+        .map((item) => item.id),
+    [items, selectedRowKeys],
+  );
+
+  const openBatchModal = (kind: BatchReviewKind) => {
+    if (selectedReviewableIds.length === 0) return;
+    batchForm.resetFields();
+    setBatchModal(kind);
+  };
+
+  const closeBatchModal = () => {
+    if (batchLoading) return;
+    setBatchModal(null);
+  };
+
+  const runBatchReview = async () => {
+    if (!batchModal) return;
+    const kind = batchModal;
+    const values = await batchForm.validateFields();
+    const ids = selectedReviewableIds;
+    if (ids.length === 0) return;
+    setBatchLoading(true);
+    const failures: string[] = [];
+    let ok = 0;
+    try {
+      for (const id of ids) {
+        try {
+          const detail = await getTask(id);
+          const allowed = kind === 'approve' ? detail.allowedActions.canApprove : detail.allowedActions.canReject;
+          if (!allowed || !detail.latestDraft) {
+            failures.push(`${detail.title || id}：当前状态或权限不允许该操作`);
+            continue;
+          }
+          const body = {
+            draftVersion: detail.latestDraft.draftVersion,
+            draftPayloadHash: detail.latestDraft.payloadHash,
+            reason: values.reason,
+            comment: values.comment,
+            expectedTaskRevision: detail.revision,
+          };
+          if (kind === 'approve') {
+            await approveTask(id, body, createOperationIdempotencyKey('batch-approve'));
+          } else {
+            await rejectTask(id, body, createOperationIdempotencyKey('batch-reject'));
+          }
+          ok += 1;
+        } catch (e) {
+          failures.push(operationErrorMessage(extractOperationTaskAPIError(e)));
+        }
+      }
+      if (ok > 0) message.success(`已${kind === 'approve' ? '批准' : '驳回'} ${ok} 个任务`);
+      if (failures.length > 0) message.error(`${failures.length} 个任务操作失败：${failures[0]}`);
+      setBatchModal(null);
+      setSelectedRowKeys([]);
+      await load();
+    } finally {
+      setBatchLoading(false);
+    }
   };
 
   const columns = useMemo<ProColumns<OperationTaskSummary>[]>(() => [
@@ -209,7 +295,67 @@ export default function OperationTasksPage() {
           scroll={{ x: 1560 }}
           options={false}
           toolBarRender={false}
+          rowSelection={
+            reviewable
+              ? {
+                  selectedRowKeys,
+                  alwaysShowAlert: true,
+                  onChange: (keys) => setSelectedRowKeys(keys.map(String)),
+                }
+              : undefined
+          }
+          tableAlertRender={({ selectedRowKeys: keys }) => (
+            <Text>已选 {keys.length} 项，其中待审核 {selectedReviewableIds.length} 项（仅待审核任务可批量批准/驳回）</Text>
+          )}
+          tableAlertOptionRender={({ onCleanSelected }) => (
+            <Space wrap>
+              <Button
+                type="primary"
+                size="small"
+                disabled={selectedReviewableIds.length === 0}
+                onClick={() => openBatchModal('approve')}
+              >
+                批量批准（{selectedReviewableIds.length}）
+              </Button>
+              <Button
+                danger
+                size="small"
+                disabled={selectedReviewableIds.length === 0}
+                onClick={() => openBatchModal('reject')}
+              >
+                批量驳回（{selectedReviewableIds.length}）
+              </Button>
+              <a onClick={onCleanSelected}>取消选择</a>
+            </Space>
+          )}
         />
+
+        <Modal
+          title={batchModal === 'approve' ? `批量批准（${selectedReviewableIds.length} 个任务）` : `批量驳回（${selectedReviewableIds.length} 个任务）`}
+          open={!!batchModal}
+          onCancel={closeBatchModal}
+          onOk={() => void runBatchReview()}
+          confirmLoading={batchLoading}
+          okText={batchModal === 'approve' ? '确认批量批准' : '确认批量驳回'}
+          cancelText="取消"
+          destroyOnHidden
+        >
+          <Form form={batchForm} layout="vertical">
+            <Paragraph>
+              将逐个对所选待审核任务的最新草稿执行{batchModal === 'approve' ? '批准' : '驳回'}，并汇总成功/失败结果；不会自动执行或发布商品。
+            </Paragraph>
+            <Form.Item
+              name="reason"
+              label={batchModal === 'approve' ? '批准说明' : '驳回原因'}
+              rules={[{ required: true, whitespace: true, message: `请填写${batchModal === 'approve' ? '批准说明' : '驳回原因'}` }]}
+            >
+              <Input.TextArea rows={3} maxLength={500} showCount />
+            </Form.Item>
+            <Form.Item name="comment" label="补充说明">
+              <Input.TextArea rows={2} maxLength={500} showCount />
+            </Form.Item>
+          </Form>
+        </Modal>
 
         <Card size="small">
           <Space wrap>
