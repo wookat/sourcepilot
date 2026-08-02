@@ -15,7 +15,8 @@ test.describe('@selection AI 降级提示', () => {
       });
     });
     await admin.goto('/selection/tasks');
-    await page.getByRole('button', { name: '新建选品任务' }).click();
+    // 空态引导中也有同名按钮，这里点击工具栏按钮
+    await page.getByRole('button', { name: '新建选品任务' }).first().click();
     await expect(page.getByText('AI 服务商未配置，任务将使用规则兜底评分')).toBeVisible();
   });
 

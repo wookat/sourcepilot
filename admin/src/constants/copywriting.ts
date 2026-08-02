@@ -356,6 +356,11 @@ export const LIST_EMPTY_COPY = {
     action: '前往店铺管理',
     actionPath: '/shops/manage',
   },
+  selectionTasks: {
+    title: '暂无选品任务',
+    description: '新建选品任务：导入海外候选商品或关键词，系统会匹配 1688 同款、计算利润模型并用 AI 打分，生成可上架清单。',
+    action: '新建选品任务',
+  },
   productDraft: {
     title: '暂无商品草稿',
     description: '可以先从采集中心采集商品，或手动创建商品草稿。',

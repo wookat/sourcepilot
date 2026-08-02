@@ -1160,6 +1160,15 @@ Final Production Acceptance Deferred to P10
 - 授权店铺列显示店铺名而非 UUID：后端 `loadStorePerms` 店铺名查询改 `Unscoped`（软删除店铺也能回显名称）；前端缺名时兜底「未知店铺」。
 - 同步 `docs/api.md`（用户与权限管理表）、`admin/src/services/adminUsers.ts`。API 既有端点语义/状态机/readonly 403 文案不变。
 
+### 变更记录（2026-08-02）迭代第 59 轮：设置中心系统性安全走查与修复
+
+- 设置中心全量真实走查（docker compose 全栈，15 个 /settings 子页 + /shops/manage）：脱敏（sk-****abcd）、DB 密文、日志无完整密钥、连接测试、持久化、375/768/1440 响应式均复核通过；本轮修复以下问题。
+- P1 租户隔离（QA 回归发现）：`/api/v1/admin/users` 列表与 Get/Update/SetStorePermissions/Delete 未按租户过滤，tenant-2 用户对 tenant-1 admin 可见且可删。修复：`adminuser.Service` 全部操作按 `ctxkey.TenantID` 过滤，跨租户 ID 统一 404「用户不存在」不泄露存在性，店铺权限分配仅限同租户店铺；附 admin/operator/readonly 三角色单测（`tenant_scope_test.go`）。
+- P0 readonly 写入口缺守卫：`DELETE /shops/:id`、`PUT /shops/:id/auth`、`POST /shops(/… test/oauth 写操作)`、`PUT /platform/(publish-)settings/:platform`、`POST /settings/test-image|test-ocr` 此前对 readonly 放行。修复：新增 `adminperm.RequirePermissionMW/RequireWriteMW` 路由中间件，平台设置写走 `settings.manage`、店铺写走 `store.operate`，readonly 一律 403；附路由守卫单测（`router_readonly_test.go`）。Shops 页面同步按 `store.operate` 隐藏全部写控件。
+- P1 连接测试失败提示英文直出：test-ai / test-ocr / 存储公网测试等非 2xx 时 toast 显示 axios 原文。修复：`admin/src/services/request.ts` 统一从后端 Envelope 提取中文 message 抛 `ApiRequestError`。
+- P2 采集设置「页面打开超时」对越界值静默钳制：改为显式 1000~300000 范围中文校验文案。
+- 工程修复：admin `react-dom` 声明 19.2.8 与 react 18.2.0 不一致导致前端单测挂掉；对齐 18.2.0 并把 overrides 同步进 `pnpm-workspace.yaml`（新版 pnpm 只读该文件），`pnpm test:frontend` 恢复全绿。
+
 ### 变更记录（2026-08-02）生产部署本地演练收口（R45 部署包复核）
 
 - 在开发 VM 上按生产口径完整演练 `docker-compose.prod.yml`（APP_ENV=production + Caddy 内部 CA + /etc/hosts 假域名）：从零 env → 构建 → 启动 → bootstrap 管理员 → HTTPS 登录 → 核心页面抽查 < 15 分钟，验证恢复演练生产禁用、错误统一 envelope 不泄露堆栈、静态资源 immutable 缓存。
@@ -1236,3 +1245,4 @@ Final Production Acceptance Deferred to P10
 - 备份下载通道：新增 `GET /api/v1/ops/backups/:id/download`（`backup.download` 权限，仅 admin；readonly/operator 403，不存在/越权 404），仅允许下载校验通过的 completed 备份，下载前重验 SHA-256，流式返回，成功/失败均写操作日志（action=`backup.download`）；管理端备份列表新增「下载」按钮。
 - 备份校验修复：未启用加密（local 模式）时加密检查按「未启用（跳过）」处理，不再恒 failed；校验结果新增 `details.checks` 结构化检查项（校验和 / manifest / 加密 / pg_restore 结构），管理端弹窗中文结构化展示。
 - 恢复演练真实化（本地/开发限定）：`POST /ops/restores/:id/verify` 与 `POST /ops/dr/drills` 真实执行备份文件完整性（SHA-256）与 `pg_restore --list` 结构校验两项检查，替换原六项硬编码 passed 桩；其余检查项（迁移版本/租户隔离/RBAC/审计链/对象清单/密钥密文、RPO/RTO/应用切换）在 `details.checks`/`reportJson.checks` 中明确标注 `not_implemented`；`APP_ENV=production` 下两接口直接拒绝，恢复安全门（隔离目标、`trademind_p6v_restore_` 前缀、二次确认、高风险确认）保持不变。附 backup/restore 服务层单测；同步 `docs/api.md` 与 `docs/docker-deployment.md` 生产备份 SOP 章节。
+
