@@ -12,6 +12,7 @@ import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-compone
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { EmptyState, OperationToolbar, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
+import { IMAGE_FALLBACK } from '@/constants/imageFallback';
 import { localizeNextActionLabel } from '@/constants/productOperationLabels';
 import { formatDateTime } from '@/utils/formatTime';
 
@@ -47,7 +48,7 @@ import {
   PUBLISH_BATCH_MAX_PRODUCTS,
 } from '@/constants/publishLimits';
 import { PRODUCT_STATUS } from '@/constants/status';
-import { PRODUCT_SOURCE_LABEL, productSourceLabel } from '@/constants/userFriendly';
+import { PRODUCT_SOURCE_LABEL, platformLabel, productSourceLabel } from '@/constants/userFriendly';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
 import { notifyAIFailure } from '@/utils/aiFailureNotice';
 import {
@@ -344,12 +345,15 @@ export default function ProductDraftsPage() {
         row.coverUrl ? (
           <Image
             src={row.coverUrl}
+            fallback={IMAGE_FALLBACK}
             width={56}
             height={56}
             className="product-drafts-table__image"
           />
         ) : (
-          <div className="product-drafts-table__image-placeholder">无图</div>
+          <div className="product-drafts-table__image-placeholder" role="img" aria-label="无图">
+            <PictureOutlined />
+          </div>
         ),
     },
     {
@@ -607,12 +611,14 @@ export default function ProductDraftsPage() {
             新建草稿
           </Button>
         )}
-        <Dropdown
-          menu={{ items: moreActionItems, onClick: onMoreActionClick }}
-          trigger={['click']}
-        >
-          <Button icon={<MoreOutlined />}>更多</Button>
-        </Dropdown>
+        {readonly ? null : (
+          <Dropdown
+            menu={{ items: moreActionItems, onClick: onMoreActionClick }}
+            trigger={['click']}
+          >
+            <Button icon={<MoreOutlined />}>更多</Button>
+          </Dropdown>
+        )}
       </OperationToolbar>
       <DouyinE2EPrecheckBanner blockedByCredentials compact />
       {(urlFilters.missingAiTitle ||
@@ -629,14 +635,6 @@ export default function ProductDraftsPage() {
         />
       )}
       <KeywordSafetyHint visible={showSensitiveHint} />
-      {urlState.operationStep ? (
-        <Alert
-          type="info"
-          showIcon
-          className="product-drafts-page__operation-step-alert"
-          message="运营进度筛选展示「该步骤尚未完成」的商品；行内标签是每个商品当前所处步骤，可能早于所筛步骤。"
-        />
-      ) : null}
       {selectedCount > 0 ? (
         <OperationToolbar
           className="product-drafts-page__selection-toolbar"
@@ -650,29 +648,25 @@ export default function ProductDraftsPage() {
             <Typography.Text strong>已选择 {selectedCount} 个商品</Typography.Text>
             <Typography.Text type="secondary">{selectedScopeText}</Typography.Text>
           </div>
-          {readonly ? null : (
-            <>
-              <Button
-                icon={<RobotOutlined />}
-                type="primary"
-                onClick={() => {
-                  if (!ensureBatchSelection()) return;
-                  history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
-                }}
-              >
-                批量 AI 优化
-              </Button>
-              <Button
-                icon={<PictureOutlined />}
-                onClick={() => {
-                  if (!ensureBatchSelection()) return;
-                  history.push(`/product/ai-image-batch?productIds=${selectedRowKeys.join(',')}`);
-                }}
-              >
-                批量 AI 图片处理
-              </Button>
-            </>
-          )}
+          <Button
+            icon={<RobotOutlined />}
+            type="primary"
+            onClick={() => {
+              if (!ensureBatchSelection()) return;
+              history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
+            }}
+          >
+            批量 AI 优化
+          </Button>
+          <Button
+            icon={<PictureOutlined />}
+            onClick={() => {
+              if (!ensureBatchSelection()) return;
+              history.push(`/product/ai-image-batch?productIds=${selectedRowKeys.join(',')}`);
+            }}
+          >
+            批量 AI 图片处理
+          </Button>
           <Button
             icon={<SafetyCertificateOutlined />}
             onClick={() => void openBatchDrawer()}
@@ -891,11 +885,10 @@ export default function ProductDraftsPage() {
               ) : null}
               <Select
                 placeholder="选择已授权店铺"
-                disabled={shopsForBatchPlat.length === 0}
                 value={batchShopId || undefined}
                 onChange={(v) => setBatchShopId(v ? String(v) : '')}
                 options={shopsForBatchPlat.map((s) => ({
-                  label: `${s.shopName} (${s.platform})`,
+                  label: `${s.shopName} (${platformLabel(s.platform)})`,
                   value: s.id,
                 }))}
                 showSearch

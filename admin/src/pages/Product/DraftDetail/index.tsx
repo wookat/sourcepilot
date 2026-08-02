@@ -1,4 +1,5 @@
 import type { CSSProperties, Key, ReactNode } from 'react';
+import { IMAGE_FALLBACK } from '@/constants/imageFallback';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -79,9 +80,16 @@ import {
   MoreOutlined,
   TranslationOutlined,
 } from '@ant-design/icons';
-import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
-import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
-import { isTaobaoTmallSource } from '@/utils/taobaoTmallCollectAlerts';
+import {
+  CollectQualityNoticeBoard,
+  type CollectNoticeItem,
+} from '@/components/CollectQualityNoticeBoard';
+import {
+  buildPinduoduoCollectAlertState,
+  isPinduoduoSource,
+  type CollectStatusTag,
+} from '@/utils/pinduoduoCollectAlerts';
+import { buildTaobaoTmallCollectAlertState, isTaobaoTmallSource } from '@/utils/taobaoTmallCollectAlerts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PRODUCT_STATUS, PLATFORM_PROVIDER_STATUS } from '@/constants/status';
 import {
@@ -1191,11 +1199,6 @@ export default function ProductDraftDetailPage() {
     [collectedAttrs],
   );
 
-  const hasSourceCollectQualityPanel = useMemo(
-    () => isPinduoduoProduct(data) || isTaobaoTmallProduct(data),
-    [data],
-  );
-
   const imageSyncSummary = useMemo(() => {
     const rows = data?.images ?? [];
     const external = rows.filter((img) => {
@@ -1225,6 +1228,98 @@ export default function ProductDraftDetailPage() {
   );
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
+
+  const collectNoticeItems = useMemo<CollectNoticeItem[]>(() => {
+    if (!data) return [];
+    const items: CollectNoticeItem[] = [];
+    const sourceState = isPinduoduoProduct(data)
+      ? buildPinduoduoCollectAlertState(data)
+      : isTaobaoTmallProduct(data)
+        ? buildTaobaoTmallCollectAlertState(data)
+        : null;
+    if (sourceState) {
+      if (sourceState.errors.length > 0) {
+        items.push({
+          key: 'source-errors',
+          severity: 'error',
+          title: `发布前必须处理（${sourceState.errors.length} 项）`,
+          content: (
+            <>
+              <Typography.Text>以下问题未解决前，发布检查将无法通过。</Typography.Text>
+              <ul className="product-draft-basic__warning-list">
+                {sourceState.errors.map((x) => (
+                  <li key={x.code}>{x.message}</li>
+                ))}
+              </ul>
+            </>
+          ),
+        });
+      }
+      if (sourceState.warnings.length > 0) {
+        items.push({
+          key: 'source-warnings',
+          severity: 'warning',
+          title: `采集结果需要补充（${sourceState.warnings.length} 项）`,
+          content: (
+            <>
+              <Typography.Text>部分字段可能需要人工补充，请发布前检查。</Typography.Text>
+              <ul className="product-draft-basic__warning-list">
+                {sourceState.warnings.map((x) => (
+                  <li key={x.code}>{x.message}</li>
+                ))}
+              </ul>
+            </>
+          ),
+        });
+      }
+      items.push({
+        key: 'source-info',
+        severity: 'info',
+        title: sourceState.infoMessage,
+        content:
+          sourceState.statusTags.length > 0 ? (
+            <Space size={[8, 8]} wrap>
+              {sourceState.statusTags.map((t: CollectStatusTag) => (
+                <Tag key={t.key} color={t.tone === 'default' ? undefined : t.tone}>
+                  {t.label}
+                </Tag>
+              ))}
+            </Space>
+          ) : undefined,
+      });
+    } else {
+      items.push({
+        key: 'no-source-rule',
+        severity: 'info',
+        title: '当前来源没有独立采集质量规则',
+        content: '请继续检查来源链接、标题、描述、图片和规格。发布前的阻断项会在发布检查中再次提示。',
+      });
+    }
+    if (showCustomIncompleteHint) {
+      items.push({
+        key: 'custom-incomplete',
+        severity: 'info',
+        title: '自定义链接采集需要人工复核',
+        content:
+          '该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和规格后再发布。',
+      });
+    }
+    if (collectQualityWarnings.length > 0) {
+      items.push({
+        key: 'collect-warnings',
+        severity: 'warning',
+        title: `采集质量提示（${collectQualityWarnings.length} 条）`,
+        content: (
+          <ul className="product-draft-basic__warning-list">
+            {collectQualityWarnings.map((w, index) => (
+              <li key={`${w}-${index}`}>{w}</li>
+            ))}
+          </ul>
+        ),
+      });
+    }
+    return items;
+  }, [data, showCustomIncompleteHint, collectQualityWarnings]);
 
   const missingBasicFields = useMemo(() => {
     if (!data) return [];
@@ -2726,47 +2821,7 @@ export default function ProductDraftDetailPage() {
                     className="product-draft-basic__section product-draft-basic__quality"
                   >
                     <div id="collect-review" />
-                    <Space direction="vertical" className="product-draft-basic__stack" size="middle">
-                      {hasSourceCollectQualityPanel ? (
-                        <ProductCollectQualityAlert product={data} />
-                      ) : (
-                        <Alert
-                          type="info"
-                          showIcon
-                          message="当前来源没有独立采集质量规则"
-                          description="请继续检查来源链接、标题、描述、图片和规格。发布前的阻断项会在发布检查中再次提示。"
-                        />
-                      )}
-                      {showCustomIncompleteHint ? (
-                        <Alert
-                          type="info"
-                          showIcon
-                          message="自定义链接采集需要人工复核"
-                          description="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和规格后再发布。"
-                        />
-                      ) : null}
-                      {collectQualityWarnings.length > 0 ? (
-                        <Alert
-                          type="warning"
-                          showIcon
-                          message="采集质量提示"
-                          description={
-                            <ul className="product-draft-basic__warning-list">
-                              {collectQualityWarnings.map((w, index) => (
-                                <li key={`${w}-${index}`}>{w}</li>
-                              ))}
-                            </ul>
-                          }
-                        />
-                      ) : !showCustomIncompleteHint && !hasSourceCollectQualityPanel ? (
-                        <Alert
-                          type="success"
-                          showIcon
-                          message="未返回采集质量问题"
-                          description="当前商品详情没有携带采集质量提示。仍建议在保存前检查核心字段是否完整。"
-                        />
-                      ) : null}
-                    </Space>
+                    <CollectQualityNoticeBoard items={collectNoticeItems} />
                   </SectionCard>
 
                   <SectionCard
@@ -5183,7 +5238,7 @@ export default function ProductDraftDetailPage() {
                                       <div className="product-draft-douyin-flow__image-grid">
                                         {(douyinMapping.mainImages ?? []).map((img, idx) => (
                                           <div key={douyinImageKey(img, 'main', idx)} className="product-draft-publish__image-card product-draft-douyin-flow__image-card">
-                                            <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
+                                            <Image src={douyinImagePreviewUrl(img)} fallback={IMAGE_FALLBACK} width={112} height={112} style={{ objectFit: 'cover' }} />
                                             <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
                                               {douyinStorageStatusTag(img)}
                                               {douyinImageStatusTag(img)}
@@ -5232,7 +5287,7 @@ export default function ProductDraftDetailPage() {
                                       <div className="product-draft-douyin-flow__image-grid">
                                         {(douyinMapping.detailImages ?? []).map((img, idx) => (
                                           <div key={douyinImageKey(img, 'detail', idx)} className="product-draft-publish__image-card product-draft-douyin-flow__image-card">
-                                            <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
+                                            <Image src={douyinImagePreviewUrl(img)} fallback={IMAGE_FALLBACK} width={112} height={112} style={{ objectFit: 'cover' }} />
                                             <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
                                               {douyinStorageStatusTag(img)}
                                               {douyinImageStatusTag(img)}
@@ -5425,7 +5480,7 @@ export default function ProductDraftDetailPage() {
                                     { title: '规格值', render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{douyinAttrValueText(r.attrs ?? {})}</Typography.Text> },
                                     { title: '售价', width: 110, render: (_, r) => douyinMoney(r.price, douyinMapping.price?.currency) },
                                     { title: '库存', width: 90, render: (_, r) => (r.stock == null ? '未确认' : r.stock) },
-                                    { title: '规格图', width: 90, render: (_, r) => (r.imageUrl ? <Image src={r.imageUrl} width={40} height={40} /> : '无') },
+                                    { title: '规格图', width: 90, render: (_, r) => (r.imageUrl ? <Image src={r.imageUrl} fallback={IMAGE_FALLBACK} width={40} height={40} /> : '无') },
                                   ]}
                                 />
                               </Space>
@@ -5656,7 +5711,7 @@ export default function ProductDraftDetailPage() {
                               const st = m?.capabilityStatus?.product_publish;
                               const betaTag = st === 'beta' ? ' [测试中/beta]' : '';
                               return {
-                                label: `${s.shopName} (${s.platform})${betaTag}`,
+                                label: `${s.shopName} (${platformDisplayLabel(s.platform)})${betaTag}`,
                                 value: s.id,
                               };
                             })}

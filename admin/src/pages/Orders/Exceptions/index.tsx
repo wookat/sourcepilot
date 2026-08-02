@@ -1,12 +1,12 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import { MetricCard, PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import { platformLabel } from '@/constants/userFriendly';
 import { formatDateTime } from '@/utils/formatTime';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
 import { history, useModel } from '@umijs/max';
 import {
   Alert,
   Button,
-  Card,
   Col,
   Drawer,
   Input,
@@ -15,7 +15,6 @@ import {
   Row,
   Select,
   Space,
-  Statistic,
   Switch,
   Table,
   Tag,
@@ -36,6 +35,7 @@ import {
   postOrderExceptionRetryInventorySync,
   queryOrderExceptions,
 } from '@/services/orderExceptions';
+import { extractApiErrorMessage } from '@/services/request';
 import { getOrderItemSkuCandidates, type SkuCandidateRow } from '@/services/skuCandidates';
 import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products';
 import { queryShops } from '@/services/shops';
@@ -200,7 +200,7 @@ export default function OrderExceptionsPage() {
     void (async () => {
       try {
         const res = await queryShops({ page: 1, pageSize: 500 });
-        setShopOpts(res.list.map((s) => ({ label: `${s.shopName} (${s.platform})`, value: s.id })));
+        setShopOpts(res.list.map((s) => ({ label: `${s.shopName} (${platformLabel(s.platform)})`, value: s.id })));
       } catch {
         /* ignore */
       }
@@ -426,7 +426,7 @@ export default function OrderExceptionsPage() {
           high: { text: '高' },
           critical: { text: '紧急' },
         },
-        render: (_, r) => <Tag color={sevColor(r.severity)}>{r.severity}</Tag>,
+        render: (_, r) => <Tag color={sevColor(r.severity)}>{SEV_LABEL[r.severity] || r.severity || '—'}</Tag>,
       },
       {
         title: '视图状态',
@@ -444,6 +444,7 @@ export default function OrderExceptionsPage() {
         title: '平台',
         dataIndex: 'platform',
         width: 96,
+        render: (_, r) => <PlatformTag platform={r.platform} />,
       },
       {
         title: '店铺',
@@ -644,12 +645,17 @@ export default function OrderExceptionsPage() {
                     />
                   ),
                   onOk: async () => {
-                    await postOrderExceptionHandle(r.sourceType, r.sourceId, {
-                      exceptionType: r.exceptionType,
-                      remark: remark.trim(),
-                    });
-                    message.success('已标记');
-                    reload();
+                    try {
+                      await postOrderExceptionHandle(r.sourceType, r.sourceId, {
+                        exceptionType: r.exceptionType,
+                        remark: remark.trim(),
+                      });
+                      message.success('已标记');
+                      reload();
+                    } catch (e) {
+                      message.error(extractApiErrorMessage(e, '标记已处理失败'));
+                      throw e;
+                    }
                   },
                 });
               }}
@@ -663,9 +669,16 @@ export default function OrderExceptionsPage() {
                 Modal.confirm({
                   title: '忽略该异常（工作台视图）',
                   onOk: async () => {
-                    await postOrderExceptionIgnore(r.sourceType, r.sourceId, { exceptionType: r.exceptionType });
-                    message.success('已忽略');
-                    reload();
+                    try {
+                      await postOrderExceptionIgnore(r.sourceType, r.sourceId, {
+                        exceptionType: r.exceptionType,
+                      });
+                      message.success('已忽略');
+                      reload();
+                    } catch (e) {
+                      message.error(extractApiErrorMessage(e, '忽略失败'));
+                      throw e;
+                    }
                   },
                 });
               }}
@@ -677,9 +690,14 @@ export default function OrderExceptionsPage() {
             <Popconfirm
               title="取消标记并回到待处理列表？"
               onConfirm={async () => {
-                await deleteOrderExceptionMark(r.sourceType, r.sourceId);
-                message.success('已取消标记');
-                reload();
+                try {
+                  await deleteOrderExceptionMark(r.sourceType, r.sourceId);
+                  message.success('已取消标记');
+                  reload();
+                } catch (e) {
+                  message.error(extractApiErrorMessage(e, '取消标记失败'));
+                  throw e;
+                }
               }}
             >
               <a>取消标记</a>
@@ -704,46 +722,24 @@ export default function OrderExceptionsPage() {
       <KeywordSafetyHint visible={showSensitiveHint} />
       {summary ? (
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="未处理总数" value={summary.totalOpen} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="规格未匹配" value={summary.skuUnmatched} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="规格多候选" value={summary.skuAmbiguous} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="库存不足" value={summary.insufficientStock} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="扣库存失败" value={summary.inventoryDeductFailed} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="库存同步失败" value={summary.inventorySyncFailed} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="采购受阻" value={summary.procurementBlocked ?? 0} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="利润为负" value={summary.negativeMargin ?? 0} />
-            </Card>
-          </Col>
+          {[
+            { title: '未处理总数', value: summary.totalOpen, danger: true },
+            { title: '规格未匹配', value: summary.skuUnmatched },
+            { title: '规格多候选', value: summary.skuAmbiguous },
+            { title: '库存不足', value: summary.insufficientStock },
+            { title: '扣库存失败', value: summary.inventoryDeductFailed },
+            { title: '库存同步失败', value: summary.inventorySyncFailed },
+            { title: '采购受阻', value: summary.procurementBlocked ?? 0 },
+            { title: '利润为负', value: summary.negativeMargin ?? 0 },
+          ].map((card) => (
+            <Col xs={12} sm={12} md={6} lg={6} key={card.title}>
+              <MetricCard
+                title={card.title}
+                value={card.value}
+                intent={card.value > 0 ? (card.danger ? 'danger' : 'warning') : 'default'}
+              />
+            </Col>
+          ))}
         </Row>
       ) : null}
 
@@ -784,7 +780,7 @@ export default function OrderExceptionsPage() {
           current: tablePage,
           pageSize: tablePageSize,
         }}
-        search={{ layout: 'vertical', defaultCollapsed: false }}
+        search={{ layout: 'vertical' }}
         onSubmit={() => {
           // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
           const v = (formRef.current?.getFieldsValue?.() ?? {}) as Record<string, unknown>;

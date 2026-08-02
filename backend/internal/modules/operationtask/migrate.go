@@ -19,7 +19,10 @@ func Migrate(db *gorm.DB) error {
 	if err := migrateConstraints(db); err != nil {
 		return err
 	}
-	return migrateImmutableGuards(db)
+	if err := migrateImmutableGuards(db); err != nil {
+		return err
+	}
+	return backfillTaskShopScope(db)
 }
 
 func migrateIndexes(db *gorm.DB) error {
@@ -28,6 +31,7 @@ func migrateIndexes(db *gorm.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_operation_tasks_tenant_platform_status_updated ON operation_tasks (tenant_id, platform, status, updated_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_operation_tasks_tenant_task_type_created ON operation_tasks (tenant_id, task_type, created_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_operation_tasks_tenant_source ON operation_tasks (tenant_id, source_type, source_reference)`,
+		`CREATE INDEX IF NOT EXISTS idx_operation_tasks_tenant_shop_updated ON operation_tasks (tenant_id, shop_id, updated_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_platform_drafts_task_version ON platform_drafts (tenant_id, operation_task_id, draft_version DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_platform_drafts_tenant_status_updated ON platform_drafts (tenant_id, status, updated_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_platform_drafts_tenant_platform_status ON platform_drafts (tenant_id, platform, status)`,
@@ -118,6 +122,68 @@ func migrateConstraints(db *gorm.DB) error {
 		`DO $$ BEGIN
 			ALTER TABLE operation_task_events ADD CONSTRAINT chk_operation_task_events_actor CHECK (actor_type IN ('user','system','ai','rule') AND (actor_type <> 'user' OR actor_id IS NOT NULL));
 		EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+	}
+	for _, stmt := range stmts {
+		if err := db.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// backfillTaskShopScope derives shop ownership for legacy tasks created
+// before the shop_id column existed. Ownership is inferred from the task's
+// source reference: a product reference resolves through its (unambiguous)
+// shop publish links; a direct shop reference resolves to that shop. Tasks
+// whose ownership cannot be inferred stay tenant-level (shop_id NULL,
+// admin-only), so the backfill never widens visibility.
+func backfillTaskShopScope(db *gorm.DB) error {
+	switch db.Dialector.Name() {
+	case "postgres", "sqlite":
+	default:
+		return nil
+	}
+	var stmts []string
+	if db.Migrator().HasTable("shops") {
+		// Direct shop reference: source_reference holds a shop id in the
+		// same tenant.
+		stmts = append(stmts, `UPDATE operation_tasks SET shop_id = (
+			SELECT s.id FROM shops s
+			WHERE s.id = operation_tasks.source_reference
+			  AND s.tenant_id = operation_tasks.tenant_id
+		)
+		WHERE shop_id IS NULL
+		  AND EXISTS (
+			SELECT 1 FROM shops s
+			WHERE s.id = operation_tasks.source_reference
+			  AND s.tenant_id = operation_tasks.tenant_id
+		  )`)
+	}
+	if db.Migrator().HasTable("products") && db.Migrator().HasTable("product_platform_publish_configs") && db.Migrator().HasTable("product_publications") {
+		// Product reference: source_reference holds a product id whose
+		// publish links resolve to exactly one shop.
+		stmts = append(stmts, `UPDATE operation_tasks SET shop_id = (
+			SELECT MIN(link.shop_id) FROM (
+				SELECT product_id, shop_id FROM product_platform_publish_configs
+				UNION
+				SELECT product_id, shop_id FROM product_publications WHERE deleted_at IS NULL
+			) link
+			WHERE link.product_id = operation_tasks.source_reference
+		)
+		WHERE shop_id IS NULL
+		  AND EXISTS (
+			SELECT 1 FROM products p
+			WHERE p.id = operation_tasks.source_reference
+			  AND p.tenant_id = operation_tasks.tenant_id
+		  )
+		  AND (
+			SELECT COUNT(DISTINCT link.shop_id) FROM (
+				SELECT product_id, shop_id FROM product_platform_publish_configs
+				UNION
+				SELECT product_id, shop_id FROM product_publications WHERE deleted_at IS NULL
+			) link
+			WHERE link.product_id = operation_tasks.source_reference
+		  ) = 1`)
 	}
 	for _, stmt := range stmts {
 		if err := db.Exec(stmt).Error; err != nil {

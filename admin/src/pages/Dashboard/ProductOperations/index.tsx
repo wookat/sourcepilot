@@ -34,6 +34,7 @@ import {
   Tag,
   Tooltip,
   Typography,
+  theme,
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { ReactNode } from 'react';
@@ -67,6 +68,7 @@ import {
 import OnboardingGuide from '@/pages/Dashboard/ProductOperations/OnboardingGuide';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { fetchOrderSalesStats, type SalesStatsDTO, type SalesWindowStats } from '@/services/orders';
+import { formatAmount, formatCount, tabularNumsStyle } from '@/constants/chartTokens';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { appendSourceToUrl, resolveProductSourceFromQuery } from '@/utils/urlState';
 
@@ -76,6 +78,8 @@ const SALES_WINDOW_LABELS: Record<string, string> = {
   today: '今日',
   '7d': '近 7 日',
   '30d': '近 30 日',
+  last7d: '近 7 日',
+  last30d: '近 30 日',
 };
 
 function SalesWindowCard({ win }: { win: SalesWindowStats }) {
@@ -85,20 +89,24 @@ function SalesWindowCard({ win }: { win: SalesWindowStats }) {
       <Typography.Text type="secondary">{SALES_WINDOW_LABELS[win.key] || win.key}</Typography.Text>
       <Space size={16} wrap style={{ marginTop: 8, width: '100%' }}>
         <span>
-          订单 <Typography.Text strong>{win.orderCount}</Typography.Text>
+          订单 <Typography.Text strong style={tabularNumsStyle}>{formatCount(win.orderCount)}</Typography.Text>
         </span>
         <span>
-          已付款 <Typography.Text strong>{win.paidCount}</Typography.Text>
+          已付款 <Typography.Text strong style={tabularNumsStyle}>{formatCount(win.paidCount)}</Typography.Text>
         </span>
         <span>
-          已发货 <Typography.Text strong>{win.shippedCount}</Typography.Text>
+          已发货 <Typography.Text strong style={tabularNumsStyle}>{formatCount(win.shippedCount)}</Typography.Text>
         </span>
       </Space>
       <div style={{ marginTop: 8 }}>
         {amounts.length > 0 ? (
           amounts.map((a) => (
-            <Typography.Text key={a.currency} strong style={{ marginRight: 12, fontSize: 16 }}>
-              {a.currency} {a.amount.toFixed(2)}
+            <Typography.Text
+              key={a.currency}
+              strong
+              style={{ marginRight: 12, fontSize: 16, ...tabularNumsStyle }}
+            >
+              {formatAmount(a.amount, a.currency)}
             </Typography.Text>
           ))
         ) : (
@@ -316,23 +324,31 @@ function parseRange(start?: string, end?: string): [Dayjs, Dayjs] | undefined {
   return [s, e];
 }
 
-function TodoCardItem({ item }: { item: DashboardTodo }) {
+function TodoCardItem({ item, primary }: { item: DashboardTodo; primary?: boolean }) {
+  const { token } = theme.useToken();
   const actionLabel = TODO_ACTION_LABEL[item.key] ?? '去处理';
   const hasCount = (item.count ?? 0) > 0;
   return (
     <ProCard
       variant="outlined"
-      bodyStyle={{ padding: '16px', height: '100%' }}
-      style={hasCount ? { borderColor: '#f97316' } : undefined}
+      bodyStyle={{ padding: token.padding, height: '100%' }}
+      style={hasCount ? { borderColor: token.colorWarning } : undefined}
     >
-      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+      <Space direction="vertical" size={token.paddingXS} style={{ width: '100%' }}>
         <Space align="center" style={{ justifyContent: 'space-between', width: '100%' }}>
           <Typography.Text strong>{item.title}</Typography.Text>
-          <Typography.Title level={3} style={{ margin: 0 }}>
+          <Typography.Title
+            level={3}
+            style={{
+              margin: 0,
+              fontVariantNumeric: 'tabular-nums',
+              color: hasCount ? token.colorWarning : token.colorTextSecondary,
+            }}
+          >
             {item.count ?? 0}
           </Typography.Title>
         </Space>
-        <Button type="primary" block onClick={() => history.push(appendSourceToUrl(item.link))}>
+        <Button type={primary ? 'primary' : 'default'} block onClick={() => history.push(appendSourceToUrl(item.link))}>
           {actionLabel}
         </Button>
       </Space>
@@ -512,7 +528,7 @@ function QuickLinkGroups({ links }: { links: { title: string; link: string }[] }
   );
 }
 
-function buildKpiCards(summary: DashboardSummary): {
+export function buildKpiCards(summary: DashboardSummary): {
   title: string;
   value: number;
   link: string;
@@ -530,7 +546,7 @@ function buildKpiCards(summary: DashboardSummary): {
     },
     {
       title: '商品草稿',
-      value: summary.draftTotal ?? summary.draftProducts + summary.readyProducts,
+      value: summary.draftTotal ?? (summary.draftProducts ?? 0) + (summary.readyProducts ?? 0),
       link: '/product/drafts',
       emptyHint: '还没有商品草稿',
     },
@@ -565,7 +581,7 @@ function buildKpiCards(summary: DashboardSummary): {
     {
       title: '库存异常',
       value:
-        (summary.inventoryAlerts ?? summary.lowStockSkus + summary.outOfStockSkus) +
+        (summary.inventoryAlerts ?? (summary.lowStockSkus ?? 0) + (summary.outOfStockSkus ?? 0)) +
         (summary.inventorySyncFailedCount ?? 0),
       link: '/inventory/alerts',
       intent: 'danger',
@@ -638,8 +654,10 @@ function FunnelSteps({ steps }: { steps: DashboardFunnelStep[] }) {
       {list.map((step, index) => {
         const count = step.count ?? 0;
         const meta = FUNNEL_STEP_META[step.key] ?? FUNNEL_STEP_META.collected;
-        const barPct = count > 0 ? Math.max(8, Math.round((count / max) * 100)) : 0;
+        const barPct = count > 0 ? Math.min(100, Math.max(8, Math.round((count / max) * 100))) : 0;
         const convPct = topCount > 0 ? Math.round((count / topCount) * 100) : 0;
+        const cappedConvPct = Math.min(convPct, 100);
+        const overPct = convPct - 100;
         const isLast = index === list.length - 1;
 
         return (
@@ -729,17 +747,20 @@ function FunnelSteps({ steps }: { steps: DashboardFunnelStep[] }) {
                     {count}
                   </Typography.Text>
                   {index > 0 && topCount > 0 ? (
-                    <Tag
-                      bordered={false}
-                      style={{
-                        margin: 0,
-                        background: `${meta.color}14`,
-                        color: meta.color,
-                        fontSize: 12,
-                      }}
-                    >
-                      {convPct}%
-                    </Tag>
+                    <Tooltip title={overPct > 0 ? `实际转化 ${convPct}%，超出基准 ${overPct}%` : undefined}>
+                      <Tag
+                        bordered={false}
+                        style={{
+                          margin: 0,
+                          background: `${meta.color}14`,
+                          color: meta.color,
+                          fontSize: 12,
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {cappedConvPct}%{overPct > 0 ? ` · 超额 +${overPct}%` : ''}
+                      </Tag>
+                    </Tooltip>
                   ) : null}
                   <ArrowRightOutlined style={{ color: '#9ca3af', fontSize: 12 }} />
                 </Space>
@@ -1077,9 +1098,9 @@ export default function ProductOperationsDashboardPage() {
           >
             {activeTodos.length > 0 ? (
               <Row gutter={[16, 16]}>
-                {activeTodos.map((item) => (
+                {activeTodos.map((item, index) => (
                   <Col xs={24} sm={12} md={8} lg={6} xl={6} key={item.key || item.id}>
-                    <TodoCardItem item={item} />
+                    <TodoCardItem item={item} primary={index === 0} />
                   </Col>
                 ))}
               </Row>

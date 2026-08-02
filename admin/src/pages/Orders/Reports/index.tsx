@@ -4,7 +4,9 @@ import { ProCard } from '@ant-design/pro-components';
 import { Alert, Button, Col, Row, Segmented, Skeleton, Space, Statistic, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState, TmPageContainer } from '@/components/ui';
+import { chartAxisXLabel, chartTokens, formatAmount, formatCount, tabularNumsStyle } from '@/constants/chartTokens';
 import { downloadDailyReportCsv, fetchOrderDailyStats, type DailyStatsDTO } from '@/services/orders';
+import { useWideScreen } from '@/hooks/useWideScreen';
 
 const DAY_OPTIONS = [
   { label: '近 7 天', value: 7 },
@@ -41,6 +43,8 @@ export default function OrderReports() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const wideScreen = useWideScreen();
+  const chartHeight = wideScreen ? chartTokens.height : chartTokens.heightCompact;
 
   const load = useCallback(() => {
     setLoading(true);
@@ -117,14 +121,14 @@ export default function OrderReports() {
         ) : (
           <Row gutter={[16, 16]}>
             <Col xs={12} sm={8} md={6}>
-              <Statistic title="订单数" value={totals.orders} />
+              <Statistic title="订单数" value={totals.orders} valueStyle={tabularNumsStyle} />
             </Col>
             <Col xs={12} sm={8} md={6}>
-              <Statistic title="已付款订单" value={totals.paid} />
+              <Statistic title="已付款订单" value={totals.paid} valueStyle={tabularNumsStyle} />
             </Col>
             {totals.byCurrency.map(([currency, amount]) => (
               <Col xs={12} sm={8} md={6} key={currency}>
-                <Statistic title={`销售额（${currency}）`} value={amount} precision={2} />
+                <Statistic title={`销售额（${currency}）`} value={amount} precision={2} valueStyle={tabularNumsStyle} />
               </Col>
             ))}
             {totals.byCurrency.length === 0 ? (
@@ -145,9 +149,15 @@ export default function OrderReports() {
             xField="date"
             yField="value"
             colorField="type"
-            height={300}
+            height={chartHeight}
             autoFit
-            axis={{ x: { labelAutoRotate: true, labelAutoHide: true } }}
+            scale={{ color: { range: [...chartTokens.seriesColors] } }}
+            axis={{
+              x: { ...chartAxisXLabel },
+              y: { labelFormatter: (v: number) => formatCount(Number(v)) },
+            }}
+            legend={{ color: { position: 'top' } }}
+            tooltip={{ items: [{ channel: 'y', valueFormatter: (v: number) => formatCount(Number(v)) }] }}
           />
         ) : (
           <EmptyState
@@ -170,9 +180,18 @@ export default function OrderReports() {
             yField="amount"
             colorField="currency"
             stack
-            height={300}
+            height={chartHeight}
             autoFit
-            axis={{ x: { labelAutoRotate: true, labelAutoHide: true } }}
+            style={{ maxWidth: chartTokens.barMaxWidth }}
+            scale={{ color: { range: [...chartTokens.seriesColors] } }}
+            axis={{
+              x: { ...chartAxisXLabel },
+              y: { labelFormatter: (v: number) => formatCount(Number(v)) },
+            }}
+            legend={{ color: { position: 'top' } }}
+            tooltip={{
+              items: [(d: AmountPoint) => ({ name: d.currency, value: formatAmount(d.amount) })],
+            }}
           />
         ) : (
           <EmptyState

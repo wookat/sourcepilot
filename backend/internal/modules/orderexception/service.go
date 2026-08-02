@@ -1246,6 +1246,8 @@ func (s *Service) resolveOrderPointers(ctx context.Context, sourceType, sourceID
 		return &oid, nil, nil
 	case SourceInventorySyncTask:
 		return nil, nil, nil
+	case SourceOrderSyncTask:
+		return nil, nil, nil
 	default:
 		return nil, nil, fmt.Errorf("unsupported sourceType")
 	}

@@ -1,5 +1,7 @@
 import GenerateResultAlerts from '@/components/procurement/GenerateResultAlerts';
 import { TmPageContainer } from '@/components/ui';
+import { platformLabel } from '@/constants/userFriendly';
+import { commonStatusLabel } from '@/constants/copywriting';
 import {
   cancelPurchaseOrder,
   confirmPurchaseOrder,
@@ -489,7 +491,7 @@ export default function ProcurementOrdersPage() {
           optionFilterProp="label"
           options={salesOrders.map((o) => ({
             value: o.id,
-            label: `${o.orderNo || o.id.slice(0, 8)}（${o.platform} / ${o.status}）`,
+            label: `${o.orderNo || o.id.slice(0, 8)}（${platformLabel(o.platform)} / ${commonStatusLabel(o.status)}）`,
           }))}
         />
         {genResult && ((genResult.blockers || []).length > 0 || (genResult.warnings || []).length > 0) && (

@@ -124,7 +124,8 @@ const (
 // OperationTask is the P8 persisted operation task aggregate root.
 type OperationTask struct {
 	model.HardDeleteBase
-	TenantID        int64          `gorm:"not null;index:idx_operation_tasks_tenant_status_updated,priority:1;index:idx_operation_tasks_tenant_platform_status_updated,priority:1;index:idx_operation_tasks_tenant_task_type_created,priority:1;index:idx_operation_tasks_tenant_source,priority:1" json:"tenantId"`
+	TenantID        int64          `gorm:"not null;index:idx_operation_tasks_tenant_status_updated,priority:1;index:idx_operation_tasks_tenant_platform_status_updated,priority:1;index:idx_operation_tasks_tenant_task_type_created,priority:1;index:idx_operation_tasks_tenant_source,priority:1;index:idx_operation_tasks_tenant_shop_updated,priority:1" json:"tenantId"`
+	ShopID          *uuid.UUID     `gorm:"type:char(36);index:idx_operation_tasks_tenant_shop_updated,priority:2" json:"shopId,omitempty"`
 	SourceType      string         `gorm:"size:64;not null;index:idx_operation_tasks_tenant_source,priority:2" json:"sourceType"`
 	SourceReference string         `gorm:"size:255;index:idx_operation_tasks_tenant_source,priority:3" json:"sourceReference,omitempty"`
 	TaskType        string         `gorm:"size:64;not null;index:idx_operation_tasks_tenant_task_type_created,priority:2" json:"taskType"`
@@ -269,6 +270,12 @@ type OperationTaskListParams struct {
 	TaskType string
 	Limit    int
 	Cursor   string
+
+	// AllowedShopIDs is the trusted store scope resolved from the
+	// authenticated principal. nil means all shops (admin); an empty
+	// slice means no shop is visible. Tasks without a shop binding are
+	// admin-only, matching ApplyStoreScope semantics on order lists.
+	AllowedShopIDs []uuid.UUID
 }
 
 type OperationTaskListResult struct {

@@ -7,12 +7,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"gorm.io/gorm"
@@ -176,6 +180,35 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		}
 	}
 	count("shops", int64(len(shops)))
+
+	// ---- operator / readonly demo accounts: grant one DEMO shop so scoped
+	// positive paths are testable out of the box (readonly gets view scope to
+	// exercise the read-visible / write-denied permission boundary). Only
+	// users with zero existing store grants are touched; real scope
+	// configuration is never modified.
+	var operators []admin.AdminUser
+	if err := tx.Where("tenant_id = ? AND role IN ?", s.TenantID, []string{"operator", "readonly"}).Find(&operators).Error; err != nil {
+		return fmt.Errorf("demoseed: list operators: %w", err)
+	}
+	for _, op := range operators {
+		var n int64
+		if err := tx.Model(&admin.UserStorePermission{}).Where("user_id = ?", op.ID).Count(&n).Error; err != nil {
+			return fmt.Errorf("demoseed: count store grants: %w", err)
+		}
+		if n > 0 {
+			continue
+		}
+		scope := admin.StorePermScopeOperate
+		if strings.EqualFold(op.Role, "readonly") {
+			scope = admin.StorePermScopeView
+		}
+		grant := admin.UserStorePermission{UserID: op.ID, StoreID: shops[0].ID,
+			Platform: shops[0].Platform, PermissionScope: scope}
+		if err := tx.Create(&grant).Error; err != nil {
+			return fmt.Errorf("demoseed: operator store grant: %w", err)
+		}
+		count("user_store_permissions", 1)
+	}
 
 	// ---- product drafts（采集来源 + 手动来源，AI 优化前后文案）----
 	type productSpec struct {
@@ -524,7 +557,7 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	}
 
 	// ---- order sync task partial_success（异常工作台样本）----
-	syncTask := ordersync.OrderSyncTask{ShopID: shops[0].ID, Platform: shops[0].Platform,
+	syncTask := ordersync.OrderSyncTask{TenantID: s.TenantID, ShopID: shops[0].ID, Platform: shops[0].Platform,
 		TaskType: "order_sync", Status: "partial_success", Mode: "manual",
 		StartedAt: &started, FinishedAt: &finished,
 		TotalCount: 60, SuccessCount: 50, FailedCount: 10,
@@ -538,6 +571,16 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return fmt.Errorf("demoseed: order sync task: %w", err)
 	}
 	count("order_sync_tasks", 1)
+
+	// ---- selection center: DEMO- 选品任务全状态 + 候选/评估样本 ----
+	if err := s.seedSelection(tx, res, now, products); err != nil {
+		return err
+	}
+
+	// ---- AI 客服：DEMO- 会话/消息/AI 建议草稿 + 同步任务成功/失败 ----
+	if err := s.seedCustomerService(tx, res, now, shops); err != nil {
+		return err
+	}
 
 	// ---- exception workbench handled mark（演示处理动作留痕）----
 	mark := orderexception.OrderExceptionMark{
@@ -595,6 +638,33 @@ func collectDemoPurchaseOrderIDs(tx *gorm.DB, like string, demoOrderIDs, demoSup
 		add(ids)
 	}
 
+	out := make([]uuid.UUID, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
+	}
+	return out, nil
+}
+
+// collectDemoProductIDs returns products that belong to the demo dataset:
+// DEMO- titled rows plus products still owning DEMO- SKUs, so a seeded
+// product renamed from the UI is still cleaned with all its children. Real
+// products are never matched.
+func collectDemoProductIDs(tx *gorm.DB, like string) ([]uuid.UUID, error) {
+	seen := map[uuid.UUID]struct{}{}
+	var ids []uuid.UUID
+	if err := tx.Model(&product.Product{}).Unscoped().Where("title LIKE ?", like).Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		seen[id] = struct{}{}
+	}
+	ids = ids[:0]
+	if err := tx.Model(&product.ProductSKU{}).Unscoped().Where("sku_code LIKE ?", like).Distinct().Pluck("product_id", &ids).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		seen[id] = struct{}{}
+	}
 	out := make([]uuid.UUID, 0, len(seen))
 	for id := range seen {
 		out = append(out, id)
@@ -692,8 +762,8 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			}
 		}
 
-		var productIDs []uuid.UUID
-		if err := tx.Model(&product.Product{}).Unscoped().Where("title LIKE ?", like).Pluck("id", &productIDs).Error; err != nil {
+		productIDs, err := collectDemoProductIDs(tx, like)
+		if err != nil {
 			return err
 		}
 		if len(productIDs) > 0 {
@@ -726,7 +796,41 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			if err := del("order_sync_tasks", tx.Unscoped().Where("shop_id IN ? AND error_message LIKE ?", shopIDs, like).Delete(&ordersync.OrderSyncTask{})); err != nil {
 				return err
 			}
+			if err := del("user_store_permissions", tx.Unscoped().Where("store_id IN ?", shopIDs).Delete(&admin.UserStorePermission{})); err != nil {
+				return err
+			}
 			if err := del("shops", tx.Unscoped().Where("id IN ?", shopIDs).Delete(&shop.Shop{})); err != nil {
+				return err
+			}
+		}
+
+		if err := cleanupSelection(tx, res, like); err != nil {
+			return err
+		}
+		if err := cleanupCustomerSyncTasks(tx, res, like); err != nil {
+			return err
+		}
+
+		// demo customer conversations: DEMO- seeded rows on any tenant, plus
+		// tenant-0 orphans created by older demo seeds/scripts before
+		// conversations stamped tenant_id. Remove them with children.
+		var convIDs []uuid.UUID
+		if err := tx.Model(&customerchat.CustomerConversation{}).Unscoped().
+			Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %").
+			Pluck("id", &convIDs).Error; err != nil {
+			return err
+		}
+		if len(convIDs) > 0 {
+			if err := del("customer_messages", tx.Unscoped().Where("conversation_id IN ?", convIDs).Delete(&customerchat.CustomerMessage{})); err != nil {
+				return err
+			}
+			if err := del("customer_reply_suggestions", tx.Unscoped().Where("conversation_id IN ?", convIDs).Delete(&customerchat.CustomerReplySuggestion{})); err != nil {
+				return err
+			}
+			if err := del("customer_failure_events", tx.Unscoped().Where("conversation_id IN ?", convIDs).Delete(&customerchat.CustomerFailureEvent{})); err != nil {
+				return err
+			}
+			if err := del("customer_conversations", tx.Unscoped().Where("id IN ?", convIDs).Delete(&customerchat.CustomerConversation{})); err != nil {
 				return err
 			}
 		}
@@ -795,6 +899,48 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		{"order_exception_marks", func() (int64, error) {
 			var n int64
 			return n, tx.Model(&orderexception.OrderExceptionMark{}).Where("remark LIKE ?", like).Count(&n).Error
+		}},
+		{"customer_conversations", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&customerchat.CustomerConversation{}).Unscoped().
+				Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %").
+				Count(&n).Error
+		}},
+		{"customer_messages", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&customerchat.CustomerMessage{}).
+				Where("content LIKE ?", like).Count(&n).Error
+		}},
+		{"customer_reply_suggestions", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&customerchat.CustomerReplySuggestion{}).Unscoped().
+				Where("prompt_code LIKE ? OR suggested_reply LIKE ?", like, like).Count(&n).Error
+		}},
+		{"customer_message_sync_tasks", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&customersync.CustomerMessageSyncTask{}).Unscoped().
+				Where("cursor LIKE ? OR error_message LIKE ?", like, like).Count(&n).Error
+		}},
+		{"selection_tasks", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&selection.SelectionTask{}).Unscoped().
+				Where("name LIKE ?", like).Count(&n).Error
+		}},
+		{"selection_candidates", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&selection.SelectionCandidate{}).Unscoped().
+				Where("title LIKE ?", like).Count(&n).Error
+		}},
+		{"selection_source_matches", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&selection.SelectionSourceMatch{}).Unscoped().
+				Where("source_offer_id LIKE ? OR supplier_name LIKE ?", like, like).Count(&n).Error
+		}},
+		{"selection_evaluations", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&selection.SelectionEvaluation{}).Unscoped().
+				Where("candidate_id IN (?)", tx.Model(&selection.SelectionCandidate{}).Unscoped().
+					Select("id").Where("title LIKE ?", like)).Count(&n).Error
 		}},
 	}
 	for _, c := range checks {

@@ -11,9 +11,33 @@ type APIActor struct {
 	TenantID int64
 	ActorID  uuid.UUID
 	Role     string
+
+	// AllowedShopIDs is the trusted store scope resolved from the
+	// authenticated principal (adminperm.Principal.AllowedStoreIDs):
+	// nil means all shops (admin); an empty slice means no shop is
+	// visible. Tasks without a shop binding are admin-only.
+	AllowedShopIDs []uuid.UUID
+}
+
+// shopAllowed reports whether a task bound to shop sid is inside the
+// actor's store scope, matching order/procurement/exception semantics.
+func (a APIActor) shopAllowed(sid *uuid.UUID) bool {
+	if a.AllowedShopIDs == nil {
+		return true
+	}
+	if sid == nil || *sid == uuid.Nil {
+		return false
+	}
+	for _, id := range a.AllowedShopIDs {
+		if id == *sid {
+			return true
+		}
+	}
+	return false
 }
 
 type CreateTaskRequest struct {
+	ShopID          string          `json:"shopId"`
 	SourceType      string          `json:"sourceType"`
 	SourceReference string          `json:"sourceReference"`
 	TaskType        string          `json:"taskType"`
@@ -63,6 +87,7 @@ type CancelTaskRequest struct {
 
 type OperationTaskSummaryResponse struct {
 	ID                    uuid.UUID  `json:"id"`
+	ShopID                *uuid.UUID `json:"shopId,omitempty"`
 	SourceType            string     `json:"sourceType"`
 	SourceReference       string     `json:"sourceReference,omitempty"`
 	TaskType              string     `json:"taskType"`

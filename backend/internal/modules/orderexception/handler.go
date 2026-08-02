@@ -65,6 +65,16 @@ func (h *Handler) requestScope(c *gin.Context) (*int64, []uuid.UUID) {
 	return tenantID, allowed
 }
 
+// failMarkError localizes mark/unmark failures: gorm.ErrRecordNotFound becomes
+// a Chinese 404 envelope instead of leaking the raw English driver message.
+func failMarkError(c *gin.Context, err error) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "记录不存在或已被删除")
+		return
+	}
+	response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+}
+
 func parseRFC3339(s string) (*time.Time, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -150,11 +160,7 @@ func (h *Handler) Detail(c *gin.Context) {
 	scope.TenantID, scope.AllowedShopIDs = h.requestScope(c)
 	d, err := h.Svc.GetOrderExceptionDetail(c.Request.Context(), st, sid, scope)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
-			return
-		}
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		failMarkError(c, err)
 		return
 	}
 	response.OK(c, d)
@@ -175,7 +181,7 @@ func (h *Handler) Handle(c *gin.Context) {
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
 	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkHandled, body.Remark, adminUUID(c)); err != nil {
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		failMarkError(c, err)
 		return
 	}
 	if h.OpLog != nil {
@@ -206,7 +212,7 @@ func (h *Handler) Ignore(c *gin.Context) {
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
 	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkIgnored, body.Remark, adminUUID(c)); err != nil {
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		failMarkError(c, err)
 		return
 	}
 	if h.OpLog != nil {
@@ -231,7 +237,7 @@ func (h *Handler) Unmark(c *gin.Context) {
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
 	if err := h.Svc.DeleteMarks(c.Request.Context(), st, sid); err != nil {
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		failMarkError(c, err)
 		return
 	}
 	if h.OpLog != nil {

@@ -699,6 +699,7 @@ trademind-ai/
 |------|------|
 | 2026-08-02 | **R60 发布/运营任务链路复查**：全栈 docker compose + demo seed 实测发布链路（含 #98/#99 回归、三角色 RBAC、375/768/1440 响应式），未发现 P0/P1；修复 P2：执行尝试记录改为回显实际生效 adapterMode（`publicAdapterModeForPort`）、readonly 运营总览隐藏写向快捷入口；根 workspace 固定 react/react-dom 18.2.0 使 `pnpm test:frontend` 恢复通过；已知 operator 运营任务读扩权待后续（任务缺 shop 维度） |
 | 2026-08-02 | **1688 采集链路首次真实实测（Round 51）**：修复采集任务创建未写入 `tenant_id` 导致 Worker 全部拒绝（`任务缺少租户上下文`）的 P0 缺陷（单条 + 批量）；collector 新增 `COLLECTOR_PROXY_SERVER/_USERNAME/_PASSWORD/_BYPASS` 代理配置项（仅配置，不内置代理）；UA 默认按 bundled Chromium 主版本自动生成；风控/验证早期拦截路径补失败快照与 `[1688-collect]` 调试日志；compose 挂载 `./data/snapshots`。实测 6 条真实 1688 链接 0/6 成功、100% 风控跳转登录/验证页，失败上报（`PAGE_BLOCKED_OR_VERIFY_REQUIRED`/「页面需要验证」）准确；报告见 Round 51 实测报告 |
+| 2026-08-02 | **R60 发布/运营任务链路复查**：全栈 docker compose + demo seed 实测发布链路（含 #98/#99 回归、三角色 RBAC、375/768/1440 响应式），未发现 P0/P1；修复 P2：执行尝试记录改为回显实际生效 adapterMode（`publicAdapterModeForPort`）、readonly 运营总览隐藏写向快捷入口；根 workspace 固定 react/react-dom 18.2.0 使 `pnpm test:frontend` 恢复通过；已知 operator 运营任务读扩权待后续（任务缺 shop 维度） |
 | 2026-07-11 | **Phase P4.2 全量租户 Worker 与安全 Worker 收口**：`tasktenant` 接入 7 类生产 Worker；`security_secret_reencrypt` + `file_security_scan`；`migrate_p4_2`；`secret_targets`；安全中心 UI 九区块；11 份 `P4_2_*` 文档；`scripts/p4-2-security-final-closure-check.mjs`；IDOR 22 / shop scope 5 自动化；race deferred_on_windows |
 | 2026-07-11 | **P2.2 文档与扫描收口**：AI apply/undo、Webhook HTTP/签名、Worker 租约矩阵、race 占位报告；`p2-2-reliability-closure-check.mjs`；更新 IDEMPOTENCY / TASK_RELIABILITY / P2.1 矩阵 / CHANGELOG / README |
 | 2026-07-11 | **P2.2 AI text/image apply+undo 幂等**：`AITextApply/Undo`、`AIImageApply/Undo` key；apply/undo Acquire/Complete；版本冲突码；生成写回 `status=running` 守卫；set_main undo 恢复 previousBestMain；并发测试通过 |
@@ -1175,12 +1176,6 @@ Final Production Acceptance Deferred to P10
 - 修复演练发现缺陷：① backend 镜像缺 `pg_dump`/`pg_restore`/`psql` 导致 `/api/v1/ops/backups` 生产必失败，Dockerfile 增装 PGDG postgresql-client-16；② GORM record-not-found 按错误打完整 SQL（含账号入参）入生产日志，database.go 改用 `IgnoreRecordNotFoundError: true`；③ `.env.prod.example` 澄清 `BACKUP_SCHEDULE` 仅为元数据、每日自动备份须配宿主机 crontab。
 - 新增 `docs/production-launch-checklist.md`：资源清单（服务器/域名/DNS/防火墙）、逐步上线命令、回滚方案、上线后验证清单。
 
-### 变更记录（2026-08-01）迭代第 46 轮：生成采购单前置条件阻断引导闭环
-
-- 「生成采购单结果」弹窗的 blockers 每条附可点击直达入口（第 45 轮 UX 走查 P1：新手被 sku.unmatched → source.missing → mapping.missing 3 连环阻断且报错只给文案不给入口）：`sku.unmatched` →「去规格匹配」直达该订单详情规格匹配 Tab（`/orders/:id?tab=sku`，可用 Tab 内既有「自动匹配整单」）；`source.missing` →「去绑定主货源」直达货源档案并自动打开绑定弹窗（`/sourcing/product-sources?productId=…&action=bind`）；`mapping.missing` →「去补 SKU 映射」直达货源档案自动打开主货源 SKU 映射抽屉并高亮对应行（`…&action=mapping&skuId=…`）。点击链接自动关闭结果弹窗；订单列表/订单详情/采购单页三处入口统一生效。
-- 后端 `POST /procurement/orders/generate` 的 `Blocker` 新增可选 `productId` 字段，并为 `source.missing`/`mapping.missing` 补齐 `productId`/`localSkuId`（既有字段语义不变，向后兼容，附单测）；货源档案页新增 `action`/`skuId` 深链定位参数。附 GenerateResultAlerts 组件单测。
-
-### 变更记录（2026-08-01）迭代第 46 轮：会话过期守卫（401 不再整页跳转丢表单）
 
 - 修复第 45 轮 UX 走查 P1：JWT 过期后提交表单遇 401 直接 `window.location.assign` 跳登录页，弹窗内未保存内容全部丢失。新增前端会话守卫（`admin/src/utils/sessionGuard.ts`）：
   - 401 处理链路改为 umi `responseInterceptors` 内先静默续期（复用后端既有 `POST /api/v1/auth/refresh`，secure_session 走 HttpOnly cookie、legacy 走响应体 refreshToken），成功后原样重放原请求，调用方无感知；续期不可用/失败时在当前页弹「登录已过期」重新登录弹窗（`SessionExpiredModal`，挂载于 innerProvider），重登成功后同样重放请求，页面与表单状态不丢失；用户选择「去登录页」才清凭证跳转。
@@ -1224,7 +1219,6 @@ Final Production Acceptance Deferred to P10
 - P0 修复①：`POST /settings/test-image`、`POST /settings/test-ocr` 缺 `settings.manage` 权限检查（同组其它 settings/test-* 均有），readonly/operator 可触发外部连接测试；已补 `adminperm.RequireWrite(PermSettingsManage)`，回归见 `TestReadonlyWriteGuardRegression`。
 - P0 修复②：新增路由级只读守卫 `adminperm.ReadonlyWriteGuard` 挂在 `/api/v1`（authed 组）与 `/api/collector`：全部写方法路由 readonly 一律 403（fail-closed，新写端点默认被守卫），显式允许清单仅保留自助 session 管理与纯计算类 POST（calculate/check/preview/validate/estimate）。修复前约 190 条写端点无路由级只读守卫、对 readonly 返回 400/404 或放行。
 - 同步 `docs/api.md`（权限矩阵契约一节）、新增 `docs/permission-matrix.md`。
-
 ### 变更记录（2026-08-02）迭代第 53 轮：操作日志页 URL 深链 + 审计可见性验收
 
 - 现状盘点结论：审计能力后端已完备（`operation_logs` 模型含租户/店铺/角色/hash 链；写入覆盖登录、设置修改、采购状态流转/作废、任务重试、库存变动、店铺授权等；`GET /api/v1/operation-logs` 只读端点已含 `operationlog.view` 权限 + 租户/店铺 scope；管理端已有统一 `/system/operation-logs` 页）。本轮补齐 UX 缺口：
@@ -1242,18 +1236,12 @@ Final Production Acceptance Deferred to P10
 - 所有数据带 `DEMO-` 前缀；seed 幂等（先清后建，重复执行计数一致）；clean 只删 DEMO- 前缀数据并级联子表，verify 复核零残留；采购单状态链逐步经 `procurement.CanTransition` 校验并写 `purchase_order_events`，订单生命周期经 `order.ValidateOrderStateTransition` 校验，不产生非法状态；`APP_ENV=production` 拒绝执行；不改任何 API/权限。种子实现复用 `internal/modules/demoseed` 模块（`FullDemoSeeder`），附单测（状态链合法性/前缀/生产环境守卫）。
 - 同步 `docs/development.md`、`README.md`、`README.en.md`、`package.json`。
 
+
 ### 变更记录（2026-08-02）迭代第 56 轮：本地模式备份→下载→校验→恢复演练最小真实闭环
 
 - 备份下载通道：新增 `GET /api/v1/ops/backups/:id/download`（`backup.download` 权限，仅 admin；readonly/operator 403，不存在/越权 404），仅允许下载校验通过的 completed 备份，下载前重验 SHA-256，流式返回，成功/失败均写操作日志（action=`backup.download`）；管理端备份列表新增「下载」按钮。
 - 备份校验修复：未启用加密（local 模式）时加密检查按「未启用（跳过）」处理，不再恒 failed；校验结果新增 `details.checks` 结构化检查项（校验和 / manifest / 加密 / pg_restore 结构），管理端弹窗中文结构化展示。
 - 恢复演练真实化（本地/开发限定）：`POST /ops/restores/:id/verify` 与 `POST /ops/dr/drills` 真实执行备份文件完整性（SHA-256）与 `pg_restore --list` 结构校验两项检查，替换原六项硬编码 passed 桩；其余检查项（迁移版本/租户隔离/RBAC/审计链/对象清单/密钥密文、RPO/RTO/应用切换）在 `details.checks`/`reportJson.checks` 中明确标注 `not_implemented`；`APP_ENV=production` 下两接口直接拒绝，恢复安全门（隔离目标、`trademind_p6v_restore_` 前缀、二次确认、高风险确认）保持不变。附 backup/restore 服务层单测；同步 `docs/api.md` 与 `docs/docker-deployment.md` 生产备份 SOP 章节。
-
-### 变更记录（2026-08-02）迭代第 58 轮：Ops P2 修复（备份校验状态门 / 安全门原因透传 / 库存口径 / demo 采购单清理）
-
-- 备份管理：`manual_review`（及其他非 completed）状态的「校验备份」按钮禁用，Tooltip 中文说明需先在环境启用 `BACKUP_ENABLED` 并通过人工审查后重新创建备份才能校验；不改后端校验行为。附 helper 单测。
-- 恢复验证：安全门拒绝（`RESTORE_TARGET_FORBIDDEN` / `RESTORE_APP_ENV_FORBIDDEN` / `RESTORE_TARGET_NOT_ISOLATED` / 前缀 / 二次确认 / 备份未校验 / 目标库非空等 14 个结构化错误码）在 `errorMessages.ts` 补齐中文映射，创建失败 toast 透出具体原因；恢复记录表新增「失败原因」列展示 `errorSummary`。不弱化任何安全门。附映射单测。
-- 批量发货 / 订单详情：结果区补「未扣库存属手工扣库存策略的预期行为」口径 Alert 与 Tag Tooltip（Tag 文案改为「未扣库存（预期）」）；订单详情「物流」Tab 说明补同一口径。沿用 R46 口径传达模式，不改库存扣减逻辑与接口。
-- demo seed clean：`seed:demo:full:clean` 清理采购单从仅按 `idempotency_key LIKE 'DEMO-%'` 扩展为并集：`external_order_id`/`supplier_name` 带 DEMO- 前缀、挂在 DEMO- 供应商名下、或采购行关联 DEMO- 销售订单（覆盖测试期 UI 建的采购单）；verify 同步扩展。仅清 DEMO 关联数据，不动真实采购单。附 `collectDemoPurchaseOrderIDs` 单测（真实采购单不被匹配）。
 
 ### 变更记录（2026-08-02）迭代第 55 轮：经营报表导出 CSV + 移动端收口
 
@@ -1275,6 +1263,16 @@ Final Production Acceptance Deferred to P10
 - 读端点补 tenant scope（与订单/选品口径一致）：任务/批次列表按 `tenant_id` 过滤，`GET /collect/tasks/:id`、`/collect/tasks/:id/events`、`/collect/batches/:id`、`/collect/batches/:id/tasks` 及手动重试的对象查询均走 `adminperm.ApplyTenantScope`，跨租户访问返回 404 不泄露存在性；任务/批次创建时落 `tenant_id`（与 integration/round55-preview 上 #88/#93 的 tenant_id 修复方向一致，PR → main 单独说明关系）。
 - 前端采集页对齐 readonly 模式：采集任务/批量采集页隐藏创建表单与重试入口，采集中心禁用单条/批量采集按钮（提示只读文案）；`/collect/rules`、`/collect/browser-profiles`、`/collect/monitor`、`/settings/collector` 原本已由 SETTINGS_MANAGE 菜单权限隔离。
 - 回归单测：三角色路由守卫（readonly 全写端点 403、admin/operator 不误伤、读端点不拦截）+ tenant scope（同租户 200、跨租户 404、列表不泄露、跨租户重试零变化）。同步 `docs/api.md` 采集节权限口径说明。
+
+### 变更记录（2026-08-02）迭代第 58 轮：Ops P2 修复（备份校验状态门 / 安全门原因透传 / 库存口径 / demo 采购单清理）
+
+- 备份管理：`manual_review`（及其他非 completed）状态的「校验备份」按钮禁用，Tooltip 中文说明需先在环境启用 `BACKUP_ENABLED` 并通过人工审查后重新创建备份才能校验；不改后端校验行为。附 helper 单测。
+- 恢复验证：安全门拒绝（`RESTORE_TARGET_FORBIDDEN` / `RESTORE_APP_ENV_FORBIDDEN` / `RESTORE_TARGET_NOT_ISOLATED` / 前缀 / 二次确认 / 备份未校验 / 目标库非空等 14 个结构化错误码）在 `errorMessages.ts` 补齐中文映射，创建失败 toast 透出具体原因；恢复记录表新增「失败原因」列展示 `errorSummary`。不弱化任何安全门。附映射单测。
+- 批量发货 / 订单详情：结果区补「未扣库存属手工扣库存策略的预期行为」口径 Alert 与 Tag Tooltip（Tag 文案改为「未扣库存（预期）」）；订单详情「物流」Tab 说明补同一口径。沿用 R46 口径传达模式，不改库存扣减逻辑与接口。
+- demo seed clean：`seed:demo:full:clean` 清理采购单从仅按 `idempotency_key LIKE 'DEMO-%'` 扩展为并集：`external_order_id`/`supplier_name` 带 DEMO- 前缀、挂在 DEMO- 供应商名下、或采购行关联 DEMO- 销售订单（覆盖测试期 UI 建的采购单）；verify 同步扩展。仅清 DEMO 关联数据，不动真实采购单。附 `collectDemoPurchaseOrderIDs` 单测（真实采购单不被匹配）。
+
+### 变更记录（2026-08-02）迭代第 59 轮：商品草稿模块系统性真实走查收口
+
 - 全栈真实走查（docker compose + demo seed）商品草稿列表/详情/AI 优化/归档删除/采集回链 + 三角色权限 + 375/768/1440 响应式，发现并修复：
   - **P0（后端越权风险）**：商品写接口除 `POST /products` 外均无路由级只读守卫（PUT/DELETE 商品、SKU/图片 CRUD、平台配置、抖音 mapping/图片、AI 优化/应用/撤销、sync-images），readonly 此前仅靠店铺可见性 scope「碰巧」404。现全部补 `denyWrite`（AI 应用/撤销走 `ai_text.apply` 守卫），附 `readonly_guard_test.go` 全路由 403 回归测试；docs/api.md 商品节同步说明。
   - **P1**：前端统一 request 错误规范化——HTTP 非 2xx 时还原后端 envelope `message`（如 AI 未配置时「请配置 base_url」），不再裸显 axios「Request failed with status code 400」；附 request 单测。
@@ -1282,3 +1280,44 @@ Final Production Acceptance Deferred to P10
   - **P2**：归档增加二次确认 Popconfirm；新建草稿失败给出 message.error；新建 SKU 保存后延迟拉取真实行修复「新行只有删除按钮」；`operationStep` 筛选加入口径说明 Alert（筛选=该步骤未完成，行内 Tag=当前所处步骤）；批量发布检查抽屉在当前平台无授权店铺时给出空态引导并禁用店铺选择。
   - **修复 main 上 test:frontend 挂掉**：dependabot 将 admin `react-dom` 升到 19.2.8（react 仍 18.2.0）导致 3 个组件测试套件崩溃；回退 `react-dom`/`@types/react-dom` 到 18 系，`pnpm-workspace.yaml` 增加 overrides（pnpm 10 读取位置，与 package.json `pnpm.overrides` 保持一致），root devDependencies 固定 react/react-dom 供 @testing-library/react peer 解析。
 - 遗留：「批量导出上架清单」已由第 49 轮在 main 实现（本分支合入）；operator demo 账号无授权店铺，operator 正常店铺 scope 场景未覆盖；商品计数口径（列表 total 与看板数）建议后续统一。
+
+### 变更记录（2026-08-02）第 61 轮：运营任务店铺 scope（P2）+ execute 校验失败 4xx（P3）
+
+- **P2（越权）**：`operation_tasks` 新增可空 `shop_id`（索引 `idx_operation_tasks_tenant_shop_updated`），运营任务按订单/采购/异常口径纳入店铺 scope：admin 不受限；operator/readonly 仅见授权店铺任务，无授权店铺列表为空；`shop_id IS NULL`（租户级）仅 admin 可见；越权/跨租户直读（含 drafts/approvals/attempts/events 子资源与全部写路径）统一 404 不泄露存在性。创建接受可选 `shopId`（admin 可省略=租户级；非 admin 必须绑定授权店铺，缺失 400、越权 404）。存量 backfill 随迁移执行：`source_reference` 命中同租户店铺 id → 归属该店铺；命中商品 id 且发布关联唯一店铺 → 归属该店铺；推导不出保持租户级。
+- **P3（错误码）**：execute/retry 适配器 payload 校验失败由 HTTP 500/50000 改为 HTTP 400、业务码 40001、`errorCode=execution_validation_failed`（适配器 permission/state/idempotency 类分别映射 403/409）；失败 attempt 创建与 finalize 行为不变。
+- 回归：`api_scope_test.go`（admin/operator/readonly/跨租户四口径读写 + backfill + execute 4xx HTTP 层断言）+ 权限矩阵套件新增 `TestOperationTaskStoreScope`；docs/api.md 新增运营任务节、docs/permission-matrix.md、docs/P8_OPERATION_TASK_API.md 同步；前端 `operationTasks.ts` 类型补 `shopId`（无 UI 行为变更）。基于 integration/round55-preview（收敛 #79–#119）。
+
+### 变更记录（2026-08-02）第 63 轮：PlatformTag/StatusTag 语义组件 + 首页信息设计打磨（R62 视觉走查 P1）
+
+- 新增共享 `PlatformTag`（`admin/src/components/ui/PlatformTag.tsx`）：平台内部枚举 → 中文名 + 品牌色 Tag（douyin_shop→抖店/volcano 等），整体不换行，空值兜底 `—`，未知枚举保留原值；复用 `constants/platformLabels.ts` 集中映射。
+- 扩展共享 `StatusTag` 集中映射（matched/partial/completed/manual_review/verified/deferred/ready/not_ready/ready_with_warning/active/revoked 等），`copywriting.ts` 补对应中文文案；替换全站裸枚举直出处（订单/异常/SKU 匹配/详情、库存告警与同步、选品任务与详情、货源供应商、任务失败中心、客服、商品草稿/刊登覆写、设置用户/安全、采购、运维备份/恢复/灾备），仅改展示层，不改 API/权限/数据口径。
+- 首页 `Dashboard/ProductOperations`：漏斗转化率超 100% 时封顶展示 100% 并以「超额 +N%」另行标注（Tooltip 保留真实转化值），进度条宽度封顶；待办卡改用 antd token（间距/警示色）与 tabular-nums 数字排版。
+- 测试：新增 `PlatformTag` 单测、扩展 `StatusTag` 单测；新增 E2E `round63-semantic-visual.spec.ts`（漏斗超额标注、375 无溢出、供应商/任务失败中心语义 Tag）。
+
+### 变更记录（2026-08-02）第 64 轮：报表图表规范化（R62 视觉走查 Top5 第 5 项收口）
+
+- 新增 `admin/src/constants/chartTokens.ts`：图表系列色取自 AntD 主题 seed（首色 = `colorPrimary`）、涨跌语义色（沿用订单预估毛利 #3f8600/#cf1322）、`formatCount`（千分位）、`formatAmount`（千分位+两位小数+币种前缀）、`tabularNumsStyle`。
+- `/orders/reports`：Line/Column 图表统一 `scale.color.range` 配色 token，y 轴/tooltip 千分位与金额格式，legend 置顶，合计卡 tabular-nums；堆叠销售额图 tooltip 取原始 `amount` 字段避免展示堆叠累计值；空态/骨架/375px autoFit 保持。
+- 首页经营概览统计卡与报表页口径一致：计数 `formatCount` + tabular-nums，销售额 `formatAmount`（如 `USD 1,234.50`）。
+- 订单列表 cost-estimates 批量接口 `data:null` 空值防御（`out?.items ?? {}`），不白屏；预估毛利涨跌色改引用 chartTokens。不改任何 API/权限/数据口径。
+- 测试：新增 `chartTokens` 单测（9 用例）与 E2E `round64-charts-visual.spec.ts`（千分位合计+双图渲染、空数据引导、375px 无溢出、cost-estimates `data:null` 回归）。
+
+### 变更记录（2026-08-02）第 65 轮：R62 视觉走查 P2 批量收口（仅 antd token/配置，无 API/权限/口径变更）
+
+- 首页经营概览窗口标签映射补 `last7d`/`last30d` 别名，任何后端 key 口径均展示中文（今日/近 7 日/近 30 日），不再英文直出。
+- P2-1：今日待办卡仅首个待办用 primary 按钮，其余降级 default，消除满屏蓝主按钮。
+- P2-2/P2-12：订单异常工作台 8 张裸 Statistic 卡改共享 `MetricCard`（>0 时 danger/warning 语义色），栅格改 xs12/md6 均衡 2 或 4 列，消除残行。
+- P2-3：AI 工作台优先级 Tag 仅 P0 用红色（P1 orange、P2 gold、P3 default），消除红墙。
+- P2-7：商品草稿列表无封面占位由灰字「无图」改图形图标占位（保留 aria-label）。
+- P2-9：登录页删除 3 张空白幽灵装饰卡（decor-card）及关联动画。
+- P2-11：客服会话「买家」列加 ellipsis，脱敏名不再折行。
+- chartTokens.heightCompact 落地：抽共享 `useWideScreen` hook（TmProTable 同步复用），报表页 <768px 图表用紧凑高度 220。
+- 测试：新增 `aiOperationWorkbench` 优先级色彩单测与 E2E `round65-visual-p2.spec.ts`（窗口标签中文、待办按钮层级、异常统计卡语义色+375 无溢出、报表紧凑高度、无图占位、登录页无幽灵卡）。
+
+### 变更记录（2026-08-02）第 68 轮：合并前大回归 v4 P2 收口（P2-1/2/3/5 + ENV-1，跳过 P2-4 由并行分支处理）
+
+- P2-1：新增 `admin/src/constants/imageFallback.ts` 统一破图占位（内联 SVG），商品草稿列表/选品明细/刊登批次/草稿抖店预览与规格图的 antd Image 补 `fallback`，DEMO 失效图 URL 不再裸破图。
+- P2-2：任务中心 mapper 用户可见标题（订单同步/客服消息同步/刊登/库存同步）改用 `opslabels.PlatformLabel`，AI 工作台待办描述随之显示「抖店」；DTO `platform` 字段保持原始编码，不改 API 口径。补 mapper 标题回归测试。
+- P2-3：订单异常工作台严重程度列改用既有 `SEV_LABEL` 中文映射（筛选枚举与技术详情不变）。
+- P2-5：`AppMessageBridge` 扩展 patch antd 静态 `Modal.*` 到 App context（消除静态方法 context warning）；订单列表/详情的明细与物流 Modal 由 `destroyOnHidden` 改 `forceRender`（打开前 `resetFields/setFieldsValue` 不再触发 useForm 未连接 warning，openXxxModal 每次打开仍重置字段）。
+- ENV-1：Docker 镜像已内置 postgresql-client-16；`docs/docker-deployment.md` 补宿主机部署 pg_dump 主版本 ≥16 要求与自检说明；backup service 执行前 `exec.LookPath` 预检，缺失时给出友好错误（含 POSTGRES_PG_DUMP_PATH 提示），备份校验口径不变。

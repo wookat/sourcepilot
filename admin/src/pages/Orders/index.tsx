@@ -1,5 +1,6 @@
 import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { PlatformTag, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { platformLabel } from '@/constants/userFriendly';
 import {
   Badge,
   Alert,
@@ -68,6 +69,7 @@ import {
   type OrderCostEstimateSummary,
 } from '@/services/procurement';
 import GenerateResultAlerts from '@/components/procurement/GenerateResultAlerts';
+import { chartTokens, tabularNumsStyle } from '@/constants/chartTokens';
 import { canWriteOrders } from '@/utils/orderPerm';
 import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
@@ -329,7 +331,7 @@ export default function OrdersPage() {
         const res = await queryShops({ page: 1, pageSize: 500 });
         setShopOptions(
           res.list.map((s) => ({
-            label: `${s.shopName} (${s.platform})`,
+            label: `${s.shopName} (${platformLabel(s.platform)})`,
             value: s.id,
           })),
         );
@@ -439,7 +441,7 @@ export default function OrdersPage() {
         hideInTable: true,
         fieldProps: { placeholder: '订单号 / 买家 / 平台单号', ...keywordFieldProps },
       },
-      { title: '订单号', dataIndex: 'orderNo', copyable: true, width: 148 },
+      { title: '订单号', dataIndex: 'orderNo', copyable: true, ellipsis: true, width: 176 },
       {
         title: '外部单号',
         dataIndex: 'externalOrderId',
@@ -456,6 +458,7 @@ export default function OrdersPage() {
         width: 96,
         responsive: DESKTOP_ONLY,
         fieldProps: { allowClear: true },
+        render: (_, r) => <PlatformTag platform={r.platform} />,
       },
       {
         title: '店铺',
@@ -624,12 +627,12 @@ export default function OrdersPage() {
             );
           }
           if (est.grossProfit == null) return '—';
-          const color = est.grossProfit >= 0 ? '#3f8600' : '#cf1322';
+          const color = est.grossProfit >= 0 ? chartTokens.trendUp : chartTokens.trendDown;
           return (
             <Tooltip
               title={`预估采购成本 CNY ${est.estimatedCostCny.toFixed(2)}，汇率 ${est.exchangeRate}`}
             >
-              <span style={{ color, fontWeight: 500 }}>
+              <span style={{ color, fontWeight: 500, ...tabularNumsStyle }}>
                 {r.currency} {est.grossProfit.toFixed(2)}
                 {est.marginPercent != null ? (
                   <Typography.Text type="secondary" style={{ fontSize: 11 }}>
@@ -831,7 +834,7 @@ export default function OrdersPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
-        search={{ layout: 'vertical', defaultCollapsed: false }}
+        search={{ layout: 'vertical' }}
         rowSelection={
           writable
             ? {
@@ -1009,7 +1012,7 @@ export default function OrdersPage() {
           const ids = res.list.map((r) => r.id).filter(Boolean);
           if (ids.length > 0) {
             void fetchOrderCostEstimateBatch(ids.slice(0, 50))
-              .then((out) => setCostMap((prev) => ({ ...prev, ...out.items })))
+              .then((out) => setCostMap((prev) => ({ ...prev, ...(out?.items ?? {}) })))
               .catch(() => {
                 /* 估算失败不阻塞列表 */
               });
@@ -1058,11 +1061,11 @@ export default function OrdersPage() {
         {detail && (
           <>
             <Space wrap style={{ marginBottom: 12 }}>
-              <Badge status="processing" text={`platform ${detail.platform}`} />
+              <Badge status="processing" text={`平台 ${platformLabel(detail.platform)}`} />
               {detail.shopSummary ? (
                 <Badge
                   status="default"
-                  text={`店铺 ${detail.shopSummary.shopName} (${detail.shopSummary.platform})`}
+                  text={`店铺 ${detail.shopSummary.shopName} (${platformLabel(detail.shopSummary.platform)})`}
                 />
               ) : null}
               <Popconfirm
@@ -1334,7 +1337,7 @@ export default function OrdersPage() {
         title={itemModal.row ? '编辑明细' : '新增明细'}
         open={itemModal.open}
         onCancel={() => setItemModal({ open: false })}
-        destroyOnHidden
+        forceRender
         onOk={async () => {
           const v = await itemForm.validateFields();
           if (!detail) return;
@@ -1371,7 +1374,7 @@ export default function OrdersPage() {
         title={shipModal.row ? '编辑物流' : '新增物流'}
         open={shipModal.open}
         onCancel={() => setShipModal({ open: false })}
-        destroyOnHidden
+        forceRender
         onOk={async () => {
           const v = await shipForm.validateFields();
           if (!detail) return;

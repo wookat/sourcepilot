@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	"gorm.io/datatypes"
 )
 
@@ -208,7 +209,7 @@ func mapOrderSyncTask(row *ordersync.OrderSyncTask, shopNames map[uuid.UUID]stri
 		TaskType:             TaskTypeOrderSync,
 		SourceTable:          SourceTableOrderSyncTasks,
 		SourceID:             row.ID.String(),
-		Title:                truncateRunes("订单同步 · "+row.Platform, 240),
+		Title:                truncateRunes("订单同步 · "+opslabels.PlatformLabel(row.Platform), 240),
 		Platform:             row.Platform,
 		ShopID:               row.ShopID.String(),
 		ShopName:             truncateRunes(shopNames[row.ShopID], 255),
@@ -255,7 +256,7 @@ func mapCustomerMessageSyncTask(row *customersync.CustomerMessageSyncTask, shopN
 		TaskType:             TaskTypeCustomerMessageSync,
 		SourceTable:          SourceTableCustomerMessageSyncTasks,
 		SourceID:             row.ID.String(),
-		Title:                truncateRunes("客服消息同步 · "+row.Platform, 240),
+		Title:                truncateRunes("客服消息同步 · "+opslabels.PlatformLabel(row.Platform), 240),
 		Platform:             row.Platform,
 		ShopID:               row.ShopID.String(),
 		ShopName:             truncateRunes(shopNames[row.ShopID], 255),
@@ -308,7 +309,7 @@ func mapProductPublishTask(row *productpublish.ProductPublishTask, shopNames map
 		TaskType:             TaskTypeProductPublish,
 		SourceTable:          SourceTableProductPublishTasks,
 		SourceID:             row.ID.String(),
-		Title:                truncateRunes("刊登 · "+row.Platform, 240),
+		Title:                truncateRunes("刊登 · "+opslabels.PlatformLabel(row.Platform), 240),
 		Platform:             row.Platform,
 		ShopID:               row.ShopID.String(),
 		ShopName:             truncateRunes(shopNames[row.ShopID], 255),
@@ -387,7 +388,7 @@ func mapInventorySyncTask(row *inventory.InventorySyncTask, shopNames map[uuid.U
 		TaskType:         TaskTypeInventorySync,
 		SourceTable:      SourceTableInventorySyncTasks,
 		SourceID:         row.ID.String(),
-		Title:            truncateRunes("库存同步 · "+row.Platform, 240),
+		Title:            truncateRunes("库存同步 · "+opslabels.PlatformLabel(row.Platform), 240),
 		Platform:         row.Platform,
 		ShopID:           row.ShopID.String(),
 		ShopName:         truncateRunes(shopNames[row.ShopID], 255),

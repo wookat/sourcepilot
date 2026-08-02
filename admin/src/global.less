@@ -486,6 +486,12 @@ body,
   flex-wrap: wrap;
 }
 
+/* TmProTable 外层量宽容器：跟随父容器收缩，保证容器宽度口径准确 */
+.tm-pro-table-container {
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* ProTable：表格区域内部横向滚动，不撑破页面 */
 .ant-pro-table {
   min-width: 0;
@@ -507,6 +513,21 @@ body,
   .ant-table-container .ant-table-body,
   .ant-table-container .ant-table-content {
     overflow-y: hidden !important;
+  }
+
+  /* 固定列与滚动内容交界：用实线分隔替代裸阴影，避免呈现半透明竖带、内容像被凭空切断 */
+  .ant-table-ping-right .ant-table-cell-fix-right-first {
+    border-inline-start: 1px solid rgba(15, 23, 42, 0.1);
+  }
+
+  .ant-table-ping-left .ant-table-cell-fix-left-last {
+    border-inline-end: 1px solid rgba(15, 23, 42, 0.1);
+  }
+
+  /* 阴影通过 ::after 向相邻列内延伸约 30px，静止时也会盖住相邻列文字；已有实线分隔，去掉阴影 */
+  .ant-table-ping-right .ant-table-cell-fix-right-first::after,
+  .ant-table-ping-left .ant-table-cell-fix-left-last::after {
+    box-shadow: none;
   }
 
   /* 工具栏密度/列设置：扩大可点击区域，避免图标点击落在容器上无响应 */

@@ -249,7 +249,7 @@ export default function InventoryCenterPage() {
         formRef={formRef}
         columns={columns}
         scroll={{ x: 1500 }}
-        search={{ labelWidth: 100, defaultCollapsed: false }}
+        search={{ labelWidth: 100 }}
         onReset={() => {
           setTablePage(1);
           setTablePageSize(20);

@@ -242,6 +242,7 @@ export default function CustomerConversationsPage() {
       title: '买家',
       dataIndex: 'customerName',
       width: 120,
+      ellipsis: true,
       fieldProps: { placeholder: '筛选' },
       render: (_, row) => row.customerNameMasked || row.customerName,
     },

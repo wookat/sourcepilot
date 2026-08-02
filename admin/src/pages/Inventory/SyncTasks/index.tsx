@@ -295,7 +295,7 @@ export default function InventorySyncTasksPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
+        search={{ labelWidth: 'auto' }}
         onReset={() => {
           setTablePage(1);
           setTablePageSize(20);
@@ -415,7 +415,7 @@ export default function InventorySyncTasksPage() {
             </div>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId}{' '}
-              <Typography.Text type="secondary">({detail.platform})</Typography.Text>
+              <Typography.Text type="secondary">({platformLabel(detail.platform)})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               <Typography.Text strong>商品：</Typography.Text> {detail.productTitle || detail.productId}

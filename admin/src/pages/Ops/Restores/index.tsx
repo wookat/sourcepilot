@@ -1,8 +1,8 @@
-import { TmPageContainer } from '@/components/ui';
+import { StatusTag, TmPageContainer } from '@/components/ui';
 import { formatRequestError, formatUserErrorMessage } from '@/constants/errorMessages';
 import { createRestore, fetchRestores, verifyRestore, type RestoreJob } from '@/services/opsP6';
 import { ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { Alert, Button, Form, Input, Modal, Space, Switch, Table, Tag, Tooltip, Typography, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Space, Switch, Table, Tooltip, Typography, message } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { OpsCheckList } from '../opsChecks';
 
@@ -58,8 +58,8 @@ export default function RestoresPage() {
             { title: '恢复编号', dataIndex: 'restoreId', width: 220 },
             { title: '备份编号', dataIndex: 'backupId', width: 220 },
             { title: '目标环境', dataIndex: 'targetEnvironment', width: 140 },
-            { title: '状态', dataIndex: 'status', width: 120, render: (v) => <Tag>{v}</Tag> },
-            { title: '安全门', dataIndex: 'safetyGateStatus', width: 120, render: (v) => <Tag>{v}</Tag> },
+            { title: '状态', dataIndex: 'status', width: 120, render: (v) => <StatusTag status={String(v ?? '')} /> },
+            { title: '安全门', dataIndex: 'safetyGateStatus', width: 120, render: (v) => <StatusTag status={String(v ?? '')} /> },
             {
               title: '失败原因',
               dataIndex: 'errorSummary',
@@ -75,7 +75,7 @@ export default function RestoresPage() {
                   '—'
                 ),
             },
-            { title: '完整性', dataIndex: 'validationStatus', width: 120, render: (v) => <Tag>{v || '-'}</Tag> },
+            { title: '完整性', dataIndex: 'validationStatus', width: 120, render: (v) => (v ? <StatusTag status={String(v)} /> : '—') },
             { title: '创建时间', dataIndex: 'createdAt', width: 180 },
             {
               title: '操作',

@@ -1,5 +1,5 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { PlatformTag, StatusTag, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { usePermission } from '@/hooks/usePermission';
 import {
@@ -43,6 +43,8 @@ import {
 import {
   INVENTORY_SYNC_BATCHES_LABEL,
   INVENTORY_SYNC_TASKS_LABEL,
+  PLATFORM_OPTIONS,
+  platformLabel,
 } from '@/constants/userFriendly';
 import { confirmInventoryManualAdjust, confirmInventorySync } from '@/constants/sensitiveActions';
 import {
@@ -212,7 +214,8 @@ export default function InventoryAlertsPage() {
         title: '平台',
         dataIndex: 'platform',
         hideInTable: true,
-        fieldProps: { placeholder: 'tiktok / shopee / lazada / amazon' },
+        valueType: 'select',
+        fieldProps: { placeholder: '选择平台', options: PLATFORM_OPTIONS, allowClear: true },
       },
       {
         title: '店铺 ID',
@@ -345,7 +348,7 @@ export default function InventoryAlertsPage() {
                     return (
                       <Descriptions key={p.publicationSkuId} size="small" column={1} style={{ marginBottom: 12 }}>
                         <Descriptions.Item label="店铺">{p.shopName || p.shopId}</Descriptions.Item>
-                        <Descriptions.Item label="平台">{p.platform}</Descriptions.Item>
+                        <Descriptions.Item label="平台"><PlatformTag platform={p.platform} /></Descriptions.Item>
                         <Descriptions.Item label="平台库存">
                           {typeof p.platformStock === 'number' ? p.platformStock : '—'}
                         </Descriptions.Item>
@@ -367,7 +370,7 @@ export default function InventoryAlertsPage() {
                   };
                   return (
                     <Tag key={p.publicationSkuId} color={st.color}>
-                      {p.platform}:{typeof p.platformStock === 'number' ? p.platformStock : '?'}
+                      {platformLabel(p.platform)}:{typeof p.platformStock === 'number' ? p.platformStock : '?'}
                     </Tag>
                   );
                 })}
@@ -384,8 +387,7 @@ export default function InventoryAlertsPage() {
         search: false,
         render: (_, r) => {
           if (!r.lastSyncStatus) return '—';
-          const fail = r.lastSyncStatus === 'failed';
-          return <Tag color={fail ? 'red' : 'default'}>{r.lastSyncStatus}</Tag>;
+          return <StatusTag status={r.lastSyncStatus} />;
         },
       },
       {
@@ -526,7 +528,7 @@ export default function InventoryAlertsPage() {
                   return (
                     <Space key={p.publicationSkuId} wrap align="start">
                       <Typography.Text>
-                        [{p.platform}] {p.shopName || p.shopId} — 平台库存{' '}
+                        [{platformLabel(p.platform)}] {p.shopName || p.shopId} — 平台库存{' '}
                         {typeof p.platformStock === 'number' ? p.platformStock : '—'}{' '}
                         <Tag color={st.color}>{st.text}</Tag>
                       </Typography.Text>
@@ -536,7 +538,7 @@ export default function InventoryAlertsPage() {
                         disabled={!runnable || !writable}
                         onClick={() => {
                           const stock = r.stock;
-                          const targetLabel = `[${p.platform}] ${p.shopName || p.shopId}`;
+                          const targetLabel = `[${platformLabel(p.platform)}] ${p.shopName || p.shopId}`;
                           confirmInventorySync(targetLabel, runnable, async () => {
                             try {
                               await syncPublicationSkuInventory(p.publicationSkuId, {

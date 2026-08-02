@@ -215,7 +215,12 @@ func pathParamValue(name string) string {
 
 func (h *harness) do(t *testing.T, method, path, token string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(method, path, strings.NewReader("{}"))
+	return h.doBody(t, method, path, token, "{}")
+}
+
+func (h *harness) doBody(t *testing.T, method, path, token, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", "perm-matrix-"+uuid.NewString())
 	if token != "" {

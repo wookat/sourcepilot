@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -111,6 +112,9 @@ func (s *Service) runPgDump(ctx context.Context, row *Job) (*Job, error) {
 	row.Status = StatusRunning
 	if err := s.DB.WithContext(ctx).Create(row).Error; err != nil {
 		return nil, err
+	}
+	if _, lookErr := exec.LookPath(binary); lookErr != nil {
+		return s.fail(ctx, row, fmt.Errorf("pg_dump 不可用（%s）：请在运行 backend 的环境安装与 PostgreSQL 服务端主版本匹配的客户端工具（如 postgresql-client-16），或通过 POSTGRES_PG_DUMP_PATH 指定二进制路径，详见 docs/docker-deployment.md", binary))
 	}
 	timeout := time.Duration(s.Cfg.Backup.CommandTimeoutSeconds) * time.Second
 	if err := backupruntime.RunCommand(ctx, timeout, binary, args, env); err != nil {

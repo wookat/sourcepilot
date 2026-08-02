@@ -54,6 +54,10 @@ func (s *APIService) CreateTask(ctx context.Context, actor APIActor, req CreateT
 	if err != nil {
 		return nil, err
 	}
+	shopID, err := s.resolveCreateShop(ctx, actor, req.ShopID)
+	if err != nil {
+		return nil, err
+	}
 	payloadHash, err := ComputePayloadHash([]byte(payload))
 	if err != nil {
 		return nil, ErrValidation
@@ -61,6 +65,9 @@ func (s *APIService) CreateTask(ctx context.Context, actor APIActor, req CreateT
 	var task OperationTask
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if existing, err := NewOperationTaskRepository(tx).GetByIdempotencyKey(ctx, actor.TenantID, idemKey); err == nil {
+			if !actor.shopAllowed(existing.ShopID) {
+				return ErrNotFound
+			}
 			if existing.Payload == nil {
 				return ErrDuplicateRequest
 			}
@@ -76,6 +83,7 @@ func (s *APIService) CreateTask(ctx context.Context, actor APIActor, req CreateT
 		key := strings.TrimSpace(idemKey)
 		task = OperationTask{
 			TenantID:        actor.TenantID,
+			ShopID:          shopID,
 			SourceType:      req.SourceType,
 			SourceReference: req.SourceReference,
 			TaskType:        req.TaskType,
@@ -129,6 +137,7 @@ func (s *APIService) ListTasks(ctx context.Context, actor APIActor, p OperationT
 		return zero, ErrPermissionDenied
 	}
 	p.TenantID = actor.TenantID
+	p.AllowedShopIDs = actor.AllowedShopIDs
 	result, err := NewOperationTaskRepository(s.DB).List(ctx, p)
 	if err != nil {
 		return zero, err
@@ -157,6 +166,9 @@ func (s *APIService) CreateInitialDraft(ctx context.Context, actor APIActor, tas
 	if err := s.Authorizer.CanEdit(ctx, actor.TenantID, actor.ActorID, taskID); err != nil {
 		return nil, ErrPermissionDenied
 	}
+	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
+		return nil, err
+	}
 	payload, err := apiJSONPayload(req.Payload)
 	if err != nil {
 		return nil, err
@@ -178,6 +190,9 @@ func (s *APIService) EditLatestDraft(ctx context.Context, actor APIActor, taskID
 	}
 	if err := s.Authorizer.CanEdit(ctx, actor.TenantID, actor.ActorID, taskID); err != nil {
 		return nil, ErrPermissionDenied
+	}
+	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
+		return nil, err
 	}
 	payload, err := apiJSONPayload(req.Payload)
 	if err != nil {
@@ -209,7 +224,7 @@ func (s *APIService) ListDrafts(ctx context.Context, actor APIActor, taskID uuid
 	if err := s.Authorizer.CanRead(ctx, actor.TenantID, actor.ActorID); err != nil {
 		return zero, ErrPermissionDenied
 	}
-	if _, err := NewOperationTaskRepository(s.DB).GetByID(ctx, actor.TenantID, taskID); err != nil {
+	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
 		return zero, err
 	}
 	drafts, err := NewPlatformDraftRepository(s.DB).ListVersions(ctx, actor.TenantID, taskID)
@@ -247,6 +262,9 @@ func (s *APIService) decide(ctx context.Context, actor APIActor, taskID uuid.UUI
 	if err := apiValidateComment(req.Comment); err != nil {
 		return nil, err
 	}
+	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
+		return nil, err
+	}
 	input := ApprovalInput{TenantID: actor.TenantID, OperationTaskID: taskID, ExpectedRevision: req.ExpectedTaskRevision, DraftVersion: req.DraftVersion, DraftPayloadHash: req.DraftPayloadHash, ReviewerID: actor.ActorID, ReviewerRole: reviewerRoleForActor(actor.Role), Reason: req.Reason, Comment: req.Comment, RequestID: requestID, IdempotencyKey: idemKey}
 	var record *ApprovalRecord
 	var err error
@@ -272,14 +290,12 @@ func (s *APIService) Execute(ctx context.Context, actor APIActor, taskID uuid.UU
 	if err := s.Authorizer.CanExecute(ctx, actor.TenantID, actor.ActorID, taskID); err != nil {
 		return nil, ErrPermissionDenied
 	}
-	if req.ExpectedTaskRevision > 0 {
-		task, err := NewOperationTaskRepository(s.DB).GetByID(ctx, actor.TenantID, taskID)
-		if err != nil {
-			return nil, err
-		}
-		if task.Revision != req.ExpectedTaskRevision {
-			return nil, ErrRevisionConflict
-		}
+	task, err := s.visibleTask(ctx, actor, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if req.ExpectedTaskRevision > 0 && task.Revision != req.ExpectedTaskRevision {
+		return nil, ErrRevisionConflict
 	}
 	out, err := s.Executor.Execute(ctx, ExecutionInput{TenantID: actor.TenantID, OperationTaskID: taskID, ActorID: actor.ActorID, RequestID: requestID, IdempotencyKey: idemKey, AdapterMode: req.AdapterMode})
 	if err != nil && out == nil {
@@ -298,14 +314,12 @@ func (s *APIService) RetryExecution(ctx context.Context, actor APIActor, taskID 
 	if err := apiValidateReason(req.Reason, true); err != nil {
 		return nil, err
 	}
-	if req.ExpectedTaskRevision > 0 {
-		task, err := NewOperationTaskRepository(s.DB).GetByID(ctx, actor.TenantID, taskID)
-		if err != nil {
-			return nil, err
-		}
-		if task.Revision != req.ExpectedTaskRevision {
-			return nil, ErrRevisionConflict
-		}
+	task, err := s.visibleTask(ctx, actor, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if req.ExpectedTaskRevision > 0 && task.Revision != req.ExpectedTaskRevision {
+		return nil, ErrRevisionConflict
 	}
 	if req.FailedAttemptID != nil {
 		attempt, err := NewExecutionAttemptRepository(s.DB).GetByID(ctx, actor.TenantID, *req.FailedAttemptID)
@@ -331,6 +345,9 @@ func (s *APIService) Cancel(ctx context.Context, actor APIActor, taskID uuid.UUI
 		return nil, ErrPermissionDenied
 	}
 	if err := apiValidateReason(req.Reason, true); err != nil {
+		return nil, err
+	}
+	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
 		return nil, err
 	}
 	keyHash := safeKeyHash(idemKey)
@@ -385,7 +402,7 @@ func (s *APIService) ListAttempts(ctx context.Context, actor APIActor, taskID uu
 	if err := s.Authorizer.CanRead(ctx, actor.TenantID, actor.ActorID); err != nil {
 		return zero, ErrPermissionDenied
 	}
-	if _, err := NewOperationTaskRepository(s.DB).GetByID(ctx, actor.TenantID, taskID); err != nil {
+	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
 		return zero, err
 	}
 	attempts, err := NewExecutionAttemptRepository(s.DB).ListByTask(ctx, actor.TenantID, taskID)
@@ -436,7 +453,7 @@ func (s *APIService) ListEvents(ctx context.Context, actor APIActor, taskID uuid
 	if err := s.Authorizer.CanRead(ctx, actor.TenantID, actor.ActorID); err != nil {
 		return zero, ErrPermissionDenied
 	}
-	if _, err := NewOperationTaskRepository(s.DB).GetByID(ctx, actor.TenantID, taskID); err != nil {
+	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
 		return zero, err
 	}
 	result, err := NewOperationTaskEventRepository(s.DB).ListByTask(ctx, OperationTaskEventListParams{TenantID: actor.TenantID, OperationTaskID: taskID, AfterSequence: afterSequence, Limit: limit})
@@ -457,8 +474,53 @@ func (s *APIService) ready() error {
 	return nil
 }
 
-func (s *APIService) detail(ctx context.Context, actor APIActor, taskID uuid.UUID) (*OperationTaskDetailResponse, error) {
+// visibleTask loads a task and enforces the actor's shop scope. Tasks
+// outside the authorized shops surface as ErrNotFound so cross-scope
+// probing cannot confirm task existence.
+func (s *APIService) visibleTask(ctx context.Context, actor APIActor, taskID uuid.UUID) (*OperationTask, error) {
 	task, err := NewOperationTaskRepository(s.DB).GetByID(ctx, actor.TenantID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if !actor.shopAllowed(task.ShopID) {
+		return nil, ErrNotFound
+	}
+	return task, nil
+}
+
+// resolveCreateShop validates the create-request shop binding. Admin may
+// omit shopId to create a tenant-level task; scoped roles must bind an
+// authorized shop. Unauthorized or foreign-tenant shops surface as
+// ErrNotFound without disclosing existence.
+func (s *APIService) resolveCreateShop(ctx context.Context, actor APIActor, rawShopID string) (*uuid.UUID, error) {
+	rawShopID = strings.TrimSpace(rawShopID)
+	if rawShopID == "" {
+		if actor.AllowedShopIDs == nil {
+			return nil, nil
+		}
+		return nil, ErrValidation
+	}
+	shopID, err := uuid.Parse(rawShopID)
+	if err != nil || shopID == uuid.Nil {
+		return nil, ErrValidation
+	}
+	if !actor.shopAllowed(&shopID) {
+		return nil, ErrNotFound
+	}
+	var count int64
+	if err := s.DB.WithContext(ctx).Table("shops").
+		Where("id = ? AND tenant_id = ?", shopID, actor.TenantID).
+		Count(&count).Error; err != nil {
+		return nil, stableError(err, ErrConflict)
+	}
+	if count == 0 {
+		return nil, ErrNotFound
+	}
+	return &shopID, nil
+}
+
+func (s *APIService) detail(ctx context.Context, actor APIActor, taskID uuid.UUID) (*OperationTaskDetailResponse, error) {
+	task, err := s.visibleTask(ctx, actor, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +542,7 @@ func (s *APIService) detail(ctx context.Context, actor APIActor, taskID uuid.UUI
 }
 
 func (s *APIService) taskSummary(ctx context.Context, task OperationTask) OperationTaskSummaryResponse {
-	out := OperationTaskSummaryResponse{ID: task.ID, SourceType: task.SourceType, SourceReference: task.SourceReference, TaskType: task.TaskType, Platform: task.Platform, Title: task.Title, Summary: task.Summary, Status: task.Status, Priority: task.Priority, Revision: task.Revision, CreatedBy: task.CreatedBy, CreatedAt: task.CreatedAt, UpdatedAt: task.UpdatedAt}
+	out := OperationTaskSummaryResponse{ID: task.ID, ShopID: task.ShopID, SourceType: task.SourceType, SourceReference: task.SourceReference, TaskType: task.TaskType, Platform: task.Platform, Title: task.Title, Summary: task.Summary, Status: task.Status, Priority: task.Priority, Revision: task.Revision, CreatedBy: task.CreatedBy, CreatedAt: task.CreatedAt, UpdatedAt: task.UpdatedAt}
 	if draft, err := NewPlatformDraftRepository(s.DB).GetLatest(ctx, task.TenantID, task.ID); err == nil {
 		out.LatestDraftVersion = draft.DraftVersion
 	}

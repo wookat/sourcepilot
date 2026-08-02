@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,6 +77,87 @@ func TestReadonlyStoreScope(t *testing.T) {
 
 	w = h.do(t, http.MethodPut, "/api/v1/shops/"+h.ShopGranted.String(), ro.Token)
 	require.Equal(t, http.StatusForbidden, w.Code, "readonly write on existing shop must be 403")
+}
+
+// TestOperationTaskStoreScope is regression evidence for the round61 P2 fix:
+// operation tasks are shop-scoped business data. Operators only see tasks
+// bound to granted shops; unscoped (tenant-level) tasks are admin-only;
+// out-of-scope or cross-tenant direct reads are 404 (no existence leak).
+func TestOperationTaskStoreScope(t *testing.T) {
+	h := sharedHarness(t)
+	adminP := h.Personas[personaAdmin]
+	op := h.Personas[personaOperator]
+	ro := h.Personas[personaReadonly]
+	cross := h.Personas[personaCrossTenant]
+
+	createTask := func(shopID string, tag string) string {
+		body := map[string]any{
+			"sourceType": "manual",
+			"taskType":   "product_content",
+			"platform":   "douyin",
+			"title":      "perm-matrix optask " + tag,
+			"payload":    map[string]any{"title": "safe"},
+			"priority":   "normal",
+		}
+		if shopID != "" {
+			body["shopId"] = shopID
+		}
+		raw, err := json.Marshal(body)
+		require.NoError(t, err)
+		w := h.doBody(t, http.MethodPost, "/api/v1/operation-tasks", adminP.Token, string(raw))
+		require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+		var env envelope
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &env))
+		var task struct {
+			ID string `json:"id"`
+		}
+		require.NoError(t, json.Unmarshal(env.Data, &task))
+		return task.ID
+	}
+	grantedTask := createTask(h.ShopGranted.String(), "granted-"+uuid.NewString()[:8])
+	ungrantedTask := createTask(h.ShopUngranted.String(), "ungranted-"+uuid.NewString()[:8])
+	tenantTask := createTask("", "tenant-"+uuid.NewString()[:8])
+
+	listTaskIDs := func(token string) []string {
+		w := h.do(t, http.MethodGet, "/api/v1/operation-tasks?limit=100", token)
+		require.Equal(t, http.StatusOK, w.Code)
+		var env envelope
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &env))
+		var data struct {
+			Items []struct {
+				ID string `json:"id"`
+			} `json:"items"`
+		}
+		require.NoError(t, json.Unmarshal(env.Data, &data))
+		ids := make([]string, 0, len(data.Items))
+		for _, item := range data.Items {
+			ids = append(ids, item.ID)
+		}
+		return ids
+	}
+
+	adminIDs := listTaskIDs(adminP.Token)
+	require.Contains(t, adminIDs, grantedTask)
+	require.Contains(t, adminIDs, ungrantedTask)
+	require.Contains(t, adminIDs, tenantTask)
+
+	opIDs := listTaskIDs(op.Token)
+	require.Contains(t, opIDs, grantedTask, "operator must see task bound to granted shop")
+	require.NotContains(t, opIDs, ungrantedTask, "operator must not see task bound to ungranted shop")
+	require.NotContains(t, opIDs, tenantTask, "operator must not see tenant-level task")
+
+	require.Empty(t, listTaskIDs(ro.Token), "readonly without grants must get empty task list")
+
+	w := h.do(t, http.MethodGet, "/api/v1/operation-tasks/"+ungrantedTask, op.Token)
+	require.Equal(t, http.StatusNotFound, w.Code, "operator reading out-of-scope task must get 404")
+	w = h.do(t, http.MethodGet, "/api/v1/operation-tasks/"+grantedTask, op.Token)
+	require.Equal(t, http.StatusOK, w.Code)
+	w = h.do(t, http.MethodGet, "/api/v1/operation-tasks/"+grantedTask, ro.Token)
+	require.Equal(t, http.StatusNotFound, w.Code, "readonly without grants reading task must get 404")
+	w = h.do(t, http.MethodGet, "/api/v1/operation-tasks/"+grantedTask, cross.Token)
+	require.Equal(t, http.StatusNotFound, w.Code, "cross-tenant read must get 404")
+	w = h.do(t, http.MethodGet, "/api/v1/operation-tasks/"+ungrantedTask+"/events?limit=10", op.Token)
+	require.Equal(t, http.StatusNotFound, w.Code, "out-of-scope child reads must get 404")
 }
 
 // TestReadonlyWriteGuardRegression is regression evidence for the round52 P0
