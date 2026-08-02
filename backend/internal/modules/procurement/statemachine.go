@@ -32,9 +32,15 @@ var allowedTransitions = map[string]map[string]bool{
 	StatusFailed: {
 		StatusPlacing:   true, // retry
 		StatusCancelled: true,
+		StatusVoided:    true,
 	},
-	StatusDelivered: {},
-	StatusCancelled: {},
+	StatusDelivered: {
+		StatusVoided: true,
+	},
+	StatusCancelled: {
+		StatusVoided: true,
+	},
+	StatusVoided: {},
 }
 
 // CanTransition reports whether from → to is a legal status move.
