@@ -2,7 +2,7 @@ import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { Alert, Button, Form, Input, Modal, Space, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
-import { login } from '@/services/auth';
+import { login, resolveSessionUser } from '@/services/auth';
 import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import {
   redirectToLoginPage,
@@ -64,7 +64,8 @@ export default function SessionExpiredModal() {
     try {
       const data = await login(values.account.trim(), values.password);
       saveSessionCredentials(data);
-      await setInitialState((s) => ({ ...s, currentUser: data.user }));
+      const nextUser = await resolveSessionUser(data);
+      await setInitialState((s) => ({ ...s, currentUser: nextUser }));
       message.success('重新登录成功，可继续当前操作');
       settle(true);
     } catch (e: unknown) {
@@ -98,6 +99,7 @@ export default function SessionExpiredModal() {
         </Space>
       }
       destroyOnClose={false}
+      forceRender
       width={400}
       /* 必须盖过业务弹窗（antd Modal 默认 z-index 1000）：会话过期常发生在业务 Modal 提交时 */
       zIndex={2000}

@@ -50,3 +50,27 @@ export type ProfileUser = LoginUser & {
   createdAt?: string;
   updatedAt?: string;
 };
+
+/** GET /api/v1/auth/profile，使用显式 token（登录/续期时机早于请求拦截器注入的 token）。 */
+export async function fetchProfileWithToken(token: string): Promise<API.CurrentUser | undefined> {
+  try {
+    const res = await fetch('/api/v1/auth/profile', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = (await res.json()) as { code: number; data?: API.CurrentUser };
+    if (!res.ok || json.code !== 0 || !json.data) return undefined;
+    return json.data;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 登录/重登返回的 user 不含 role/permissions/storePermissions，直接写入 initialState
+ * 会让 usePermission 在整个 SPA 会话内按默认角色误判（readonly 也会看到写入口）。
+ * 写入 initialState 前必须先拉取完整 profile；拉取失败时退回登录返回的用户信息。
+ */
+export async function resolveSessionUser(data: LoginResult): Promise<API.CurrentUser> {
+  const profile = await fetchProfileWithToken(data.token);
+  return profile ?? data.user;
+}

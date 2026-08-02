@@ -417,6 +417,10 @@ export default [
     routes: [
       {
         path: '/inventory',
+        redirect: '/inventory/center',
+      },
+      {
+        path: '/inventory/center',
         name: '库存中心',
         component: './Inventory',
       },

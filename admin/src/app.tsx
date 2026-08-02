@@ -9,6 +9,7 @@ import SessionExpiredModal from '@/components/SessionExpiredModal';
 import BrandLogo from '@/components/BrandLogo';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { themeTokens, tmSemanticTokens } from '@/constants/layoutTokens';
+import { fetchProfileWithToken } from '@/services/auth';
 import { postJSON } from '@/services/request';
 import { filterMenuByPermission } from '@/utils/menuAccess';
 import {
@@ -26,15 +27,6 @@ import type { InitialState, InitialStateModel } from '@/typings/umi-runtime';
 type SiderMenuLayoutProps = {
   collapsed?: boolean;
 };
-
-async function loadProfileFromToken(token: string): Promise<API.CurrentUser | undefined> {
-  const res = await fetch('/api/v1/auth/profile', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const json = (await res.json()) as { code: number; data?: API.CurrentUser };
-  if (!res.ok || json.code !== 0 || !json.data) return undefined;
-  return json.data;
-}
 
 /**
  * Runs inside umi antd innerProvider `<App>` (under ConfigProvider).
@@ -55,7 +47,7 @@ export async function getInitialState(): Promise<{ currentUser?: API.CurrentUser
   if (!token) {
     return {};
   }
-  const user = await loadProfileFromToken(token);
+  const user = await fetchProfileWithToken(token);
   if (!user) {
     clearSessionCredentials();
     return {};
