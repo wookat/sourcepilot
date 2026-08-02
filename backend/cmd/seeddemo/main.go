@@ -20,12 +20,14 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/database"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/demoseed"
+	"gorm.io/gorm"
 )
 
 func main() {
 	mode := flag.String("mode", "seed", "seed | clean | verify")
-	tenant := flag.Int64("tenant", 0, "tenant id to seed into")
+	tenant := flag.Int64("tenant", -1, "tenant id to seed into (-1 = auto: first admin user's tenant)")
 	flag.Parse()
 
 	_ = godotenv.Load()
@@ -47,7 +49,13 @@ func main() {
 		fatal(fmt.Errorf("auto migrate: %w", err))
 	}
 
-	seeder := &demoseed.FullDemoSeeder{DB: db, TenantID: *tenant, AppEnv: cfg.AppEnv}
+	tenantID := *tenant
+	if tenantID < 0 {
+		tenantID = resolveTenant(db, cfg)
+		fmt.Fprintf(os.Stderr, "seeddemo: auto-resolved tenant id %d\n", tenantID)
+	}
+
+	seeder := &demoseed.FullDemoSeeder{DB: db, TenantID: tenantID, AppEnv: cfg.AppEnv}
 	ctx := context.Background()
 
 	var res *demoseed.FullDemoResult
@@ -74,6 +82,17 @@ func main() {
 		}
 		fmt.Println("verify: zero DEMO- residual rows")
 	}
+}
+
+// resolveTenant picks the tenant the demo data should belong to so it is
+// visible to the bootstrap admin: the earliest admin user's tenant, falling
+// back to ADMIN_BOOTSTRAP_TENANT_ID, then 0.
+func resolveTenant(db *gorm.DB, cfg *config.Config) int64 {
+	var row admin.AdminUser
+	if err := db.Order("created_at ASC").First(&row).Error; err == nil {
+		return row.TenantID
+	}
+	return cfg.BootstrapAdminTenantID
 }
 
 func fatal(err error) {

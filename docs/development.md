@@ -70,8 +70,10 @@ pnpm seed:demo:full:clean    # 一键清理，只删 DEMO- 前缀数据
 pnpm seed:demo:full:verify   # 复核清理后零残留（有残留退出码非 0）
 
 # 等价直跑（backend 目录）：
-go run ./cmd/seeddemo -mode seed|clean|verify [-tenant 0]
+go run ./cmd/seeddemo -mode seed|clean|verify [-tenant N]
 ```
+
+`-tenant` 缺省为自动：取最早创建的管理员（bootstrap admin）的 `tenant_id`，保证种子数据登录后即可见；也可显式指定租户。
 
 前置：PostgreSQL/Redis 已启动（`pnpm dev:infra`），根目录 `.env` 数据库配置正确。`APP_ENV=production` 时拒绝执行。既有的 API 驱动脚本 `pnpm seed:demo-data`（20 商品 slot / Dashboard 探测）仍可独立使用，两者互不依赖。
 
