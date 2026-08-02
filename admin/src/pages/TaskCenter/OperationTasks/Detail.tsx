@@ -409,7 +409,7 @@ export default function OperationTaskDetailPage() {
         ) : null}
       </Space>
 
-      <Modal title={modalTitle} open={!!modal} onCancel={closeModal} onOk={() => void runAction()} confirmLoading={actionLoading} okText={modal === 'approve' ? '确认批准' : '确认'} cancelText="取消" width={760} destroyOnClose>
+      <Modal title={modalTitle} open={!!modal} onCancel={closeModal} onOk={() => void runAction()} confirmLoading={actionLoading} okText={modal === 'approve' ? '确认批准' : '确认'} cancelText="取消" width={760} destroyOnHidden>
         {modal === 'draft' ? (
           <Space direction="vertical" style={{ width: '100%' }}>
             <Paragraph>保存将生成或更新最新草稿版本。若任务已批准，编辑后需重新审核。</Paragraph>
