@@ -36,6 +36,7 @@ import {
 } from './browser-paths.js';
 import { PAGE_EVALUATE_POLYFILL } from './evaluate-in-page.js';
 import { getBrowserHeadless, getDefaultNavigationTimeoutMs } from '../config/env.js';
+import { getCollectorProxyOption, resolveCollectorUserAgent } from './launch-options.js';
 
 const PROVIDER_1688 = '1688';
 const PROVIDER_PINDUODUO = 'pinduoduo';
@@ -61,34 +62,31 @@ export type AuthStatus1688 = {
   profilePath: string;
 };
 
-function defaultUserAgent(): string {
-  return (
-    process.env.COLLECTOR_USER_AGENT ??
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  );
-}
-
 const PDD_LOGIN_VIEWPORT = { width: 1280, height: 900 };
 
-function persistentContextOptions(headless: boolean, provider: string = PROVIDER_1688) {
+async function persistentContextOptions(headless: boolean, provider: string = PROVIDER_1688) {
+  const userAgent = await resolveCollectorUserAgent();
+  const proxy = getCollectorProxyOption();
   if (provider === PROVIDER_PINDUODUO) {
     return {
       headless,
       locale: 'zh-CN' as const,
-      userAgent: defaultUserAgent(),
+      userAgent,
       args: [
         '--disable-blink-features=AutomationControlled',
         `--window-size=${PDD_LOGIN_VIEWPORT.width},${PDD_LOGIN_VIEWPORT.height}`,
       ],
       viewport: PDD_LOGIN_VIEWPORT,
+      ...(proxy ? { proxy } : {}),
     };
   }
   return {
     headless,
     locale: 'zh-CN' as const,
-    userAgent: defaultUserAgent(),
+    userAgent,
     args: ['--disable-blink-features=AutomationControlled'],
     viewport: { width: 1280, height: 800 },
+    ...(proxy ? { proxy } : {}),
   };
 }
 
@@ -158,7 +156,7 @@ export class BrowserSessionManager {
 
     const context = await chromium.launchPersistentContext(
       userDataDir,
-      persistentContextOptions(wantHeadless, provider),
+      await persistentContextOptions(wantHeadless, provider),
     );
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
     context.setDefaultNavigationTimeout(getDefaultNavigationTimeoutMs());

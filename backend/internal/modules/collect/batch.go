@@ -177,6 +177,10 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	if err := s.redisPing(ctx); err != nil {
 		return zero, err
 	}
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		return zero, err
+	}
 
 	source := strings.TrimSpace(body.Source)
 	if source == "" {

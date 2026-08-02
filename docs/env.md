@@ -122,7 +122,10 @@ docker compose -f docker-compose.full.yml up -d --build
 | `COLLECTOR_BROWSER_PROFILE_DIR` / `BROWSER_PROFILE_ROOT` | `collector/data/browser-profiles`（相对 collector 包根目录） | collector | 否 | 1688 持久化 Profile 根目录（1688 使用子目录 `1688`）。Docker 通常设为 `/workspace/data/browser-profiles`。 |
 | `COLLECTOR_STORAGE_STATE_DIR` | `data/storage-states` | collector | 否 | Playwright storageState 导出目录（预留）。 |
 | `COLLECTOR_1688_AUTH_PROBE_URL` | 注释示例 | collector | 否 | 登录态检测时用于探测的商品详情 URL。 |
-| `COLLECTOR_USER_AGENT` | 注释示例 | collector | 否 | 可选 UA 覆盖。 |
+| `COLLECTOR_USER_AGENT` | 注释示例 | collector | 否 | 可选 UA 覆盖；未设置时按 bundled Chromium 实际主版本自动生成 Chrome UA。 |
+| `COLLECTOR_PROXY_SERVER` | 注释示例 | collector | 否 | 可选采集出口代理地址（`http://host:port` 或 `socks5://host:port`）；仅配置项，不内置任何第三方代理。 |
+| `COLLECTOR_PROXY_USERNAME` / `COLLECTOR_PROXY_PASSWORD` | 注释示例 | collector | 否 | 代理认证（可选）。 |
+| `COLLECTOR_PROXY_BYPASS` | 注释示例 | collector | 否 | 逗号分隔的不走代理主机列表。 |
 
 ## 队列与任务
 
