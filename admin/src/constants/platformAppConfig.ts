@@ -127,3 +127,77 @@ export function platformAppFieldPlaceholder(field: AppConfigFieldDTO): string {
 export function isPlatformSwitchField(field: AppConfigFieldDTO): boolean {
   return field.type === 'switch';
 }
+
+export type PlatformFieldGroupKey = 'credentials' | 'endpoints' | 'features' | 'others';
+
+export const PLATFORM_FIELD_GROUP_LABEL: Record<PlatformFieldGroupKey, string> = {
+  credentials: '应用凭证',
+  endpoints: '接口地址与环境',
+  features: '功能开关与灰度',
+  others: '其他配置',
+};
+
+const PLATFORM_CREDENTIAL_FIELDS = new Set([
+  'app_key',
+  'app_secret',
+  'service_id',
+  'partner_id',
+  'partner_key',
+  'client_id',
+  'client_secret',
+  'consumer_key',
+  'consumer_secret',
+  'dev_id',
+  'refresh_token',
+  'role_arn',
+]);
+
+const PLATFORM_ENDPOINT_FIELDS = new Set([
+  'auth_base_url',
+  'api_base_url',
+  'redirect_uri',
+  'api_version',
+  'lwa_auth_base_url',
+  'lwa_token_url',
+  'sp_api_base_url',
+  'marketplace_id',
+  'shop_domain',
+  'store_url',
+  'region',
+  'oauth_scopes',
+  'scopes',
+  'environment',
+  'sandbox_enabled',
+  'timeout_sec',
+]);
+
+const PLATFORM_FEATURE_FIELDS = new Set(['gray_shop_ids', 'order_sync_max_pages']);
+
+export function platformFieldGroupKey(field: AppConfigFieldDTO): PlatformFieldGroupKey {
+  const name = field.name.trim().toLowerCase();
+  if (PLATFORM_CREDENTIAL_FIELDS.has(name)) return 'credentials';
+  if (PLATFORM_ENDPOINT_FIELDS.has(name)) return 'endpoints';
+  if (PLATFORM_FEATURE_FIELDS.has(name) || field.type === 'switch') return 'features';
+  return 'others';
+}
+
+export type PlatformFieldGroup = {
+  key: PlatformFieldGroupKey;
+  label: string;
+  fields: AppConfigFieldDTO[];
+};
+
+/** 按语义分组配置字段，保持组内字段原有顺序；空组不返回。 */
+export function groupPlatformAppFields(fields: AppConfigFieldDTO[]): PlatformFieldGroup[] {
+  const order: PlatformFieldGroupKey[] = ['credentials', 'endpoints', 'features', 'others'];
+  const byGroup = new Map<PlatformFieldGroupKey, AppConfigFieldDTO[]>();
+  for (const f of fields) {
+    const key = platformFieldGroupKey(f);
+    const list = byGroup.get(key) ?? [];
+    list.push(f);
+    byGroup.set(key, list);
+  }
+  return order
+    .filter((key) => (byGroup.get(key)?.length ?? 0) > 0)
+    .map((key) => ({ key, label: PLATFORM_FIELD_GROUP_LABEL[key], fields: byGroup.get(key) ?? [] }));
+}
