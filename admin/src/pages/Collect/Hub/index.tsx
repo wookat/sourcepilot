@@ -40,6 +40,8 @@ import {
   collectSettingsConfigButtonLabel,
   collectSettingsPath,
 } from '@/utils/collectSettingsProvider';
+import { usePermission } from '@/hooks/usePermission';
+import { READONLY_DENIED_MESSAGE } from '@/utils/permission';
 import CollectSourceCard, {
   type CollectSourceCardCopy,
   type CollectSourceCardFeature,
@@ -305,6 +307,7 @@ function BrowserProfileSummary({
 }
 
 export default function CollectHubPage() {
+  const { readonly } = usePermission();
   const [providerState, setProviderState] = useState<LoadState<CollectProviderRow[]>>({
     loading: true,
     data: [],
@@ -459,8 +462,9 @@ export default function CollectHubPage() {
                 type="primary"
                 size="large"
                 icon={<CloudDownloadOutlined />}
-                disabled={!primaryProvider || providerState.loading}
-                onClick={() => primaryProvider && openSingleCollect(primaryProvider)}
+                disabled={readonly || !primaryProvider || providerState.loading}
+                title={readonly ? READONLY_DENIED_MESSAGE : undefined}
+                onClick={() => !readonly && primaryProvider && openSingleCollect(primaryProvider)}
               >
                 开始采集商品
               </Button>
@@ -574,10 +578,16 @@ export default function CollectHubPage() {
                           copy={copy}
                           statusTag={statusTag}
                           features={features}
-                          singleDisabled={!providerRunnableForSingleTask(provider.status)}
-                          singleTooltip={providerRunnableForSingleTask(provider.status) ? undefined : '当前版本暂未开放'}
-                          batchDisabled={batchRowDisabledForProvider(provider)}
-                          batchTooltip={batchButtonTooltipForProvider(provider)}
+                          singleDisabled={readonly || !providerRunnableForSingleTask(provider.status)}
+                          singleTooltip={
+                            readonly
+                              ? READONLY_DENIED_MESSAGE
+                              : providerRunnableForSingleTask(provider.status)
+                                ? undefined
+                                : '当前版本暂未开放'
+                          }
+                          batchDisabled={readonly || batchRowDisabledForProvider(provider)}
+                          batchTooltip={readonly ? READONLY_DENIED_MESSAGE : batchButtonTooltipForProvider(provider)}
                           onSingleCollect={() => openSingleCollect(provider)}
                           onBatchCollect={() => history.push(`/collect/batches?source=${encodeURIComponent(provider.source)}`)}
                           onSettings={() => history.push(collectSettingsPath(provider.source))}

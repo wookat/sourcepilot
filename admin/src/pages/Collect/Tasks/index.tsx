@@ -52,6 +52,7 @@ import {
 } from '@/utils/collectRuleMatch';
 import { PinduoduoLoginPanel } from '@/pages/Collect/components/PinduoduoLoginPanel';
 import { classifyPinduoduoUrl, pinduoduoUrlHint } from '@/utils/pinduoduoUrl';
+import { usePermission } from '@/hooks/usePermission';
 
 function providerAllowsSingleCollect(status: CollectProviderStatus) {
   return status === 'available' || status === 'beta';
@@ -70,6 +71,7 @@ const COLLECT_TASK_QUERY_KEYS = [
 ] as const;
 
 export default function CollectTasksPage() {
+  const { readonly } = usePermission();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof COLLECT_TASK_QUERY_KEYS)[number], string | undefined>>(
       COLLECT_TASK_QUERY_KEYS,
@@ -383,7 +385,7 @@ export default function CollectTasksPage() {
             事件
           </a>,
         ];
-        if (row.status === 'failed') {
+        if (row.status === 'failed' && !readonly) {
           actions.push(
             <a
               key="retry"
@@ -446,6 +448,7 @@ export default function CollectTasksPage() {
         />
       ) : null}
       <KeywordSafetyHint visible={showSensitiveHint} />
+      {!readonly && (
       <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         {formSource === 'custom' ? (
           <Alert
@@ -589,6 +592,7 @@ export default function CollectTasksPage() {
           ) : null}
         </Form>
       </ProCard>
+      )}
 
       <ProTable<CollectTaskRow>
         rowKey="id"

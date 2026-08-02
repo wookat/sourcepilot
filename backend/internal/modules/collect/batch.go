@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func (s *Service) batchMaxURLs() int {
@@ -168,6 +169,10 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	if !s.QueueEnabled {
 		return zero, ErrCollectQueueDisabled
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return zero, err
+	}
 	ctx := c.Request.Context()
 	if err := s.redisPing(ctx); err != nil {
 		return zero, err
@@ -212,6 +217,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		batch = CollectBatch{
+			TenantID:       tenantID,
 			Source:         source,
 			TotalCount:     len(urls),
 			PendingCount:   0,
@@ -242,6 +248,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 				reqOpts = s.buildTaobaoTmallRequestOptions(ctx, u, true)
 			}
 			task := CollectTask{
+				TenantID:       tenantID,
 				BatchID:        &bid,
 				Source:         source,
 				SourceURL:      u,
@@ -348,6 +355,11 @@ func (s *Service) ListBatches(c *gin.Context, q BatchListQuery) (*BatchListResul
 	}
 	page, ps := clampCollectPage(q.Page, q.PageSize)
 	tx := s.DB.WithContext(c.Request.Context()).Model(&CollectBatch{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 
 	if v := strings.TrimSpace(q.Status); v != "" {
 		tx = tx.Where("status = ?", v)
@@ -405,8 +417,12 @@ func (s *Service) GetBatchDTO(c *gin.Context, id uuid.UUID) (BatchDTO, error) {
 	if s == nil || s.DB == nil {
 		return zero, fmt.Errorf("collect: no db")
 	}
+	scoped, _, err := adminperm.ApplyTenantScope(c, s.DB.WithContext(c.Request.Context()))
+	if err != nil {
+		return zero, err
+	}
 	var b CollectBatch
-	if err := s.DB.WithContext(c.Request.Context()).First(&b, "id = ?", id).Error; err != nil {
+	if err := scoped.First(&b, "id = ?", id).Error; err != nil {
 		return zero, err
 	}
 	stats := s.computeBatchStats(c.Request.Context(), id)
@@ -418,8 +434,12 @@ func (s *Service) ListBatchTasks(c *gin.Context, batchID uuid.UUID, q ListQuery)
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collect: no db")
 	}
+	scoped, _, err := adminperm.ApplyTenantScope(c, s.DB.WithContext(c.Request.Context()))
+	if err != nil {
+		return nil, err
+	}
 	var exists CollectBatch
-	if err := s.DB.WithContext(c.Request.Context()).First(&exists, "id = ?", batchID).Error; err != nil {
+	if err := scoped.First(&exists, "id = ?", batchID).Error; err != nil {
 		return nil, err
 	}
 	page, ps := clampCollectPage(q.Page, q.PageSize)
@@ -467,8 +487,12 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 	}
 	ctx := c.Request.Context()
 
+	scoped, _, err := adminperm.ApplyTenantScope(c, s.DB.WithContext(ctx))
+	if err != nil {
+		return zero, err
+	}
 	var batch CollectBatch
-	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
+	if err := scoped.First(&batch, "id = ?", batchID).Error; err != nil {
 		return zero, err
 	}
 	if err := s.redisPing(ctx); err != nil {
