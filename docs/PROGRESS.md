@@ -1258,3 +1258,11 @@ Final Production Acceptance Deferred to P10
 - 后端新增只读导出端点 `GET /api/v1/orders/stats/daily/export.csv?days=30`：复用 `stats/daily` 数据与租户/店铺 scope，UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内每币种一列「已付款销售额(币种)」（字典序），空日期补 0；`stats/daily` 同步新增 `shippedCount` 字段（口径与 `stats/sales` 已发货一致）。附字节级单测（BOM/表头/数据行/默认天数）。
 - 报表页新增「导出 CSV」按钮与近 7/30/90 天切换（Segmented），数据请求与导出共用同一 days；导出带 loading 防重复、成功/失败提示；readonly 可用。五档视口（1440/1280/1024/768/375）无根节点横向溢出，新增 `admin/e2e/specs/orders-reports.spec.ts`（GET-only mock）。
 - 依赖修复：admin `react-dom` 由 19.2.8 回对齐 `react` 18.2.0（含 `@types/react-dom`），pnpm overrides 迁移至 `pnpm-workspace.yaml`（pnpm 10+ 不再读取 package.json `pnpm` 字段）；`SessionExpiredModal` 的 `destroyOnClose` 改 `destroyOnHidden`（antd 5.29 弃用警告导致 E2E console guard 全量失败）。
+
+### 变更记录（2026-08-02）R57 选品中心 P2×7 走查修复
+
+- 选品任务列表：新增状态筛选（复用后端既有 `status` 查询参数）；处理中/待处理任务自动轮询刷新（4s，无活跃任务或页面隐藏时停止）；失败/部分失败状态 Tag 悬浮显示失败原因；readonly 隐藏「新建选品任务」「重试」写入口（仅前端对齐既有权限模型，后端 403 守卫不变）。
+- 选品详情：失败/部分失败任务页顶 Alert 显示任务级失败原因；失败候选状态列直接展示失败原因文本；处理中任务自动轮询并提示；readonly 隐藏「通过/拒绝/转草稿」；任务信息 Descriptions 改响应式列数；全局 PageHeader 标题/副标题窄屏允许换行，修复 375px 头部溢出/挤压。
+- 错误透传：新增 `extractApiErrorMessage`（`admin/src/services/request.ts`），选品写操作 catch 优先展示后端 envelope 结构化中文 message（如 readonly 403「当前账号为只读权限，无法执行此操作」）。
+- AI 设置：新增「清空当前服务商配置」入口（Popconfirm 确认）；settings `PUT /api/v1/settings` item 新增可选 `clear` 字段（为 true 时强制清空已存值，含加密字段，绕过「空加密值保留旧密钥」语义；不新增端点，遵循既有 settings 模式），附 sqlite 单测（保留语义回归 + clear 清空 + clear 不落敏感值）。
+- E2E：新增 `selection-r57-p2.spec.ts`（状态筛选、失败原因展示、readonly 隐藏、403 中文透传、375px 无横向溢出）；ConsoleGuard 支持单测试级预期输出白名单（故意 mock 的 4xx 等）。
