@@ -434,7 +434,7 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/operation-logs` | 只读；权限 `operationlog.view`，租户+店铺 scope；筛选 `action`/`username`/`resource`/`start`/`end`（管理端 `/system/operation-logs` 同名参数 URL 深链）；不返回 Secret/Token |
+| `GET` | `/api/v1/operation-logs` | 只读；权限 `operationlog.view`，租户 scope + 审计店铺 scope（`shop_id IS NULL` 的日志按租户可见，有店铺归属的仅授权店铺可见；业务数据的空授权=空结果语义不变）；筛选 `action`/`username`/`resource`/`start`/`end`（管理端 `/system/operation-logs` 同名参数 URL 深链）；不返回 Secret/Token。登录审计：登录成功与已知账号的失败尝试记入该账号所属租户；未知账号的失败尝试与锁定/限流拒绝（发生在账号查询之前）保留 tenant 0 作为平台级安全审计 |
 | `GET` | `/api/v1/dashboard/product-operations` | 运营总览 KPI、漏斗、异常（只读 DB 聚合，不调平台 OpenAPI；含 RBAC 店铺 scope） |
 | `GET` | `/api/v1/dashboard/overview` | 模块化 overview + 10 张运营卡片 |
 | `GET` | `/api/v1/dashboard/todos` | 统一待办流（P0/P1/P2 优先级） |

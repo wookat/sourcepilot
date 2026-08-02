@@ -1140,9 +1140,17 @@ export default function CollectorSettingsPage() {
                       <Form.Item
                         label="页面打开超时（毫秒）"
                         name="goto_timeout_ms"
-                        rules={[{ required: true }]}
+                        rules={[
+                          { required: true, message: '请输入页面打开超时' },
+                          {
+                            type: 'number',
+                            min: 1000,
+                            max: 300000,
+                            message: '请输入 1000 ~ 300000 之间的毫秒数',
+                          },
+                        ]}
                       >
-                        <InputNumber min={1000} max={300000} style={{ width: '100%' }} />
+                        <InputNumber style={{ width: '100%' }} />
                       </Form.Item>
                     </Col>
                     <Col xs={24} sm={12}>
