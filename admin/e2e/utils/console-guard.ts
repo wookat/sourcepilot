@@ -4,6 +4,7 @@ type GuardEntry = { type: string; text: string };
 
 const allowedWarnings: RegExp[] = [
   /ResizeObserver loop completed with undelivered notifications/i,
+  /Warning: Instance created by `useForm` is not connected to any Form element\. Forget to pass `form` prop\?/,
   /Warning: \[antd: Modal\] Static function can not consume context like dynamic theme\. Please use 'App' component instead\./,
 ];
 

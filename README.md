@@ -190,6 +190,8 @@ docker compose -f docker-compose.full.yml up -d --build
 ```powershell
 pnpm seed:demo-data          # 演示数据集
 pnpm seed:demo-permissions   # 演示角色与权限
+pnpm seed:demo:full          # 一键全链路演示数据（DEMO- 前缀）
+pnpm seed:demo:full:clean    # 一键清理，只删 DEMO- 前缀数据
 ```
 
 Go 版全链路演示种子（幂等，可一键清理）：
