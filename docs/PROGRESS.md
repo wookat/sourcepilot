@@ -697,6 +697,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-08-02 | **R60 发布/运营任务链路复查**：全栈 docker compose + demo seed 实测发布链路（含 #98/#99 回归、三角色 RBAC、375/768/1440 响应式），未发现 P0/P1；修复 P2：执行尝试记录改为回显实际生效 adapterMode（`publicAdapterModeForPort`）、readonly 运营总览隐藏写向快捷入口；根 workspace 固定 react/react-dom 18.2.0 使 `pnpm test:frontend` 恢复通过；已知 operator 运营任务读扩权待后续（任务缺 shop 维度） |
 | 2026-08-02 | **1688 采集链路首次真实实测（Round 51）**：修复采集任务创建未写入 `tenant_id` 导致 Worker 全部拒绝（`任务缺少租户上下文`）的 P0 缺陷（单条 + 批量）；collector 新增 `COLLECTOR_PROXY_SERVER/_USERNAME/_PASSWORD/_BYPASS` 代理配置项（仅配置，不内置代理）；UA 默认按 bundled Chromium 主版本自动生成；风控/验证早期拦截路径补失败快照与 `[1688-collect]` 调试日志；compose 挂载 `./data/snapshots`。实测 6 条真实 1688 链接 0/6 成功、100% 风控跳转登录/验证页，失败上报（`PAGE_BLOCKED_OR_VERIFY_REQUIRED`/「页面需要验证」）准确；报告见 Round 51 实测报告 |
 | 2026-07-11 | **Phase P4.2 全量租户 Worker 与安全 Worker 收口**：`tasktenant` 接入 7 类生产 Worker；`security_secret_reencrypt` + `file_security_scan`；`migrate_p4_2`；`secret_targets`；安全中心 UI 九区块；11 份 `P4_2_*` 文档；`scripts/p4-2-security-final-closure-check.mjs`；IDOR 22 / shop scope 5 自动化；race deferred_on_windows |
 | 2026-07-11 | **P2.2 文档与扫描收口**：AI apply/undo、Webhook HTTP/签名、Worker 租约矩阵、race 占位报告；`p2-2-reliability-closure-check.mjs`；更新 IDEMPOTENCY / TASK_RELIABILITY / P2.1 矩阵 / CHANGELOG / README |
@@ -1159,6 +1160,12 @@ Final Production Acceptance Deferred to P10
 - 授权店铺列显示店铺名而非 UUID：后端 `loadStorePerms` 店铺名查询改 `Unscoped`（软删除店铺也能回显名称）；前端缺名时兜底「未知店铺」。
 - 同步 `docs/api.md`（用户与权限管理表）、`admin/src/services/adminUsers.ts`。API 既有端点语义/状态机/readonly 403 文案不变。
 
+### 变更记录（2026-08-02）生产部署本地演练收口（R45 部署包复核）
+
+- 在开发 VM 上按生产口径完整演练 `docker-compose.prod.yml`（APP_ENV=production + Caddy 内部 CA + /etc/hosts 假域名）：从零 env → 构建 → 启动 → bootstrap 管理员 → HTTPS 登录 → 核心页面抽查 < 15 分钟，验证恢复演练生产禁用、错误统一 envelope 不泄露堆栈、静态资源 immutable 缓存。
+- 修复演练发现缺陷：① backend 镜像缺 `pg_dump`/`pg_restore`/`psql` 导致 `/api/v1/ops/backups` 生产必失败，Dockerfile 增装 PGDG postgresql-client-16；② GORM record-not-found 按错误打完整 SQL（含账号入参）入生产日志，database.go 改用 `IgnoreRecordNotFoundError: true`；③ `.env.prod.example` 澄清 `BACKUP_SCHEDULE` 仅为元数据、每日自动备份须配宿主机 crontab。
+- 新增 `docs/production-launch-checklist.md`：资源清单（服务器/域名/DNS/防火墙）、逐步上线命令、回滚方案、上线后验证清单。
+
 ### 变更记录（2026-08-01）迭代第 46 轮：生成采购单前置条件阻断引导闭环
 
 - 「生成采购单结果」弹窗的 blockers 每条附可点击直达入口（第 45 轮 UX 走查 P1：新手被 sku.unmatched → source.missing → mapping.missing 3 连环阻断且报错只给文案不给入口）：`sku.unmatched` →「去规格匹配」直达该订单详情规格匹配 Tab（`/orders/:id?tab=sku`，可用 Tab 内既有「自动匹配整单」）；`source.missing` →「去绑定主货源」直达货源档案并自动打开绑定弹窗（`/sourcing/product-sources?productId=…&action=bind`）；`mapping.missing` →「去补 SKU 映射」直达货源档案自动打开主货源 SKU 映射抽屉并高亮对应行（`…&action=mapping&skuId=…`）。点击链接自动关闭结果弹窗；订单列表/订单详情/采购单页三处入口统一生效。
@@ -1208,6 +1215,7 @@ Final Production Acceptance Deferred to P10
 - P0 修复①：`POST /settings/test-image`、`POST /settings/test-ocr` 缺 `settings.manage` 权限检查（同组其它 settings/test-* 均有），readonly/operator 可触发外部连接测试；已补 `adminperm.RequireWrite(PermSettingsManage)`，回归见 `TestReadonlyWriteGuardRegression`。
 - P0 修复②：新增路由级只读守卫 `adminperm.ReadonlyWriteGuard` 挂在 `/api/v1`（authed 组）与 `/api/collector`：全部写方法路由 readonly 一律 403（fail-closed，新写端点默认被守卫），显式允许清单仅保留自助 session 管理与纯计算类 POST（calculate/check/preview/validate/estimate）。修复前约 190 条写端点无路由级只读守卫、对 readonly 返回 400/404 或放行。
 - 同步 `docs/api.md`（权限矩阵契约一节）、新增 `docs/permission-matrix.md`。
+>>>>>>> origin/main
 
 ### 变更记录（2026-08-02）迭代第 53 轮：操作日志页 URL 深链 + 审计可见性验收
 
@@ -1217,3 +1225,22 @@ Final Production Acceptance Deferred to P10
   - 新增 Admin E2E `operation-logs.spec.ts`（列表渲染、筛选深链、直链恢复、375px 无溢出、无写请求/致命 console）与 mock。
   - 修复全局 `SessionExpiredModal` 的 antd `destroyOnClose` 弃用告警（antd 5.29 升级后导致全部 E2E console 守卫失败），改为 `destroyOnHidden`。
 - docs/api.md 同步 `GET /api/v1/operation-logs` 契约说明（权限/scope/筛选/深链）。
+<<<<<<< HEAD
+||||||| merged common ancestors
+||||||||| 5354834d
+=========
+
+### 变更记录（2026-08-01）第 46 轮会话守卫全栈验证与后端修复
+
+- 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
+- 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
+- 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
+>>>>>>>>> Temporary merge branch 2
+=======
+
+### 变更记录（2026-08-01）第 46 轮会话守卫全栈验证与后端修复
+
+- 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
+- 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
+- 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
+>>>>>>> origin/main
