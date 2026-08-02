@@ -130,7 +130,7 @@ func (h *Handler) ListTaskEvents(c *gin.Context) {
 		Page:     atoiCollectQP(c, "page", 1),
 		PageSize: atoiCollectQP(c, "pageSize", 50),
 	}
-	res, err := h.Svc.ListTaskEvents(c.Request.Context(), id, q)
+	res, err := h.Svc.ListTaskEvents(c, id, q)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, 404, response.CodeNotFound, "not found")

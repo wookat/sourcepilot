@@ -725,8 +725,12 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 		return zero, ErrCollectQueueDisabled
 	}
 
+	scoped, _, err := adminperm.ApplyTenantScope(c, s.DB.WithContext(c.Request.Context()))
+	if err != nil {
+		return zero, err
+	}
 	var task CollectTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", id).Error; err != nil {
+	if err := scoped.First(&task, "id = ?", id).Error; err != nil {
 		return zero, err
 	}
 	if task.Status != StatusFailed {
@@ -812,8 +816,12 @@ func (s *Service) GetDTO(c *gin.Context, id uuid.UUID) (TaskDTO, error) {
 	if s == nil || s.DB == nil {
 		return zero, fmt.Errorf("collect: no db")
 	}
+	scoped, _, err := adminperm.ApplyTenantScope(c, s.DB.WithContext(c.Request.Context()))
+	if err != nil {
+		return zero, err
+	}
 	var t CollectTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&t, "id = ?", id).Error; err != nil {
+	if err := scoped.First(&t, "id = ?", id).Error; err != nil {
 		return zero, err
 	}
 	return s.enrichTaskDTO(c.Request.Context(), &t), nil
@@ -827,6 +835,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	page, ps := clampCollectPage(q.Page, q.PageSize)
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&CollectTask{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if v := strings.TrimSpace(q.Status); v != "" {
 		tx = tx.Where("status = ?", v)
 	}
