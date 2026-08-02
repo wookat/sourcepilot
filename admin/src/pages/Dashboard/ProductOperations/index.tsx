@@ -7,6 +7,7 @@ import {
   FileTextOutlined,
   NotificationOutlined,
   PictureOutlined,
+  QuestionCircleOutlined,
   ReloadOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
@@ -30,6 +31,7 @@ import {
   Skeleton,
   Space,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -515,6 +517,7 @@ function buildKpiCards(summary: DashboardSummary): {
   link: string;
   intent?: MetricCardIntent;
   emptyHint?: string;
+  tooltip?: string;
 }[] {
   return [
     {
@@ -587,6 +590,8 @@ function buildKpiCards(summary: DashboardSummary): {
       link: '/settings/config-status',
       intent: 'warning',
       emptyHint: '核心配置已完成',
+      tooltip:
+        '统计 AI、存储、采集、平台等核心配置中缺失或未测试通过的项目数，存在风险时采集、AI 优化、刊登等功能可能不可用；点击卡片可查看配置状态详情并逐项处理',
     },
   ];
 }
@@ -1010,7 +1015,21 @@ export default function ProductOperationsDashboardPage() {
               {kpiCards.map((card) => (
                 <Col xs={12} sm={8} md={6} lg={4} xl={4} key={card.title}>
                   <MetricCard
-                    title={card.title}
+                    title={
+                      card.tooltip ? (
+                        <Space size={4}>
+                          {card.title}
+                          <Tooltip title={card.tooltip}>
+                            <QuestionCircleOutlined
+                              aria-label={`${card.title}说明`}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </Tooltip>
+                        </Space>
+                      ) : (
+                        card.title
+                      )
+                    }
                     value={card.value}
                     description={card.value > 0 ? undefined : card.emptyHint}
                     intent={card.intent}

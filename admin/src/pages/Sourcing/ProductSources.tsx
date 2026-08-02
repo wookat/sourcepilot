@@ -127,6 +127,7 @@ export default function ProductSourcesPage() {
     {
       localSkuId: string;
       skuName: string;
+      skuCode?: string;
       mappingId?: string;
       externalSkuId?: string;
       currentPrice?: number;
@@ -197,7 +198,8 @@ export default function ProductSourcesPage() {
         const m = existing.get(sku.id);
         return {
           localSkuId: sku.id,
-          skuName: sku.skuName || sku.skuCode,
+          skuName: sku.skuName || sku.skuCode || sku.id.slice(0, 8),
+          skuCode: sku.skuCode || undefined,
           mappingId: m?.id,
           externalSkuId: m?.externalSkuId,
           currentPrice: m?.currentPrice,
@@ -209,7 +211,14 @@ export default function ProductSourcesPage() {
 
   const submitMappings = async () => {
     if (!mappingSource) return;
-    const rows = mappingRows.filter((r) => r.externalSkuId || r.currentPrice !== undefined);
+    const rows = mappingRows
+      .filter((r) => r.externalSkuId || r.currentPrice !== undefined)
+      .map((r) => ({
+        localSkuId: r.localSkuId,
+        externalSkuId: r.externalSkuId,
+        currentPrice: r.currentPrice,
+        currentStock: r.currentStock,
+      }));
     if (rows.length === 0) {
       message.warning('请至少填写一行外部SKU或参考价');
       return;
@@ -373,8 +382,20 @@ export default function ProductSourcesPage() {
                     {
                       title: '本地规格',
                       dataIndex: 'localSkuId',
-                      render: (v: string) =>
-                        localSkus.find((s) => s.id === v)?.skuName || v.slice(0, 8),
+                      render: (v: string) => {
+                        const sku = localSkus.find((s) => s.id === v);
+                        if (!sku) return v.slice(0, 8);
+                        return (
+                          <Space direction="vertical" size={0}>
+                            <span>{sku.skuName || sku.skuCode || v.slice(0, 8)}</span>
+                            {sku.skuCode ? (
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                编码：{sku.skuCode}
+                              </Typography.Text>
+                            ) : null}
+                          </Space>
+                        );
+                      },
                     },
                     { title: '货源规格', dataIndex: 'externalSkuId', render: (v) => v || '-' },
                     {
@@ -626,7 +647,21 @@ export default function ProductSourcesPage() {
               initialParams.skuId && r.localSkuId === initialParams.skuId ? 'ant-table-row-selected' : ''
             }
             columns={[
-              { title: '本地规格', dataIndex: 'skuName', width: 180 },
+              {
+                title: '本地规格',
+                dataIndex: 'skuName',
+                width: 180,
+                render: (_, row) => (
+                  <Space direction="vertical" size={0}>
+                    <span>{row.skuName}</span>
+                    {row.skuCode ? (
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        编码：{row.skuCode}
+                      </Typography.Text>
+                    ) : null}
+                  </Space>
+                ),
+              },
               {
                 title: '货源规格 ID',
                 dataIndex: 'externalSkuId',
@@ -692,6 +727,7 @@ export default function ProductSourcesPage() {
                           next[idx] = {
                             localSkuId: row.localSkuId,
                             skuName: row.skuName,
+                            skuCode: row.skuCode,
                           };
                           setMappingRows(next);
                           void load();

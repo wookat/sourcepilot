@@ -11,6 +11,7 @@ import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-compone
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { EmptyState, OperationToolbar, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
+import { localizeNextActionLabel } from '@/constants/productOperationLabels';
 import { formatDateTime } from '@/utils/formatTime';
 
 import {
@@ -423,7 +424,11 @@ export default function ProductDraftsPage() {
           href={row.operationProgress?.nextActionUrl || `/product/drafts/${row.id}`}
           onClick={(event) => event.stopPropagation()}
         >
-          {row.operationProgress?.nextActionLabel || '继续完善'}
+          {localizeNextActionLabel(
+            row.operationProgress?.nextActionLabel,
+            row.operationProgress?.nextActionKey,
+            row.source,
+          ) || '继续完善'}
         </Typography.Link>,
       ],
     },
