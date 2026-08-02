@@ -4,6 +4,7 @@ import {
   httpStatusCopy,
   isRawTransportMessage,
   normalizeHttpErrorMessage,
+  translateBackendErrorText,
 } from '../httpErrorCopy';
 
 function axiosError(status: number, data?: unknown) {
@@ -72,6 +73,52 @@ describe('extractErrorMessage', () => {
 
   it('handles network errors without a response', () => {
     expect(extractErrorMessage(new Error('Network Error'))).toBe('网络异常，请检查网络后重试');
+  });
+});
+
+describe('translateBackendErrorText', () => {
+  it('translates AI-not-configured variants to a friendly settings hint', () => {
+    expect(translateBackendErrorText('customerchat: ai not configured')).toContain('AI Provider 未配置');
+    expect(translateBackendErrorText('product: ai not configured')).toContain('AI Provider 未配置');
+    expect(translateBackendErrorText('ai gateway: not configured')).toContain('AI Provider 未配置');
+    expect(translateBackendErrorText('ai gateway not configured')).toContain('AI 设置');
+  });
+
+  it('translates customer message sync errors', () => {
+    expect(translateBackendErrorText('only failed tasks can be retried')).toBe(
+      '仅失败状态的任务可以重试，请刷新列表后再试',
+    );
+    expect(translateBackendErrorText('platform does not implement customer messaging')).toBe(
+      '该平台暂不支持客服消息同步',
+    );
+    expect(translateBackendErrorText('platform customer message permission denied or not configured')).toBe(
+      '平台客服消息权限未开通或店铺凭证未配置',
+    );
+    expect(translateBackendErrorText('customer chat service unavailable')).toBe(
+      '客服服务暂不可用，请稍后再试',
+    );
+    expect(translateBackendErrorText('customer message sync unavailable')).toBe(
+      '客服服务暂不可用，请稍后再试',
+    );
+  });
+
+  it('returns empty string for unknown or unrelated messages', () => {
+    expect(translateBackendErrorText('api key not configured')).toBe('');
+    expect(translateBackendErrorText('too many ids')).toBe('');
+    expect(translateBackendErrorText('')).toBe('');
+    expect(translateBackendErrorText(undefined)).toBe('');
+  });
+});
+
+describe('extractErrorMessage with translated backend copy', () => {
+  it('surfaces the AI settings hint for ai-not-configured envelope errors', () => {
+    const err = axiosError(400, { code: 40001, message: 'customerchat: ai not configured', data: null });
+    expect(extractErrorMessage(err)).toBe('AI Provider 未配置，请到「系统设置 → AI 设置」完成配置后重试');
+  });
+
+  it('surfaces retry copy for customer sync retry rejection', () => {
+    const err = axiosError(400, { code: 40001, message: 'only failed tasks can be retried', data: null });
+    expect(extractErrorMessage(err)).toBe('仅失败状态的任务可以重试，请刷新列表后再试');
   });
 });
 
