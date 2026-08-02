@@ -828,7 +828,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	releaseSvc := &release.Service{DB: dep.DB, Cfg: dep.Config, Backup: backupSvc, OpLog: opLogSvc}
 	releaseH := &release.Handler{Svc: releaseSvc}
 	release.Register(authed, releaseH)
-	drSvc := &disasterrecovery.Service{DB: dep.DB, Cfg: dep.Config}
+	drSvc := &disasterrecovery.Service{DB: dep.DB, Cfg: dep.Config, Backup: backupSvc}
 	drH := &disasterrecovery.Handler{Svc: drSvc}
 	disasterrecovery.Register(authed, drH)
 

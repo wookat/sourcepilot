@@ -171,6 +171,20 @@ func (s *Service) buildManifest(row *Job, name string, size int64, sum, wrappedK
 	return m
 }
 
+// Check is one structured verification item persisted into Verification.Details.
+type Check struct {
+	Key     string `json:"key"`
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+}
+
+const (
+	CheckPassed         = "passed"
+	CheckFailed         = "failed"
+	CheckSkipped        = "skipped"
+	CheckNotImplemented = "not_implemented"
+)
+
 func (s *Service) Verify(ctx context.Context, backupID string) (*Verification, error) {
 	row, err := s.Get(ctx, backupID)
 	if err != nil {
@@ -184,26 +198,52 @@ func (s *Service) Verify(ctx context.Context, backupID string) (*Verification, e
 		return nil, err
 	}
 	v := &Verification{BackupID: backupID, Status: VerificationPassed, VerifiedAt: time.Now().UTC()}
-	if artifact.LocalPath != "" {
+	checks := make([]Check, 0, 4)
+	if artifact.LocalPath == "" {
+		checks = append(checks, Check{Key: "checksum", Status: CheckFailed, Message: "backup artifact local path unavailable"})
+		checks = append(checks, Check{Key: "pg_restore_list", Status: CheckSkipped, Message: "artifact unavailable"})
+		v.ErrorSummary = "backup artifact local path unavailable"
+	} else {
 		if err := backupruntime.VerifySHA256File(artifact.LocalPath, artifact.SHA256, 1); err != nil {
-			v.Status = VerificationFailed
+			checks = append(checks, Check{Key: "checksum", Status: CheckFailed, Message: backupruntime.RedactCommandOutput(err.Error())})
+			checks = append(checks, Check{Key: "pg_restore_list", Status: CheckSkipped, Message: "checksum failed"})
 			v.ErrorSummary = err.Error()
 		} else {
 			v.ChecksumPassed = true
-		}
-		if v.ChecksumPassed {
+			checks = append(checks, Check{Key: "checksum", Status: CheckPassed})
 			if err := s.verifyPgRestoreList(ctx, row, artifact.LocalPath); err != nil {
-				v.Status = VerificationFailed
+				checks = append(checks, Check{Key: "pg_restore_list", Status: CheckFailed, Message: backupruntime.RedactCommandOutput(err.Error())})
 				v.ErrorSummary = backupruntime.RedactCommandOutput(err.Error())
 			} else {
 				v.PGRestoreListed = true
+				checks = append(checks, Check{Key: "pg_restore_list", Status: CheckPassed})
 			}
 		}
 	}
 	v.ManifestPassed = len(row.ManifestJSON) > 0 && row.Checksum != "" && ManifestChecksumValid(row.ManifestJSON)
-	v.EncryptionPassed = row.Encrypted
-	if !v.ManifestPassed || !v.EncryptionPassed || !v.PGRestoreListed {
-		v.Status = VerificationFailed
+	if v.ManifestPassed {
+		checks = append(checks, Check{Key: "manifest", Status: CheckPassed})
+	} else {
+		checks = append(checks, Check{Key: "manifest", Status: CheckFailed, Message: "manifest checksum invalid or missing"})
+	}
+	if row.Encrypted {
+		if strings.TrimSpace(row.EncryptionKeyID) == "" {
+			checks = append(checks, Check{Key: "encryption", Status: CheckFailed, Message: "encrypted backup missing key reference"})
+		} else {
+			v.EncryptionPassed = true
+			checks = append(checks, Check{Key: "encryption", Status: CheckPassed})
+		}
+	} else {
+		checks = append(checks, Check{Key: "encryption", Status: CheckSkipped, Message: "backup encryption not enabled (local mode)"})
+	}
+	for _, chk := range checks {
+		if chk.Status == CheckFailed {
+			v.Status = VerificationFailed
+			break
+		}
+	}
+	if raw, err := json.Marshal(map[string]any{"checks": checks}); err == nil {
+		v.Details = datatypes.JSON(raw)
 	}
 	if err := s.DB.WithContext(ctx).Create(v).Error; err != nil {
 		return nil, err
@@ -211,6 +251,67 @@ func (s *Service) Verify(ctx context.Context, backupID string) (*Verification, e
 	row.VerificationStatus = v.Status
 	_ = s.DB.WithContext(ctx).Save(row).Error
 	return v, nil
+}
+
+// Download returns a verified completed backup job and its newest artifact for streaming.
+func (s *Service) Download(ctx context.Context, backupID string) (*Job, *Artifact, error) {
+	row, err := s.Get(ctx, backupID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if row.Status != StatusCompleted {
+		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_NOT_COMPLETED: only completed backups can be downloaded")
+	}
+	if row.VerificationStatus != VerificationPassed {
+		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_NOT_VERIFIED: backup must pass verification before download")
+	}
+	var artifact Artifact
+	if err := s.DB.WithContext(ctx).Where("backup_id = ?", backupID).Order("created_at DESC").First(&artifact).Error; err != nil {
+		return nil, nil, err
+	}
+	if strings.TrimSpace(artifact.LocalPath) == "" {
+		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_ARTIFACT_UNAVAILABLE: backup artifact local path unavailable")
+	}
+	if _, err := os.Stat(artifact.LocalPath); err != nil {
+		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_ARTIFACT_MISSING: backup artifact file missing")
+	}
+	if err := backupruntime.VerifySHA256File(artifact.LocalPath, artifact.SHA256, 1); err != nil {
+		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_CHECKSUM_MISMATCH: %w", err)
+	}
+	return row, &artifact, nil
+}
+
+// ArtifactIntegrityCheck re-verifies the artifact checksum of a backup.
+func (s *Service) ArtifactIntegrityCheck(ctx context.Context, backupID string) error {
+	_, artifact, err := s.jobArtifact(ctx, backupID)
+	if err != nil {
+		return err
+	}
+	return backupruntime.VerifySHA256File(artifact.LocalPath, artifact.SHA256, 1)
+}
+
+// ArtifactStructureCheck runs pg_restore --list against the backup artifact.
+func (s *Service) ArtifactStructureCheck(ctx context.Context, backupID string) error {
+	row, artifact, err := s.jobArtifact(ctx, backupID)
+	if err != nil {
+		return err
+	}
+	return s.verifyPgRestoreList(ctx, row, artifact.LocalPath)
+}
+
+func (s *Service) jobArtifact(ctx context.Context, backupID string) (*Job, *Artifact, error) {
+	row, err := s.Get(ctx, backupID)
+	if err != nil {
+		return nil, nil, err
+	}
+	var artifact Artifact
+	if err := s.DB.WithContext(ctx).Where("backup_id = ?", backupID).Order("created_at DESC").First(&artifact).Error; err != nil {
+		return nil, nil, err
+	}
+	if strings.TrimSpace(artifact.LocalPath) == "" {
+		return nil, nil, fmt.Errorf("backup artifact local path unavailable")
+	}
+	return row, &artifact, nil
 }
 
 func (s *Service) verifyPgRestoreList(ctx context.Context, row *Job, artifactPath string) error {
