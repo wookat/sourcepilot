@@ -178,7 +178,10 @@ export default function LoginPage() {
             <div className="hero-board" aria-hidden="true">
               <div className="hero-board__top">
                 <div>
-                  <span className="hero-board__label">Today GMV</span>
+                  <span className="hero-board__label">
+                    Today GMV
+                    <span className="hero-board__demo-tag">示例数据</span>
+                  </span>
                   <strong>¥128,430</strong>
                 </div>
                 <span className="hero-board__badge">+18.6%</span>
