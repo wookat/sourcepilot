@@ -441,7 +441,7 @@ export default function OrdersPage() {
         hideInTable: true,
         fieldProps: { placeholder: '订单号 / 买家 / 平台单号', ...keywordFieldProps },
       },
-      { title: '订单号', dataIndex: 'orderNo', copyable: true, width: 148 },
+      { title: '订单号', dataIndex: 'orderNo', copyable: true, ellipsis: true, width: 176 },
       {
         title: '外部单号',
         dataIndex: 'externalOrderId',
