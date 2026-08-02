@@ -100,6 +100,10 @@ func runCollectWorker(ctx context.Context, log *slog.Logger, svc *Service, queue
 					if log != nil {
 						log.Warn("collect_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
 					}
+					var full CollectTask
+					if err := svc.DB.WithContext(jobCtx).First(&full, "id = ?", tid).Error; err == nil {
+						svc.failTask(jobCtx, &full, StatusPending, "任务缺少租户上下文，无法执行；请重新创建采集任务", nil, "", nil)
+					}
 					continue
 				}
 				jobCtx = wctx

@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
@@ -572,6 +573,10 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	var zero TaskDTO
 	if s == nil || s.DB == nil {
 		return zero, fmt.Errorf("collect: no db")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return zero, err
 	}
 	if !s.QueueEnabled {
 		return zero, ErrCollectQueueDisabled
