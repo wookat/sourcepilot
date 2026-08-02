@@ -240,7 +240,7 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 			if err := s.DB.WithContext(ctx).Model(&PurchaseOrderItem{}).
 				Joins("JOIN purchase_orders po ON po.id = purchase_order_items.purchase_order_id").
 				Where("purchase_order_items.sales_order_id = ? AND purchase_order_items.local_sku_id = ? AND po.status NOT IN ?",
-					oid, *it.ProductSKUID, []string{StatusCancelled, StatusFailed}).
+					oid, *it.ProductSKUID, []string{StatusCancelled, StatusFailed, StatusVoided}).
 				Count(&covered).Error; err != nil {
 				return nil, err
 			}
@@ -784,6 +784,18 @@ func (s *Service) Cancel(ctx context.Context, id uuid.UUID, reason string, opera
 		_ = s.provider().CancelOrder(ctx, po.ExternalOrderID, reason)
 	}
 	s.logOp(ctx, operator, "procurement.cancel", id.String(), reason)
+	return po, nil
+}
+
+// Void writes off a terminal purchase order (delivered / failed / cancelled).
+// Stock already inbounded by MarkDelivered is NOT rolled back; the order only
+// stops counting toward statistics, todos and generate-dedupe coverage.
+func (s *Service) Void(ctx context.Context, id uuid.UUID, reason string, operator *uuid.UUID) (*PurchaseOrder, error) {
+	po, err := s.transition(ctx, id, StatusVoided, EventSourceManual, map[string]any{"reason": reason}, nil)
+	if err != nil {
+		return nil, err
+	}
+	s.logOp(ctx, operator, "procurement.void", id.String(), reason)
 	return po, nil
 }
 

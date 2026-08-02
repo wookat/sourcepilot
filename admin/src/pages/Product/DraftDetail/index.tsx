@@ -133,6 +133,7 @@ import {
   undoAiDescription,
   undoProductAITitle,
 } from '@/services/products';
+import { fetchProductSources } from '@/services/sourcing';
 import { Link } from '@umijs/renderer-react';
 import {
   listProductPublications,
@@ -1287,7 +1288,7 @@ export default function ProductDraftDetailPage() {
       const progress = await fetchProductOperationProgress(id);
       setOperationProgress(progress);
     } catch (e: unknown) {
-      setOperationProgressError((e as Error)?.message || 'operation progress load failed');
+      setOperationProgressError((e as Error)?.message || '运营进度加载失败');
     } finally {
       setOperationProgressLoading(false);
     }
@@ -1701,7 +1702,7 @@ export default function ProductDraftDetailPage() {
               setOperationProgressError('');
             }
           } catch (e: unknown) {
-            if (!cancelled) setOperationProgressError((e as Error)?.message || 'operation progress load failed');
+            if (!cancelled) setOperationProgressError((e as Error)?.message || '运营进度加载失败');
           }
         }
       } catch (e) {
@@ -2615,23 +2616,40 @@ export default function ProductDraftDetailPage() {
             </div>
             <div className="product-draft-header__action-group product-draft-header__action-group--danger">
               <span>危险操作</span>
-              <Popconfirm
-                title="确定删除草稿？"
-                description="软删除，列表不可见"
-                onConfirm={async () => {
+              <Button
+                danger
+                type="text"
+                icon={<DeleteOutlined />}
+                onClick={async () => {
+                  let boundSources = 0;
                   try {
-                    await deleteProduct(id);
-                    message.success('已删除');
-                    window.location.href = '/product/drafts';
-                  } catch (e: unknown) {
-                    message.error((e as Error)?.message || '删除失败');
+                    const res = await fetchProductSources(id);
+                    boundSources = (res.items || []).length;
+                  } catch {
+                    // 货源信息加载失败时仍允许删除，仅缺少绑定提示
                   }
+                  Modal.confirm({
+                    title: '确定删除草稿？',
+                    content:
+                      boundSources > 0
+                        ? `该商品已绑定 ${boundSources} 个货源，删除后货源将成为孤儿货源，可在「供应商管理」的孤儿货源列表中解绑。软删除，列表不可见。`
+                        : '软删除，列表不可见',
+                    okText: '删除',
+                    okButtonProps: { danger: true },
+                    onOk: async () => {
+                      try {
+                        await deleteProduct(id);
+                        message.success('已删除');
+                        window.location.href = '/product/drafts';
+                      } catch (e: unknown) {
+                        message.error((e as Error)?.message || '删除失败');
+                      }
+                    },
+                  });
                 }}
               >
-                <Button danger type="text" icon={<DeleteOutlined />}>
-                  删除草稿
-                </Button>
-              </Popconfirm>
+                删除草稿
+              </Button>
             </div>
           </div>
         ) : null

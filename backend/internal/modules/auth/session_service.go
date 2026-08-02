@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/id"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
 	"golang.org/x/crypto/bcrypt"
@@ -119,6 +120,8 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 		UserAgentSummary: authutil.SummarizeUserAgent(userAgent),
 		LastActivityAt:   now,
 	}
+	// 先分配会话 ID，保证访问令牌 session_id 声明与落库会话一致（会话吊销依赖该绑定）
+	id.Ensure(&session.ID)
 	familyID := uuid.New()
 	refreshRaw, err := authutil.NewOpaqueToken(32)
 	if err != nil {
