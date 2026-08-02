@@ -66,7 +66,7 @@ export default function InventoryEffectsPage() {
         actionRef={actionRef}
         columns={columns}
         form={{ initialValues: initialSearch }}
-        search={{ labelWidth: 112, defaultCollapsed: false }}
+        search={{ labelWidth: 112 }}
         pagination={{ pageSize: 20 }}
         request={async (params) => {
           const res = await queryGlobalInventoryEffects({

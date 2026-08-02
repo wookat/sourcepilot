@@ -802,7 +802,7 @@ export default function OrderExceptionsPage() {
           current: tablePage,
           pageSize: tablePageSize,
         }}
-        search={{ layout: 'vertical', defaultCollapsed: false }}
+        search={{ layout: 'vertical' }}
         onSubmit={() => {
           // URL query 是筛选的唯一来源：提交时把表单值写回 URL，urlState 变化 effect 会触发 reload
           const v = (formRef.current?.getFieldsValue?.() ?? {}) as Record<string, unknown>;

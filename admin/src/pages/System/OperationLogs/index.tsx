@@ -198,7 +198,7 @@ export default function OperationLogsPage() {
             dateRange: queryTimeRange(urlState.start, urlState.end),
           },
         }}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
+        search={{ labelWidth: 'auto' }}
         options={{ reload: true, density: true, setting: true }}
         onReset={() => {
           setTablePage(1);

@@ -831,7 +831,7 @@ export default function OrdersPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
-        search={{ layout: 'vertical', defaultCollapsed: false }}
+        search={{ layout: 'vertical' }}
         rowSelection={
           writable
             ? {

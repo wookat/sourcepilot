@@ -258,7 +258,7 @@ export default function InventorySyncBatchesPage() {
         actionRef={actionRef}
         columns={columns}
         scroll={{ x: 1400 }}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
+        search={{ labelWidth: 'auto' }}
         pagination={{ pageSize: 20, showSizeChanger: true }}
         headerTitle="批次列表"
         request={async (params) => {

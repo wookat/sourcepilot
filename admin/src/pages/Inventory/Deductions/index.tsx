@@ -151,7 +151,7 @@ export default function InventoryDeductionsPage() {
         columns={columns}
         scroll={{ x: 1300 }}
         form={{ initialValues: initialSearch }}
-        search={{ labelWidth: 112, defaultCollapsed: false }}
+        search={{ labelWidth: 112 }}
         pagination={{ pageSize: 20, showSizeChanger: true }}
         request={async (params) => {
           try {

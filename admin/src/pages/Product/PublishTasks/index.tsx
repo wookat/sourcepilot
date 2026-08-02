@@ -342,7 +342,7 @@ export default function ProductPublishTasksPage() {
                 actionRef={actionRef}
                 formRef={formRef}
                 columns={columns}
-                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                search={{ labelWidth: 'auto' }}
                 onReset={() => {
                   setTablePage(1);
                   setTablePageSize(20);
