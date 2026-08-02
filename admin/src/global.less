@@ -135,6 +135,24 @@ body,
   }
 }
 
+/* 窄屏下标题与描述换行展示，避免单行省略成「商…」 */
+@media (max-width: 767px) {
+  .tm-page-container {
+    .ant-page-header-heading-left {
+      flex-wrap: wrap;
+    }
+
+    .ant-page-header-heading-title,
+    .ant-page-header-heading-sub-title {
+      flex: 0 0 100%;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      margin-inline-start: 0 !important;
+    }
+  }
+}
+
 @media (max-width: 576px) {
   .tm-page-container {
     .ant-page-header {

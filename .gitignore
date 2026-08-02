@@ -30,6 +30,7 @@ collector/.profiles/
 collector/data/storage-states/*
 !collector/data/storage-states/.gitkeep
 collector/data/runtime/
+/data/snapshots/*
 collector/data/snapshots/*
 !collector/data/snapshots/.gitkeep
 collector/data/tmp/

@@ -1,4 +1,5 @@
 import { TmPageContainer } from '@/components/ui';
+import { formatRequestError } from '@/constants/errorMessages';
 import {
   ackAlert,
   fetchObservabilityAlerts,
@@ -152,13 +153,26 @@ export default function ObservabilityCenterPage() {
                   width: 180,
                   render: (_, row) => (
                     <Space>
-                      <Button size="small" onClick={() => void ackAlert(row.id).then(load)}>
+                      <Button
+                        size="small"
+                        disabled={!row.id}
+                        onClick={() =>
+                          void ackAlert(row.id)
+                            .then(() => message.success('告警已确认'))
+                            .catch((e: unknown) => message.error(formatRequestError(e, '确认告警失败')))
+                            .then(load)
+                        }
+                      >
                         确认
                       </Button>
                       <Button
                         size="small"
+                        disabled={!row.id}
                         onClick={() =>
-                          void silenceAlert(row.id, { reason: 'operator silence', durationHours: 4 }).then(load)
+                          void silenceAlert(row.id, { reason: 'operator silence', durationHours: 4 })
+                            .then(() => message.success('告警已静默'))
+                            .catch((e: unknown) => message.error(formatRequestError(e, '静默告警失败')))
+                            .then(load)
                         }
                       >
                         静默

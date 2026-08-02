@@ -1,4 +1,5 @@
 import { TmPageContainer } from '@/components/ui';
+import { formatRequestError } from '@/constants/errorMessages';
 import { createDRDrill, fetchDRStatus, type DRStatus } from '@/services/opsP6';
 import { DeploymentUnitOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Descriptions, Form, Input, Modal, Space, Switch, Tag, message } from 'antd';
@@ -69,11 +70,16 @@ export default function DisasterRecoveryPage() {
         onCancel={() => setOpen(false)}
         onOk={async () => {
           const values = await form.validateFields();
-          await createDRDrill(values);
-          message.success('演练记录已保存');
-          setOpen(false);
-          form.resetFields();
-          await load();
+          try {
+            await createDRDrill(values);
+            message.success('演练记录已保存');
+            setOpen(false);
+            form.resetFields();
+          } catch (e: unknown) {
+            message.error(formatRequestError(e, '保存演练记录失败'));
+          } finally {
+            await load();
+          }
         }}
       >
         <Form form={form} layout="vertical" initialValues={{ drillType: 'isolated_restore', confirmedIsolated: true }}>

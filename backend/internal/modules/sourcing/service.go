@@ -524,6 +524,84 @@ func (s *Service) DeleteSKUMapping(ctx context.Context, id uuid.UUID, operator *
 	return nil
 }
 
+// OrphanSourceRow is one product source whose product has been (soft-)deleted.
+type OrphanSourceRow struct {
+	SourceID     uuid.UUID `json:"sourceId"`
+	ProductID    uuid.UUID `json:"productId"`
+	ProductTitle string    `json:"productTitle"`
+	SupplierID   uuid.UUID `json:"supplierId"`
+	SupplierName string    `json:"supplierName"`
+	Status       string    `json:"status"`
+	IsPrimary    bool      `json:"isPrimary"`
+	SKUCount     int64     `json:"skuCount"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+// ListOrphanSources returns sources whose product row is soft-deleted or
+// missing entirely; these block supplier deletion until unbound.
+func (s *Service) ListOrphanSources(ctx context.Context) ([]OrphanSourceRow, error) {
+	var rows []OrphanSourceRow
+	err := s.DB.WithContext(ctx).Raw(`
+		SELECT ps.id AS source_id,
+		       ps.product_id,
+		       COALESCE(NULLIF(TRIM(pall.title), ''), pall.original_title, '') AS product_title,
+		       ps.supplier_id,
+		       COALESCE(sup.name, '') AS supplier_name,
+		       ps.status,
+		       ps.is_primary,
+		       (
+		           SELECT COUNT(*) FROM product_source_skus m
+		           WHERE m.product_source_id = ps.id AND m.deleted_at IS NULL
+		       ) AS sku_count,
+		       ps.created_at
+		FROM product_sources ps
+		LEFT JOIN products p ON p.id = ps.product_id AND p.deleted_at IS NULL
+		LEFT JOIN products pall ON pall.id = ps.product_id
+		LEFT JOIN suppliers sup ON sup.id = ps.supplier_id AND sup.deleted_at IS NULL
+		WHERE ps.deleted_at IS NULL
+		  AND p.id IS NULL
+		ORDER BY ps.created_at DESC
+		LIMIT 500
+	`).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// DeleteSource soft-deletes (unbinds) an orphan product source together with
+// its SKU mappings. Only sources whose product is already deleted may be
+// removed here; live products manage their sources from the product page.
+func (s *Service) DeleteSource(ctx context.Context, id uuid.UUID, operator *uuid.UUID) error {
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var src ProductSource
+		if err := tx.First(&src, "id = ?", id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotFound
+			}
+			return err
+		}
+		var live int64
+		if err := tx.Table("products").
+			Where("id = ? AND deleted_at IS NULL", src.ProductID).
+			Count(&live).Error; err != nil {
+			return err
+		}
+		if live > 0 {
+			return fmt.Errorf("%w: source product still exists; unbind is only for orphan sources", ErrConflict)
+		}
+		if err := tx.Delete(&ProductSourceSKU{}, "product_source_id = ?", id).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&ProductSource{}, "id = ?", id).Error
+	})
+	if err != nil {
+		return err
+	}
+	s.logOp(ctx, operator, "sourcing.source.unbind_orphan", id.String(), "")
+	return nil
+}
+
 // PriceHistory returns recent price/stock snapshots for a source SKU.
 func (s *Service) PriceHistory(ctx context.Context, sourceSKUID uuid.UUID, days int) ([]SourcePriceHistory, error) {
 	if days <= 0 || days > 365 {

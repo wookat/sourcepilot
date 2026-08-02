@@ -405,7 +405,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
         onCancel={() => setEdit(null)}
         onOk={saveEdit}
         width={720}
-        destroyOnClose
+        destroyOnHidden
         okText="保存"
       >
         {edit ? (
