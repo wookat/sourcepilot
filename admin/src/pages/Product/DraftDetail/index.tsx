@@ -20,12 +20,14 @@ import { layoutTokens } from '@/constants/layoutTokens';
 import MultiPlatformPublishCenter from '@/components/MultiPlatformPublishCenter';
 import {
   localizeCollectWarningCode,
+  localizeNextActionLabel,
   localizePublishCheckItem,
   readinessStatusLabel,
 } from '@/constants/productOperationLabels';
 import { aiPromptCodeLabel, aiTaskTypeLabel, aiTextProviderLabel } from '@/constants/aiPrompts';
 import { platformDisplayLabel } from '@/constants/platformLabels';
 import { getProductReadinessAction } from '@/constants/productReadinessActions';
+import { notifyAIFailure } from '@/utils/aiFailureNotice';
 import { EditableProTable, ModalForm, ProForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import {
   Button,
@@ -721,12 +723,14 @@ function OperationProgressPanel({
   error,
   onReload,
   onAction,
+  productSource,
 }: {
   progress: ProductOperationProgress | null;
   loading: boolean;
   error?: string;
   onReload: () => void;
   onAction: (url?: string) => void;
+  productSource?: string;
 }) {
   if (error && !progress) {
     return (
@@ -798,7 +802,7 @@ function OperationProgressPanel({
             刷新
           </Button>
           <Button type="primary" onClick={() => onAction(progress.nextActionUrl)}>
-            {progress.nextActionLabel || '继续完善'}
+            {localizeNextActionLabel(progress.nextActionLabel, progress.nextActionKey, productSource) || '继续完善'}
           </Button>
         </OperationToolbar>
       }
@@ -807,7 +811,11 @@ function OperationProgressPanel({
         <div className="product-draft-progress__priority">
           <div>
             <Typography.Text type="secondary">下一步</Typography.Text>
-            <Typography.Text strong>{progress.nextActionLabel || progress.currentStepLabel || '继续完善'}</Typography.Text>
+            <Typography.Text strong>
+              {localizeNextActionLabel(progress.nextActionLabel, progress.nextActionKey, productSource) ||
+                progress.currentStepLabel ||
+                '继续完善'}
+            </Typography.Text>
           </div>
           <Button type="link" className="product-draft-progress__priority-action" onClick={() => onAction(progress.nextActionUrl)}>
             进入处理位置
@@ -2059,8 +2067,11 @@ export default function ProductDraftDetailPage() {
     [id, eligibleShopsForPublish],
   );
 
+  // 与页面主体渲染条件一致：Tabs 未挂载时发布页各 Form 未连接，不可调用 form 实例方法
+  const detailReady = !loading && !err && Boolean(data);
+
   useEffect(() => {
-    if (draftTabKey !== 'publish') return;
+    if (draftTabKey !== 'publish' || !detailReady) return;
     douyinForm.setFieldsValue({
       shopId: douyinConfig.shopId,
       categoryId: douyinConfig.categoryId,
@@ -2072,15 +2083,15 @@ export default function ProductDraftDetailPage() {
         description: douyinMapping.description,
       });
     }
-  }, [douyinConfig, douyinForm, douyinMapping, douyinMappingForm, draftTabKey]);
+  }, [detailReady, douyinConfig, douyinForm, douyinMapping, douyinMappingForm, draftTabKey]);
 
   useEffect(() => {
-    if (draftTabKey !== 'publish' || !id) return;
+    if (draftTabKey !== 'publish' || !detailReady || !id) return;
     const sid = publishForm.getFieldValue('shopId') as string | undefined;
     if (sid) void refreshPublishReadiness(String(sid));
     void reloadDouyinPublishTasks();
     void reloadDouyinSkuBindings();
-  }, [draftTabKey, id, publishForm, refreshPublishReadiness, reloadDouyinPublishTasks, reloadDouyinSkuBindings]);
+  }, [detailReady, draftTabKey, id, publishForm, refreshPublishReadiness, reloadDouyinPublishTasks, reloadDouyinSkuBindings]);
 
   const progressBlockerCount = operationProgress?.blockerCount ?? operationProgress?.blockers?.length ?? 0;
   const progressWarningCount = operationProgress?.warningCount ?? operationProgress?.warnings?.length ?? 0;
@@ -2677,6 +2688,7 @@ export default function ProductDraftDetailPage() {
             error={operationProgressError}
             onReload={() => void reloadOperationProgress()}
             onAction={openOperationAction}
+            productSource={data.source}
           />
           <div className="product-draft-tabs-frame">
             <div className="product-draft-tabs-frame__head">
@@ -4466,7 +4478,7 @@ export default function ProductDraftDetailPage() {
                                         title: '建议 / 操作',
                                         width: 260,
                                         render: (_: unknown, row: ReadinessCheckItem) => {
-                                          const fx = getProductReadinessAction(row.code);
+                                          const fx = getProductReadinessAction(row.code, data?.source);
                                           return (
                                             <Space direction="vertical" size={4} className="product-draft-readiness__action-cell">
                                               {row.suggestion ? <Typography.Text type="secondary">{row.suggestion}</Typography.Text> : null}
@@ -4870,7 +4882,7 @@ export default function ProductDraftDetailPage() {
                                 </Button>
                                 <Button
                                   loading={douyinAttrLoading}
-                                  disabled={!douyinForm.getFieldValue('categoryId')}
+                                  disabled={!douyinConfig.categoryId}
                                   onClick={() =>
                                     void reloadDouyinAttrs(
                                       douyinForm.getFieldValue('categoryId'),
@@ -4991,7 +5003,7 @@ export default function ProductDraftDetailPage() {
                                     />
                                   </Form.Item>
                                 </div>
-                                {douyinForm.getFieldValue('categoryId') && douyinAttrs.length === 0 ? (
+                                {douyinConfig.categoryId && douyinAttrs.length === 0 ? (
                                   <Alert type="info" showIcon message="该类目暂无本地属性缓存，请点击「刷新属性」。" />
                                 ) : null}
                                 {douyinAttrs.length > 0 ? (
@@ -5874,7 +5886,7 @@ export default function ProductDraftDetailPage() {
               message.success('优化完成');
               await reloadTasks();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '优化失败');
+              notifyAIFailure({ title: 'AI 标题优化失败', error: e, fallback: '优化失败' });
             } finally {
               setAiBusy(false);
             }
@@ -6040,7 +6052,7 @@ export default function ProductDraftDetailPage() {
               message.success('生成完成');
               await reloadTasks();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '生成失败');
+              notifyAIFailure({ title: 'AI 描述生成失败', error: e, fallback: '生成失败' });
             } finally {
               setDescBusy(false);
             }

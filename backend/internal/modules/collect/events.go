@@ -24,6 +24,7 @@ const (
 	EventTaskRetryExhausted     = "task.retry_exhausted"
 	EventTaskManualRetry        = "task.manual_retry"
 	EventTaskCancelled          = "task.cancelled"
+	EventTaskProcessingTimeout  = "task.processing_timeout"
 	EventWorkerLeaseAcquired    = "worker.lease.acquired"
 	EventWorkerLeaseExpired     = "worker.lease.expired"
 	EventWorkerLeaseRecovered   = "worker.lease.recovered"

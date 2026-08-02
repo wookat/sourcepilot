@@ -1,10 +1,12 @@
 ﻿import { type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
-import { Tag } from 'antd';
-import { INVENTORY_CHANGE_TYPE } from '@/constants/inventoryLabels';
+import { Tag, Typography } from 'antd';
+import { INVENTORY_CHANGE_REASON, INVENTORY_CHANGE_TYPE } from '@/constants/inventoryLabels';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef } from 'react';
+import { Link } from '@umijs/max';
 import { useLocation } from '@umijs/renderer-react';
 import type { InventoryChangeLogRow } from '@/services/inventory';
 import { queryGlobalInventoryLogs } from '@/services/inventory';
@@ -18,6 +20,7 @@ function renderDelta(delta: number) {
 export default function InventoryLogsPage() {
   const actionRef = useRef<ActionType>();
   const { search } = useLocation();
+  const emptyLocale = useListEmptyLocale('inventoryLogs', { permissionScoped: true });
 
   const initialSearch = useMemo(() => {
     const q = new URLSearchParams(search);
@@ -56,10 +59,44 @@ export default function InventoryLogsPage() {
       { title: '规格编号', dataIndex: 'productSkuId', hideInTable: true },
       { title: '订单 ID', dataIndex: 'orderId', hideInTable: true },
       {
+        title: '商品',
+        dataIndex: 'productTitle',
+        width: 180,
+        ellipsis: true,
+        search: false,
+        render: (_, r) =>
+          r.productId ? (
+            <Link to={`/product/drafts/${r.productId}?tab=inventory`}>{r.productTitle || '—'}</Link>
+          ) : (
+            r.productTitle || '—'
+          ),
+      },
+      {
+        title: '商品规格',
+        dataIndex: 'skuCode',
+        width: 140,
+        ellipsis: true,
+        search: false,
+        render: (_, r) => (
+          <span>
+            {r.skuCode || '—'}
+            {r.skuName ? (
+              <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+                {r.skuName}
+              </Typography.Text>
+            ) : null}
+          </span>
+        ),
+      },
+      {
         title: '变更类型',
         dataIndex: 'changeType',
         width: 132,
         ellipsis: true,
+        valueType: 'select',
+        valueEnum: Object.fromEntries(
+          Object.entries(INVENTORY_CHANGE_TYPE).map(([k, v]) => [k, { text: v }]),
+        ),
         render: (_, r) => INVENTORY_CHANGE_TYPE[r.changeType] ?? r.changeType,
       },
       {
@@ -87,7 +124,7 @@ export default function InventoryLogsPage() {
         width: 140,
         ellipsis: true,
         search: false,
-        render: (_, r) => r.reason || '—',
+        render: (_, r) => (r.reason ? INVENTORY_CHANGE_REASON[r.reason] ?? r.reason : '—'),
       },
       {
         title: '备注',
@@ -99,11 +136,17 @@ export default function InventoryLogsPage() {
       {
         title: '关联订单',
         dataIndex: 'refOrderId',
-        width: 140,
+        width: 160,
         ellipsis: true,
-        copyable: true,
         search: false,
-        render: (_, r) => r.refOrderId || '—',
+        render: (_, r) =>
+          r.refOrderId ? (
+            <Link to={`/orders/${r.refOrderId}?tab=inventory`}>
+              {r.refOrderNo || r.refOrderId.slice(0, 8)}
+            </Link>
+          ) : (
+            '—'
+          ),
       },
       {
         title: '关联订单行',
@@ -124,9 +167,11 @@ export default function InventoryLogsPage() {
         rowKey="id"
         actionRef={actionRef}
         columns={columns}
+        scroll={{ x: 1400 }}
         form={{ initialValues: initialSearch }}
         search={{ defaultCollapsed: false }}
         pagination={{ pageSize: 20 }}
+        locale={emptyLocale}
         request={async (params) => {
           const res = await queryGlobalInventoryLogs({
             page: params.current,

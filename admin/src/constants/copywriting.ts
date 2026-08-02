@@ -297,6 +297,13 @@ export const LIST_EMPTY_COPY = {
     actionPath: '/orders/list',
     permissionHint: PERM_HINT,
   },
+  inventoryLogs: {
+    title: '暂无库存流水',
+    description: '库存发生人工修正、订单扣减、采购入库等变动后，流水会在此展示。',
+    action: '查看库存中心',
+    actionPath: '/inventory',
+    permissionHint: PERM_HINT,
+  },
   inventorySyncTasks: {
     title: '暂无库存同步任务',
     description: '开启库存同步并在商品详情发起同步后，任务会在此展示。',

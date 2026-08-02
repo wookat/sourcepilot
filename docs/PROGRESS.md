@@ -906,6 +906,14 @@ Final Production Acceptance Deferred to P10
 - 订单列表 375px 优化（第 45 轮 UX 走查 Top5）：次要列（外部单号/平台/店铺/客户/支付/商品数/规格匹配/库存扣减/同步/异常/预估毛利/物流/三个时间列）加 `responsive: ['md']` 在 <768px 折叠，小屏默认仅保留订单号/订单状态/金额/操作四列（复现时 20 列 scrollWidth 2382px vs 视口 295px，修复后无横向滚动）；操作列小屏取消 fixed 并收窄，完整信息进订单详情查看；桌面端列集与交互不变（沿用第 26 轮异常工作台 `Grid.useBreakpoint` + 表格 key 重挂载模式）。
 - 纯前端改动，无 API / 权限 / 状态机变更。
 
+### 变更记录（2026-08-02）迭代第 52 轮：库存中心 UX 走查与修复
+
+- 库存流水可追溯性：`GET /api/v1/inventory/logs` 行内补 `productId/productSkuId/productTitle/skuCode/skuName/refOrderNo`（service 层批量 enrich，无 N+1，不改状态机/权限）；前端流水页新增「商品」（直达商品库存 Tab）与「商品规格」列，关联订单显示订单号并直达订单详情。
+- 流水页体验：变更类型筛选改中文 select、原因列中文化（`INVENTORY_CHANGE_REASON`）、接入共享空态（`inventoryLogs` 文案）、宽表横向滚动；库存中心行操作新增「流水」直达链接；扣减记录页补横向滚动。
+- readonly 口径：库存预警（调整库存/预警线/批量设置预警线/批量同步库存/同步库存）、同步任务（重试/批量重试）、同步批次（重试失败）写入口按 `canWriteInventory` 隐藏/禁用。
+- 新增 `admin/e2e/specs/inventory-center.spec.ts`（17 用例：列表可读性、流水可追溯、空态、五档视口、手工调整写请求拦截 0/1/防重复、readonly 口径）；修正 e2e mock 用户 `permissions: ['*']` 为 `[]`（`hasPermission` 不识别通配符导致写入口在 E2E 中不可见）。
+- 已知遗留：`/inventory` 菜单重复 key（PR #94 迁移 `/inventory/center` 根治）、antd `destroyOnClose` 告警（PR #91），console guard 临时放行并注明合并后删除。
+
 ### 变更记录（2026-08-02）迭代第 16 轮：全站列表页 params 覆盖问题审计修复
 
 - 按第 15 轮根因对全站 ProTable 列表页做同类问题审计：失败任务（TaskCenter/Failures）、商品草稿（Product/Drafts）、客服会话（Customer/Conversations）三页仍在 `params` 中透传 URL 筛选值，存在与订单列表相同的「分页点击/表单提交被旧值冲掉」风险。统一改为「URL query 为唯一筛选来源」模式：移除 `params`、新增 `onSubmit` 写回 URL、urlState 变化 effect 触发 reload、`request` 一律读 urlState/legacy URL 值。
@@ -1187,6 +1195,36 @@ Final Production Acceptance Deferred to P10
   - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
   - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
 
+### 变更记录（2026-08-01）第 46 轮会话守卫全栈验证与后端修复
+
+- 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
+- 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
+- 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
+
+### 变更记录（2026-08-02）迭代第 48 轮：采集任务处理超时终态 + 等待时长/失败原因反馈（UX P1-6）
+
+- 修复采集任务在无外网/采集器异常时长期停留「处理中」无反馈的问题。后端新增采集任务处理超时终态机制：任务在 `pending`/`running`/`retrying` 停留超过 settings `collector.collect_task_processing_timeout_seconds`（默认 600 秒，最小 30 秒，后台「采集设置 → 通用采集设置 → 任务处理超时」可配）时，由 task reaper 周期扫描自动置为 `failed`，`errorMessage` 标注「任务超时」，事件时间线记录 `task.processing_timeout`，操作日志记 `collect.task.processing_timeout`，批次计数同步 reconcile。
+- 任务模型/DTO 新增向后兼容字段 `queuedAt`（最近一次入队/重试入队时间；旧数据为空时以 `createdAt` 计），创建、批量创建、手动重试、批次重试失败任务时写入/重置，保证重试后超时重新计时。
+- 采集中心任务列表：处理中（排队/处理中/重试中）行在状态下方显示「已等待 X 秒/分钟/小时」；失败原因列在错误码/提示缺失时回退展示 `errorMessage`（超时原因可见）；既有「重试」按钮对超时失败任务可用。附后端单测（超时置失败/未超时与终态不动/重试重新计时/旧数据回退 createdAt）。
+
+### 变更记录（2026-08-02）迭代第 49 轮：草稿批量导出上架清单（选品→优化→导出→人工上架闭环）
+
+- 新增 `GET /api/v1/products/listing-list/export.csv?ids=`（复用采购清单/发货清单批量导出模式）：逗号分隔商品 UUID，去重后 ≤50 个，每草稿一行，列含 商品ID/标题/副标题(AI标题)/描述/类目(取发布配置 categoryPath)/价格(区间)/币种/主图URL/规格列表/来源/来源链接/状态，UTF-8 BOM 供 Excel 直开；租户+店铺 scope 与草稿列表一致（ApplyTenantScope + ApplyProductScope），任一 id 不在 scope 内整单 404；导出属读操作，readonly 可用（与采购/发货导出后端口径一致）。附单测（表头/BOM/类目/规格列表、跨租户 404、店铺 scope 允许/拒绝、handler 去重/上限/非法 id/未知 id）。
+- 草稿列表批量操作条新增「批量导出上架清单（N）」按钮（复用既有行选择），前端限 50 个/次与后端对齐；运营者优化完标题/描述/价格后可一键导出去 Temu/Shopee 手工上架，不再逐字段复制。
+
+### 变更记录（2026-08-02）迭代第 51 轮：一键演示种子数据（seed / clean 幂等闭环）
+
+- 新增 `backend/cmd/seeddemo`（`pnpm seed:demo:full` / `seed:demo:full:clean` / `seed:demo:full:verify`）：向指定租户（`-tenant`，默认 0）直接写库生成贯穿全链路的演示数据——店铺 ×2、商品草稿 ×5（采集/手动来源、AI 优化前后文案、主图、SKU ×10 含低库存告警样本）、供应商 + 货源档案 + 货源 SKU 映射 + 价格历史、销售订单覆盖 pending/paid/shipped/delivered/cancelled（含物流记录与 SKU 匹配/未匹配样本）、采购单覆盖 draft→delivered 全链 9 状态（不含作废，#85 未合并）、库存变动流水（订单扣减/采购入库/手动盘点）、库存同步批次与任务（成功+失败）、订单同步 partial_success、异常工作台 handled 标记。
+- 所有数据带 `DEMO-` 前缀；seed 幂等（先清后建，重复执行计数一致）；clean 只删 DEMO- 前缀数据并级联子表，verify 复核零残留；采购单状态链逐步经 `procurement.CanTransition` 校验并写 `purchase_order_events`，订单生命周期经 `order.ValidateOrderStateTransition` 校验，不产生非法状态；`APP_ENV=production` 拒绝执行；不改任何 API/权限。种子实现复用 `internal/modules/demoseed` 模块（`FullDemoSeeder`），附单测（状态链合法性/前缀/生产环境守卫）。
+- 同步 `docs/development.md`、`README.md`、`README.en.md`、`package.json`。
+
+### 变更记录（2026-08-02）迭代第 52 轮：权限矩阵契约测试 + 路由级只读守卫收口
+
+- 新增权限矩阵契约测试套件 `backend/internal/securitytests/permmatrix/`：从生产路由器（`api.Register`）实际挂载的全部 486 条路由建立矩阵登记表 `matrix.json`，逐路由 × {admin, operator(有限店铺), readonly(无店铺), 跨租户 admin} 断言授权预期（allow=通过守卫 / forbid=403），并断言匿名 401、跨租户店铺隔离、operator 店铺 scope、readonly 空列表。**新增端点未在 matrix.json 登记预期时 `TestRouteRegistryComplete` 失败**（含陈旧条目检测），`PERM_MATRIX_GENERATE=1` 可打印草稿条目供安全评审。运行与维护方式见 `docs/permission-matrix.md`。
+- P0 修复①：`POST /settings/test-image`、`POST /settings/test-ocr` 缺 `settings.manage` 权限检查（同组其它 settings/test-* 均有），readonly/operator 可触发外部连接测试；已补 `adminperm.RequireWrite(PermSettingsManage)`，回归见 `TestReadonlyWriteGuardRegression`。
+- P0 修复②：新增路由级只读守卫 `adminperm.ReadonlyWriteGuard` 挂在 `/api/v1`（authed 组）与 `/api/collector`：全部写方法路由 readonly 一律 403（fail-closed，新写端点默认被守卫），显式允许清单仅保留自助 session 管理与纯计算类 POST（calculate/check/preview/validate/estimate）。修复前约 190 条写端点无路由级只读守卫、对 readonly 返回 400/404 或放行。
+- 同步 `docs/api.md`（权限矩阵契约一节）、新增 `docs/permission-matrix.md`。
+
 ### 变更记录（2026-08-02）迭代第 53 轮：操作日志页 URL 深链 + 审计可见性验收
 
 - 现状盘点结论：审计能力后端已完备（`operation_logs` 模型含租户/店铺/角色/hash 链；写入覆盖登录、设置修改、采购状态流转/作废、任务重试、库存变动、店铺授权等；`GET /api/v1/operation-logs` 只读端点已含 `operationlog.view` 权限 + 租户/店铺 scope；管理端已有统一 `/system/operation-logs` 页）。本轮补齐 UX 缺口：
@@ -1196,18 +1234,12 @@ Final Production Acceptance Deferred to P10
   - 修复全局 `SessionExpiredModal` 的 antd `destroyOnClose` 弃用告警（antd 5.29 升级后导致全部 E2E console 守卫失败），改为 `destroyOnHidden`。
 - docs/api.md 同步 `GET /api/v1/operation-logs` 契约说明（权限/scope/筛选/深链）。
 
-### 变更记录（2026-08-01）第 46 轮会话守卫全栈验证与后端修复
-
-- 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
-- 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
-- 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
-
 ### 变更记录（2026-08-02）迭代第 59 轮：商品草稿模块系统性真实走查收口
 
 - 全栈真实走查（docker compose + demo seed）商品草稿列表/详情/AI 优化/归档删除/采集回链 + 三角色权限 + 375/768/1440 响应式，发现并修复：
   - **P0（后端越权风险）**：商品写接口除 `POST /products` 外均无路由级只读守卫（PUT/DELETE 商品、SKU/图片 CRUD、平台配置、抖音 mapping/图片、AI 优化/应用/撤销、sync-images），readonly 此前仅靠店铺可见性 scope「碰巧」404。现全部补 `denyWrite`（AI 应用/撤销走 `ai_text.apply` 守卫），附 `readonly_guard_test.go` 全路由 403 回归测试；docs/api.md 商品节同步说明。
   - **P1**：前端统一 request 错误规范化——HTTP 非 2xx 时还原后端 envelope `message`（如 AI 未配置时「请配置 base_url」），不再裸显 axios「Request failed with status code 400」；附 request 单测。
-  - **P1**：商品草稿列表 readonly 隐藏「新建草稿」「更多」及选中工具栏批量写入口（批量发布检查保留，为只读聚合）；详情页 readonly 隐藏「标记为可用/归档/删除」头部操作；附 readonly E2E。
+  - **P1**：商品草稿列表 readonly 隐藏选中工具栏批量写入口（批量 AI 优化/AI 图片处理/创建刊登草稿/设置发布价；只读可用的批量发布检查与批量导出上架清单保留），顶部工具栏与 main 口径一致（隐藏「新建草稿」，保留「更多」）；详情页 readonly 隐藏「标记为可用/归档/删除」头部操作；复用 main 的 readonly E2E。
   - **P2**：归档增加二次确认 Popconfirm；新建草稿失败给出 message.error；新建 SKU 保存后延迟拉取真实行修复「新行只有删除按钮」；`operationStep` 筛选加入口径说明 Alert（筛选=该步骤未完成，行内 Tag=当前所处步骤）；批量发布检查抽屉在当前平台无授权店铺时给出空态引导并禁用店铺选择。
   - **修复 main 上 test:frontend 挂掉**：dependabot 将 admin `react-dom` 升到 19.2.8（react 仍 18.2.0）导致 3 个组件测试套件崩溃；回退 `react-dom`/`@types/react-dom` 到 18 系，`pnpm-workspace.yaml` 增加 overrides（pnpm 10 读取位置，与 package.json `pnpm.overrides` 保持一致），root devDependencies 固定 react/react-dom 供 @testing-library/react peer 解析。
-- 遗留（待产品决策）：列表「批量导出上架清单」未实现（现有能力为批量创建刊登草稿）；operator demo 账号无授权店铺，operator 正常店铺 scope 场景未覆盖；商品计数口径（列表 total 与看板数）建议后续统一。
+- 遗留：「批量导出上架清单」已由第 49 轮在 main 实现（本分支合入）；operator demo 账号无授权店铺，operator 正常店铺 scope 场景未覆盖；商品计数口径（列表 total 与看板数）建议后续统一。

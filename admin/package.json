@@ -15,7 +15,7 @@
     "@ant-design/plots": "2.6.8",
     "@ant-design/pro-components": "^2.8.7",
     "@umijs/max": "^4.6.83",
-    "@umijs/renderer-react": "^4.6.55",
+    "@umijs/renderer-react": "^4.6.83",
     "antd": "^5.24.0",
     "dayjs": "^1.11.21",
     "react": "18.2.0",

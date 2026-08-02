@@ -88,6 +88,12 @@ type ListTasksResult struct {
 type ChangeLogDTO struct {
 	ID             uuid.UUID  `json:"id"`
 	CreatedAt      time.Time  `json:"createdAt"`
+	ProductID      *uuid.UUID `json:"productId,omitempty"`
+	ProductSKUID   *uuid.UUID `json:"productSkuId,omitempty"`
+	ProductTitle   string     `json:"productTitle,omitempty"`
+	SKUCode        string     `json:"skuCode,omitempty"`
+	SKUName        string     `json:"skuName,omitempty"`
+	RefOrderNo     string     `json:"refOrderNo,omitempty"`
 	ChangeType     string     `json:"changeType"`
 	BeforeStock    int        `json:"beforeStock"`
 	AfterStock     int        `json:"afterStock"`

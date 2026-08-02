@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/providers/ai/errmap"
 	"gorm.io/gorm"
 )
 
@@ -29,6 +30,15 @@ func failProductPlatformConfig(c *gin.Context, err error) {
 	var ce *shop.DouyinCategoryError
 	if errors.As(err, &ce) {
 		response.JSON(c, 400, response.CodeBadRequest, ce.Message, gin.H{"errorCode": ce.Code})
+		return
+	}
+	response.Fail(c, 400, response.CodeBadRequest, err.Error())
+}
+
+// failAIRequest responds with 400 and attaches the structured AI errorCode when classified.
+func failAIRequest(c *gin.Context, err error) {
+	if code := errmap.CodeOf(err); code != "" {
+		response.JSON(c, 400, response.CodeBadRequest, err.Error(), gin.H{"errorCode": code})
 		return
 	}
 	response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -643,7 +653,7 @@ func (h *Handler) OptimizeTitle(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		failAIRequest(c, err)
 		return
 	}
 	response.OK(c, out)
@@ -711,7 +721,7 @@ func (h *Handler) GenerateDescription(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		failAIRequest(c, err)
 		return
 	}
 	response.OK(c, out)

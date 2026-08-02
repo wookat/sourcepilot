@@ -1,5 +1,6 @@
 import {
   DollarOutlined,
+  ExportOutlined,
   MoreOutlined,
   PictureOutlined,
   PlusOutlined,
@@ -11,6 +12,7 @@ import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-compone
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { EmptyState, OperationToolbar, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
+import { localizeNextActionLabel } from '@/constants/productOperationLabels';
 import { formatDateTime } from '@/utils/formatTime';
 
 import {
@@ -47,7 +49,13 @@ import {
 import { PRODUCT_STATUS } from '@/constants/status';
 import { PRODUCT_SOURCE_LABEL, productSourceLabel } from '@/constants/userFriendly';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
-import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
+import { notifyAIFailure } from '@/utils/aiFailureNotice';
+import {
+  createProduct,
+  downloadDraftListingCsv,
+  fetchProducts,
+  type ProductListRow,
+} from '@/services/products';
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import PricingApplyModal from '@/components/PricingApplyModal';
@@ -110,6 +118,9 @@ const OPERATION_STEP_OPTIONS = [
   { label: '可以生成刊登草稿', value: 'ready' },
 ];
 
+/** 与后端 MaxListingExportProducts 对齐 */
+const LISTING_EXPORT_MAX_PRODUCTS = 50;
+
 function operationStepColor(step?: string) {
   if (step === 'ready') return 'green';
   if (step === 'publish_check') return 'orange';
@@ -119,7 +130,6 @@ function operationStepColor(step?: string) {
 
 export default function ProductDraftsPage() {
   const location = useLocation();
-  const { readonly } = usePermission();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof DRAFT_QUERY_KEYS)[number], string | undefined>>(DRAFT_QUERY_KEYS);
   const urlFilters = useMemo(() => readDraftLegacyFilters(location.search), [location.search]);
@@ -148,6 +158,7 @@ export default function ProductDraftsPage() {
     if (screens.md !== undefined) setWideScreen(screens.md);
   }, [screens.md]);
   const [createOpen, setCreateOpen] = useState(false);
+  const { readonly } = usePermission();
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [selectedRows, setSelectedRows] = useState<ProductListRow[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
@@ -163,6 +174,7 @@ export default function ProductDraftsPage() {
   const [bulkOp, setBulkOp] = useState<string>('title_optimize');
   const [bulkConfirmFiltered, setBulkConfirmFiltered] = useState(false);
   const [pricingBatchOpen, setPricingBatchOpen] = useState(false);
+  const [listingExportLoading, setListingExportLoading] = useState(false);
   const [listLoadError, setListLoadError] = useState<string>();
 
   const selectedCount = selectedRowKeys.length;
@@ -186,6 +198,26 @@ export default function ProductDraftsPage() {
       return false;
     }
     return true;
+  };
+
+  const runListingExport = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先勾选商品');
+      return;
+    }
+    if (selectedRowKeys.length > LISTING_EXPORT_MAX_PRODUCTS) {
+      message.error(`单次最多导出 ${LISTING_EXPORT_MAX_PRODUCTS} 个草稿的上架清单，请分批导出。`);
+      return;
+    }
+    setListingExportLoading(true);
+    try {
+      await downloadDraftListingCsv(selectedRowKeys);
+      message.success(`已导出 ${selectedRowKeys.length} 个草稿的上架清单`);
+    } catch (e) {
+      message.error((e as Error).message || '导出失败');
+    } finally {
+      setListingExportLoading(false);
+    }
   };
 
   const openLegacyBulkAI = () => {
@@ -441,7 +473,11 @@ export default function ProductDraftsPage() {
           href={row.operationProgress?.nextActionUrl || `/product/drafts/${row.id}`}
           onClick={(event) => event.stopPropagation()}
         >
-          {row.operationProgress?.nextActionLabel || '继续完善'}
+          {localizeNextActionLabel(
+            row.operationProgress?.nextActionLabel,
+            row.operationProgress?.nextActionKey,
+            row.source,
+          ) || '继续完善'}
         </Typography.Link>,
       ],
     },
@@ -553,7 +589,7 @@ export default function ProductDraftsPage() {
       actionRef.current?.reload();
     } catch (e: unknown) {
       if ((e as { errorFields?: unknown })?.errorFields) return;
-      message.error((e as Error)?.message || '创建失败');
+      notifyAIFailure({ title: '批量 AI 任务创建失败', error: e, fallback: '创建失败' });
     } finally {
       setBulkLoading(false);
     }
@@ -565,19 +601,19 @@ export default function ProductDraftsPage() {
       title={PAGE_COPY.productDrafts.title}
       subTitle={PAGE_COPY.productDrafts.description}
     >
-      {readonly ? null : (
-        <OperationToolbar className="product-drafts-page__toolbar">
+      <OperationToolbar className="product-drafts-page__toolbar">
+        {readonly ? null : (
           <Button icon={<PlusOutlined />} type="primary" onClick={() => setCreateOpen(true)}>
             新建草稿
           </Button>
-          <Dropdown
-            menu={{ items: moreActionItems, onClick: onMoreActionClick }}
-            trigger={['click']}
-          >
-            <Button icon={<MoreOutlined />}>更多</Button>
-          </Dropdown>
-        </OperationToolbar>
-      )}
+        )}
+        <Dropdown
+          menu={{ items: moreActionItems, onClick: onMoreActionClick }}
+          trigger={['click']}
+        >
+          <Button icon={<MoreOutlined />}>更多</Button>
+        </Dropdown>
+      </OperationToolbar>
       <DouyinE2EPrecheckBanner blockedByCredentials compact />
       {(urlFilters.missingAiTitle ||
         urlFilters.missingAiDescription ||
@@ -659,6 +695,13 @@ export default function ProductDraftsPage() {
               </Button>
             </>
           )}
+          <Button
+            icon={<ExportOutlined />}
+            loading={listingExportLoading}
+            onClick={() => void runListingExport()}
+          >
+            批量导出上架清单（{selectedCount}）
+          </Button>
         </OperationToolbar>
       ) : null}
       <ProTable<ProductListRow>
@@ -837,7 +880,13 @@ export default function ProductDraftsPage() {
                   showIcon
                   className="product-drafts-drawer__no-shop-alert"
                   message={`当前平台（${batchPlat}）没有已授权店铺`}
-                  description={<span>发布检查需要选择店铺。请先到 <Typography.Link href="/store/list">店铺管理</Typography.Link> 完成授权，或切换其他平台。</span>}
+                  description={
+                    <span>
+                      发布检查需要选择店铺。请先到{' '}
+                      <Typography.Link href="/store/list">店铺管理</Typography.Link>
+                      完成授权，或切换其他平台。
+                    </span>
+                  }
                 />
               ) : null}
               <Select

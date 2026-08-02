@@ -190,6 +190,8 @@ docker compose -f docker-compose.full.yml up -d --build
 ```powershell
 pnpm seed:demo-data          # 演示数据集
 pnpm seed:demo-permissions   # 演示角色与权限
+pnpm seed:demo:full          # 一键全链路演示数据（DEMO- 前缀）
+pnpm seed:demo:full:clean    # 一键清理，只删 DEMO- 前缀数据
 ```
 
 Linux / macOS 需先安装 [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)，再执行 `bash scripts/seed-demo-data.sh`。详见 [docs/DEMO_SEEDING_GUIDE.md](docs/DEMO_SEEDING_GUIDE.md)。
