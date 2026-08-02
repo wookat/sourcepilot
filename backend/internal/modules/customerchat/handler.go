@@ -110,6 +110,10 @@ func (h *Handler) CreateConversation(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
 		return
 	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可创建会话")
+		return
+	}
 	var body CreateConversationBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
@@ -160,6 +164,10 @@ func (h *Handler) UpdateConversation(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可编辑会话")
+		return
+	}
 	var body UpdateConversationBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
@@ -181,6 +189,10 @@ func (h *Handler) UpdateConversation(c *gin.Context) {
 func (h *Handler) DeleteConversation(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
+		return
+	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可删除会话")
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -229,6 +241,10 @@ func (h *Handler) CreateMessage(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可添加客服消息")
+		return
+	}
 	var body CreateMessageBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
@@ -255,6 +271,10 @@ func (h *Handler) MarkReplied(c *gin.Context) {
 	cid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可标记已回复")
 		return
 	}
 	var body MarkRepliedBody
@@ -317,6 +337,10 @@ func (h *Handler) UpdateSuggestion(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可编辑 AI 建议")
+		return
+	}
 	var body UpdateSuggestionBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
@@ -344,6 +368,10 @@ func (h *Handler) AcceptSuggestion(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可采纳 AI 建议")
+		return
+	}
 	var body AcceptSuggestionBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
@@ -364,6 +392,10 @@ func (h *Handler) AcceptSuggestion(c *gin.Context) {
 func (h *Handler) DiscardSuggestion(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
+		return
+	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可丢弃 AI 建议")
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
