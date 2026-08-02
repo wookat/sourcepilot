@@ -2049,6 +2049,17 @@
     }
   },
   {
+    "method": "GET",
+    "path": "/api/v1/ops/backups/:id/download",
+    "personas": {
+      "admin": "allow",
+      "operator": "forbid",
+      "crossTenantAdmin": "allow",
+      "readonly": "forbid"
+    },
+    "note": "backup.download 仅 admin（round: 备份下载 #107）"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/ops/backups/:id/hold",
     "personas": {
@@ -2530,6 +2541,16 @@
   },
   {
     "method": "GET",
+    "path": "/api/v1/orders/stats/daily/export.csv",
+    "personas": {
+      "admin": "allow",
+      "operator": "allow",
+      "crossTenantAdmin": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/orders/stats/sales",
     "personas": {
       "admin": "allow",
@@ -2564,9 +2585,10 @@
     "personas": {
       "admin": "allow",
       "crossTenantAdmin": "allow",
-      "operator": "allow",
+      "operator": "forbid",
       "readonly": "forbid"
-    }
+    },
+    "note": "settings.manage 仅 admin（round59 设置中心收口后平台配置随设置中心口径）"
   },
   {
     "method": "GET",
@@ -2584,9 +2606,10 @@
     "personas": {
       "admin": "allow",
       "crossTenantAdmin": "allow",
-      "operator": "allow",
+      "operator": "forbid",
       "readonly": "forbid"
-    }
+    },
+    "note": "settings.manage 仅 admin（round59 设置中心收口后平台配置随设置中心口径）"
   },
   {
     "method": "GET",
@@ -2704,9 +2727,10 @@
     "personas": {
       "admin": "allow",
       "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
-    }
+      "operator": "forbid",
+      "readonly": "forbid"
+    },
+    "note": "settings.manage 仅 admin（round59 设置中心收口后平台配置随设置中心口径）"
   },
   {
     "method": "PUT",
@@ -2714,9 +2738,10 @@
     "personas": {
       "admin": "allow",
       "crossTenantAdmin": "allow",
-      "operator": "allow",
+      "operator": "forbid",
       "readonly": "forbid"
-    }
+    },
+    "note": "settings.manage 仅 admin（round59 设置中心收口后平台配置随设置中心口径）"
   },
   {
     "method": "GET",
@@ -2724,9 +2749,10 @@
     "personas": {
       "admin": "allow",
       "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
-    }
+      "operator": "forbid",
+      "readonly": "forbid"
+    },
+    "note": "settings.manage 仅 admin（round59 设置中心收口后平台配置随设置中心口径）"
   },
   {
     "method": "PUT",
@@ -2734,9 +2760,10 @@
     "personas": {
       "admin": "allow",
       "crossTenantAdmin": "allow",
-      "operator": "allow",
+      "operator": "forbid",
       "readonly": "forbid"
-    }
+    },
+    "note": "settings.manage 仅 admin（round59 设置中心收口后平台配置随设置中心口径）"
   },
   {
     "method": "POST",
@@ -2744,9 +2771,10 @@
     "personas": {
       "admin": "allow",
       "crossTenantAdmin": "allow",
-      "operator": "allow",
+      "operator": "forbid",
       "readonly": "forbid"
-    }
+    },
+    "note": "settings.manage 仅 admin（round59 设置中心收口后平台配置随设置中心口径）"
   },
   {
     "method": "POST",
@@ -2895,6 +2923,16 @@
       "admin": "allow",
       "crossTenantAdmin": "allow",
       "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/orders/:id/void",
+    "personas": {
+      "admin": "allow",
+      "operator": "allow",
+      "crossTenantAdmin": "allow",
       "readonly": "forbid"
     }
   },
@@ -3159,6 +3197,16 @@
     }
   },
   {
+    "method": "DELETE",
+    "path": "/api/v1/product-sources/:id",
+    "personas": {
+      "admin": "allow",
+      "operator": "allow",
+      "crossTenantAdmin": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
     "method": "PUT",
     "path": "/api/v1/product-sources/:id",
     "personas": {
@@ -3186,6 +3234,16 @@
       "crossTenantAdmin": "allow",
       "operator": "allow",
       "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/product-sources/orphans",
+    "personas": {
+      "admin": "allow",
+      "operator": "allow",
+      "crossTenantAdmin": "allow",
+      "readonly": "allow"
     }
   },
   {
@@ -3896,6 +3954,16 @@
       "crossTenantAdmin": "allow",
       "operator": "allow",
       "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/products/listing-list/export.csv",
+    "personas": {
+      "admin": "allow",
+      "operator": "allow",
+      "crossTenantAdmin": "allow",
+      "readonly": "allow"
     }
   },
   {

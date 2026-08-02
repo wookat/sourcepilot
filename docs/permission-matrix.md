@@ -79,6 +79,16 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 
 回归证据：`TestReadonlyWriteGuardRegression` + `TestPermissionMatrix`（readonly 列全部写端点 403）。
 
+## round60 全量重跑核对（integration/round55-preview，收敛 #79–#117）
+
+- 补登记 6 条漏登记路由（`TestRouteRegistryComplete` 报缺）：
+  - `GET /api/v1/ops/backups/:id/download`（`backup.download` 仅 admin，#107）
+  - `GET /api/v1/orders/stats/daily/export.csv`、`GET /api/v1/products/listing-list/export.csv`（读导出，四角色 allow，均带租户/店铺 scope）
+  - `GET /api/v1/product-sources/orphans`（读，四角色 allow）
+  - `DELETE /api/v1/product-sources/:id`、`POST /api/v1/procurement/orders/:id/void`（写，readonly forbid）
+- 修正 7 条平台配置路由预期：`platform/settings/:platform`（GET/PUT/test-connection）、`platform/publish-settings/:platform`（GET/PUT）、抖音类目 sync × 2 现由 `settings.manage`（仅 admin）守卫（round59 设置中心收口口径），矩阵由 operator/readonly allow 收紧为 forbid。
+- 未发现真实权限缺口（无「预期 403/404 实际 200」条目）；全部差异均为守卫比矩阵登记更严，属登记表滞后。
+
 ## docs/api.md 口径差异说明
 
 - docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。
