@@ -148,6 +148,8 @@ pnpm build:admin
 pnpm build:collector
 pnpm seed:demo-data
 pnpm seed:demo-permissions
+pnpm seed:demo:full
+pnpm seed:demo:full:clean
 pnpm verify:demo-data
 pnpm verify:demo-permissions
 pnpm check:p4-r

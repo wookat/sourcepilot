@@ -1186,3 +1186,9 @@ Final Production Acceptance Deferred to P10
 
 - 新增 `GET /api/v1/products/listing-list/export.csv?ids=`（复用采购清单/发货清单批量导出模式）：逗号分隔商品 UUID，去重后 ≤50 个，每草稿一行，列含 商品ID/标题/副标题(AI标题)/描述/类目(取发布配置 categoryPath)/价格(区间)/币种/主图URL/规格列表/来源/来源链接/状态，UTF-8 BOM 供 Excel 直开；租户+店铺 scope 与草稿列表一致（ApplyTenantScope + ApplyProductScope），任一 id 不在 scope 内整单 404；导出属读操作，readonly 可用（与采购/发货导出后端口径一致）。附单测（表头/BOM/类目/规格列表、跨租户 404、店铺 scope 允许/拒绝、handler 去重/上限/非法 id/未知 id）。
 - 草稿列表批量操作条新增「批量导出上架清单（N）」按钮（复用既有行选择），前端限 50 个/次与后端对齐；运营者优化完标题/描述/价格后可一键导出去 Temu/Shopee 手工上架，不再逐字段复制。
+
+### 变更记录（2026-08-02）迭代第 51 轮：一键演示种子数据（seed / clean 幂等闭环）
+
+- 新增 `backend/cmd/seeddemo`（`pnpm seed:demo:full` / `seed:demo:full:clean` / `seed:demo:full:verify`）：向指定租户（`-tenant`，默认 0）直接写库生成贯穿全链路的演示数据——店铺 ×2、商品草稿 ×5（采集/手动来源、AI 优化前后文案、主图、SKU ×10 含低库存告警样本）、供应商 + 货源档案 + 货源 SKU 映射 + 价格历史、销售订单覆盖 pending/paid/shipped/delivered/cancelled（含物流记录与 SKU 匹配/未匹配样本）、采购单覆盖 draft→delivered 全链 9 状态（不含作废，#85 未合并）、库存变动流水（订单扣减/采购入库/手动盘点）、库存同步批次与任务（成功+失败）、订单同步 partial_success、异常工作台 handled 标记。
+- 所有数据带 `DEMO-` 前缀；seed 幂等（先清后建，重复执行计数一致）；clean 只删 DEMO- 前缀数据并级联子表，verify 复核零残留；采购单状态链逐步经 `procurement.CanTransition` 校验并写 `purchase_order_events`，订单生命周期经 `order.ValidateOrderStateTransition` 校验，不产生非法状态；`APP_ENV=production` 拒绝执行；不改任何 API/权限。种子实现复用 `internal/modules/demoseed` 模块（`FullDemoSeeder`），附单测（状态链合法性/前缀/生产环境守卫）。
+- 同步 `docs/development.md`、`README.md`、`README.en.md`、`package.json`。
