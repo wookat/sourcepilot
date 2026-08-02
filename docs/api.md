@@ -94,6 +94,8 @@
 
 ## 商品
 
+商品及其子资源（SKU、图片、平台配置、AI 优化/应用/撤销、图片同步）的全部写接口均有路由级只读守卫：readonly 或无 `product.write`（AI 应用/撤销为 `ai_text.apply`）权限的账号返回 403，可见性 scope 不能替代该守卫。
+
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/products` | 商品草稿列表；支持 `operationStep`（`collect_review` / `title` / `description` / `images` / `pricing` / `publish_check` / `ready`）筛选，并在列表行返回轻量 `operationProgress` 摘要。 |
