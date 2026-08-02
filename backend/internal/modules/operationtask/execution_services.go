@@ -251,7 +251,7 @@ func (s *ExecutionOrchestrator) execute(ctx context.Context, in ExecutionInput, 
 func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, retry bool) (preparedExecution, error) {
 	var out preparedExecution
 	key := executionIdempotencyKey(in)
-	mode := strings.TrimSpace(strings.ToLower(in.AdapterMode))
+	mode := normalizeExecutionPortMode(in.AdapterMode)
 	sm := s.stateMachine()
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		task, err := lockTask(tx, in.TenantID, in.OperationTaskID)
@@ -670,6 +670,21 @@ func forbiddenExecutionMode(mode string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// normalizeExecutionPortMode lowercases the mode and maps public draft
+// adapter modes (mock / sandbox / local_draft_only) to their internal
+// execution port modes.
+func normalizeExecutionPortMode(mode string) string {
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	switch mode {
+	case AdapterModeSandbox:
+		return ExecutionPortModeSandboxFixture
+	case AdapterModeLocalDraftOnly:
+		return ExecutionPortModeLocalDraftFixture
+	default:
+		return mode
 	}
 }
 
