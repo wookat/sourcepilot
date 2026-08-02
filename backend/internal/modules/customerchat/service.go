@@ -293,7 +293,12 @@ func (s *Service) CreateConversation(c *gin.Context, body CreateConversationBody
 	if lang == "" {
 		lang = "en"
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	row := &CustomerConversation{
+		TenantID:         tid,
 		Platform:         platform,
 		CustomerName:     name,
 		CustomerLanguage: lang,

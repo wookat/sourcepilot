@@ -36,6 +36,7 @@ import {
   postOrderExceptionRetryInventorySync,
   queryOrderExceptions,
 } from '@/services/orderExceptions';
+import { extractApiErrorMessage } from '@/services/request';
 import { getOrderItemSkuCandidates, type SkuCandidateRow } from '@/services/skuCandidates';
 import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products';
 import { queryShops } from '@/services/shops';
@@ -644,12 +645,17 @@ export default function OrderExceptionsPage() {
                     />
                   ),
                   onOk: async () => {
-                    await postOrderExceptionHandle(r.sourceType, r.sourceId, {
-                      exceptionType: r.exceptionType,
-                      remark: remark.trim(),
-                    });
-                    message.success('已标记');
-                    reload();
+                    try {
+                      await postOrderExceptionHandle(r.sourceType, r.sourceId, {
+                        exceptionType: r.exceptionType,
+                        remark: remark.trim(),
+                      });
+                      message.success('已标记');
+                      reload();
+                    } catch (e) {
+                      message.error(extractApiErrorMessage(e, '标记已处理失败'));
+                      throw e;
+                    }
                   },
                 });
               }}
@@ -663,9 +669,16 @@ export default function OrderExceptionsPage() {
                 Modal.confirm({
                   title: '忽略该异常（工作台视图）',
                   onOk: async () => {
-                    await postOrderExceptionIgnore(r.sourceType, r.sourceId, { exceptionType: r.exceptionType });
-                    message.success('已忽略');
-                    reload();
+                    try {
+                      await postOrderExceptionIgnore(r.sourceType, r.sourceId, {
+                        exceptionType: r.exceptionType,
+                      });
+                      message.success('已忽略');
+                      reload();
+                    } catch (e) {
+                      message.error(extractApiErrorMessage(e, '忽略失败'));
+                      throw e;
+                    }
                   },
                 });
               }}
@@ -677,9 +690,14 @@ export default function OrderExceptionsPage() {
             <Popconfirm
               title="取消标记并回到待处理列表？"
               onConfirm={async () => {
-                await deleteOrderExceptionMark(r.sourceType, r.sourceId);
-                message.success('已取消标记');
-                reload();
+                try {
+                  await deleteOrderExceptionMark(r.sourceType, r.sourceId);
+                  message.success('已取消标记');
+                  reload();
+                } catch (e) {
+                  message.error(extractApiErrorMessage(e, '取消标记失败'));
+                  throw e;
+                }
               }}
             >
               <a>取消标记</a>
