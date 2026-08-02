@@ -6384,7 +6384,7 @@ export default function ProductDraftDetailPage() {
           if (!syncRow) return Promise.reject();
           return syncForm.validateFields().then((v) => {
             const stock = Number(v.stock);
-            const targetLabel = `${syncRow.platform ?? '平台'} / ${syncRow.shopName ?? syncRow.shopId ?? '—'}`;
+            const targetLabel = `${syncRow.platform ? platformDisplayName(syncRow.platform) : '平台'} / ${syncRow.shopName ?? syncRow.shopId ?? '—'}`;
             const externalCall = inventorySyncRunnable(syncRow.inventorySyncCapability);
             return new Promise<void>((resolve, reject) => {
               confirmInventorySync(targetLabel, externalCall, async () => {
