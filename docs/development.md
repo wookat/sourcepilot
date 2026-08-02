@@ -66,7 +66,7 @@ pnpm dev:reset
 
 ```bash
 pnpm seed:demo:full          # 种子（幂等：先清理旧 DEMO- 数据再重建）
-pnpm seed:demo:full:clean    # 一键清理，只删 DEMO- 前缀数据
+pnpm seed:demo:full:clean    # 一键清理，只删 DEMO- 前缀数据（含测试期在 UI 上基于 DEMO- 供应商/订单创建的采购单）
 pnpm seed:demo:full:verify   # 复核清理后零残留（有残留退出码非 0）
 
 # 等价直跑（backend 目录）：

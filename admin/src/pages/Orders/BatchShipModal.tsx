@@ -2,7 +2,7 @@ import {
   batchCreateOrderShipments,
   type BatchShipmentLineResult,
 } from '@/services/orders';
-import { Alert, Button, Input, Modal, Space, Table, Tag, message } from 'antd';
+import { Alert, Button, Input, Modal, Space, Table, Tag, Tooltip, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { ORDER_STATUS } from '@/constants/status';
 
@@ -119,7 +119,7 @@ export default function BatchShipModal({
         showIcon
         style={{ marginBottom: 12 }}
         message="按订单号匹配已付款销售订单并新增「已发货」物流，订单会自动流转为已发货；未付款、已取消订单会逐行提示失败。"
-        description="发货不会自动扣减本地库存；结果中标记「未扣库存」的订单，可到订单详情「库存影响」Tab 手工扣减。"
+        description="按当前「手工扣库存」策略，发货不会自动扣减本地库存（属预期行为）；结果中标记「未扣库存」的订单，可到订单详情「库存影响」Tab 手工扣减。"
       />
       {!results && (
         <>
@@ -151,7 +151,17 @@ export default function BatchShipModal({
         </>
       )}
       {results && (
-        <Table<BatchShipmentLineResult>
+        <>
+          {results.some((r) => r.ok && r.inventoryDeducted === false) ? (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="「未扣库存」属于手工扣库存策略下的预期行为"
+              description="发货与库存扣减解耦，发货成功不会自动扣减本地库存；请到对应订单详情的「库存影响」Tab 手工扣减，保持库存准确。"
+            />
+          ) : null}
+          <Table<BatchShipmentLineResult>
           rowKey={(r, i) => `${r.key}-${i}`}
           size="small"
           dataSource={results}
@@ -177,7 +187,9 @@ export default function BatchShipModal({
                       '-'
                     }`}
                     {r.inventoryDeducted === false ? (
-                      <Tag color="warning">未扣库存</Tag>
+                      <Tooltip title="预期行为：当前为手工扣库存策略，发货不会自动扣减库存；可到订单详情「库存影响」Tab 手工扣减。">
+                        <Tag color="warning">未扣库存（预期）</Tag>
+                      </Tooltip>
                     ) : null}
                   </Space>
                 ) : (
@@ -185,7 +197,8 @@ export default function BatchShipModal({
                 ),
             },
           ]}
-        />
+          />
+        </>
       )}
     </Modal>
   );
