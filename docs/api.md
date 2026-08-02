@@ -509,20 +509,21 @@ All P6 write operations require Bearer authentication and backend RBAC. The fron
 | `GET` | `/api/v1/ops/backups` | `backup.read` | 备份记录列表；不返回完整对象路径。 |
 | `POST` | `/api/v1/ops/backups` | `backup.create` | 创建备份任务；未启用备份时生成待复核记录。 |
 | `GET` | `/api/v1/ops/backups/:id` | `backup.read` | 备份详情。 |
-| `POST` | `/api/v1/ops/backups/:id/verify` | `backup.verify` | 执行备份校验。 |
+| `POST` | `/api/v1/ops/backups/:id/verify` | `backup.verify` | 执行备份校验；未启用加密时加密检查按「未启用（跳过）」处理；`details.checks` 返回结构化检查项。 |
+| `GET` | `/api/v1/ops/backups/:id/download` | `backup.download` | 流式下载校验通过的 completed 备份；readonly/operator 403；备份不存在或越权 404；写入操作日志。 |
 | `POST` | `/api/v1/ops/backups/:id/hold` | `backup.hold` | 添加手动保留。 |
 | `DELETE` | `/api/v1/ops/backups/:id` | `backup.delete` | 删除非运行、非 hold 的备份记录。 |
 | `GET` | `/api/v1/ops/restores` | `restore.read` | 恢复验证列表。 |
 | `POST` | `/api/v1/ops/restores` | `restore.execute` | 创建隔离恢复验证；production 目标默认拒绝。 |
 | `GET` | `/api/v1/ops/restores/:id` | `restore.read` | 恢复验证详情。 |
-| `POST` | `/api/v1/ops/restores/:id/verify` | `restore.verify` | 写入恢复完整性验证。 |
+| `POST` | `/api/v1/ops/restores/:id/verify` | `restore.verify` | 恢复验证（本地/开发限定，production 拒绝）；真实执行备份文件完整性与 `pg_restore --list` 结构校验，其余检查项在 `details.checks` 中标注 `not_implemented`。 |
 | `GET` | `/api/v1/ops/releases` | `release.read` | 发布记录列表。 |
 | `POST` | `/api/v1/ops/releases` | `release.create` | 创建发布记录和 manifest 摘要。 |
 | `GET` | `/api/v1/ops/releases/:id` | `release.read` | 发布详情。 |
 | `POST` | `/api/v1/ops/releases/:id/execute` | `release.execute` | 执行受控发布状态机。 |
 | `POST` | `/api/v1/ops/releases/:id/rollback` | `release.rollback` | 应用层回滚；禁止自动数据库恢复。 |
 | `GET` | `/api/v1/ops/dr/status` | `dr.read` | 灾备状态与 Deferred 项。 |
-| `POST` | `/api/v1/ops/dr/drills` | `dr.execute` | 记录隔离演练；必须确认隔离环境。 |
+| `POST` | `/api/v1/ops/dr/drills` | `dr.execute` | 执行隔离演练（本地/开发限定，production 拒绝）；必须确认隔离环境并提供 backupId；真实执行备份文件完整性与 `pg_restore --list` 结构校验，其余项在 `reportJson.checks` 中标注 `not_implemented`。 |
 
 P6-VR closure evidence is recorded in `docs/P6_VR_FINAL_CLOSURE_REPORT.md`: isolated restore, isolated release rollback, Linux race, and final gates passed. P6 still does not mark Production Ready and does not perform real production restore, PITR drill or traffic switch.
 
