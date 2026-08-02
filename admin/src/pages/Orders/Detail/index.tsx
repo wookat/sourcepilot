@@ -807,7 +807,8 @@ export default function OrderDetailPage() {
                         新增物流
                       </Button>
                       <Typography.Text type="secondary">
-                        物流状态为已发货/运输中/已签收时，订单状态会自动向前流转。
+                        物流状态为已发货/运输中/已签收时，订单状态会自动向前流转。按手工扣库存策略，发货不会自动扣减库存（属预期行为），可到「库存影响」Tab
+                        手工扣减。
                       </Typography.Text>
                     </Space>
                   ) : null}

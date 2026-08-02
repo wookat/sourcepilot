@@ -169,6 +169,62 @@ const ERROR_MAP: Record<string, UserErrorMessage> = {
     title: '刊登配置不正确',
     detail: '请检查统一配置与单独覆盖中的数值和策略选项。',
   },
+  RESTORE_TARGET_FORBIDDEN: {
+    title: '禁止恢复到生产环境',
+    detail: '恢复演练只允许写入隔离的演练库，不能以 production 作为目标环境。',
+  },
+  RESTORE_APP_ENV_FORBIDDEN: {
+    title: '生产环境禁止恢复演练',
+    detail: '当前服务运行在生产环境（APP_ENV=production），恢复演练仅限本地/开发环境执行。',
+  },
+  RESTORE_VERIFY_APP_ENV_FORBIDDEN: {
+    title: '生产环境禁止恢复验证',
+    detail: '恢复演练验证仅限本地/开发环境执行，生产环境已被安全门拦截。',
+  },
+  RESTORE_TARGET_NOT_ISOLATED: {
+    title: '目标环境未确认隔离',
+    detail: '请先打开「已确认隔离环境」开关，确认目标库与业务库完全隔离。',
+  },
+  RESTORE_TARGET_NOT_EXPLICIT: {
+    title: '目标数据库未明确指定',
+    detail: '请填写明确的目标数据库名，不能留空或使用默认库。',
+  },
+  RESTORE_TARGET_PREFIX_REJECTED: {
+    title: '目标数据库名前缀不符合要求',
+    detail: '目标库名必须以 trademind_p6v_restore_ 前缀命名，避免误写业务库。',
+  },
+  RESTORE_CONFIRMATION_REQUIRED: {
+    title: '缺少高风险操作确认',
+    detail: '请同时打开「已完成二次确认」和「已确认高风险操作」两个开关后再提交。',
+  },
+  RESTORE_BACKUP_NOT_VERIFIED: {
+    title: '备份尚未通过校验',
+    detail: '只有状态为已完成且校验通过（passed）的备份才能用于恢复，请先在备份管理中完成校验。',
+  },
+  RESTORE_BACKUP_CHECKSUM_REQUIRED: {
+    title: '备份缺少校验和',
+    detail: '该备份没有 SHA-256 校验和，无法安全恢复，请重新创建备份。',
+  },
+  RESTORE_BACKUP_KEY_REQUIRED: {
+    title: '加密备份缺少密钥信息',
+    detail: '该备份已加密但缺少密钥引用，无法解密恢复。',
+  },
+  RESTORE_MANIFEST_CHECKSUM_MISMATCH: {
+    title: '备份清单校验失败',
+    detail: '备份 manifest 校验和不匹配，备份可能被篡改或损坏，禁止用于恢复。',
+  },
+  RESTORE_TARGET_CONNECT_FAILED: {
+    title: '无法连接目标数据库',
+    detail: '请确认目标库已预先创建为空库且可连接（恢复不会自动建库）。',
+  },
+  RESTORE_TARGET_INSPECT_FAILED: {
+    title: '目标数据库检查失败',
+    detail: '无法确认目标库是否为空，请检查目标库状态后重试。',
+  },
+  RESTORE_TARGET_NOT_EMPTY: {
+    title: '目标数据库不是空库',
+    detail: '目标库已存在业务表/数据，为防止覆盖只允许恢复到空库，请更换或清空目标库。',
+  },
 };
 
 /** 根据错误码获取用户可见提示 */

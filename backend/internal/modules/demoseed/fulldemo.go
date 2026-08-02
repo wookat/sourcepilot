@@ -554,6 +554,54 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	return nil
 }
 
+// collectDemoPurchaseOrderIDs returns purchase orders that belong to the demo
+// dataset: seeded rows (DEMO- idempotency key / external id) plus rows created
+// from the UI against DEMO- suppliers or DEMO- sales orders. Real purchase
+// orders are never matched.
+func collectDemoPurchaseOrderIDs(tx *gorm.DB, like string, demoOrderIDs, demoSupplierIDs []uuid.UUID) ([]uuid.UUID, error) {
+	seen := map[uuid.UUID]struct{}{}
+	add := func(ids []uuid.UUID) {
+		for _, id := range ids {
+			seen[id] = struct{}{}
+		}
+	}
+
+	var ids []uuid.UUID
+	if err := tx.Model(&procurement.PurchaseOrder{}).Unscoped().
+		Where("idempotency_key LIKE ? OR external_order_id LIKE ? OR supplier_name LIKE ?", like, like, like).
+		Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	add(ids)
+
+	if len(demoSupplierIDs) > 0 {
+		ids = ids[:0]
+		if err := tx.Model(&procurement.PurchaseOrder{}).Unscoped().
+			Where("supplier_id IN ?", demoSupplierIDs).
+			Pluck("id", &ids).Error; err != nil {
+			return nil, err
+		}
+		add(ids)
+	}
+
+	if len(demoOrderIDs) > 0 {
+		ids = ids[:0]
+		if err := tx.Model(&procurement.PurchaseOrderItem{}).Unscoped().
+			Where("sales_order_id IN ?", demoOrderIDs).
+			Distinct().
+			Pluck("purchase_order_id", &ids).Error; err != nil {
+			return nil, err
+		}
+		add(ids)
+	}
+
+	out := make([]uuid.UUID, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
+	}
+	return out, nil
+}
+
 // Cleanup hard-deletes all DEMO- prefixed rows and their children.
 func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 	if err := s.guard(); err != nil {
@@ -590,8 +638,13 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			}
 		}
 
-		var poIDs []uuid.UUID
-		if err := tx.Model(&procurement.PurchaseOrder{}).Unscoped().Where("idempotency_key LIKE ?", like).Pluck("id", &poIDs).Error; err != nil {
+		var demoSupplierIDs []uuid.UUID
+		if err := tx.Model(&sourcing.Supplier{}).Unscoped().Where("name LIKE ?", like).Pluck("id", &demoSupplierIDs).Error; err != nil {
+			return err
+		}
+
+		poIDs, err := collectDemoPurchaseOrderIDs(tx, like, orderIDs, demoSupplierIDs)
+		if err != nil {
 			return err
 		}
 		if len(poIDs) > 0 {
@@ -609,10 +662,7 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			}
 		}
 
-		var supplierIDs []uuid.UUID
-		if err := tx.Model(&sourcing.Supplier{}).Unscoped().Where("name LIKE ?", like).Pluck("id", &supplierIDs).Error; err != nil {
-			return err
-		}
+		supplierIDs := demoSupplierIDs
 		var sourceIDs []uuid.UUID
 		if len(supplierIDs) > 0 {
 			if err := tx.Model(&sourcing.ProductSource{}).Unscoped().Where("supplier_id IN ?", supplierIDs).Pluck("id", &sourceIDs).Error; err != nil {
@@ -726,7 +776,9 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		}},
 		{"purchase_orders", func() (int64, error) {
 			var n int64
-			return n, tx.Model(&procurement.PurchaseOrder{}).Unscoped().Where("idempotency_key LIKE ?", like).Count(&n).Error
+			return n, tx.Model(&procurement.PurchaseOrder{}).Unscoped().
+				Where("idempotency_key LIKE ? OR external_order_id LIKE ? OR supplier_name LIKE ?", like, like, like).
+				Count(&n).Error
 		}},
 		{"inventory_change_logs", func() (int64, error) {
 			var n int64
