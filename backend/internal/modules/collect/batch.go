@@ -241,6 +241,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 			} else if isTaobaoTmallCollectSource(source) {
 				reqOpts = s.buildTaobaoTmallRequestOptions(ctx, u, true)
 			}
+			queuedAt := time.Now().UTC()
 			task := CollectTask{
 				BatchID:        &bid,
 				Source:         source,
@@ -249,6 +250,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 				MaxRetries:     maxRetries,
 				CreatedBy:      adminID,
 				RequestOptions: reqOpts,
+				QueuedAt:       &queuedAt,
 			}
 			if err := tx.Create(&task).Error; err != nil {
 				return err
@@ -502,6 +504,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 				"retry_count":       0,
 				"next_retry_at":     nil,
 				"retry_enqueued_at": nil,
+				"queued_at":         &retryAt,
 				"updated_at":        retryAt,
 			})
 		if up.Error != nil {

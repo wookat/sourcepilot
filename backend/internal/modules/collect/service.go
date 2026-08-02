@@ -627,6 +627,7 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		maxRetries = s.taobaoTmallMaxRetries(c.Request.Context())
 	}
 
+	queuedAt := time.Now().UTC()
 	task := &CollectTask{
 		Source:         source,
 		SourceURL:      url,
@@ -634,6 +635,7 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		MaxRetries:     maxRetries,
 		CreatedBy:      adminID,
 		RequestOptions: reqOpts,
+		QueuedAt:       &queuedAt,
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(task).Error; err != nil {
 		return zero, err
@@ -717,6 +719,7 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 			"retry_count":       0,
 			"next_retry_at":     nil,
 			"retry_enqueued_at": nil,
+			"queued_at":         &retryAt,
 			"locked_by":         nil,
 			"locked_until":      nil,
 			"updated_at":        retryAt,
