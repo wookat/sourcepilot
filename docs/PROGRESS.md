@@ -1253,3 +1253,8 @@ Final Production Acceptance Deferred to P10
 - 批量发货 / 订单详情：结果区补「未扣库存属手工扣库存策略的预期行为」口径 Alert 与 Tag Tooltip（Tag 文案改为「未扣库存（预期）」）；订单详情「物流」Tab 说明补同一口径。沿用 R46 口径传达模式，不改库存扣减逻辑与接口。
 - demo seed clean：`seed:demo:full:clean` 清理采购单从仅按 `idempotency_key LIKE 'DEMO-%'` 扩展为并集：`external_order_id`/`supplier_name` 带 DEMO- 前缀、挂在 DEMO- 供应商名下、或采购行关联 DEMO- 销售订单（覆盖测试期 UI 建的采购单）；verify 同步扩展。仅清 DEMO 关联数据，不动真实采购单。附 `collectDemoPurchaseOrderIDs` 单测（真实采购单不被匹配）。
 
+### 变更记录（2026-08-02）迭代第 55 轮：经营报表导出 CSV + 移动端收口
+
+- 后端新增只读导出端点 `GET /api/v1/orders/stats/daily/export.csv?days=30`：复用 `stats/daily` 数据与租户/店铺 scope，UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内每币种一列「已付款销售额(币种)」（字典序），空日期补 0；`stats/daily` 同步新增 `shippedCount` 字段（口径与 `stats/sales` 已发货一致）。附字节级单测（BOM/表头/数据行/默认天数）。
+- 报表页新增「导出 CSV」按钮与近 7/30/90 天切换（Segmented），数据请求与导出共用同一 days；导出带 loading 防重复、成功/失败提示；readonly 可用。五档视口（1440/1280/1024/768/375）无根节点横向溢出，新增 `admin/e2e/specs/orders-reports.spec.ts`（GET-only mock）。
+- 依赖修复：admin `react-dom` 由 19.2.8 回对齐 `react` 18.2.0（含 `@types/react-dom`），pnpm overrides 迁移至 `pnpm-workspace.yaml`（pnpm 10+ 不再读取 package.json `pnpm` 字段）；`SessionExpiredModal` 的 `destroyOnClose` 改 `destroyOnHidden`（antd 5.29 弃用警告导致 E2E console guard 全量失败）。
