@@ -5,6 +5,7 @@ import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { history } from '@umijs/max';
 import { useMemo, useRef, useState } from 'react';
+import { usePermission } from '@/hooks/usePermission';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import {
   INVENTORY_SYNC_BATCH_MAX_SIZE_LABEL,
@@ -56,6 +57,7 @@ export default function InventorySyncBatchesPage() {
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [drawerBatch, setDrawerBatch] = useState<InventorySyncBatchDTO | null>(null);
 
+  const { canWriteInventory: writable } = usePermission();
   const columns: ProColumns<InventorySyncBatchDTO>[] = useMemo(
     () => [
       {
@@ -188,28 +190,30 @@ export default function InventorySyncBatchesPage() {
             >
               任务列表
             </a>
-            <Popconfirm
-              title="对该批次内失败任务发起重试？"
-              disabled={r.failedCount <= 0}
-              onConfirm={async () => {
-                try {
-                  await retryInventorySyncBatchFailed(r.id);
-                  message.success('已提交重试');
-                  actionRef.current?.reload();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
-                }
-              }}
-            >
-              <Button type="link" size="small" style={{ padding: 0 }} disabled={r.failedCount <= 0}>
-                重试失败
-              </Button>
-            </Popconfirm>
+            {writable ? (
+              <Popconfirm
+                title="对该批次内失败任务发起重试？"
+                disabled={r.failedCount <= 0}
+                onConfirm={async () => {
+                  try {
+                    await retryInventorySyncBatchFailed(r.id);
+                    message.success('已提交重试');
+                    actionRef.current?.reload();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '失败');
+                  }
+                }}
+              >
+                <Button type="link" size="small" style={{ padding: 0 }} disabled={r.failedCount <= 0}>
+                  重试失败
+                </Button>
+              </Popconfirm>
+            ) : null}
           </Space>
         ),
       },
     ],
-    [],
+    [writable],
   );
 
   const taskColumns: ProColumns<InventorySyncTaskDTO>[] = useMemo(
@@ -362,7 +366,7 @@ export default function InventorySyncBatchesPage() {
                         </Button>
                         <Popconfirm
                           title="对该批次内失败任务发起重试？"
-                          disabled={drawerBatch.failedCount <= 0}
+                          disabled={drawerBatch.failedCount <= 0 || !writable}
                           onConfirm={async () => {
                             try {
                               await retryInventorySyncBatchFailed(drawerBatch.id);
@@ -375,7 +379,7 @@ export default function InventorySyncBatchesPage() {
                             }
                           }}
                         >
-                          <Button disabled={drawerBatch.failedCount <= 0}>重试失败项</Button>
+                          <Button disabled={drawerBatch.failedCount <= 0 || !writable}>重试失败项</Button>
                         </Popconfirm>
                       </Space>
                     </Space>

@@ -1,5 +1,6 @@
 import { importOrders, type OrderImportRowResult } from '@/services/orders';
-import { Alert, Button, Checkbox, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { history } from '@umijs/max';
+import { Alert, Button, Checkbox, Empty, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { groupImportOrders, parseImportText } from './importParse';
 
@@ -144,6 +145,24 @@ export default function ImportOrdersModal({
                 options={shopOptions}
                 value={shopId}
                 onChange={(v) => setShopId(v)}
+                notFoundContent={
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      <Space direction="vertical" size={4}>
+                        <Typography.Text type="secondary">暂无店铺，可留空导入</Typography.Text>
+                        <a
+                          onClick={() => {
+                            onClose();
+                            history.push('/shops');
+                          }}
+                        >
+                          去店铺管理创建
+                        </a>
+                      </Space>
+                    }
+                  />
+                }
               />
             </Space>
           </div>
