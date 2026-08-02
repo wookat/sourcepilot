@@ -165,6 +165,10 @@ export async function cancelPurchaseOrder(id: string, reason?: string) {
   return postJSON<PurchaseOrder>(`/api/v1/procurement/orders/${id}/cancel`, { reason });
 }
 
+export async function voidPurchaseOrder(id: string, reason?: string) {
+  return postJSON<PurchaseOrder>(`/api/v1/procurement/orders/${id}/void`, { reason });
+}
+
 export async function markPurchaseOrderPlaced(id: string, externalOrderId: string) {
   return postJSON<PurchaseOrder>(`/api/v1/procurement/orders/${id}/mark-placed`, {
     externalOrderId,
