@@ -68,6 +68,7 @@ import {
 import OnboardingGuide from '@/pages/Dashboard/ProductOperations/OnboardingGuide';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { fetchOrderSalesStats, type SalesStatsDTO, type SalesWindowStats } from '@/services/orders';
+import { formatAmount, formatCount, tabularNumsStyle } from '@/constants/chartTokens';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { appendSourceToUrl, resolveProductSourceFromQuery } from '@/utils/urlState';
 
@@ -86,20 +87,24 @@ function SalesWindowCard({ win }: { win: SalesWindowStats }) {
       <Typography.Text type="secondary">{SALES_WINDOW_LABELS[win.key] || win.key}</Typography.Text>
       <Space size={16} wrap style={{ marginTop: 8, width: '100%' }}>
         <span>
-          订单 <Typography.Text strong>{win.orderCount}</Typography.Text>
+          订单 <Typography.Text strong style={tabularNumsStyle}>{formatCount(win.orderCount)}</Typography.Text>
         </span>
         <span>
-          已付款 <Typography.Text strong>{win.paidCount}</Typography.Text>
+          已付款 <Typography.Text strong style={tabularNumsStyle}>{formatCount(win.paidCount)}</Typography.Text>
         </span>
         <span>
-          已发货 <Typography.Text strong>{win.shippedCount}</Typography.Text>
+          已发货 <Typography.Text strong style={tabularNumsStyle}>{formatCount(win.shippedCount)}</Typography.Text>
         </span>
       </Space>
       <div style={{ marginTop: 8 }}>
         {amounts.length > 0 ? (
           amounts.map((a) => (
-            <Typography.Text key={a.currency} strong style={{ marginRight: 12, fontSize: 16 }}>
-              {a.currency} {a.amount.toFixed(2)}
+            <Typography.Text
+              key={a.currency}
+              strong
+              style={{ marginRight: 12, fontSize: 16, ...tabularNumsStyle }}
+            >
+              {formatAmount(a.amount, a.currency)}
             </Typography.Text>
           ))
         ) : (
