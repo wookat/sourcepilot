@@ -190,6 +190,8 @@ Once the services are up, you can seed a demo dataset covering the whole loop (c
 ```powershell
 pnpm seed:demo-data          # demo dataset
 pnpm seed:demo-permissions   # demo roles and permissions
+pnpm seed:demo:full          # one-command full-loop demo data (DEMO- prefixed)
+pnpm seed:demo:full:clean    # one-command cleanup, deletes DEMO- prefixed data only
 ```
 
 Go full-chain demo seed (idempotent, one-command cleanup):

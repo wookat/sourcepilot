@@ -1161,12 +1161,6 @@ Final Production Acceptance Deferred to P10
 - 授权店铺列显示店铺名而非 UUID：后端 `loadStorePerms` 店铺名查询改 `Unscoped`（软删除店铺也能回显名称）；前端缺名时兜底「未知店铺」。
 - 同步 `docs/api.md`（用户与权限管理表）、`admin/src/services/adminUsers.ts`。API 既有端点语义/状态机/readonly 403 文案不变。
 
-### 变更记录（2026-08-02）生产部署本地演练收口（R45 部署包复核）
-
-- 在开发 VM 上按生产口径完整演练 `docker-compose.prod.yml`（APP_ENV=production + Caddy 内部 CA + /etc/hosts 假域名）：从零 env → 构建 → 启动 → bootstrap 管理员 → HTTPS 登录 → 核心页面抽查 < 15 分钟，验证恢复演练生产禁用、错误统一 envelope 不泄露堆栈、静态资源 immutable 缓存。
-- 修复演练发现缺陷：① backend 镜像缺 `pg_dump`/`pg_restore`/`psql` 导致 `/api/v1/ops/backups` 生产必失败，Dockerfile 增装 PGDG postgresql-client-16；② GORM record-not-found 按错误打完整 SQL（含账号入参）入生产日志，database.go 改用 `IgnoreRecordNotFoundError: true`；③ `.env.prod.example` 澄清 `BACKUP_SCHEDULE` 仅为元数据、每日自动备份须配宿主机 crontab。
-- 新增 `docs/production-launch-checklist.md`：资源清单（服务器/域名/DNS/防火墙）、逐步上线命令、回滚方案、上线后验证清单。
-
 ### 变更记录（2026-08-02）迭代第 59 轮：设置中心系统性安全走查与修复
 
 - 设置中心全量真实走查（docker compose 全栈，15 个 /settings 子页 + /shops/manage）：脱敏（sk-****abcd）、DB 密文、日志无完整密钥、连接测试、持久化、375/768/1440 响应式均复核通过；本轮修复以下问题。
@@ -1176,12 +1170,12 @@ Final Production Acceptance Deferred to P10
 - P2 采集设置「页面打开超时」对越界值静默钳制：改为显式 1000~300000 范围中文校验文案。
 - 工程修复：admin `react-dom` 声明 19.2.8 与 react 18.2.0 不一致导致前端单测挂掉；对齐 18.2.0 并把 overrides 同步进 `pnpm-workspace.yaml`（新版 pnpm 只读该文件），`pnpm test:frontend` 恢复全绿。
 
-### 变更记录（2026-08-01）迭代第 46 轮：生成采购单前置条件阻断引导闭环
+### 变更记录（2026-08-02）生产部署本地演练收口（R45 部署包复核）
 
-- 「生成采购单结果」弹窗的 blockers 每条附可点击直达入口（第 45 轮 UX 走查 P1：新手被 sku.unmatched → source.missing → mapping.missing 3 连环阻断且报错只给文案不给入口）：`sku.unmatched` →「去规格匹配」直达该订单详情规格匹配 Tab（`/orders/:id?tab=sku`，可用 Tab 内既有「自动匹配整单」）；`source.missing` →「去绑定主货源」直达货源档案并自动打开绑定弹窗（`/sourcing/product-sources?productId=…&action=bind`）；`mapping.missing` →「去补 SKU 映射」直达货源档案自动打开主货源 SKU 映射抽屉并高亮对应行（`…&action=mapping&skuId=…`）。点击链接自动关闭结果弹窗；订单列表/订单详情/采购单页三处入口统一生效。
-- 后端 `POST /procurement/orders/generate` 的 `Blocker` 新增可选 `productId` 字段，并为 `source.missing`/`mapping.missing` 补齐 `productId`/`localSkuId`（既有字段语义不变，向后兼容，附单测）；货源档案页新增 `action`/`skuId` 深链定位参数。附 GenerateResultAlerts 组件单测。
+- 在开发 VM 上按生产口径完整演练 `docker-compose.prod.yml`（APP_ENV=production + Caddy 内部 CA + /etc/hosts 假域名）：从零 env → 构建 → 启动 → bootstrap 管理员 → HTTPS 登录 → 核心页面抽查 < 15 分钟，验证恢复演练生产禁用、错误统一 envelope 不泄露堆栈、静态资源 immutable 缓存。
+- 修复演练发现缺陷：① backend 镜像缺 `pg_dump`/`pg_restore`/`psql` 导致 `/api/v1/ops/backups` 生产必失败，Dockerfile 增装 PGDG postgresql-client-16；② GORM record-not-found 按错误打完整 SQL（含账号入参）入生产日志，database.go 改用 `IgnoreRecordNotFoundError: true`；③ `.env.prod.example` 澄清 `BACKUP_SCHEDULE` 仅为元数据、每日自动备份须配宿主机 crontab。
+- 新增 `docs/production-launch-checklist.md`：资源清单（服务器/域名/DNS/防火墙）、逐步上线命令、回滚方案、上线后验证清单。
 
-### 变更记录（2026-08-01）迭代第 46 轮：会话过期守卫（401 不再整页跳转丢表单）
 
 - 修复第 45 轮 UX 走查 P1：JWT 过期后提交表单遇 401 直接 `window.location.assign` 跳登录页，弹窗内未保存内容全部丢失。新增前端会话守卫（`admin/src/utils/sessionGuard.ts`）：
   - 401 处理链路改为 umi `responseInterceptors` 内先静默续期（复用后端既有 `POST /api/v1/auth/refresh`，secure_session 走 HttpOnly cookie、legacy 走响应体 refreshToken），成功后原样重放原请求，调用方无感知；续期不可用/失败时在当前页弹「登录已过期」重新登录弹窗（`SessionExpiredModal`，挂载于 innerProvider），重登成功后同样重放请求，页面与表单状态不丢失；用户选择「去登录页」才清凭证跳转。
@@ -1225,7 +1219,6 @@ Final Production Acceptance Deferred to P10
 - P0 修复①：`POST /settings/test-image`、`POST /settings/test-ocr` 缺 `settings.manage` 权限检查（同组其它 settings/test-* 均有），readonly/operator 可触发外部连接测试；已补 `adminperm.RequireWrite(PermSettingsManage)`，回归见 `TestReadonlyWriteGuardRegression`。
 - P0 修复②：新增路由级只读守卫 `adminperm.ReadonlyWriteGuard` 挂在 `/api/v1`（authed 组）与 `/api/collector`：全部写方法路由 readonly 一律 403（fail-closed，新写端点默认被守卫），显式允许清单仅保留自助 session 管理与纯计算类 POST（calculate/check/preview/validate/estimate）。修复前约 190 条写端点无路由级只读守卫、对 readonly 返回 400/404 或放行。
 - 同步 `docs/api.md`（权限矩阵契约一节）、新增 `docs/permission-matrix.md`。
-
 ### 变更记录（2026-08-02）迭代第 53 轮：操作日志页 URL 深链 + 审计可见性验收
 
 - 现状盘点结论：审计能力后端已完备（`operation_logs` 模型含租户/店铺/角色/hash 链；写入覆盖登录、设置修改、采购状态流转/作废、任务重试、库存变动、店铺授权等；`GET /api/v1/operation-logs` 只读端点已含 `operationlog.view` 权限 + 租户/店铺 scope；管理端已有统一 `/system/operation-logs` 页）。本轮补齐 UX 缺口：
@@ -1285,12 +1278,6 @@ Final Production Acceptance Deferred to P10
 - **P2（越权）**：`operation_tasks` 新增可空 `shop_id`（索引 `idx_operation_tasks_tenant_shop_updated`），运营任务按订单/采购/异常口径纳入店铺 scope：admin 不受限；operator/readonly 仅见授权店铺任务，无授权店铺列表为空；`shop_id IS NULL`（租户级）仅 admin 可见；越权/跨租户直读（含 drafts/approvals/attempts/events 子资源与全部写路径）统一 404 不泄露存在性。创建接受可选 `shopId`（admin 可省略=租户级；非 admin 必须绑定授权店铺，缺失 400、越权 404）。存量 backfill 随迁移执行：`source_reference` 命中同租户店铺 id → 归属该店铺；命中商品 id 且发布关联唯一店铺 → 归属该店铺；推导不出保持租户级。
 - **P3（错误码）**：execute/retry 适配器 payload 校验失败由 HTTP 500/50000 改为 HTTP 400、业务码 40001、`errorCode=execution_validation_failed`（适配器 permission/state/idempotency 类分别映射 403/409）；失败 attempt 创建与 finalize 行为不变。
 - 回归：`api_scope_test.go`（admin/operator/readonly/跨租户四口径读写 + backfill + execute 4xx HTTP 层断言）+ 权限矩阵套件新增 `TestOperationTaskStoreScope`；docs/api.md 新增运营任务节、docs/permission-matrix.md、docs/P8_OPERATION_TASK_API.md 同步；前端 `operationTasks.ts` 类型补 `shopId`（无 UI 行为变更）。基于 integration/round55-preview（收敛 #79–#119）。
-
-### 变更记录（2026-08-01）第 46 轮会话守卫全栈验证与后端修复
-
-- 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
-- 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
-- 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
 
 ### 变更记录（2026-08-02）第 63 轮：PlatformTag/StatusTag 语义组件 + 首页信息设计打磨（R62 视觉走查 P1）
 
