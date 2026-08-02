@@ -17,7 +17,7 @@ import (
 
 func TestSeedFullProjectEdgeCases_blocksProduction(t *testing.T) {
 	s := &Service{AppEnv: "production"}
-	_, err := s.SeedFullProjectEdgeCases(context.Background(), nil)
+	_, err := s.SeedFullProjectEdgeCases(context.Background(), nil, 0)
 	if !errors.Is(err, ErrProductionForbidden) {
 		t.Fatalf("expected ErrProductionForbidden, got %v", err)
 	}
@@ -30,12 +30,31 @@ func TestSeedFullProjectEdgeCases_createsSamples(t *testing.T) {
 	}
 	s := &Service{DB: db, AppEnv: "development"}
 	adminID := uuid.New()
-	out, err := s.SeedFullProjectEdgeCases(context.Background(), &adminID)
+	out, err := s.SeedFullProjectEdgeCases(context.Background(), &adminID, 7)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	if len(out.Samples) < 5 {
 		t.Fatalf("expected >=5 samples, got %d", len(out.Samples))
+	}
+	// Every seeded row must carry the caller's tenant, never tenant 0.
+	for _, check := range []struct {
+		label string
+		model any
+	}{
+		{"shops", &shop.Shop{}},
+		{"products", &product.Product{}},
+		{"order_sync_tasks", &ordersync.OrderSyncTask{}},
+		{"inventory_sync_tasks", &inventory.InventorySyncTask{}},
+		{"customer_conversations", &customerchat.CustomerConversation{}},
+	} {
+		var zero int64
+		if err := db.Model(check.model).Where("tenant_id <> ?", int64(7)).Count(&zero).Error; err != nil {
+			t.Fatal(err)
+		}
+		if zero != 0 {
+			t.Fatalf("%s: %d rows seeded outside tenant 7", check.label, zero)
+		}
 	}
 	var orderCnt, invCnt, failCnt int64
 	db.Model(&ordersync.OrderSyncTask{}).Where("status = ?", "partial_success").Count(&orderCnt)
