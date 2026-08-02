@@ -3,7 +3,8 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ModalForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import { Link } from '@umijs/renderer-react';
 import { Alert, Button, Space, Tag, message } from 'antd';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { formatDateTime } from '@/utils/formatTime';
 import {
   createSelectionTask,
@@ -59,6 +60,9 @@ function parseItems(text?: string) {
 
 export default function SelectionTasksPage() {
   const actionRef = useRef<ActionType>();
+  const [createOpen, setCreateOpen] = useState(false);
+  const emptyLocaleOpts = useMemo(() => ({ onAction: () => setCreateOpen(true) }), []);
+  const emptyLocale = useListEmptyLocale('selectionTasks', emptyLocaleOpts);
   const [aiConfigured, setAiConfigured] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
@@ -127,6 +131,7 @@ export default function SelectionTasksPage() {
         actionRef={actionRef}
         columns={columns}
         search={false}
+        locale={emptyLocale}
         request={async (params) => {
           const res = await fetchSelectionTasks({
             page: params.current,
@@ -139,6 +144,8 @@ export default function SelectionTasksPage() {
             key="create"
             title="新建选品任务"
             width={560}
+            open={createOpen}
+            onOpenChange={setCreateOpen}
             trigger={<Button type="primary">新建选品任务</Button>}
             onFinish={async (values) => {
               const items = parseItems(values.items);
