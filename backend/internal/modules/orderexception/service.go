@@ -837,7 +837,7 @@ WHERE o.payment_status = ?
     JOIN purchase_orders po ON po.id = poi.purchase_order_id AND po.deleted_at IS NULL
     WHERE poi.sales_order_id = o.id
       AND poi.local_sku_id = oi.product_sku_id
-      AND po.status NOT IN ('cancelled','failed')
+      AND po.status NOT IN ('cancelled','failed','voided')
   )
 `
 	}

@@ -1,14 +1,19 @@
 import { TmPageContainer } from '@/components/ui';
 import {
   createSupplier,
+  deleteProductSource,
   deleteSupplier,
+  fetchOrphanSources,
   fetchSuppliers,
   updateSupplier,
+  type OrphanSourceRow,
   type Supplier,
 } from '@/services/sourcing';
 import {
+  Alert,
   Button,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -17,11 +22,16 @@ import {
   Space,
   Table,
   Tag,
+  Typography,
   message,
 } from 'antd';
+import type { Breakpoint } from 'antd';
 import { isReadonly } from '@/utils/permission';
 import { useModel } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';
+
+/** 次要列在 <768px 小屏折叠，只保留名称 / 平台 / 状态 / 操作。 */
+const DESKTOP_ONLY: Breakpoint[] = ['md'];
 
 const STATUS_TAG: Record<string, { text: string; color: string }> = {
   active: { text: '启用', color: 'green' },
@@ -33,6 +43,13 @@ export default function SuppliersPage() {
     initialState?: { currentUser?: { role?: string } };
   };
   const writable = !isReadonly(initialState?.currentUser?.role);
+  const screens = Grid.useBreakpoint();
+  const [wideScreen, setWideScreen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 768,
+  );
+  useEffect(() => {
+    if (screens.md !== undefined) setWideScreen(screens.md);
+  }, [screens.md]);
   const [rows, setRows] = useState<Supplier[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -42,6 +59,24 @@ export default function SuppliersPage() {
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const [orphans, setOrphans] = useState<OrphanSourceRow[]>([]);
+  const [orphanLoading, setOrphanLoading] = useState(false);
+
+  const loadOrphans = useCallback(async () => {
+    setOrphanLoading(true);
+    try {
+      const res = await fetchOrphanSources();
+      setOrphans(res.items || []);
+    } catch (e) {
+      message.error((e as Error).message || '加载孤儿货源失败');
+    } finally {
+      setOrphanLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadOrphans();
+  }, [loadOrphans]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -107,7 +142,7 @@ export default function SuppliersPage() {
         rowKey="id"
         loading={loading}
         dataSource={rows}
-        scroll={{ x: 900 }}
+        scroll={{ x: wideScreen ? 900 : undefined }}
         pagination={{
           current: page,
           pageSize,
@@ -121,8 +156,8 @@ export default function SuppliersPage() {
         columns={[
           { title: '名称', dataIndex: 'name', width: 200 },
           { title: '平台', dataIndex: 'platform', width: 90 },
-          { title: '外部ID', dataIndex: 'externalId', width: 140, render: (v) => v || '-' },
-          { title: '评分', dataIndex: 'rating', width: 80, render: (v) => v ?? '-' },
+          { title: '外部ID', dataIndex: 'externalId', width: 140, responsive: DESKTOP_ONLY, render: (v) => v || '-' },
+          { title: '评分', dataIndex: 'rating', width: 80, responsive: DESKTOP_ONLY, render: (v) => v ?? '-' },
           {
             title: '状态',
             dataIndex: 'status',
@@ -132,7 +167,7 @@ export default function SuppliersPage() {
               return <Tag color={cfg.color}>{cfg.text}</Tag>;
             },
           },
-          { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v) => v || '-' },
+          { title: '备注', dataIndex: 'remark', ellipsis: true, responsive: DESKTOP_ONLY, render: (v) => v || '-' },
           ...(writable
             ? [{
             title: '操作',
@@ -161,6 +196,66 @@ export default function SuppliersPage() {
             : []),
         ]}
       />
+      {orphans.length > 0 && (
+        <>
+          <Typography.Title level={5} style={{ marginTop: 24 }}>
+            孤儿货源（关联商品已删除）
+          </Typography.Title>
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="以下货源关联的商品已删除，会阻塞对应供应商的删除；解绑后供应商即可删除。"
+          />
+          <Table<OrphanSourceRow>
+            rowKey="sourceId"
+            size="small"
+            loading={orphanLoading}
+            dataSource={orphans}
+            pagination={false}
+            columns={[
+              {
+                title: '商品（已删除）',
+                dataIndex: 'productTitle',
+                ellipsis: true,
+                render: (v: string) => v || '-',
+              },
+              { title: '供应商', dataIndex: 'supplierName', width: 180, render: (v) => v || '-' },
+              {
+                title: '主货源',
+                dataIndex: 'isPrimary',
+                width: 90,
+                render: (v: boolean) => (v ? <Tag color="blue">主</Tag> : '-'),
+              },
+              { title: '规格映射数', dataIndex: 'skuCount', width: 100 },
+              { title: '绑定时间', dataIndex: 'createdAt', width: 180 },
+              ...(writable
+                ? [{
+                    title: '操作',
+                    width: 100,
+                    render: (_: unknown, row: OrphanSourceRow) => (
+                      <Popconfirm
+                        title="解绑该孤儿货源？"
+                        description="软删除该货源及其 SKU 映射，解绑后对应供应商可删除"
+                        onConfirm={async () => {
+                          try {
+                            await deleteProductSource(row.sourceId);
+                            message.success('已解绑');
+                            void loadOrphans();
+                          } catch (e) {
+                            message.error((e as Error).message || '解绑失败');
+                          }
+                        }}
+                      >
+                        <a style={{ color: '#ff4d4f' }}>解绑</a>
+                      </Popconfirm>
+                    ),
+                  }]
+                : []),
+            ]}
+          />
+        </>
+      )}
       <Modal
         title={editing ? '编辑供应商' : '新增供应商'}
         open={modalOpen}

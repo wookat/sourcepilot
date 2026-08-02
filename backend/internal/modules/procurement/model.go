@@ -19,6 +19,7 @@ const (
 	StatusDelivered      = "delivered"       // cloud warehouse received
 	StatusFailed         = "failed"
 	StatusCancelled      = "cancelled"
+	StatusVoided         = "voided" // manual write-off of a terminal order (audit rows kept)
 )
 
 // Pay statuses.

@@ -32,13 +32,21 @@ func (h *SessionHandler) Refresh(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "auth unavailable")
 		return
 	}
-	raw := authcookie.ReadRefresh(c)
+	// legacy_local_storage 模式以请求体为准，避免残留的 HttpOnly cookie
+	// （如从 secure_session 切回后遗留的旧令牌）覆盖有效令牌并触发复用检测
+	var raw string
+	if h.Cfg.UsesSecureSession() {
+		raw = authcookie.ReadRefresh(c)
+	}
 	if raw == "" {
 		var body struct {
 			RefreshToken string `json:"refreshToken"`
 		}
 		_ = c.ShouldBindJSON(&body)
 		raw = strings.TrimSpace(body.RefreshToken)
+	}
+	if raw == "" {
+		raw = authcookie.ReadRefresh(c)
 	}
 	if raw == "" {
 		response.Fail(c, 401, response.CodeUnauthorized, ErrRefreshTokenRevoked)

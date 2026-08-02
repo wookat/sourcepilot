@@ -224,6 +224,37 @@ func (h *Handler) SetPrimary(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// ListOrphanSources GET /product-sources/orphans
+func (h *Handler) ListOrphanSources(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "sourcing unavailable")
+		return
+	}
+	out, err := h.Svc.ListOrphanSources(c.Request.Context())
+	if err != nil {
+		handleSourcingError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"items": out})
+}
+
+// DeleteSource DELETE /product-sources/:id
+func (h *Handler) DeleteSource(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "sourcing unavailable")
+		return
+	}
+	id, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.Svc.DeleteSource(c.Request.Context(), id, adminUUID(c)); err != nil {
+		handleSourcingError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"deleted": true})
+}
+
 // SaveSKUMappings POST /product-sources/:id/sku-mappings
 func (h *Handler) SaveSKUMappings(c *gin.Context) {
 	if !h.ok() {
