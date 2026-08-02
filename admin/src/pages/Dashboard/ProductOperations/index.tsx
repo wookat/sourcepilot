@@ -78,6 +78,8 @@ const SALES_WINDOW_LABELS: Record<string, string> = {
   today: '今日',
   '7d': '近 7 日',
   '30d': '近 30 日',
+  last7d: '近 7 日',
+  last30d: '近 30 日',
 };
 
 function SalesWindowCard({ win }: { win: SalesWindowStats }) {
@@ -322,7 +324,7 @@ function parseRange(start?: string, end?: string): [Dayjs, Dayjs] | undefined {
   return [s, e];
 }
 
-function TodoCardItem({ item }: { item: DashboardTodo }) {
+function TodoCardItem({ item, primary }: { item: DashboardTodo; primary?: boolean }) {
   const { token } = theme.useToken();
   const actionLabel = TODO_ACTION_LABEL[item.key] ?? '去处理';
   const hasCount = (item.count ?? 0) > 0;
@@ -346,7 +348,7 @@ function TodoCardItem({ item }: { item: DashboardTodo }) {
             {item.count ?? 0}
           </Typography.Title>
         </Space>
-        <Button type="primary" block onClick={() => history.push(appendSourceToUrl(item.link))}>
+        <Button type={primary ? 'primary' : 'default'} block onClick={() => history.push(appendSourceToUrl(item.link))}>
           {actionLabel}
         </Button>
       </Space>
@@ -1096,9 +1098,9 @@ export default function ProductOperationsDashboardPage() {
           >
             {activeTodos.length > 0 ? (
               <Row gutter={[16, 16]}>
-                {activeTodos.map((item) => (
+                {activeTodos.map((item, index) => (
                   <Col xs={24} sm={12} md={8} lg={6} xl={6} key={item.key || item.id}>
-                    <TodoCardItem item={item} />
+                    <TodoCardItem item={item} primary={index === 0} />
                   </Col>
                 ))}
               </Row>

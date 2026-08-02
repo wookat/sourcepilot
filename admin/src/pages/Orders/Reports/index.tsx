@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState, TmPageContainer } from '@/components/ui';
 import { chartTokens, formatAmount, formatCount, tabularNumsStyle } from '@/constants/chartTokens';
 import { downloadDailyReportCsv, fetchOrderDailyStats, type DailyStatsDTO } from '@/services/orders';
+import { useWideScreen } from '@/hooks/useWideScreen';
 
 const DAY_OPTIONS = [
   { label: '近 7 天', value: 7 },
@@ -42,6 +43,8 @@ export default function OrderReports() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const wideScreen = useWideScreen();
+  const chartHeight = wideScreen ? chartTokens.height : chartTokens.heightCompact;
 
   const load = useCallback(() => {
     setLoading(true);
@@ -146,7 +149,7 @@ export default function OrderReports() {
             xField="date"
             yField="value"
             colorField="type"
-            height={chartTokens.height}
+            height={chartHeight}
             autoFit
             scale={{ color: { range: [...chartTokens.seriesColors] } }}
             axis={{
@@ -177,7 +180,7 @@ export default function OrderReports() {
             yField="amount"
             colorField="currency"
             stack
-            height={chartTokens.height}
+            height={chartHeight}
             autoFit
             scale={{ color: { range: [...chartTokens.seriesColors] } }}
             axis={{
