@@ -1291,3 +1291,10 @@ Final Production Acceptance Deferred to P10
 - 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
 - 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
 - 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
+
+### 变更记录（2026-08-02）第 63 轮：PlatformTag/StatusTag 语义组件 + 首页信息设计打磨（R62 视觉走查 P1）
+
+- 新增共享 `PlatformTag`（`admin/src/components/ui/PlatformTag.tsx`）：平台内部枚举 → 中文名 + 品牌色 Tag（douyin_shop→抖店/volcano 等），整体不换行，空值兜底 `—`，未知枚举保留原值；复用 `constants/platformLabels.ts` 集中映射。
+- 扩展共享 `StatusTag` 集中映射（matched/partial/completed/manual_review/verified/deferred/ready/not_ready/ready_with_warning/active/revoked 等），`copywriting.ts` 补对应中文文案；替换全站裸枚举直出处（订单/异常/SKU 匹配/详情、库存告警与同步、选品任务与详情、货源供应商、任务失败中心、客服、商品草稿/刊登覆写、设置用户/安全、采购、运维备份/恢复/灾备），仅改展示层，不改 API/权限/数据口径。
+- 首页 `Dashboard/ProductOperations`：漏斗转化率超 100% 时封顶展示 100% 并以「超额 +N%」另行标注（Tooltip 保留真实转化值），进度条宽度封顶；待办卡改用 antd token（间距/警示色）与 tabular-nums 数字排版。
+- 测试：新增 `PlatformTag` 单测、扩展 `StatusTag` 单测；新增 E2E `round63-semantic-visual.spec.ts`（漏斗超额标注、375 无溢出、供应商/任务失败中心语义 Tag）。

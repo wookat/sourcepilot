@@ -5656,7 +5656,7 @@ export default function ProductDraftDetailPage() {
                               const st = m?.capabilityStatus?.product_publish;
                               const betaTag = st === 'beta' ? ' [测试中/beta]' : '';
                               return {
-                                label: `${s.shopName} (${s.platform})${betaTag}`,
+                                label: `${s.shopName} (${platformDisplayLabel(s.platform)})${betaTag}`,
                                 value: s.id,
                               };
                             })}

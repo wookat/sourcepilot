@@ -1,6 +1,6 @@
 import { TmPageContainer } from '@/components/ui';
 import { CUSTOMER_CONVERSATION_STATUS } from '@/constants/status';
-import { PLATFORM_OPTIONS } from '@/constants/userFriendly';
+import { PLATFORM_OPTIONS, platformLabel } from '@/constants/userFriendly';
 import { getCustomerDashboard, type CustomerDashboardSummary } from '@/services/customer';
 import { queryShops } from '@/services/shops';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
@@ -37,7 +37,7 @@ export default function CustomerHubPage() {
         const res = await queryShops({ page: 1, pageSize: 500 });
         setShopOptions(
           res.list.map((s) => ({
-            label: `${s.shopName} (${s.platform})`,
+            label: `${s.shopName} (${platformLabel(s.platform)})`,
             value: s.id,
           })),
         );

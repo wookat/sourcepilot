@@ -47,7 +47,7 @@ import {
   PUBLISH_BATCH_MAX_PRODUCTS,
 } from '@/constants/publishLimits';
 import { PRODUCT_STATUS } from '@/constants/status';
-import { PRODUCT_SOURCE_LABEL, productSourceLabel } from '@/constants/userFriendly';
+import { PRODUCT_SOURCE_LABEL, platformLabel, productSourceLabel } from '@/constants/userFriendly';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
 import { notifyAIFailure } from '@/utils/aiFailureNotice';
 import {
@@ -863,7 +863,7 @@ export default function ProductDraftsPage() {
                 value={batchShopId || undefined}
                 onChange={(v) => setBatchShopId(v ? String(v) : '')}
                 options={shopsForBatchPlat.map((s) => ({
-                  label: `${s.shopName} (${s.platform})`,
+                  label: `${s.shopName} (${platformLabel(s.platform)})`,
                   value: s.id,
                 }))}
                 showSearch

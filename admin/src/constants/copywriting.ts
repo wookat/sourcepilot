@@ -457,6 +457,16 @@ export const COMMON_STATUS_LABEL: Record<string, string> = {
   store_permission_denied: '无店铺权限',
   inventory_sync_enabled: '库存同步已开启',
   manual_bound: '人工绑定',
+  partial: '部分完成',
+  matched: '已匹配',
+  completed: '已完成',
+  manual_review: '待人工复核',
+  verified: '已校验',
+  deferred: '暂缓',
+  not_ready: '未就绪',
+  ready_with_warning: '就绪（有提醒）',
+  active: '活跃',
+  revoked: '已撤销',
 };
 
 export function commonStatusLabel(status?: string | null): string {

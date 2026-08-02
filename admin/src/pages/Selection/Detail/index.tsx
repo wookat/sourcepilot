@@ -1,4 +1,4 @@
-import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { PlatformTag, StatusTag, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Link, useParams } from '@umijs/renderer-react';
 import { Alert, Button, Descriptions, Image, Popconfirm, Space, Tag, Tooltip, Typography, message } from 'antd';
@@ -16,14 +16,6 @@ import {
 import { extractApiErrorMessage } from '@/services/request';
 
 const POLL_MS = 4000;
-
-const STATUS_COLOR: Record<string, string> = {
-  pending: 'default',
-  running: 'processing',
-  success: 'success',
-  partial: 'warning',
-  failed: 'error',
-};
 
 const DECISION_COLOR: Record<string, string> = {
   pending: 'default',
@@ -232,7 +224,7 @@ export default function SelectionTaskDetailPage() {
             </Typography.Text>
           </Space>
         ) : (
-          <Tag>{row.candidate.status}</Tag>
+          <StatusTag status={row.candidate.status} />
         ),
     },
     {
@@ -321,10 +313,10 @@ export default function SelectionTaskDetailPage() {
       {task && (
         <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }} style={{ marginBottom: 16 }}>
           <Descriptions.Item label="状态">
-            <Tag color={STATUS_COLOR[task.status]}>{task.status}</Tag>
+            <StatusTag status={task.status} />
           </Descriptions.Item>
           <Descriptions.Item label="目标平台">
-            {task.targetPlatform}
+            <PlatformTag platform={task.targetPlatform} />
             {task.targetCountry ? ` / ${task.targetCountry}` : ''}
           </Descriptions.Item>
           <Descriptions.Item label="候选/打分/失败">

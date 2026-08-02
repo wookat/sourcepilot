@@ -1,5 +1,6 @@
 import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { PlatformTag, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { platformLabel } from '@/constants/userFriendly';
 import {
   Badge,
   Alert,
@@ -329,7 +330,7 @@ export default function OrdersPage() {
         const res = await queryShops({ page: 1, pageSize: 500 });
         setShopOptions(
           res.list.map((s) => ({
-            label: `${s.shopName} (${s.platform})`,
+            label: `${s.shopName} (${platformLabel(s.platform)})`,
             value: s.id,
           })),
         );
@@ -456,6 +457,7 @@ export default function OrdersPage() {
         width: 96,
         responsive: DESKTOP_ONLY,
         fieldProps: { allowClear: true },
+        render: (_, r) => <PlatformTag platform={r.platform} />,
       },
       {
         title: '店铺',
@@ -1058,11 +1060,11 @@ export default function OrdersPage() {
         {detail && (
           <>
             <Space wrap style={{ marginBottom: 12 }}>
-              <Badge status="processing" text={`platform ${detail.platform}`} />
+              <Badge status="processing" text={`平台 ${platformLabel(detail.platform)}`} />
               {detail.shopSummary ? (
                 <Badge
                   status="default"
-                  text={`店铺 ${detail.shopSummary.shopName} (${detail.shopSummary.platform})`}
+                  text={`店铺 ${detail.shopSummary.shopName} (${platformLabel(detail.shopSummary.platform)})`}
                 />
               ) : null}
               <Popconfirm

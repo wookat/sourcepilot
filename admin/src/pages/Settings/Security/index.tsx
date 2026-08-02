@@ -8,7 +8,7 @@ import {
   SaveOutlined,
 } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
-import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { StatusTag, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
   Alert,
@@ -146,16 +146,19 @@ function truthyStored(v: string | undefined): boolean {
 
 function configStatusTag(status: string) {
   const s = (status || '').toLowerCase();
-  if (s === 'ready' || s.includes('已配置') || s.includes('运行中')) {
-    return <Tag color="success">{status || 'ready'}</Tag>;
+  if (s === 'ready' || s === 'not_ready' || s === 'ready_with_warning') {
+    return <StatusTag status={s} />;
   }
-  if (s === 'not_ready' || s.includes('异常')) {
+  if (s.includes('已配置') || s.includes('运行中')) {
+    return <Tag color="success">{status}</Tag>;
+  }
+  if (s.includes('异常')) {
     return <Tag color="error">{status}</Tag>;
   }
-  if (s === 'ready_with_warning' || s.includes('待') || s.includes('manual')) {
+  if (s.includes('待') || s.includes('manual')) {
     return <Tag color="warning">{status}</Tag>;
   }
-  return <Tag>{status || 'unknown'}</Tag>;
+  return <StatusTag status={status || 'unknown'} />;
 }
 
 function sessionStatusTag(status: string, isCurrent: boolean) {
@@ -166,7 +169,7 @@ function sessionStatusTag(status: string, isCurrent: boolean) {
   if (s === 'active') return <Tag color="success">活跃</Tag>;
   if (s === 'revoked') return <Tag>已撤销</Tag>;
   if (s === 'expired') return <Tag color="default">已过期</Tag>;
-  return <Tag>{status}</Tag>;
+  return <StatusTag status={status} />;
 }
 
 function SecurityToggleCard({

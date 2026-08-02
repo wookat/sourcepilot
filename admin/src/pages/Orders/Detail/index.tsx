@@ -1,4 +1,5 @@
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { platformLabel } from '@/constants/userFriendly';
 import {
   Alert,
   Badge,
@@ -379,10 +380,10 @@ export default function OrderDetailPage() {
                       <Descriptions column={{ xs: 1, sm: 2, md: 3 }} size="small" bordered>
                         <Descriptions.Item label="订单号">{detail.orderNo}</Descriptions.Item>
                         <Descriptions.Item label="平台订单号">{detail.externalOrderId || '—'}</Descriptions.Item>
-                        <Descriptions.Item label="平台">{detail.platform}</Descriptions.Item>
+                        <Descriptions.Item label="平台"><PlatformTag platform={detail.platform} /></Descriptions.Item>
                         <Descriptions.Item label="店铺">
                           {detail.shopSummary?.shopName || '—'}
-                          {detail.shopSummary?.platform ? ` (${detail.shopSummary.platform})` : ''}
+                          {detail.shopSummary?.platform ? ` (${platformLabel(detail.shopSummary.platform)})` : ''}
                         </Descriptions.Item>
                         <Descriptions.Item label="订单状态">
                           {tagFromMap(detail.status, ORDER_STATUS)}

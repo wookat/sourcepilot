@@ -5,6 +5,7 @@ import type { PublishConfigOverrides } from '@/services/productPublish';
 import { productTargetKey } from '@/utils/publishConfigMerge';
 import type { ProductListRow } from '@/services/products';
 import { Button, Modal, Select, Space, Table, Tabs, Typography, message } from 'antd';
+import { PlatformTag } from '@/components/ui';
 import { useMemo, useState } from 'react';
 
 type SelectedTarget = { platform: string; shopId?: string | null; shopName?: string; platformLabel?: string };
@@ -288,7 +289,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
             scroll={{ x: 480 }}
             dataSource={platformRows}
             columns={[
-              { title: '平台', dataIndex: 'platform' },
+              { title: '平台', dataIndex: 'platform', render: (v: string) => <PlatformTag platform={v} /> },
               { title: '覆盖项数量', dataIndex: 'count', width: 100 },
               {
                 title: '操作',
@@ -317,7 +318,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
             scroll={{ x: 560 }}
             dataSource={shopRows}
             columns={[
-              { title: '平台', dataIndex: 'platform', width: 120 },
+              { title: '平台', dataIndex: 'platform', width: 120, render: (v: string) => <PlatformTag platform={v} /> },
               { title: '店铺', dataIndex: 'shopName', ellipsis: true },
               { title: '覆盖项数量', dataIndex: 'count', width: 100 },
               {

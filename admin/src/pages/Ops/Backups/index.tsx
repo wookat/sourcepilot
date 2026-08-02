@@ -1,4 +1,4 @@
-import { TmPageContainer } from '@/components/ui';
+import { StatusTag, TmPageContainer } from '@/components/ui';
 import { formatRequestError } from '@/constants/errorMessages';
 import {
   createBackup,
@@ -24,13 +24,6 @@ export function verifyDisabledReason(status?: string): string | undefined {
     return '该备份为待人工复核记录，未生成真实备份文件：需先在环境启用 BACKUP_ENABLED 并通过人工审查，再重新创建备份后才能校验。';
   }
   return '仅已完成（completed）的备份可以校验。';
-}
-
-function statusColor(status?: string) {
-  if (status === 'completed' || status === 'passed') return 'green';
-  if (status === 'failed') return 'red';
-  if (status === 'manual_review' || status === 'pending') return 'gold';
-  return 'blue';
 }
 
 export default function BackupsPage() {
@@ -102,13 +95,13 @@ export default function BackupsPage() {
               title: '状态',
               dataIndex: 'status',
               width: 130,
-              render: (v) => <Tag color={statusColor(v)}>{v}</Tag>,
+              render: (v) => <StatusTag status={String(v ?? '')} />,
             },
             {
               title: '校验',
               dataIndex: 'verificationStatus',
               width: 130,
-              render: (v) => <Tag color={statusColor(v)}>{v}</Tag>,
+              render: (v) => <StatusTag status={String(v ?? '')} />,
             },
             {
               title: '加密',

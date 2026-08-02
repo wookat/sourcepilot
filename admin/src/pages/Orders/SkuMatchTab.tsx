@@ -1,5 +1,6 @@
 import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
+import { StatusTag } from '@/components/ui';
 import { history } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -314,7 +315,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
             dataIndex: 'matchStatus',
             key: 'matchStatus',
             width: 110,
-            render: (v: string) => <Tag color={statusColor(v)}>{v || '—'}</Tag>,
+            render: (v: string) => (v ? <StatusTag status={v} color={statusColor(v)} /> : '—'),
           },
           { title: '类型', dataIndex: 'matchType', key: 'matchType', width: 130 },
           { title: '置信度', dataIndex: 'confidence', key: 'confidence', width: 72 },

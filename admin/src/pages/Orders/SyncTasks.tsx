@@ -1,5 +1,6 @@
 import { type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import { platformLabel } from '@/constants/userFriendly';
 import { Alert, Button, Drawer, Popconfirm, Space, Tag, Typography, message, Table } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
@@ -363,7 +364,7 @@ export default function OrderSyncTasksPage() {
             </Space>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId}{' '}
-              <Typography.Text type="secondary">({detail.platform})</Typography.Text>
+              <Typography.Text type="secondary">({platformLabel(detail.platform)})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph copyable={{ text: detail.id }}>
               <Typography.Text strong>任务编号：</Typography.Text> {detail.id}

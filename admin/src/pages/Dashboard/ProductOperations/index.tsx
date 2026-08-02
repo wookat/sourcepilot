@@ -34,6 +34,7 @@ import {
   Tag,
   Tooltip,
   Typography,
+  theme,
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { ReactNode } from 'react';
@@ -317,18 +318,26 @@ function parseRange(start?: string, end?: string): [Dayjs, Dayjs] | undefined {
 }
 
 function TodoCardItem({ item }: { item: DashboardTodo }) {
+  const { token } = theme.useToken();
   const actionLabel = TODO_ACTION_LABEL[item.key] ?? '去处理';
   const hasCount = (item.count ?? 0) > 0;
   return (
     <ProCard
       variant="outlined"
-      bodyStyle={{ padding: '16px', height: '100%' }}
-      style={hasCount ? { borderColor: '#f97316' } : undefined}
+      bodyStyle={{ padding: token.padding, height: '100%' }}
+      style={hasCount ? { borderColor: token.colorWarning } : undefined}
     >
-      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+      <Space direction="vertical" size={token.paddingXS} style={{ width: '100%' }}>
         <Space align="center" style={{ justifyContent: 'space-between', width: '100%' }}>
           <Typography.Text strong>{item.title}</Typography.Text>
-          <Typography.Title level={3} style={{ margin: 0 }}>
+          <Typography.Title
+            level={3}
+            style={{
+              margin: 0,
+              fontVariantNumeric: 'tabular-nums',
+              color: hasCount ? token.colorWarning : token.colorTextSecondary,
+            }}
+          >
             {item.count ?? 0}
           </Typography.Title>
         </Space>
@@ -638,8 +647,10 @@ function FunnelSteps({ steps }: { steps: DashboardFunnelStep[] }) {
       {list.map((step, index) => {
         const count = step.count ?? 0;
         const meta = FUNNEL_STEP_META[step.key] ?? FUNNEL_STEP_META.collected;
-        const barPct = count > 0 ? Math.max(8, Math.round((count / max) * 100)) : 0;
+        const barPct = count > 0 ? Math.min(100, Math.max(8, Math.round((count / max) * 100))) : 0;
         const convPct = topCount > 0 ? Math.round((count / topCount) * 100) : 0;
+        const cappedConvPct = Math.min(convPct, 100);
+        const overPct = convPct - 100;
         const isLast = index === list.length - 1;
 
         return (
@@ -729,17 +740,20 @@ function FunnelSteps({ steps }: { steps: DashboardFunnelStep[] }) {
                     {count}
                   </Typography.Text>
                   {index > 0 && topCount > 0 ? (
-                    <Tag
-                      bordered={false}
-                      style={{
-                        margin: 0,
-                        background: `${meta.color}14`,
-                        color: meta.color,
-                        fontSize: 12,
-                      }}
-                    >
-                      {convPct}%
-                    </Tag>
+                    <Tooltip title={overPct > 0 ? `实际转化 ${convPct}%，超出基准 ${overPct}%` : undefined}>
+                      <Tag
+                        bordered={false}
+                        style={{
+                          margin: 0,
+                          background: `${meta.color}14`,
+                          color: meta.color,
+                          fontSize: 12,
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {cappedConvPct}%{overPct > 0 ? ` · 超额 +${overPct}%` : ''}
+                      </Tag>
+                    </Tooltip>
                   ) : null}
                   <ArrowRightOutlined style={{ color: '#9ca3af', fontSize: 12 }} />
                 </Space>

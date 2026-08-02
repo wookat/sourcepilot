@@ -1,5 +1,6 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { platformLabel } from '@/constants/userFriendly';
 import PermissionGuard from '@/components/PermissionGuard';
 import { PAGE_COPY } from '@/constants/copywriting';
 import {
@@ -347,7 +348,7 @@ export default function SettingsUsersPage() {
                           style={{ width: 260 }}
                           placeholder="选择店铺"
                           options={shops.map((s) => ({
-                            label: `${s.shopName || s.id} (${s.platform})`,
+                            label: `${s.shopName || s.id} (${platformLabel(s.platform)})`,
                             value: s.id,
                           }))}
                         />

@@ -1,5 +1,6 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import { PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import { platformLabel } from '@/constants/userFriendly';
 import { formatDateTime } from '@/utils/formatTime';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
 import { history, useModel } from '@umijs/max';
@@ -201,7 +202,7 @@ export default function OrderExceptionsPage() {
     void (async () => {
       try {
         const res = await queryShops({ page: 1, pageSize: 500 });
-        setShopOpts(res.list.map((s) => ({ label: `${s.shopName} (${s.platform})`, value: s.id })));
+        setShopOpts(res.list.map((s) => ({ label: `${s.shopName} (${platformLabel(s.platform)})`, value: s.id })));
       } catch {
         /* ignore */
       }
@@ -445,6 +446,7 @@ export default function OrderExceptionsPage() {
         title: '平台',
         dataIndex: 'platform',
         width: 96,
+        render: (_, r) => <PlatformTag platform={r.platform} />,
       },
       {
         title: '店铺',

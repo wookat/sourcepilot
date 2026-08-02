@@ -1,8 +1,8 @@
-import { TmPageContainer } from '@/components/ui';
+import { StatusTag, TmPageContainer } from '@/components/ui';
 import { formatRequestError } from '@/constants/errorMessages';
 import { createDRDrill, fetchDRStatus, type DRStatus } from '@/services/opsP6';
 import { DeploymentUnitOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Descriptions, Form, Input, Modal, Space, Switch, Tag, message } from 'antd';
+import { Alert, Button, Card, Descriptions, Form, Input, Modal, Space, Switch, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
 export default function DisasterRecoveryPage() {
@@ -50,7 +50,7 @@ export default function DisasterRecoveryPage() {
         <Card title="当前状态">
           <Descriptions column={2}>
             <Descriptions.Item label="演练状态">
-              <Tag>{status?.status ?? 'deferred'}</Tag>
+              <StatusTag status={status?.status ?? 'deferred'} />
             </Descriptions.Item>
             <Descriptions.Item label="RPO 目标">{status?.rpoTarget ?? 'draft'}</Descriptions.Item>
             <Descriptions.Item label="RTO 目标">{status?.rtoTarget ?? 'draft'}</Descriptions.Item>
