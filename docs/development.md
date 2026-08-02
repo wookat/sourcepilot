@@ -60,6 +60,21 @@ pnpm dev:reset
 - `pnpm dev:stop`：停止默认 `docker-compose.yml` 服务，不删除 volume。
 - `pnpm dev:reset`：重置默认 Compose 数据卷，可能清空本地数据库。
 
+## 一键演示种子数据（seeddemo）
+
+面向新用户 / 演示环境空库和 QA fixture 场景的全链路演示数据（店铺、商品草稿含 AI 优化前后文案、供应商与货源 + SKU 映射、各状态销售订单与采购单、库存与变动流水、异常工作台样本、物流记录）。所有数据带 `DEMO-` 前缀，直接写库（不经 API、不改权限），采购单/订单状态流转经真实状态机校验。
+
+```bash
+pnpm seed:demo:full          # 种子（幂等：先清理旧 DEMO- 数据再重建）
+pnpm seed:demo:full:clean    # 一键清理，只删 DEMO- 前缀数据
+pnpm seed:demo:full:verify   # 复核清理后零残留（有残留退出码非 0）
+
+# 等价直跑（backend 目录）：
+go run ./cmd/seeddemo -mode seed|clean|verify [-tenant 0]
+```
+
+前置：PostgreSQL/Redis 已启动（`pnpm dev:infra`），根目录 `.env` 数据库配置正确。`APP_ENV=production` 时拒绝执行。既有的 API 驱动脚本 `pnpm seed:demo-data`（20 商品 slot / Dashboard 探测）仍可独立使用，两者互不依赖。
+
 ## 默认端口
 
 | 服务 | 默认地址 |
