@@ -110,6 +110,23 @@ export function localizePublishCheckItem(item: {
   };
 }
 
+/**
+ * 运营进度下一步文案按商品来源区分：手动创建的草稿没有采集结果，
+ * 「检查采集结果」类文案改为引导补全商品信息。
+ */
+export function localizeNextActionLabel(
+  label?: string | null,
+  actionKey?: string | null,
+  productSource?: string | null,
+): string | undefined {
+  const text = (label ?? '').trim() || undefined;
+  const isManual = (productSource ?? '').trim().toLowerCase() === 'manual';
+  if (isManual && ((actionKey ?? '').trim() === 'review_collect' || text === '检查采集结果')) {
+    return '去补全商品信息';
+  }
+  return text;
+}
+
 export function localizeCollectWarningCode(code: string): string {
   const mapped = PUBLISH_CHECK_CODE_LABEL[code.trim().toUpperCase()];
   if (mapped) {
