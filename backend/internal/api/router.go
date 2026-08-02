@@ -65,6 +65,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -615,8 +616,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)
 	authed.GET("/settings/integrations/overview", setH.IntegrationOverview)
 	authed.POST("/settings/test-ai", setH.TestAI)
-	authed.POST("/settings/test-image", imageTaskH.TestImage)
-	authed.POST("/settings/test-ocr", imageTaskH.TestOCR)
+	authed.POST("/settings/test-image", adminperm.RequireWriteMW(dep.DB, adminperm.PermSettingsManage), imageTaskH.TestImage)
+	authed.POST("/settings/test-ocr", adminperm.RequireWriteMW(dep.DB, adminperm.PermSettingsManage), imageTaskH.TestOCR)
 	authed.POST("/settings/test-storage", setH.TestStorage)
 	authed.POST("/settings/test-platform-tiktok", setH.TestPlatformTikTok)
 	authed.POST("/settings/test-email", setH.TestEmail)

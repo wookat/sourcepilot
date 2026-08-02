@@ -61,6 +61,8 @@ import {
   type ShopDetail,
   type ShopListRow,
 } from '@/services/shops';
+import { usePermission } from '@/hooks/usePermission';
+import { PERMISSIONS } from '@/utils/permission';
 import { syncShopOrders } from '@/services/orderSync';
 import { syncCustomerMessages } from '@/services/customer';
 import { getPlatformAppSettings } from '@/services/platformOpen';
@@ -205,6 +207,8 @@ function formatPlatformPartnerErr(err: unknown): string {
 
 export default function ShopsPage() {
   const actionRef = useRef<ActionType>();
+  const { can } = usePermission();
+  const canOperate = can(PERMISSIONS.STORE_OPERATE);
   const [providers, setProviders] = useState<PlatformProviderMeta[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<ShopDetail | null>(null);
@@ -489,7 +493,7 @@ export default function ShopsPage() {
         render: (_, r) => {
           const moreItems: MenuProps['items'] = [];
 
-          if (r.platform === 'douyin_shop') {
+          if (canOperate && r.platform === 'douyin_shop') {
             moreItems.push({
               type: 'group',
               label: '抖店授权',
@@ -527,22 +531,30 @@ export default function ShopsPage() {
             type: 'group',
             label: '数据同步',
             children: [
-              {
-                key: 'osync',
-                label: '同步订单',
-                onClick: () => openOrderSyncModal(r.platform, r.id),
-              },
+              ...(canOperate
+                ? [
+                    {
+                      key: 'osync',
+                      label: '同步订单',
+                      onClick: () => openOrderSyncModal(r.platform, r.id),
+                    },
+                  ]
+                : []),
               {
                 key: 'olog',
                 label: (
                   <Link to={`/orders/sync-tasks?shopId=${encodeURIComponent(r.id)}`}>订单同步记录</Link>
                 ),
               },
-              {
-                key: 'cmsync',
-                label: '拉取客服消息',
-                onClick: () => openCustomerMessageSyncModal(r.platform, r.id),
-              },
+              ...(canOperate
+                ? [
+                    {
+                      key: 'cmsync',
+                      label: '拉取客服消息',
+                      onClick: () => openCustomerMessageSyncModal(r.platform, r.id),
+                    },
+                  ]
+                : []),
               {
                 key: 'cmlog',
                 label: (
@@ -554,39 +566,41 @@ export default function ShopsPage() {
             ],
           });
 
-          moreItems.push({
-            key: 'test',
-            label: '测试连接',
-            icon: <ApiOutlined />,
-            onClick: async () => {
-              try {
-                const res =
-                  r.platform === 'douyin_shop' ? await testDouyinOAuth(r.id) : await testShopConnection(r.id);
-                message.success(summarizeShopTest(res));
-              } catch (e: unknown) {
-                message.error(formatPlatformPartnerErr(e));
-              }
-            },
-          });
-          moreItems.push({ type: 'divider' });
-          moreItems.push({
-            key: 'delete',
-            label: '删除店铺',
-            icon: <DeleteOutlined />,
-            danger: true,
-            onClick: () => {
-              Modal.confirm({
-                title: '删除店铺？',
-                content: '删除后不可恢复，请确认是否继续。',
-                okType: 'danger',
-                onOk: async () => {
-                  await deleteShop(r.id);
-                  message.success('已删除');
-                  actionRef.current?.reload();
-                },
-              });
-            },
-          });
+          if (canOperate) {
+            moreItems.push({
+              key: 'test',
+              label: '测试连接',
+              icon: <ApiOutlined />,
+              onClick: async () => {
+                try {
+                  const res =
+                    r.platform === 'douyin_shop' ? await testDouyinOAuth(r.id) : await testShopConnection(r.id);
+                  message.success(summarizeShopTest(res));
+                } catch (e: unknown) {
+                  message.error(formatPlatformPartnerErr(e));
+                }
+              },
+            });
+            moreItems.push({ type: 'divider' });
+            moreItems.push({
+              key: 'delete',
+              label: '删除店铺',
+              icon: <DeleteOutlined />,
+              danger: true,
+              onClick: () => {
+                Modal.confirm({
+                  title: '删除店铺？',
+                  content: '删除后不可恢复，请确认是否继续。',
+                  okType: 'danger',
+                  onOk: async () => {
+                    await deleteShop(r.id);
+                    message.success('已删除');
+                    actionRef.current?.reload();
+                  },
+                });
+              },
+            });
+          }
 
           return (
             <Space size={0} wrap={false}>
@@ -599,28 +613,32 @@ export default function ShopsPage() {
               >
                 查看
               </Button>
-              <Button
-                type="link"
-                size="small"
-                style={{ paddingInline: 4 }}
-                icon={<EditOutlined />}
-                onClick={async () => {
-                  const d = await getShop(r.id);
-                  setDetail(d);
-                  setEditOpen(true);
-                }}
-              >
-                编辑
-              </Button>
-              <Button
-                type="link"
-                size="small"
-                style={{ paddingInline: 4 }}
-                icon={<SafetyCertificateOutlined />}
-                onClick={() => void openAuthFor(r.id)}
-              >
-                授权
-              </Button>
+              {canOperate ? (
+                <Button
+                  type="link"
+                  size="small"
+                  style={{ paddingInline: 4 }}
+                  icon={<EditOutlined />}
+                  onClick={async () => {
+                    const d = await getShop(r.id);
+                    setDetail(d);
+                    setEditOpen(true);
+                  }}
+                >
+                  编辑
+                </Button>
+              ) : null}
+              {canOperate ? (
+                <Button
+                  type="link"
+                  size="small"
+                  style={{ paddingInline: 4 }}
+                  icon={<SafetyCertificateOutlined />}
+                  onClick={() => void openAuthFor(r.id)}
+                >
+                  授权
+                </Button>
+              ) : null}
               <Dropdown menu={{ items: moreItems }} trigger={['click']}>
                 <Button type="link" size="small" style={{ paddingInline: 4 }} icon={<MoreOutlined />}>
                   更多
@@ -631,7 +649,7 @@ export default function ShopsPage() {
         },
       },
     ],
-    [providers],
+    [providers, canOperate],
   );
 
   return (
@@ -653,11 +671,15 @@ export default function ShopsPage() {
         options={{ reload: true, density: true, setting: true }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true, showQuickJumper: true }}
         headerTitle="店铺列表"
-        toolBarRender={() => [
-          <Button key="n" type="primary" onClick={() => setCreateOpen(true)}>
-            新建店铺
-          </Button>,
-        ]}
+        toolBarRender={() =>
+          canOperate
+            ? [
+                <Button key="n" type="primary" onClick={() => setCreateOpen(true)}>
+                  新建店铺
+                </Button>,
+              ]
+            : []
+        }
         request={async (params) => {
           const res = await queryShops({
             page: params.current,
@@ -888,69 +910,77 @@ export default function ShopsPage() {
         extra={
           detail ? (
             <Space>
-              <Button
-                onClick={() => {
-                  setEditOpen(true);
-                }}
-              >
-                编辑
-              </Button>
-              <Button type="primary" onClick={() => detail && void openAuthFor(detail.id)}>
-                授权配置
-              </Button>
-              {detail.platform === 'douyin_shop' ? (
-                <Button onClick={() => void redirectDouyinOAuth(detail.id)}>重新授权</Button>
+              {canOperate ? (
+                <>
+                  <Button
+                    onClick={() => {
+                      setEditOpen(true);
+                    }}
+                  >
+                    编辑
+                  </Button>
+                  <Button type="primary" onClick={() => detail && void openAuthFor(detail.id)}>
+                    授权配置
+                  </Button>
+                  {detail.platform === 'douyin_shop' ? (
+                    <Button onClick={() => void redirectDouyinOAuth(detail.id)}>重新授权</Button>
+                  ) : null}
+                  {detail.platform === 'douyin_shop' ? (
+                    <Button onClick={() => void refreshDouyinFor(detail.id)}>刷新授权</Button>
+                  ) : null}
+                  {detail.platform === 'douyin_shop' ? (
+                    <Button onClick={() => void syncDouyinInfoFor(detail.id)}>同步店铺信息</Button>
+                  ) : null}
+                  {detail.platform === 'douyin_shop' ? (
+                    <Button
+                      danger
+                      onClick={() =>
+                        confirmRevokeStoreAuth(detail.shopName || detail.id, () => void revokeDouyinFor(detail.id))
+                      }
+                    >
+                      解除授权
+                    </Button>
+                  ) : null}
+                  <Button
+                    onClick={() => {
+                      if (!detail) return;
+                      openCustomerMessageSyncModal(detail.platform, detail.id);
+                    }}
+                  >
+                    拉取客服消息
+                  </Button>
+                </>
               ) : null}
-              {detail.platform === 'douyin_shop' ? (
-                <Button onClick={() => void refreshDouyinFor(detail.id)}>刷新授权</Button>
-              ) : null}
-              {detail.platform === 'douyin_shop' ? (
-                <Button onClick={() => void syncDouyinInfoFor(detail.id)}>同步店铺信息</Button>
-              ) : null}
-              {detail.platform === 'douyin_shop' ? (
-                <Button
-                  danger
-                  onClick={() =>
-                    confirmRevokeStoreAuth(detail.shopName || detail.id, () => void revokeDouyinFor(detail.id))
-                  }
-                >
-                  解除授权
-                </Button>
-              ) : null}
-              <Button
-                onClick={() => {
-                  if (!detail) return;
-                  openCustomerMessageSyncModal(detail.platform, detail.id);
-                }}
-              >
-                拉取客服消息
-              </Button>
               <Link to={`/customer/message-sync-tasks?shopId=${encodeURIComponent(detail?.id ?? '')}`}>
                 <Button disabled={!detail}>客服同步记录</Button>
               </Link>
-              <Button
-                onClick={() => {
-                  if (!detail) return;
-                  openOrderSyncModal(detail.platform, detail.id);
-                }}
-              >
-                同步订单
-              </Button>
+              {canOperate ? (
+                <Button
+                  onClick={() => {
+                    if (!detail) return;
+                    openOrderSyncModal(detail.platform, detail.id);
+                  }}
+                >
+                  同步订单
+                </Button>
+              ) : null}
               <Link to={`/orders/sync-tasks?shopId=${encodeURIComponent(detail?.id ?? '')}`}>
                 <Button disabled={!detail}>同步记录</Button>
               </Link>
-              <Button
-                onClick={async () => {
-                  try {
-                    const res = detail.platform === 'douyin_shop' ? await testDouyinOAuth(detail.id) : await testShopConnection(detail.id);
-                    message.success(summarizeShopTest(res));
-                  } catch (e: unknown) {
-                    message.error(formatPlatformPartnerErr(e));
-                  }
-                }}
-              >
-                测试连接
-              </Button>
+              {canOperate ? (
+                <Button
+                  onClick={async () => {
+                    try {
+                      const res = detail.platform === 'douyin_shop' ? await testDouyinOAuth(detail.id) : await testShopConnection(detail.id);
+                      message.success(summarizeShopTest(res));
+                    } catch (e: unknown) {
+                      message.error(formatPlatformPartnerErr(e));
+                    }
+                  }}
+                >
+                  测试连接
+                </Button>
+              ) : null}
             </Space>
           ) : null
         }
