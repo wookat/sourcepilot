@@ -939,7 +939,7 @@ export default function OrderDetailPage() {
         title={itemModal.row ? '编辑商品明细' : '新增商品明细'}
         open={itemModal.open}
         onCancel={() => setItemModal({ open: false })}
-        destroyOnHidden
+        forceRender
         onOk={async () => {
           const v = await itemForm.validateFields();
           if (!detail) return;
@@ -993,7 +993,7 @@ export default function OrderDetailPage() {
         title={shipModal.row ? '编辑物流' : '新增物流'}
         open={shipModal.open}
         onCancel={() => setShipModal({ open: false })}
-        destroyOnHidden
+        forceRender
         onOk={async () => {
           const v = await shipForm.validateFields();
           if (!detail) return;

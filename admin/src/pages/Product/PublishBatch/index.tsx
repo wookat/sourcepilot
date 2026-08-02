@@ -1,6 +1,7 @@
 import PublishBoundaryBanner from '@/components/platform/PublishBoundaryBanner';
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
+import { IMAGE_FALLBACK } from '@/constants/imageFallback';
 import type { PublishConfigLayer } from '@/constants/publishConfig';
 import { validatePublishConfigClient } from '@/constants/publishConfig';
 import {
@@ -502,7 +503,7 @@ export default function PublishBatchWizardPage() {
                     dataIndex: 'coverUrl',
                     width: 72,
                     render: (url: string) =>
-                      url ? <Image src={url} width={48} height={48} style={{ objectFit: 'cover' }} /> : '—',
+                      url ? <Image src={url} fallback={IMAGE_FALLBACK} width={48} height={48} style={{ objectFit: 'cover' }} /> : '—',
                   },
                   { title: '标题', dataIndex: 'title', ellipsis: true },
                   {

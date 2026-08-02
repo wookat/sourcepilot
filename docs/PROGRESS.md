@@ -1313,3 +1313,11 @@ Final Production Acceptance Deferred to P10
 - P2-11：客服会话「买家」列加 ellipsis，脱敏名不再折行。
 - chartTokens.heightCompact 落地：抽共享 `useWideScreen` hook（TmProTable 同步复用），报表页 <768px 图表用紧凑高度 220。
 - 测试：新增 `aiOperationWorkbench` 优先级色彩单测与 E2E `round65-visual-p2.spec.ts`（窗口标签中文、待办按钮层级、异常统计卡语义色+375 无溢出、报表紧凑高度、无图占位、登录页无幽灵卡）。
+
+### 变更记录（2026-08-02）第 68 轮：合并前大回归 v4 P2 收口（P2-1/2/3/5 + ENV-1，跳过 P2-4 由并行分支处理）
+
+- P2-1：新增 `admin/src/constants/imageFallback.ts` 统一破图占位（内联 SVG），商品草稿列表/选品明细/刊登批次/草稿抖店预览与规格图的 antd Image 补 `fallback`，DEMO 失效图 URL 不再裸破图。
+- P2-2：任务中心 mapper 用户可见标题（订单同步/客服消息同步/刊登/库存同步）改用 `opslabels.PlatformLabel`，AI 工作台待办描述随之显示「抖店」；DTO `platform` 字段保持原始编码，不改 API 口径。补 mapper 标题回归测试。
+- P2-3：订单异常工作台严重程度列改用既有 `SEV_LABEL` 中文映射（筛选枚举与技术详情不变）。
+- P2-5：`AppMessageBridge` 扩展 patch antd 静态 `Modal.*` 到 App context（消除静态方法 context warning）；订单列表/详情的明细与物流 Modal 由 `destroyOnHidden` 改 `forceRender`（打开前 `resetFields/setFieldsValue` 不再触发 useForm 未连接 warning，openXxxModal 每次打开仍重置字段）。
+- ENV-1：Docker 镜像已内置 postgresql-client-16；`docs/docker-deployment.md` 补宿主机部署 pg_dump 主版本 ≥16 要求与自检说明；backup service 执行前 `exec.LookPath` 预检，缺失时给出友好错误（含 POSTGRES_PG_DUMP_PATH 提示），备份校验口径不变。

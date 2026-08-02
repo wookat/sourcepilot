@@ -426,7 +426,7 @@ export default function OrderExceptionsPage() {
           high: { text: '高' },
           critical: { text: '紧急' },
         },
-        render: (_, r) => <Tag color={sevColor(r.severity)}>{r.severity}</Tag>,
+        render: (_, r) => <Tag color={sevColor(r.severity)}>{SEV_LABEL[r.severity] || r.severity || '—'}</Tag>,
       },
       {
         title: '视图状态',
