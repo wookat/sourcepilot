@@ -629,6 +629,14 @@ export default function ProductDraftsPage() {
         />
       )}
       <KeywordSafetyHint visible={showSensitiveHint} />
+      {urlState.operationStep ? (
+        <Alert
+          type="info"
+          showIcon
+          className="product-drafts-page__operation-step-alert"
+          message="运营进度筛选展示「该步骤尚未完成」的商品；行内标签是每个商品当前所处步骤，可能早于所筛步骤。"
+        />
+      ) : null}
       {selectedCount > 0 ? (
         <OperationToolbar
           className="product-drafts-page__selection-toolbar"
@@ -642,43 +650,51 @@ export default function ProductDraftsPage() {
             <Typography.Text strong>已选择 {selectedCount} 个商品</Typography.Text>
             <Typography.Text type="secondary">{selectedScopeText}</Typography.Text>
           </div>
-          <Button
-            icon={<RobotOutlined />}
-            type="primary"
-            onClick={() => {
-              if (!ensureBatchSelection()) return;
-              history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
-            }}
-          >
-            批量 AI 优化
-          </Button>
-          <Button
-            icon={<PictureOutlined />}
-            onClick={() => {
-              if (!ensureBatchSelection()) return;
-              history.push(`/product/ai-image-batch?productIds=${selectedRowKeys.join(',')}`);
-            }}
-          >
-            批量 AI 图片处理
-          </Button>
+          {readonly ? null : (
+            <>
+              <Button
+                icon={<RobotOutlined />}
+                type="primary"
+                onClick={() => {
+                  if (!ensureBatchSelection()) return;
+                  history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
+                }}
+              >
+                批量 AI 优化
+              </Button>
+              <Button
+                icon={<PictureOutlined />}
+                onClick={() => {
+                  if (!ensureBatchSelection()) return;
+                  history.push(`/product/ai-image-batch?productIds=${selectedRowKeys.join(',')}`);
+                }}
+              >
+                批量 AI 图片处理
+              </Button>
+            </>
+          )}
           <Button
             icon={<SafetyCertificateOutlined />}
             onClick={() => void openBatchDrawer()}
           >
             批量发布检查
           </Button>
-          <Button
-            icon={<ShopOutlined />}
-            onClick={() => {
-              if (!ensureBatchSelection()) return;
-              history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
-            }}
-          >
-            批量创建刊登草稿
-          </Button>
-          <Button icon={<DollarOutlined />} onClick={() => setPricingBatchOpen(true)}>
-            批量设置发布价
-          </Button>
+          {readonly ? null : (
+            <>
+              <Button
+                icon={<ShopOutlined />}
+                onClick={() => {
+                  if (!ensureBatchSelection()) return;
+                  history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
+                }}
+              >
+                批量创建刊登草稿
+              </Button>
+              <Button icon={<DollarOutlined />} onClick={() => setPricingBatchOpen(true)}>
+                批量设置发布价
+              </Button>
+            </>
+          )}
           <Button
             icon={<ExportOutlined />}
             loading={listingExportLoading}
@@ -858,8 +874,24 @@ export default function ProductDraftsPage() {
               />
             </Form.Item>
             <Form.Item label="店铺">
+              {shopsForBatchPlat.length === 0 ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className="product-drafts-drawer__no-shop-alert"
+                  message={`当前平台（${batchPlat}）没有已授权店铺`}
+                  description={
+                    <span>
+                      发布检查需要选择店铺。请先到{' '}
+                      <Typography.Link href="/store/list">店铺管理</Typography.Link>
+                      完成授权，或切换其他平台。
+                    </span>
+                  }
+                />
+              ) : null}
               <Select
                 placeholder="选择已授权店铺"
+                disabled={shopsForBatchPlat.length === 0}
                 value={batchShopId || undefined}
                 onChange={(v) => setBatchShopId(v ? String(v) : '')}
                 options={shopsForBatchPlat.map((s) => ({

@@ -1235,6 +1235,8 @@ Final Production Acceptance Deferred to P10
 - docs/api.md 同步 `GET /api/v1/operation-logs` 契约说明（权限/scope/筛选/深链）。
 
 ### 变更记录（2026-08-02）迭代第 51 轮：一键演示种子数据（seed / clean 幂等闭环）
+### 变更记录（2026-08-02）迭代第 55 轮：经营报表导出 CSV + 移动端收口
+### 变更记录（2026-08-02）迭代第 59 轮：商品草稿模块系统性真实走查收口
 
 - 新增 `backend/cmd/seeddemo`（`pnpm seed:demo:full` / `seed:demo:full:clean` / `seed:demo:full:verify`）：向指定租户（`-tenant`，默认 0）直接写库生成贯穿全链路的演示数据——店铺 ×2、商品草稿 ×5（采集/手动来源、AI 优化前后文案、主图、SKU ×10 含低库存告警样本）、供应商 + 货源档案 + 货源 SKU 映射 + 价格历史、销售订单覆盖 pending/paid/shipped/delivered/cancelled（含物流记录与 SKU 匹配/未匹配样本）、采购单覆盖 draft→delivered 全链 9 状态（不含作废，#85 未合并）、库存变动流水（订单扣减/采购入库/手动盘点）、库存同步批次与任务（成功+失败）、订单同步 partial_success、异常工作台 handled 标记。
 - 所有数据带 `DEMO-` 前缀；seed 幂等（先清后建，重复执行计数一致）；clean 只删 DEMO- 前缀数据并级联子表，verify 复核零残留；采购单状态链逐步经 `procurement.CanTransition` 校验并写 `purchase_order_events`，订单生命周期经 `order.ValidateOrderStateTransition` 校验，不产生非法状态；`APP_ENV=production` 拒绝执行；不改任何 API/权限。种子实现复用 `internal/modules/demoseed` 模块（`FullDemoSeeder`），附单测（状态链合法性/前缀/生产环境守卫）。
@@ -1273,3 +1275,10 @@ Final Production Acceptance Deferred to P10
 - 读端点补 tenant scope（与订单/选品口径一致）：任务/批次列表按 `tenant_id` 过滤，`GET /collect/tasks/:id`、`/collect/tasks/:id/events`、`/collect/batches/:id`、`/collect/batches/:id/tasks` 及手动重试的对象查询均走 `adminperm.ApplyTenantScope`，跨租户访问返回 404 不泄露存在性；任务/批次创建时落 `tenant_id`（与 integration/round55-preview 上 #88/#93 的 tenant_id 修复方向一致，PR → main 单独说明关系）。
 - 前端采集页对齐 readonly 模式：采集任务/批量采集页隐藏创建表单与重试入口，采集中心禁用单条/批量采集按钮（提示只读文案）；`/collect/rules`、`/collect/browser-profiles`、`/collect/monitor`、`/settings/collector` 原本已由 SETTINGS_MANAGE 菜单权限隔离。
 - 回归单测：三角色路由守卫（readonly 全写端点 403、admin/operator 不误伤、读端点不拦截）+ tenant scope（同租户 200、跨租户 404、列表不泄露、跨租户重试零变化）。同步 `docs/api.md` 采集节权限口径说明。
+- 全栈真实走查（docker compose + demo seed）商品草稿列表/详情/AI 优化/归档删除/采集回链 + 三角色权限 + 375/768/1440 响应式，发现并修复：
+  - **P0（后端越权风险）**：商品写接口除 `POST /products` 外均无路由级只读守卫（PUT/DELETE 商品、SKU/图片 CRUD、平台配置、抖音 mapping/图片、AI 优化/应用/撤销、sync-images），readonly 此前仅靠店铺可见性 scope「碰巧」404。现全部补 `denyWrite`（AI 应用/撤销走 `ai_text.apply` 守卫），附 `readonly_guard_test.go` 全路由 403 回归测试；docs/api.md 商品节同步说明。
+  - **P1**：前端统一 request 错误规范化——HTTP 非 2xx 时还原后端 envelope `message`（如 AI 未配置时「请配置 base_url」），不再裸显 axios「Request failed with status code 400」；附 request 单测。
+  - **P1**：商品草稿列表 readonly 隐藏选中工具栏批量写入口（批量 AI 优化/AI 图片处理/创建刊登草稿/设置发布价；只读可用的批量发布检查与批量导出上架清单保留），顶部工具栏与 main 口径一致（隐藏「新建草稿」，保留「更多」）；详情页 readonly 隐藏「标记为可用/归档/删除」头部操作；复用 main 的 readonly E2E。
+  - **P2**：归档增加二次确认 Popconfirm；新建草稿失败给出 message.error；新建 SKU 保存后延迟拉取真实行修复「新行只有删除按钮」；`operationStep` 筛选加入口径说明 Alert（筛选=该步骤未完成，行内 Tag=当前所处步骤）；批量发布检查抽屉在当前平台无授权店铺时给出空态引导并禁用店铺选择。
+  - **修复 main 上 test:frontend 挂掉**：dependabot 将 admin `react-dom` 升到 19.2.8（react 仍 18.2.0）导致 3 个组件测试套件崩溃；回退 `react-dom`/`@types/react-dom` 到 18 系，`pnpm-workspace.yaml` 增加 overrides（pnpm 10 读取位置，与 package.json `pnpm.overrides` 保持一致），root devDependencies 固定 react/react-dom 供 @testing-library/react peer 解析。
+- 遗留：「批量导出上架清单」已由第 49 轮在 main 实现（本分支合入）；operator demo 账号无授权店铺，operator 正常店铺 scope 场景未覆盖；商品计数口径（列表 total 与看板数）建议后续统一。
