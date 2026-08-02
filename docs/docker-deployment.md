@@ -52,6 +52,8 @@ REDIS_PUBLISH_PORT=6379
 
 backend 镜像内置 `postgresql-client-16`（与 compose 中 `postgres:16` 版本匹配），`BACKUP_ENABLED=true` 时备份/恢复演练可直接调用 `pg_dump` / `pg_restore`。
 
+> **备份客户端版本要求（宿主机/非 Docker 部署必读）**：`pg_dump` 不支持导出比自身主版本更高的服务端，`BACKUP_ENABLED=true` 时运行 backend 的环境必须安装与 PostgreSQL 服务端主版本一致（或更高）的客户端工具。对默认的 `postgres:16`，即 `postgresql-client-16`（Debian/Ubuntu 经 [PGDG 源](https://www.postgresql.org/download/linux/) 安装；发行版默认源的 `postgresql-client` 可能停留在更低主版本）。部署后可用 `pg_dump --version` 自检：主版本低于 16 或命令缺失时，备份任务会在执行阶段失败并在「运维 → 备份管理」中显示失败原因，备份校验口径不因此放宽。可选环境变量 `POSTGRES_PG_DUMP_PATH` / `POSTGRES_PG_RESTORE_PATH` 可指向指定版本的二进制（见 [env.md](env.md)）。
+
 P5-V 可观测性默认使用 `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`。Docker 本地试用不配置真实 telemetry backend 时，`OTEL_EXPORTER_OTLP_ENDPOINT` 保持为空并视为 Deferred；不要把 Mock Collector 验证写成生产 collector 已上线。
 
 P7 性能数据集与负载测试只能在隔离 `APP_ENV=performance` 环境执行；普通 Docker 试用与生产部署必须保持 `PERFORMANCE_TEST_MODE=false`、`ALLOW_PERFORMANCE_DATASET=false`，不得把隔离压测描述为真实生产容量验证。

@@ -1,4 +1,5 @@
 import type { CSSProperties, Key, ReactNode } from 'react';
+import { IMAGE_FALLBACK } from '@/constants/imageFallback';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -5237,7 +5238,7 @@ export default function ProductDraftDetailPage() {
                                       <div className="product-draft-douyin-flow__image-grid">
                                         {(douyinMapping.mainImages ?? []).map((img, idx) => (
                                           <div key={douyinImageKey(img, 'main', idx)} className="product-draft-publish__image-card product-draft-douyin-flow__image-card">
-                                            <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
+                                            <Image src={douyinImagePreviewUrl(img)} fallback={IMAGE_FALLBACK} width={112} height={112} style={{ objectFit: 'cover' }} />
                                             <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
                                               {douyinStorageStatusTag(img)}
                                               {douyinImageStatusTag(img)}
@@ -5286,7 +5287,7 @@ export default function ProductDraftDetailPage() {
                                       <div className="product-draft-douyin-flow__image-grid">
                                         {(douyinMapping.detailImages ?? []).map((img, idx) => (
                                           <div key={douyinImageKey(img, 'detail', idx)} className="product-draft-publish__image-card product-draft-douyin-flow__image-card">
-                                            <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
+                                            <Image src={douyinImagePreviewUrl(img)} fallback={IMAGE_FALLBACK} width={112} height={112} style={{ objectFit: 'cover' }} />
                                             <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
                                               {douyinStorageStatusTag(img)}
                                               {douyinImageStatusTag(img)}
@@ -5479,7 +5480,7 @@ export default function ProductDraftDetailPage() {
                                     { title: '规格值', render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{douyinAttrValueText(r.attrs ?? {})}</Typography.Text> },
                                     { title: '售价', width: 110, render: (_, r) => douyinMoney(r.price, douyinMapping.price?.currency) },
                                     { title: '库存', width: 90, render: (_, r) => (r.stock == null ? '未确认' : r.stock) },
-                                    { title: '规格图', width: 90, render: (_, r) => (r.imageUrl ? <Image src={r.imageUrl} width={40} height={40} /> : '无') },
+                                    { title: '规格图', width: 90, render: (_, r) => (r.imageUrl ? <Image src={r.imageUrl} fallback={IMAGE_FALLBACK} width={40} height={40} /> : '无') },
                                   ]}
                                 />
                               </Space>

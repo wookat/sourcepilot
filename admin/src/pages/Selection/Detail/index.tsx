@@ -3,6 +3,7 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { Link, useParams } from '@umijs/renderer-react';
 import { Alert, Button, Descriptions, Image, Popconfirm, Space, Tag, Tooltip, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import { IMAGE_FALLBACK } from '@/constants/imageFallback';
 import { formatDateTime } from '@/utils/formatTime';
 import { usePermission } from '@/hooks/usePermission';
 import {
@@ -120,7 +121,7 @@ export default function SelectionTaskDetailPage() {
       render: (_, row) => (
         <Space>
           {row.candidate.imageUrl ? (
-            <Image src={row.candidate.imageUrl} width={44} height={44} preview={false} />
+            <Image src={row.candidate.imageUrl} fallback={IMAGE_FALLBACK} width={44} height={44} preview={false} />
           ) : null}
           <Typography.Text style={{ maxWidth: 260 }} ellipsis={{ tooltip: row.candidate.title }}>
             {row.candidate.title}
