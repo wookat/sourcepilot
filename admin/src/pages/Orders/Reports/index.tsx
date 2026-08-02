@@ -185,7 +185,9 @@ export default function OrderReports() {
               y: { labelFormatter: (v: number) => formatCount(Number(v)) },
             }}
             legend={{ color: { position: 'top' } }}
-            tooltip={{ items: [{ channel: 'y', valueFormatter: (v: number) => formatAmount(Number(v)) }] }}
+            tooltip={{
+              items: [(d: AmountPoint) => ({ name: d.currency, value: formatAmount(d.amount) })],
+            }}
           />
         ) : (
           <EmptyState
