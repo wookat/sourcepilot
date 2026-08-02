@@ -12,6 +12,7 @@ import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-compone
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { EmptyState, OperationToolbar, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
+import { IMAGE_FALLBACK } from '@/constants/imageFallback';
 import { localizeNextActionLabel } from '@/constants/productOperationLabels';
 import { formatDateTime } from '@/utils/formatTime';
 
@@ -344,6 +345,7 @@ export default function ProductDraftsPage() {
         row.coverUrl ? (
           <Image
             src={row.coverUrl}
+            fallback={IMAGE_FALLBACK}
             width={56}
             height={56}
             className="product-drafts-table__image"
