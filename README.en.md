@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  Focused on product collection → drafts → AI content optimization → publishing → order and inventory workflows
+  Built around the operator's daily loop: sourcing & collection → AI optimization → drafts → suppliers / SKUs → orders → procurement → inventory → fulfillment → business analytics
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> ·
   <a href="#screenshots">Screenshots</a> ·
-  <a href="#core-capabilities">Core Capabilities</a> ·
+  <a href="#business-loop-and-core-capabilities">Core Capabilities</a> ·
   <a href="#architecture-and-stack">Architecture & Stack</a> ·
   <a href="docs/README.md">Docs</a>
 </p>
@@ -33,89 +33,120 @@
   <img src="docs/assets/img/readme-hero-en.png" alt="TradeMind Product Preview" width="100%" />
 </p>
 
-TradeMind is an open-source platform for cross-border commerce sellers and developer teams. It is designed around the operational flow that happens every day: collect products, organize drafts, optimize content with AI, publish listings, and keep orders and inventory in sync.
+TradeMind is an open-source AI operations platform for cross-border commerce sellers and developer teams. It is built around the business loop that operators run every day: collect and select products from sourcing marketplaces such as 1688 and Pinduoduo, optimize titles, descriptions, and images with AI, organize them into publish-ready drafts, bind suppliers and SKUs, sync and process platform orders, aggregate purchase orders, manage inventory and fulfillment, and review business analytics.
 
-The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
+The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP with multi-warehouse, finance, or WMS / OMS coverage, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
 
-## Release Status
+## Business Loop and Core Capabilities
 
-| Item | Status |
-| --- | --- |
-| Phase | Production Capability Development In Progress |
-| Demo | MVP Demo Ready |
-| Observability | Standard OTLP/HTTP Export Code Ready; P5 Closure Verification Incomplete |
-| Backup / Release / DR | P6 fully closed; real production verification deferred |
-| Performance / Capacity | P7 Conditionally Closed; functional/development scope completed; capacity and repeatability deferred to P10 |
-| Tag | Tag deferred |
-| Production | Not Production Ready |
-| Douyin | Douyin Release Candidate |
-| Final acceptance | Final Production Acceptance Deferred to P10 |
+```text
+Collection & selection → AI optimization → Drafts → Supplier / SKU binding → Publishing
+        ↑                                                                       ↓
+Business analytics ← Fulfillment ← Inventory ← Procurement ← Order sync & processing
+```
 
+### Collection and Selection
 
-## Positioning
+- Product collection: dedicated collectors for 1688, Pinduoduo, and Taobao / Tmall plus custom-rule collection, with single and batch submission.
+- Collection operations: task tracking, failure retry, monitoring (workers / tasks / batches), and browser login-state checks.
+- AI selection: selection tasks and a publish-ready shortlist to help filter collected products worth operating.
 
-| Area | What TradeMind focuses on |
-| --- | --- |
-| AI Product Operations | Product collection, drafts, AI titles and descriptions, image processing, and readiness checks. |
-| Cross-platform ERP MVP | Store authorization, order sync, SKU matching, inventory sync, and product publishing as a practical MVP loop. |
-| Self-hosted Extensibility | Provider-based architecture for AI, storage, image, platform, and collector integrations. |
+### AI Content and Product Drafts
+
+- AI copy: title optimization, description generation, prompt skill templates, result comparison, manual apply, and undo.
+- AI images: background removal, translation, and other image tasks via remove.bg, OpenAI Image, ComfyUI, and other providers, executed through async task queues.
+- Batch AI: batch copy tasks, batch image tasks, and batch review flows, unified in the product operations workbench.
+- Product drafts: unified management of products, SKUs, images, inventory thresholds, and pre-publish readiness checks, with operation-progress tracking.
+
+### Publishing and Stores
+
+- Store authorization: a working Douyin Shop OAuth loop, encrypted secrets, and connection tests.
+- Product publishing: a multi-platform listing center, single-product and batch draft creation, batch publishing, draft mapping, publish tasks, failure recovery, and manual correction.
+
+### Orders → Procurement → Inventory → Fulfillment
+
+- Full order lifecycle: order sync, manual creation and batch import, SKU matching, and batch operations (mark paid / ship / export fulfillment lists).
+- Exception workbench: aggregates unmatched SKUs, stock-deduction failures, inventory-sync failures, blocked procurement, negative margins, and other issues that need manual handling.
+- Procurement collaboration: aggregate purchase orders from sales orders by supplier profile, export lists for manual ordering, and backfill 1688 order / tracking numbers (manual-ordering transition mode), with batch submit / confirm / mark-paid / receive.
+- Sourcing management: supplier management and product sourcing profiles that connect orders to procurement.
+- Inventory collaboration: inventory center, stock alerts, deduction records, stock ledger, and platform sync tasks and batches.
+- Business reports: 30-day trends of orders, payments, and sales, consistent with the dashboard overview.
+
+### Governance and Engineering
+
+- Permission matrix: user and permission management, store-scoped data isolation, and navigation consistent with data permissions.
+- Operation logs: audit trail for logins, configuration changes, task operations, AI applies, and other critical actions.
+- Customer service: service center, conversation list, AI reply suggestions with manual confirmation before sending.
+- Provider architecture: AI, storage, image, platform, and collector capabilities are all extended through provider abstractions.
+- Reliability foundation: unified idempotency on critical writes, AI apply/undo protection, webhook fast ACK, and worker leases against stale writeback.
+- Demo data: built-in seed scripts that create a demo dataset covering the whole loop in one command.
 
 ## Screenshots
 
-The screenshots below come from the local development environment and show the most mature flow today: **collection → draft → AI content optimization**.
+The screenshots below come from the Docker Compose full-stack environment with the demo seed dataset.
 
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="docs/assets/img/2.png" alt="Collection Center" width="100%" />
+      <img src="docs/assets/img/r54-dashboard.png" alt="Operations Dashboard" width="100%" />
       <br />
-      <sub><strong>Collection Center</strong>: collector entry points and batch collection</sub>
+      <sub><strong>Operations Dashboard</strong>: onboarding guide and today's operations overview</sub>
     </td>
     <td width="50%" align="center">
-      <img src="docs/assets/img/3.png" alt="Collection Tasks" width="100%" />
+      <img src="docs/assets/img/r54-collect-hub.png" alt="Collection Center" width="100%" />
       <br />
-      <sub><strong>Collection Tasks</strong>: URL submission, task tracking, and linked drafts</sub>
+      <sub><strong>Collection Center</strong>: multi-source collection entry points and login-risk hints</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="docs/assets/img/4.png" alt="Collection Monitor" width="100%" />
+      <img src="docs/assets/img/r54-product-drafts.png" alt="Product Drafts" width="100%" />
       <br />
-      <sub><strong>Collection Monitor</strong>: worker, task, and batch status visibility</sub>
+      <sub><strong>Product Drafts</strong>: draft list, operation progress, and readiness checks</sub>
     </td>
     <td width="50%" align="center">
-      <img src="docs/assets/img/1.png" alt="AI Description Generation" width="100%" />
+      <img src="docs/assets/img/r54-ai-workbench.png" alt="AI Operations Workbench" width="100%" />
       <br />
-      <sub><strong>AI Description Generation</strong>: generate highlights, specs, and descriptions for drafts</sub>
+      <sub><strong>AI Operations Workbench</strong>: copy / image review and unified to-do handling</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/assets/img/r54-orders.png" alt="Order Management" width="100%" />
+      <br />
+      <sub><strong>Order Management</strong>: order sync, filtering, and batch operations</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/assets/img/r54-exceptions.png" alt="Order Exception Workbench" width="100%" />
+      <br />
+      <sub><strong>Order Exception Workbench</strong>: aggregated handling of unmatched SKUs and other exceptions</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/assets/img/r54-inventory.png" alt="Inventory Center" width="100%" />
+      <br />
+      <sub><strong>Inventory Center</strong>: local stock, SKU binding, and platform sync status</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/assets/img/r54-reports.png" alt="Business Reports" width="100%" />
+      <br />
+      <sub><strong>Business Reports</strong>: 30-day order and sales trends</sub>
     </td>
   </tr>
 </table>
 
-## Core Capabilities
-
-### AI Product Operations
-
-- Product collection from 1688, Pinduoduo, Taobao / Tmall, and custom rules.
-- Product draft management for products, SKUs, images, inventory thresholds, collection warnings, and readiness checks.
-- AI title optimization and description generation with prompt templates, task records, compare/apply flows, and safe rollback.
-- AI image workflows through remove.bg, OpenAI Image, ComfyUI, and async task queues.
-
-### Cross-platform ERP MVP
-
-- Store authorization with a working Douyin Shop OAuth loop, encrypted secrets, and connection tests.
-- Order collaboration with sync, SKU matching, and exception handling.
-- Inventory collaboration with stock mirrors, alerts, and sync tasks.
-- Product publishing via a multi-platform listing center, single-product and batch draft creation, multi-product publish workflows, AI title/description review, AI image processing, draft mapping, publish tasks, recovery paths, and manual correction.
-- AI customer-service reply suggestions with manual confirmation before sending.
-
-### Engineering and Extensibility
-
-- Provider abstractions for AI, storage, image, platform, and collector integrations.
-- Self-host-friendly setup with PostgreSQL + Redis and a full Docker Compose deployment path.
-- Monorepo structure for backend, admin, collector, and docs, making team collaboration easier.
-- Reliability foundation with unified idempotency on critical writes, AI apply/undo protection, Webhook fast ACK, and worker leases against stale writeback.
-
 ## Architecture and Stack
+
+```text
+React + Ant Design Pro (admin)
+        ↓
+Go + Gin + GORM (backend API)
+        ↓                ↘
+PostgreSQL          Redis queues
+                         ↓
+        Node.js + Playwright (collector)
+```
 
 | Layer | Stack |
 | --- | --- |
@@ -128,34 +159,7 @@ The screenshots below come from the local development environment and show the m
 
 ## Quick Start
 
-### Local Development
-
-```bash
-pnpm install
-pnpm install:collector:browsers
-pnpm dev
-```
-
-Useful commands:
-
-```bash
-pnpm check:dev
-pnpm dev:infra
-pnpm dev:backend
-pnpm dev:admin
-pnpm dev:collector
-pnpm build:admin
-pnpm build:collector
-pnpm seed:demo-data
-pnpm seed:demo-permissions
-pnpm seed:demo:full
-pnpm seed:demo:full:clean
-pnpm verify:demo-data
-pnpm verify:demo-permissions
-pnpm check:p4-r
-```
-
-### Docker Deployment
+### Docker One-command Start (Recommended)
 
 ```bash
 cp .env.docker.example .env
@@ -177,15 +181,58 @@ Default URLs:
 | Backend Health | <http://127.0.0.1:8080/health> |
 | Collector Health | <http://127.0.0.1:3001/health> |
 
+The default admin account is defined by `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` in your `.env` (example values in `.env.docker.example`; always change them to strong random values in production).
+
+### Demo Data (Optional)
+
+Once the services are up, you can seed a demo dataset covering the whole loop (collection → drafts → orders → inventory → reports) in one command:
+
+```powershell
+pnpm seed:demo-data          # demo dataset
+pnpm seed:demo-permissions   # demo roles and permissions
+```
+
+Go full-chain demo seed (idempotent, one-command cleanup):
+
+```bash
+pnpm seed:demo:full          # generate DEMO- prefixed full-chain demo data
+pnpm seed:demo:full:verify   # verify demo data
+pnpm seed:demo:full:clean    # remove only DEMO- prefixed data
+```
+
+On Linux / macOS, install [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) first, then run `bash scripts/seed-demo-data.sh`. See [docs/DEMO_SEEDING_GUIDE.md](docs/DEMO_SEEDING_GUIDE.md) for details.
+
+### Local Development
+
+```bash
+pnpm install
+pnpm install:collector:browsers
+pnpm dev
+```
+
+Useful commands:
+
+```bash
+pnpm check:dev        # development environment self-check
+pnpm dev:infra        # PostgreSQL + Redis only
+pnpm dev:backend      # backend only
+pnpm dev:admin        # admin only
+pnpm dev:collector    # collector only
+pnpm build:admin
+pnpm build:collector
+```
+
 Further reading:
 
-- [docs/development.md](docs/development.md)
-- [docs/docker-deployment.md](docs/docker-deployment.md)
-- [docs/env.md](docs/env.md)
+- [Local development](docs/development.md)
+- [Docker deployment](docs/docker-deployment.md)
+- [Production deployment (domain + HTTPS)](docs/production-deployment.md)
+- [Environment variables](docs/env.md)
 
 ## Documentation
 
-- [docs/README.md](docs/README.md): documentation hub.
+- [docs/README.md](docs/README.md): documentation hub (categorized index: usage / deployment / development / testing / security).
+- [docs/operations-manual.md](docs/operations-manual.md): day-to-day operations manual (selection → listing → procurement → fulfillment).
 - [docs/development.md](docs/development.md): local development, debugging, and commands.
 - [docs/docker-deployment.md](docs/docker-deployment.md): full Docker Compose deployment and operations.
 - [docs/api.md](docs/api.md): API contracts, response conventions, and auth notes.

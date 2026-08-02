@@ -37,11 +37,12 @@ Get-ChildItem -Path $repoRoot -Recurse -Include *.md,*.tsx,*.ts -ErrorAction Sil
     }
 Add-Issue "Admin route uses /ops/task-center/failures" ($wrongRouteHits.Count -eq 0) $(if ($wrongRouteHits.Count -eq 0) { "ok" } else { ($wrongRouteHits | Select-Object -First 5) -join ", " })
 
-$readme = Get-Content (Join-Path $repoRoot "README.md") -Raw
-Add-Issue "README states MVP Demo Ready" ($readme -match 'MVP Demo Ready') "README.md release line"
-Add-Issue "README states production capability phase" ($readme -match 'Production Capability Development|Post-F9 Enhancement|Phase P1') "README.md stage line"
-Add-Issue "README states Tag deferred" ($readme -match 'Tag deferred') "tag status"
-Add-Issue "README Douyin Release Candidate" ($readme -match 'Release Candidate') "douyin status"
+# Per .cursor/rules/15-external-docs-no-phase-status.mdc, README.md / README.en.md
+# must NOT carry phase/stage status banners; phase progress lives in docs/PROGRESS.md.
+foreach ($readmeName in @("README.md", "README.en.md")) {
+    $readme = Get-Content (Join-Path $repoRoot $readmeName) -Raw
+    Add-Issue "$readmeName has no phase status banner" ($readme -notmatch 'MVP Demo Ready|Production Capability Development|Post-F9 Enhancement|Tag deferred|Release Candidate|Release Status|Not Production Ready') "$readmeName phase status"
+}
 
 $prodReadyBad = @()
 Get-ChildItem -Path (Join-Path $repoRoot "docs") -Filter *.md -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
@@ -78,15 +79,10 @@ foreach ($item in $issues) {
 }
 $md += @(
     "",
-    "## Required release status",
+    "## Release status policy",
     "",
-    "- Production Capability Development In Progress",
-    "- Infrastructure Foundation Ready",
-    "- MVP Demo Ready",
-    "- Tag deferred",
-    "- Not Production Ready",
-    "- Final Acceptance Deferred (Phase P10)",
-    "- Douyin Release Candidate",
+    "- README.md / README.en.md carry no phase/stage status (rule 15-external-docs-no-phase-status).",
+    "- Phase progress and acceptance status live in docs/PROGRESS.md and phase reports.",
     "",
     "## Route convention",
     "",
