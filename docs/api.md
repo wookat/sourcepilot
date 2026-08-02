@@ -545,16 +545,18 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `POST` | `/api/v1/source-switch-events/:id/adopt` | 采纳一条待处理的切换建议：主供应商切换为建议的备选货源并标记 adopted，写操作日志；非待处理建议返回 409。 |
 | `POST` | `/api/v1/source-switch-events/:id/ignore` | 忽略一条待处理的切换建议（标记 ignored），写操作日志。 |
 | `GET` | `/api/v1/product-source-alerts` | 预警货源总览：当前处于涨价预警/断货状态的货源（含商品标题、供应商、是否主供应商、该商品待处理建议数）。 |
+| `GET` | `/api/v1/product-sources/orphans` | 孤儿货源列表：关联商品已被（软）删除的货源（含原商品标题、供应商、SKU 映射数）；这些货源会阻塞供应商删除。 |
+| `DELETE` | `/api/v1/product-sources/:id` | 解绑孤儿货源（软删除货源及其 SKU 映射，写操作日志）；仅限关联商品已删除的货源，商品仍存在时返回 409；解绑后对应供应商可删除。 |
 
 切换规则：`priority` 越小越优先；主货源断货且未锁定时自动切换到最优可用备用源并记 `auto` 事件；涨价超过阈值（settings `sourcing` 组，默认 10%）仅生成 `suggested` 建议事件，不自动切换；`locked` 货源不参与自动切换。
 
 ## 采购协同（procurement，人工下单过渡模式）
 
-1688 官方 API 暂不可用；当前通过 Trade Provider mock + 人工下单模式流转。状态机：`draft → pending_confirm → placing → placed → paid → shipped → delivered`，另有 `failed / cancelled`；非法流转返回 400。
+1688 官方 API 暂不可用；当前通过 Trade Provider mock + 人工下单模式流转。状态机：`draft → pending_confirm → placing → placed → paid → shipped → delivered`，另有 `failed / cancelled / voided`；非法流转返回 400。`voided`（作废）仅允许从终态/错误态（`delivered / failed / cancelled`）进入，用于处置测试单或错误单据；作废单保留审计与操作日志，但不再参与统计/待办/生成防重覆盖判定（口径与 cancelled/failed 一致）；已入库库存不自动回滚。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回，每条含 `orderId`/`code`/`message`，`source.missing`、`mapping.missing` 额外返回 `productId` 与 `localSkuId`（新增可选字段，向后兼容，供前端生成直达链接）；映射无参考价时自动回退到最近历史进价，仍缺价以 `warnings`（`price.missing`）返回；支持 `idempotencyKey` 幂等；明细行已被未取消/未失败采购单覆盖时跳过并以 `warnings`（`line.covered`）返回，取消原采购单后可重新生成。 |
+| `POST` | `/api/v1/procurement/orders/generate` | 从销售订单按主货源供应商聚合生成采购单（draft）；未匹配 SKU / 缺主货源等以 `blockers` 返回，每条含 `orderId`/`code`/`message`，`source.missing`、`mapping.missing` 额外返回 `productId` 与 `localSkuId`（新增可选字段，向后兼容，供前端生成直达链接）；映射无参考价时自动回退到最近历史进价，仍缺价以 `warnings`（`price.missing`）返回；支持 `idempotencyKey` 幂等；明细行已被未取消/未失败/未作废采购单覆盖时跳过并以 `warnings`（`line.covered`）返回，取消或作废原采购单后可重新生成。 |
 | `GET` | `/api/v1/procurement/orders?status=&salesOrderId=` | 采购单列表；`salesOrderId` 按来源销售订单过滤（订单详情「关联采购单」用），非法 UUID 返回 400。 |
 | `GET` | `/api/v1/procurement/cost-estimates/:id` | 销售订单成本/毛利估算（id 为销售订单）：按主货源 SKU 映射参考价（缺价回退最近历史进价）逐行估算 CNY 成本；订单币种为 CNY 或配置了 `settings.pricing.exchangeRate`（CNY→订单币种）时折算 `estimatedCost/grossProfit/marginPercent`，任一行缺价时不计算毛利，问题行以 `issueCode`（`sku.unmatched`/`source.missing`/`mapping.missing`/`price.missing`）返回。 |
 | `POST` | `/api/v1/procurement/cost-estimates/batch` | 批量成本/毛利估算（订单列表用）：body `{"orderIds": ["..."]}`（≤50 个），返回 `items`（orderId → 汇总：`estimatedCostCny/exchangeRate/estimatedCost/grossProfit/marginPercent/missingLines`），不存在的订单被省略。 |
@@ -569,6 +571,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `POST` | `/api/v1/procurement/orders/:id/mark-delivered` | shipped → delivered；同事务将各明细数量加回本地 SKU 库存并写 `inventory_change_logs`（`purchase_inbound`，按 business_event_key 幂等）。 |
 | `POST` | `/api/v1/procurement/orders/:id/retry` | failed → placing。 |
 | `POST` | `/api/v1/procurement/orders/:id/cancel` | 取消（终态前均可）。 |
+| `POST` | `/api/v1/procurement/orders/:id/void` | 作废：`delivered / failed / cancelled → voided`，body `{reason?}`；写 `purchase_order_events` 与操作日志（`procurement.void`）；已入库库存不自动回滚；仅可写角色（readonly 403）。 |
 | `PUT` | `/api/v1/procurement/orders/:id/items/:itemId/price` | 补填/修改明细参考价：`{expectedPrice}`（>0），仅 draft / pending_confirm 状态可改，重算采购单 `totalAmount` 并返回详情。 |
 | `POST` | `/api/v1/procurement/orders/batch-mark-placed` | 批量回填 1688 订单号：`{items:[{purchaseOrderId, externalOrderId}]}`，单批 ≤200 行，逐行独立处理返回 `{succeeded, failed, results[]}`（部分成功不回滚）。 |
 | `POST` | `/api/v1/procurement/orders/batch-logistics` | 批量回填运单号：`{items:[{externalOrderId, trackingNo, carrier?}]}`，按 1688 外部订单号匹配采购单（placed 状态会先自动 mark-paid），返回逐行结果。 |
@@ -583,7 +586,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | --- | --- | --- |
 | `POST` | `/api/v1/orders/import` | 批量创建手工销售订单：`{orders:[CreateBody], matchSkus?}`，单批 ≤200 张；订单号已存在（库内或批内重复）返回 `skipped_duplicate` 不重复建单，单张失败不影响其余；`matchSkus=true` 时创建后自动按 SKU 编码匹配本地规格。返回 `{total, created, duplicate, failed, results[]}`（含逐单 `itemsMatched`）。手工订单创建（含单张 `POST /orders`）会写入当前租户 `tenant_id`；`CreateBody.shopId` 可选（导入弹窗可选一个店铺应用到整批），仅允许当前账号可见的店铺。 |
 
-`GET /api/v1/orders` 支持可选 `hasPurchase` 过滤（`1`/`true`＝已有未取消/未失败采购单覆盖任一明细行，`0`/`false`＝无；缺省不过滤），与生成采购单防重的覆盖判定同一口径；首页「订单待采购」待办卡使用 `payStatus=paid&hasPurchase=0` 直达。
+`GET /api/v1/orders` 支持可选 `hasPurchase` 过滤（`1`/`true`＝已有未取消/未失败/未作废采购单覆盖任一明细行，`0`/`false`＝无；缺省不过滤），与生成采购单防重的覆盖判定同一口径；首页「订单待采购」待办卡使用 `payStatus=paid&hasPurchase=0` 直达。
 
 对应管理端入口：`/orders` 工具栏「批量导入订单」，粘贴格式 `订单号,客户名,商品标题,SKU编码,数量,单价[,币种]`，同订单号多行合并为多明细。
 
