@@ -12,8 +12,9 @@ test.describe('@product-draft 草稿列表只读角色写入口', () => {
       });
     });
     await admin.goto('/product/drafts');
-    await expect(page.getByRole('button', { name: '更多' })).toBeVisible();
+    await expect(page.getByText('商品草稿').first()).toBeVisible();
     await expect(page.getByRole('button', { name: '新建草稿' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '更多' })).toHaveCount(0);
   });
 
   test('admin 角色仍显示「新建草稿」按钮', async ({ page, admin }) => {
@@ -48,7 +49,8 @@ test.describe('@product-draft 草稿列表只读角色写入口', () => {
     await page.getByRole('menuitem', { name: /商品$/ }).click();
     await page.getByRole('link', { name: '商品草稿' }).first().click();
     await expect(page).toHaveURL(/\/product\/drafts/);
-    await expect(page.getByRole('button', { name: '更多' })).toBeVisible();
+    await expect(page.getByText('商品草稿').first()).toBeVisible();
     await expect(page.getByRole('button', { name: '新建草稿' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '更多' })).toHaveCount(0);
   });
 });

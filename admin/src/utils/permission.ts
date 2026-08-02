@@ -152,5 +152,9 @@ export function canReadOperationTasks(role?: string | null, perms?: string[]): b
   return hasPermission(role, PERMISSIONS.OPERATION_TASK_AUDIT_READ, perms);
 }
 
+export function canReviewOperationTasks(role?: string | null, perms?: string[]): boolean {
+  return hasPermission(role, PERMISSIONS.OPERATION_TASK_REVIEW, perms);
+}
+
 export const PERMISSION_DENIED_MESSAGE = '当前账号无权限访问此页面';
 export const READONLY_DENIED_MESSAGE = '只读账号不可执行写操作';

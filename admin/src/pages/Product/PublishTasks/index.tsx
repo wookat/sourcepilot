@@ -321,7 +321,7 @@ export default function ProductPublishTasksPage() {
         onChange={(key) => {
           setUrlState(
             {
-              tab: key === 'tasks' ? undefined : key,
+              tab: key === 'tasks' ? 'tasks' : undefined,
               page: undefined,
               pageSize: undefined,
               drawer: undefined,
@@ -376,7 +376,7 @@ export default function ProductPublishTasksPage() {
                       status: qp.status,
                       start: qp.start,
                       end: qp.end,
-                      tab: undefined,
+                      tab: 'tasks',
                       source: urlState.source,
                       drawer: urlState.drawer,
                       id: urlState.id,
@@ -407,7 +407,7 @@ export default function ProductPublishTasksPage() {
                     setBatchPage(page);
                     setBatchPageSize(pageSize);
                     setUrlState({
-                      tab: 'batches',
+                      tab: undefined,
                       page: page > 1 ? page : undefined,
                       pageSize: pageSize !== 20 ? pageSize : undefined,
                     });
@@ -420,7 +420,7 @@ export default function ProductPublishTasksPage() {
                   const pageSize = params.pageSize ?? batchPageSize;
                   setUrlState(
                     {
-                      tab: 'batches',
+                      tab: undefined,
                       page: page > 1 ? page : undefined,
                       pageSize: pageSize !== 20 ? pageSize : undefined,
                       source: urlState.source,
