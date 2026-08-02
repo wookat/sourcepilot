@@ -582,7 +582,7 @@ export default function ProductSourcesPage() {
       <Modal
         title="绑定货源"
         open={bindOpen}
-        destroyOnClose
+        destroyOnHidden
         onCancel={() => setBindOpen(false)}
         onOk={async () => {
           const values = await bindForm.validateFields();

@@ -276,7 +276,7 @@ export default function SettingsUsersPage() {
           open={createOpen}
           onCancel={() => setCreateOpen(false)}
           onOk={() => createForm.submit()}
-          destroyOnClose
+          destroyOnHidden
         >
           <Form
             form={createForm}

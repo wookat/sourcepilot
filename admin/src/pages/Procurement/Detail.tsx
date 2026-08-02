@@ -379,7 +379,7 @@ export default function ProcurementOrderDetailPage() {
       <Modal
         title="回填 1688 订单号"
         open={placedOpen}
-        destroyOnClose
+        destroyOnHidden
         onCancel={() => setPlacedOpen(false)}
         onOk={async () => {
           const values = await placedForm.validateFields();
@@ -401,7 +401,7 @@ export default function ProcurementOrderDetailPage() {
       <Modal
         title="标记已付款"
         open={paidOpen}
-        destroyOnClose
+        destroyOnHidden
         onCancel={() => setPaidOpen(false)}
         onOk={async () => {
           const values = await paidForm.validateFields();
@@ -425,7 +425,7 @@ export default function ProcurementOrderDetailPage() {
       <Modal
         title="回填运单号"
         open={logisticsOpen}
-        destroyOnClose
+        destroyOnHidden
         onCancel={() => setLogisticsOpen(false)}
         onOk={async () => {
           const values = await logisticsForm.validateFields();

@@ -98,7 +98,7 @@ export default function SessionExpiredModal() {
           </Button>
         </Space>
       }
-      destroyOnClose={false}
+      destroyOnHidden={false}
       forceRender
       width={400}
       /* 必须盖过业务弹窗（antd Modal 默认 z-index 1000）：会话过期常发生在业务 Modal 提交时 */
