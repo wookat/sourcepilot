@@ -148,7 +148,6 @@ export default function ProductDraftsPage() {
     if (screens.md !== undefined) setWideScreen(screens.md);
   }, [screens.md]);
   const [createOpen, setCreateOpen] = useState(false);
-  const { readonly } = usePermission();
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [selectedRows, setSelectedRows] = useState<ProductListRow[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
