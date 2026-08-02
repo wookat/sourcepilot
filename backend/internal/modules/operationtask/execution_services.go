@@ -327,7 +327,7 @@ func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, 
 			ApprovalRecordID:         approval.ID,
 			AttemptNumber:            attemptNumber,
 			Status:                   ExecutionAttemptStatusRunning,
-			AdapterMode:              latestDraft.AdapterMode,
+			AdapterMode:              publicAdapterModeForPort(mode),
 			Platform:                 latestDraft.Platform,
 			ApprovedDraftVersion:     approval.DraftVersion,
 			ApprovedDraftPayloadHash: approval.DraftPayloadHash,
@@ -694,6 +694,19 @@ func allowedExecutionPortMode(mode string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// publicAdapterModeForPort maps an internal execution port mode back to the
+// public draft adapter mode recorded on execution attempts.
+func publicAdapterModeForPort(mode string) string {
+	switch strings.TrimSpace(strings.ToLower(mode)) {
+	case ExecutionPortModeSandboxFixture:
+		return AdapterModeSandbox
+	case ExecutionPortModeLocalDraftFixture:
+		return AdapterModeLocalDraftOnly
+	default:
+		return AdapterModeMock
 	}
 }
 

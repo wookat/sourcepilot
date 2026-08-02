@@ -172,6 +172,10 @@ func TestExecutionOrchestratorAcceptsPublicAdapterModes(t *testing.T) {
 		require.Equal(t, operationtask.ExecutionIdempotencyStatusSucceeded, out.Status, tc.adapterMode)
 		require.Equal(t, 1, port.callCount(), tc.adapterMode)
 		require.Equal(t, tc.portMode, port.lastAdapterMode(), tc.adapterMode)
+
+		var attempt operationtask.ExecutionAttempt
+		require.NoError(t, db.Where("tenant_id = ? AND operation_task_id = ?", task.TenantID, task.ID).First(&attempt).Error, tc.adapterMode)
+		require.Equal(t, tc.adapterMode, attempt.AdapterMode, tc.adapterMode)
 	}
 }
 
