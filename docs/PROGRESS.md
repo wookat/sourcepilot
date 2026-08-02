@@ -1193,3 +1193,10 @@ Final Production Acceptance Deferred to P10
 - 新增 `backend/cmd/seeddemo`（`pnpm seed:demo:full` / `seed:demo:full:clean` / `seed:demo:full:verify`）：向指定租户（`-tenant`，默认 0）直接写库生成贯穿全链路的演示数据——店铺 ×2、商品草稿 ×5（采集/手动来源、AI 优化前后文案、主图、SKU ×10 含低库存告警样本）、供应商 + 货源档案 + 货源 SKU 映射 + 价格历史、销售订单覆盖 pending/paid/shipped/delivered/cancelled（含物流记录与 SKU 匹配/未匹配样本）、采购单覆盖 draft→delivered 全链 9 状态（不含作废，#85 未合并）、库存变动流水（订单扣减/采购入库/手动盘点）、库存同步批次与任务（成功+失败）、订单同步 partial_success、异常工作台 handled 标记。
 - 所有数据带 `DEMO-` 前缀；seed 幂等（先清后建，重复执行计数一致）；clean 只删 DEMO- 前缀数据并级联子表，verify 复核零残留；采购单状态链逐步经 `procurement.CanTransition` 校验并写 `purchase_order_events`，订单生命周期经 `order.ValidateOrderStateTransition` 校验，不产生非法状态；`APP_ENV=production` 拒绝执行；不改任何 API/权限。种子实现复用 `internal/modules/demoseed` 模块（`FullDemoSeeder`），附单测（状态链合法性/前缀/生产环境守卫）。
 - 同步 `docs/development.md`、`README.md`、`README.en.md`、`package.json`。
+
+### 变更记录（2026-08-02）迭代第 52 轮：权限矩阵契约测试 + 路由级只读守卫收口
+
+- 新增权限矩阵契约测试套件 `backend/internal/securitytests/permmatrix/`：从生产路由器（`api.Register`）实际挂载的全部 486 条路由建立矩阵登记表 `matrix.json`，逐路由 × {admin, operator(有限店铺), readonly(无店铺), 跨租户 admin} 断言授权预期（allow=通过守卫 / forbid=403），并断言匿名 401、跨租户店铺隔离、operator 店铺 scope、readonly 空列表。**新增端点未在 matrix.json 登记预期时 `TestRouteRegistryComplete` 失败**（含陈旧条目检测），`PERM_MATRIX_GENERATE=1` 可打印草稿条目供安全评审。运行与维护方式见 `docs/permission-matrix.md`。
+- P0 修复①：`POST /settings/test-image`、`POST /settings/test-ocr` 缺 `settings.manage` 权限检查（同组其它 settings/test-* 均有），readonly/operator 可触发外部连接测试；已补 `adminperm.RequireWrite(PermSettingsManage)`，回归见 `TestReadonlyWriteGuardRegression`。
+- P0 修复②：新增路由级只读守卫 `adminperm.ReadonlyWriteGuard` 挂在 `/api/v1`（authed 组）与 `/api/collector`：全部写方法路由 readonly 一律 403（fail-closed，新写端点默认被守卫），显式允许清单仅保留自助 session 管理与纯计算类 POST（calculate/check/preview/validate/estimate）。修复前约 190 条写端点无路由级只读守卫、对 readonly 返回 400/404 或放行。
+- 同步 `docs/api.md`（权限矩阵契约一节）、新增 `docs/permission-matrix.md`。

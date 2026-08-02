@@ -1,0 +1,86 @@
+# 权限矩阵契约测试（Permission Matrix）
+
+系统化、可重复执行的「路由 × 角色 × 租户 × 店铺 scope」授权契约测试，把「新端点忘加守卫 / 新查询漏 scope」从人工审查变成自动拦截。
+
+- 套件位置：`backend/internal/securitytests/permmatrix/`
+- 矩阵数据：`backend/internal/securitytests/permmatrix/matrix.json`
+- 路由级只读守卫（fail-closed 默认）：`backend/internal/pkg/adminperm/write_guard.go`
+
+## 运行方式
+
+需要安全测试库（与其他 PostgreSQL 集成测试一致，库名须含 `test`）：
+
+```bash
+cd backend
+TEST_DATABASE_URL='postgres://trademind:trademind@127.0.0.1:5432/trademind_test?sslmode=disable' \
+APP_ENV=test go test ./internal/securitytests/permmatrix/ -v
+```
+
+未设置 `TEST_DATABASE_URL` 时套件自动 skip（不产生误报）。
+
+## 套件内容
+
+| 测试 | 断言 |
+| --- | --- |
+| `TestRouteRegistryComplete` | 生产路由器（`api.Register`）挂载的**每一条路由**都必须在 `matrix.json` 登记，且 `matrix.json` 无陈旧条目。**新增端点未登记预期时该测试失败**。 |
+| `TestAnonymousRequiresAuth` | 所有非 public 路由匿名访问必须 401。 |
+| `TestPermissionMatrix` | 逐路由 × {admin, operator(有限店铺), readonly(无店铺), 跨租户 admin} 断言预期类别。 |
+| `TestCrossTenantShopIsolation` | 租户 B admin 看不到、读不到租户 A 店铺（列表隔离 + 直读 404）。 |
+| `TestOperatorStoreScope` | operator 仅见已授权店铺，未授权店铺读取被拒。 |
+| `TestReadonlyStoreScope` | readonly（无店铺授权）列表为空，写既有资源 403。 |
+| `TestReadonlyWriteGuardRegression` | round52 P0 修复回归（见下）。 |
+
+## matrix.json 条目格式
+
+```json
+{
+  "method": "PUT",
+  "path": "/api/v1/products/:id",
+  "personas": {
+    "admin": "allow",
+    "operator": "allow",
+    "crossTenantAdmin": "allow",
+    "readonly": "forbid"
+  },
+  "note": "可选说明"
+}
+```
+
+- `personas.<角色>`：
+  - `allow`：请求必须**通过认证与授权**（响应非 401/403；400/404 等业务错误视为通过守卫）。
+  - `forbid`：必须被守卫以 **403** 拒绝。
+- `public: true`：无需登录即可访问（health、登录、公开回调、webhook 接收）。
+- `probe: false`：登记但不做通用探测（目前仅 4 条自助 session 管理路由，探测会使 fixture token 失效；由 auth 模块测试覆盖），须在 `note` 写明原因。
+- `crossTenantAdmin` 列断言的是「守卫通过性」；**数据级**跨租户隔离由 `TestCrossTenantShopIsolation` 等数据测试断言（列表为空/404，而非 403）。
+
+## 新增端点流程
+
+1. 新路由合入后本地跑套件，`TestRouteRegistryComplete` 会列出未登记路由。
+2. 在 `matrix.json` 增加条目并**人工评审**四个角色的预期（默认写端点 readonly=forbid）。
+3. 可用 `PERM_MATRIX_GENERATE=1` 运行该测试打印基于实际行为的草稿条目，但草稿必须安全评审后才能提交（观察到的 `allow` 可能正是缺守卫）。
+4. 若新写端点确属 readonly 可用（纯计算/检查/预览），须同时加入
+   `adminperm.ReadonlyWriteGuard` 的允许清单（`write_guard.go`）并在条目 `note` 说明理由。
+
+## 路由级只读守卫（ReadonlyWriteGuard）
+
+`/api/v1`（authed 组）与 `/api/collector` 上启用了组级中间件：对所有
+POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式允许清单中
+（自助 session 管理 + 纯计算类 POST：calculate/check/preview/validate/estimate）。
+新写端点**默认被守卫**（fail-closed），handler/service 级权限与 scope 检查照旧生效。
+
+## round52 发现与修复（P0）
+
+1. `POST /api/v1/settings/test-image`、`POST /api/v1/settings/test-ocr`
+   缺 `settings.manage` 权限检查（同组其它 `settings/test-*` 均有）：readonly/operator
+   可触发外部图片/OCR 连接测试。已在 handler 增加 `adminperm.RequireWrite(PermSettingsManage)`。
+2. 大量写端点无路由级只读守卫，依赖 handler/service 深层检查，且对不存在资源返回
+   400/404 而非 403，守卫存在性不可证明；部分路径（如 `PUT /api/v1/products/:id`）
+   对持有店铺授权的 readonly 账号存在写入可能。已通过 `ReadonlyWriteGuard` 统一收口。
+
+回归证据：`TestReadonlyWriteGuardRegression` + `TestPermissionMatrix`（readonly 列全部写端点 403）。
+
+## docs/api.md 口径差异说明
+
+- docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。
+- 纯计算类 POST（`pricing/calculate`、各 `*/check`、`batch-preview`、`cost-estimates/batch`、`douyin_shop/validate`）按现网行为保留 readonly 可用，属「读语义但用 POST 传参」端点，已在允许清单集中登记。
+- collector 登录探测 `POST */check-login` 会触发外部浏览器自动化，按安全原则划为写操作（readonly 403），与修复前行为不同。

@@ -653,6 +653,16 @@ Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_nega
 
 `GET /api/v1/orders/exceptions` 查询参数除 `handled=true`（只看已处理标记）、`ignored=true`（只看已忽略标记）外，支持 `all=true`：同时返回未处理、已处理与已忽略的行（`summary` 口径不变，仍只统计未处理）。默认（不带三者）只返回未处理行。
 
+## 权限矩阵契约（round52）
+
+- 全部已注册路由的「路由 × {admin, operator, readonly, 跨租户}」授权预期登记在
+  `backend/internal/securitytests/permmatrix/matrix.json`，由权限矩阵契约测试逐端点断言；
+  **新增端点未登记预期时测试失败**。运行方式与登记流程见 `docs/permission-matrix.md`。
+- `/api/v1`（登录后）与 `/api/collector` 全部写方法路由（POST/PUT/PATCH/DELETE）挂有
+  路由级只读守卫（`adminperm.ReadonlyWriteGuard`）：readonly 账号一律 403，
+  纯计算类 POST（calculate/check/preview/validate/estimate）与自助 session 管理除外
+  （允许清单见 `backend/internal/pkg/adminperm/write_guard.go`）。
+
 ## 修改 API 时的同步要求
 
 - 后端：handler、service、DTO、权限和错误处理一起检查。
