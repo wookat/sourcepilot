@@ -460,6 +460,19 @@ body,
   row-gap: 8px;
 }
 
+/* 返回箭头 + 长标题 + 副标题：窄屏允许换行，避免头部横向溢出/挤压 */
+.ant-pro-page-container-warp-page-header .ant-page-header-heading-left {
+  flex-wrap: wrap;
+  min-width: 0;
+  row-gap: 4px;
+}
+
+.ant-pro-page-container-warp-page-header .ant-page-header-heading-title,
+.ant-pro-page-container-warp-page-header .ant-page-header-heading-sub-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .ant-pro-page-container-warp-page-header .ant-page-header-heading-extra {
   flex-wrap: wrap;
   margin-inline-start: 0;

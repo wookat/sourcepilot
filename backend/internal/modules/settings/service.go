@@ -82,6 +82,9 @@ type PutItem struct {
 	ValueType   string
 	IsEncrypted bool
 	Remark      string
+	// Clear forces the stored value to be emptied, including encrypted
+	// secrets that would otherwise be kept on empty payloads.
+	Clear bool
 }
 
 func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
@@ -108,7 +111,10 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 	}
 
 	val := it.ItemValue
-	if it.IsEncrypted && encrypt.LooksMasked(val) {
+	if it.Clear {
+		val = ""
+	}
+	if !it.Clear && it.IsEncrypted && encrypt.LooksMasked(val) {
 		if !exists {
 			return fmt.Errorf("settings: cannot create encrypted item %s/%s with masked value", gk, ik)
 		}
@@ -122,7 +128,7 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 		return tx.Model(&Setting{}).Where("id = ?", cur.ID).Updates(upd).Error
 	}
 	// Empty encrypted payload on an existing row means "leave secret unchanged" (e.g. partial settings form save).
-	if it.IsEncrypted && strings.TrimSpace(val) == "" && exists && strings.TrimSpace(cur.ItemValue) != "" {
+	if !it.Clear && it.IsEncrypted && strings.TrimSpace(val) == "" && exists && strings.TrimSpace(cur.ItemValue) != "" {
 		upd := map[string]any{
 			"is_encrypted": it.IsEncrypted,
 			"remark":       strings.TrimSpace(it.Remark),
@@ -133,7 +139,7 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 		return tx.Model(&Setting{}).Where("id = ?", cur.ID).Updates(upd).Error
 	}
 
-	if it.IsEncrypted {
+	if it.IsEncrypted && val != "" {
 		if s.Encrypter == nil {
 			return fmt.Errorf("请在后端 .env 配置 APP_MASTER_KEY 并重启服务后再保存敏感项（如 API Key）；详见 docs/env.md")
 		}

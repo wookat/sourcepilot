@@ -23,6 +23,8 @@ export type SettingPutItem = {
   valueType?: string;
   isEncrypted: boolean;
   remark?: string;
+  /** 为 true 时强制清空已存值（含加密字段，绕过“空值保留密钥”语义） */
+  clear?: boolean;
 };
 
 /** GET /api/v1/settings */

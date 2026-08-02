@@ -1245,3 +1245,11 @@ Final Production Acceptance Deferred to P10
 - 备份下载通道：新增 `GET /api/v1/ops/backups/:id/download`（`backup.download` 权限，仅 admin；readonly/operator 403，不存在/越权 404），仅允许下载校验通过的 completed 备份，下载前重验 SHA-256，流式返回，成功/失败均写操作日志（action=`backup.download`）；管理端备份列表新增「下载」按钮。
 - 备份校验修复：未启用加密（local 模式）时加密检查按「未启用（跳过）」处理，不再恒 failed；校验结果新增 `details.checks` 结构化检查项（校验和 / manifest / 加密 / pg_restore 结构），管理端弹窗中文结构化展示。
 - 恢复演练真实化（本地/开发限定）：`POST /ops/restores/:id/verify` 与 `POST /ops/dr/drills` 真实执行备份文件完整性（SHA-256）与 `pg_restore --list` 结构校验两项检查，替换原六项硬编码 passed 桩；其余检查项（迁移版本/租户隔离/RBAC/审计链/对象清单/密钥密文、RPO/RTO/应用切换）在 `details.checks`/`reportJson.checks` 中明确标注 `not_implemented`；`APP_ENV=production` 下两接口直接拒绝，恢复安全门（隔离目标、`trademind_p6v_restore_` 前缀、二次确认、高风险确认）保持不变。附 backup/restore 服务层单测；同步 `docs/api.md` 与 `docs/docker-deployment.md` 生产备份 SOP 章节。
+
+### 变更记录（2026-08-02）R57 选品中心 P2×7 走查修复
+
+- 选品任务列表：新增状态筛选（复用后端既有 `status` 查询参数）；处理中/待处理任务自动轮询刷新（4s，无活跃任务或页面隐藏时停止）；失败/部分失败状态 Tag 悬浮显示失败原因；readonly 隐藏「新建选品任务」「重试」写入口（仅前端对齐既有权限模型，后端 403 守卫不变）。
+- 选品详情：失败/部分失败任务页顶 Alert 显示任务级失败原因；失败候选状态列直接展示失败原因文本；处理中任务自动轮询并提示；readonly 隐藏「通过/拒绝/转草稿」；任务信息 Descriptions 改响应式列数；全局 PageHeader 标题/副标题窄屏允许换行，修复 375px 头部溢出/挤压。
+- 错误透传：新增 `extractApiErrorMessage`（`admin/src/services/request.ts`），选品写操作 catch 优先展示后端 envelope 结构化中文 message（如 readonly 403「当前账号为只读权限，无法执行此操作」）。
+- AI 设置：新增「清空当前服务商配置」入口（Popconfirm 确认）；settings `PUT /api/v1/settings` item 新增可选 `clear` 字段（为 true 时强制清空已存值，含加密字段，绕过「空加密值保留旧密钥」语义；不新增端点，遵循既有 settings 模式），附 sqlite 单测（保留语义回归 + clear 清空 + clear 不落敏感值）。
+- E2E：新增 `selection-r57-p2.spec.ts`（状态筛选、失败原因展示、readonly 隐藏、403 中文透传、375px 无横向溢出）；ConsoleGuard 支持单测试级预期输出白名单（故意 mock 的 4xx 等）。

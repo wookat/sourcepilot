@@ -4,6 +4,7 @@ import { Link, useParams } from '@umijs/renderer-react';
 import { Alert, Button, Descriptions, Image, Popconfirm, Space, Tag, Tooltip, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { formatDateTime } from '@/utils/formatTime';
+import { usePermission } from '@/hooks/usePermission';
 import {
   decideSelectionCandidate,
   fetchSelectionCandidates,
@@ -12,6 +13,9 @@ import {
   type SelectionCandidateItem,
   type SelectionTaskRow,
 } from '@/services/selection';
+import { extractApiErrorMessage } from '@/services/request';
+
+const POLL_MS = 4000;
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'default',
@@ -53,6 +57,7 @@ function parseReasons(raw: unknown): AIReasons {
 
 export default function SelectionTaskDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { readonly } = usePermission();
   const [task, setTask] = useState<SelectionTaskRow | null>(null);
   const [rows, setRows] = useState<SelectionCandidateItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,7 +70,7 @@ export default function SelectionTaskDetailPage() {
       setTask(t);
       setRows(list || []);
     } catch (e) {
-      message.error(e instanceof Error ? e.message : '加载失败');
+      message.error(extractApiErrorMessage(e, '加载失败'));
     } finally {
       setLoading(false);
     }
@@ -75,13 +80,30 @@ export default function SelectionTaskDetailPage() {
     void load();
   }, [load]);
 
+  // 处理中任务自动轮询；静默刷新避免表格 loading 闪烁
+  const active = task?.status === 'pending' || task?.status === 'running';
+  useEffect(() => {
+    if (!id || !active) return;
+    const timer = window.setInterval(async () => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const [t, list] = await Promise.all([fetchSelectionTask(id), fetchSelectionCandidates(id)]);
+        setTask(t);
+        setRows(list || []);
+      } catch {
+        // 轮询失败保留上一次成功快照，不打断用户
+      }
+    }, POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [id, active]);
+
   const decide = async (candidateId: string, decision: 'approved' | 'rejected') => {
     try {
       await decideSelectionCandidate(candidateId, decision);
       message.success(decision === 'approved' ? '已通过' : '已拒绝');
       void load();
     } catch (e) {
-      message.error(e instanceof Error ? e.message : '操作失败');
+      message.error(extractApiErrorMessage(e, '操作失败'));
     }
   };
 
@@ -91,7 +113,7 @@ export default function SelectionTaskDetailPage() {
       message.success(`已转商品草稿：${draft.title || draft.id}`);
       void load();
     } catch (e) {
-      message.error(e instanceof Error ? e.message : '转草稿失败');
+      message.error(extractApiErrorMessage(e, '转草稿失败'));
     }
   };
 
@@ -196,12 +218,19 @@ export default function SelectionTaskDetailPage() {
     },
     {
       title: '状态',
-      width: 90,
+      width: 160,
       render: (_, row) =>
         row.candidate.status === 'failed' ? (
-          <Tooltip title={row.candidate.errorMessage}>
+          <Space direction="vertical" size={0}>
             <Tag color="error">failed</Tag>
-          </Tooltip>
+            <Typography.Text
+              type="danger"
+              style={{ fontSize: 12, maxWidth: 140 }}
+              ellipsis={{ tooltip: `失败原因：${row.candidate.errorMessage || '未返回具体原因'}` }}
+            >
+              {row.candidate.errorMessage || '未返回具体原因'}
+            </Typography.Text>
+          </Space>
         ) : (
           <Tag>{row.candidate.status}</Tag>
         ),
@@ -223,6 +252,9 @@ export default function SelectionTaskDetailPage() {
         const scored = row.candidate.status === 'scored';
         if (ev?.draftProductId) {
           return <Link to={`/product/drafts/${ev.draftProductId}`}>查看草稿</Link>;
+        }
+        if (readonly) {
+          return <Typography.Text type="secondary">只读</Typography.Text>;
         }
         return (
           <Space>
@@ -256,6 +288,27 @@ export default function SelectionTaskDetailPage() {
         </Button>,
       ]}
     >
+      {task && (task.status === 'failed' || task.status === 'partial') && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={task.status === 'failed' ? '任务失败' : '任务部分失败'}
+          description={
+            task.errorMessage
+              ? `失败原因：${task.errorMessage}`
+              : '未返回任务级失败原因，请查看下方失败候选的具体原因，或重试任务。'
+          }
+        />
+      )}
+      {active && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="任务处理中，页面将自动刷新"
+        />
+      )}
       {rows.some((row) => parseReasons(row.evaluation?.aiReasons).fallback) && (
         <Alert
           type="warning"
@@ -266,7 +319,7 @@ export default function SelectionTaskDetailPage() {
         />
       )}
       {task && (
-        <Descriptions size="small" column={4} style={{ marginBottom: 16 }}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }} style={{ marginBottom: 16 }}>
           <Descriptions.Item label="状态">
             <Tag color={STATUS_COLOR[task.status]}>{task.status}</Tag>
           </Descriptions.Item>
