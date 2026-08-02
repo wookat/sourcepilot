@@ -1,4 +1,5 @@
 import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from './request';
+import { AUTH_TOKEN_KEY } from '@/constants/auth';
 
 export type ProductListRow = {
   id: string;
@@ -46,6 +47,28 @@ export async function fetchProducts(params: {
     readiness: params.readinessBlocked ? 'blocked' : undefined,
     publishable: params.publishable ? '1' : undefined,
   });
+}
+
+export async function downloadDraftListingCsv(ids: string[]) {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const resp = await fetch(
+    `/api/v1/products/listing-list/export.csv?ids=${encodeURIComponent(ids.join(','))}`,
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    },
+  );
+  if (!resp.ok) {
+    throw new Error(`export failed: ${resp.status}`);
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `listing-list-${ids.length}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export type ProductOperationProgressSummary = {

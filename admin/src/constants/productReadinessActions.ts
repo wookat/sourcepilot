@@ -10,9 +10,18 @@ function action(input: ProductReadinessAction): ProductReadinessAction {
   return input;
 }
 
-export function getProductReadinessAction(code?: string | null): ProductReadinessAction | null {
+/**
+ * 根据 readiness 检查项 code 返回下一步操作。
+ * productSource 为商品来源（manual / 1688 / pinduoduo …）：手动创建的草稿没有采集结果，
+ * 采集类检查项改为引导去基础信息/对应模块补全内容。
+ */
+export function getProductReadinessAction(
+  code?: string | null,
+  productSource?: string | null,
+): ProductReadinessAction | null {
   const c = (code || '').trim().toLowerCase();
   if (!c) return null;
+  const isManual = (productSource || '').trim().toLowerCase() === 'manual';
 
   if (c === 'product.ai_title_missing') {
     return action({ actionKey: 'generate_ai_title', label: '去 AI 标题', tab: 'ai' });
@@ -36,6 +45,9 @@ export function getProductReadinessAction(code?: string | null): ProductReadines
     c.endsWith('.stock_unknown') ||
     c.endsWith('.detail_images_incomplete')
   ) {
+    if (isManual) {
+      return action({ actionKey: 'complete_basic_info', label: '去补全商品信息', tab: 'basic', section: 'title' });
+    }
     return action({ actionKey: 'review_collect', label: '检查采集结果', tab: 'basic', section: 'collect-review' });
   }
   if (

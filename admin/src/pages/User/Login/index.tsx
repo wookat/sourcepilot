@@ -19,7 +19,7 @@ import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
 import { saveSessionCredentials } from '@/utils/sessionGuard';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
-import { login, register, sendEmailCode } from '@/services/auth';
+import { login, register, resolveSessionUser, sendEmailCode } from '@/services/auth';
 import './index.less';
 
 const FEATURE_TAGS = [
@@ -73,7 +73,8 @@ export default function LoginPage() {
     try {
       const data = await login(values.account as string, values.password as string);
       saveSessionCredentials(data);
-      await setInitialState((s) => ({ ...s, currentUser: data.user }));
+      const currentUser = await resolveSessionUser(data);
+      await setInitialState((s) => ({ ...s, currentUser }));
       message.success('登录成功');
     } catch (e: unknown) {
       message.error(getAuthErrorMessage(e, '登录失败'));
@@ -92,7 +93,8 @@ export default function LoginPage() {
         confirmPassword: values.confirmPassword,
       });
       saveSessionCredentials(data);
-      await setInitialState((s) => ({ ...s, currentUser: data.user }));
+      const currentUser = await resolveSessionUser(data);
+      await setInitialState((s) => ({ ...s, currentUser }));
       message.success('注册并登录成功');
     } catch (e: unknown) {
       message.error(getAuthErrorMessage(e, '注册失败'));

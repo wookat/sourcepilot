@@ -72,6 +72,9 @@ func runOnce(ctx context.Context, d Deps, legacyTimeout time.Duration) {
 	legacyCut := now.Add(-legacyTimeout)
 
 	if d.Collect != nil {
+		if n := d.Collect.ReapProcessingTimeouts(ctx); n > 0 && d.Log != nil {
+			d.Log.Info("taskreaper_collect_processing_timeout", "failedCount", n)
+		}
 		var ids []string
 		_ = d.DB.WithContext(ctx).Model(&collect.CollectTask{}).
 			Where("status = ? AND locked_until IS NOT NULL AND locked_until < ?", collect.StatusRunning, now).

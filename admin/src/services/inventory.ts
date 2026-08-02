@@ -31,6 +31,12 @@ export type PublicationSkuListingRow = {
 export type InventoryChangeLogRow = {
   id: string;
   createdAt: string;
+  productId?: string;
+  productSkuId?: string;
+  productTitle?: string;
+  skuCode?: string;
+  skuName?: string;
+  refOrderNo?: string;
   changeType: string;
   beforeStock: number;
   afterStock: number;
