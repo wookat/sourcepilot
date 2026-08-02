@@ -19,6 +19,7 @@ import {
 import { ProCard } from '@ant-design/pro-components';
 import { EmptyState, MetricCard, OperationToolbar, TmPageContainer, type MetricCardIntent } from '@/components/ui';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { usePermission } from '@/hooks/usePermission';
 import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import {
@@ -788,6 +789,7 @@ function DashboardSkeleton() {
 export default function ProductOperationsDashboardPage() {
   const dashboardEmptyLocale = useListEmptyLocale('dashboard');
   const location = useLocation();
+  const { readonly } = usePermission();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>>(
       DASHBOARD_QUERY_KEYS,
@@ -893,12 +895,12 @@ export default function ProductOperationsDashboardPage() {
     return () => window.clearInterval(id);
   }, [autoRefresh, loadBoard]);
 
-  const welcomeActions: { label: string; icon: ReactNode; link: string }[] = [
-    { label: '采集商品', icon: <CloudUploadOutlined />, link: '/collect/hub' },
-    { label: '批量 AI 优化', icon: <RobotOutlined />, link: '/ai/batches' },
-    { label: 'AI 图片任务', icon: <PictureOutlined />, link: '/ai/image-tasks' },
+  const welcomeActions: { label: string; icon: ReactNode; link: string; write?: boolean }[] = [
+    { label: '采集商品', icon: <CloudUploadOutlined />, link: '/collect/hub', write: true },
+    { label: '批量 AI 优化', icon: <RobotOutlined />, link: '/ai/batches', write: true },
+    { label: 'AI 图片任务', icon: <PictureOutlined />, link: '/ai/image-tasks', write: true },
     { label: '查看发布检查', icon: <SafetyCertificateOutlined />, link: '/product/drafts?readiness=blocked' },
-  ];
+  ].filter((a) => !readonly || !a.write);
 
   return (
     <TmPageContainer
