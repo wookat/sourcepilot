@@ -453,7 +453,7 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/operation-logs` | 查询 `action`（如 `douyin.auth.success`）；不返回 Secret/Token |
+| `GET` | `/api/v1/operation-logs` | 只读；权限 `operationlog.view`，租户+店铺 scope；筛选 `action`/`username`/`resource`/`start`/`end`（管理端 `/system/operation-logs` 同名参数 URL 深链）；不返回 Secret/Token |
 | `GET` | `/api/v1/dashboard/product-operations` | 运营总览 KPI、漏斗、异常（只读 DB 聚合，不调平台 OpenAPI；含 RBAC 店铺 scope） |
 | `GET` | `/api/v1/dashboard/overview` | 模块化 overview + 10 张运营卡片 |
 | `GET` | `/api/v1/dashboard/todos` | 统一待办流（P0/P1/P2 优先级） |

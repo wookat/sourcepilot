@@ -83,6 +83,10 @@ const ALLOWED_QUERY_KEYS = new Set([
   'afterSequence',
   'sourcePlatform',
   'targetShopId',
+  // 操作日志（/system/operation-logs）
+  'action',
+  'username',
+  'resource',
 ]);
 
 export const URL_SOURCE_VALUES = new Set([

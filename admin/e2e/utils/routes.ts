@@ -6,6 +6,7 @@ import { readinessResponse } from '../mocks/readiness';
 import { publishResponse, skuBindingsResponse } from '../mocks/publish';
 import { inventoryResponse } from '../mocks/inventory';
 import { imageProviderCapabilities } from '../mocks/image-providers';
+import { operationLogsResponse } from '../mocks/operation-logs';
 
 export async function seedAdminAuth(page: Page) {
   await page.addInitScript(([key, token]) => {
@@ -37,6 +38,7 @@ export async function routeAdminApi(page: Page) {
       readinessResponse(path) ??
       publishResponse(path) ??
       inventoryResponse(path) ??
+      operationLogsResponse(path, url.searchParams) ??
       (path.includes('/product-publications/') && path.endsWith('/douyin/sku-bindings') ? skuBindingsResponse(path.split('/').at(-3) || undefined) : null) ??
       ok({ list: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 1 } });
 
