@@ -28,6 +28,7 @@ import { formatUserErrorMessage } from '@/constants/errorMessages';
 import {
   PLATFORM_DEV_PORTALS,
   PLATFORM_STATUS_META,
+  groupPlatformAppFields,
   isPlatformSwitchField,
   platformAppFieldHelp,
   platformAppFieldLabel,
@@ -450,7 +451,8 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
   const [douyinShops, setDouyinShops] = useState<ShopListRow[]>([]);
 
   const schema = meta.appConfigSchema;
-  const fields = schema?.fields ?? [];
+  const fields = useMemo(() => schema?.fields ?? [], [schema]);
+  const fieldGroups = useMemo(() => groupPlatformAppFields(fields), [fields]);
   const st = PLATFORM_STATUS_META[meta.status] ?? { label: meta.status, color: 'default' };
   const panelTitle = meta.platform === 'douyin_shop' ? '抖店接入设置' : `${meta.name} 接入设置`;
 
@@ -566,15 +568,37 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
               })
             }
           >
-            <FormGrid>
-              {fields.map((f) =>
-                isFullWidthField(f) ? (
-                  <FormGridFull key={f.name}>{renderFormField(f)}</FormGridFull>
-                ) : (
-                  <FormGridItem key={f.name}>{renderFormField(f)}</FormGridItem>
-                ),
-              )}
-            </FormGrid>
+            {fieldGroups.length > 1 ? (
+              <Collapse
+                className="platform-config-groups"
+                defaultActiveKey={fieldGroups.map((g) => g.key)}
+                items={fieldGroups.map((g) => ({
+                  key: g.key,
+                  label: `${g.label}（${g.fields.length} 项）`,
+                  children: (
+                    <FormGrid>
+                      {g.fields.map((f) =>
+                        isFullWidthField(f) ? (
+                          <FormGridFull key={f.name}>{renderFormField(f)}</FormGridFull>
+                        ) : (
+                          <FormGridItem key={f.name}>{renderFormField(f)}</FormGridItem>
+                        ),
+                      )}
+                    </FormGrid>
+                  ),
+                }))}
+              />
+            ) : (
+              <FormGrid>
+                {fields.map((f) =>
+                  isFullWidthField(f) ? (
+                    <FormGridFull key={f.name}>{renderFormField(f)}</FormGridFull>
+                  ) : (
+                    <FormGridItem key={f.name}>{renderFormField(f)}</FormGridItem>
+                  ),
+                )}
+              </FormGrid>
+            )}
 
             <ActionBar>
               <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
