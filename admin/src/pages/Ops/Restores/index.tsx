@@ -1,5 +1,5 @@
 import { TmPageContainer } from '@/components/ui';
-import { formatRequestError, sanitizeErrorForDisplay } from '@/constants/errorMessages';
+import { formatRequestError, formatUserErrorMessage } from '@/constants/errorMessages';
 import { createRestore, fetchRestores, verifyRestore, type RestoreJob } from '@/services/opsP6';
 import { ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { Alert, Button, Form, Input, Modal, Space, Switch, Table, Tag, Tooltip, Typography, message } from 'antd';
@@ -66,9 +66,9 @@ export default function RestoresPage() {
               width: 260,
               render: (v?: string) =>
                 v ? (
-                  <Tooltip title={v}>
+                  <Tooltip title={formatUserErrorMessage(v, v)}>
                     <Typography.Text type="danger" ellipsis style={{ maxWidth: 240 }}>
-                      {sanitizeErrorForDisplay(v)}
+                      {formatUserErrorMessage(v, v)}
                     </Typography.Text>
                   </Tooltip>
                 ) : (
