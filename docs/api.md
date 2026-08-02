@@ -229,6 +229,11 @@
 
 ## 采集
 
+权限与 scope 口径（与订单/选品一致）：
+
+- 全部写端点（创建任务/批次、重试、重试失败、打开登录浏览器）路由级挂 `adminperm.RequireWritable`，readonly 账号返回 **403**。
+- 任务/批次的读端点按当前租户 `tenant_id` 过滤；跨租户对象访问返回 **404**（不泄露存在性）。`check-login` / `auth-status` 为登录态检测（诊断读），不做 readonly 拦截。
+
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `POST` | `/api/v1/collect/tasks` | 创建采集任务。`source=custom` 时若 URL 属于已有 **available/beta** 专用采集器域名，返回业务码 **40002**，`data.errorCode=CUSTOM_COLLECT_PROVIDER_CONFLICT`，含 `recommendedProvider` 与 `message`。 |

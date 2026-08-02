@@ -1234,18 +1234,32 @@ Final Production Acceptance Deferred to P10
   - 修复全局 `SessionExpiredModal` 的 antd `destroyOnClose` 弃用告警（antd 5.29 升级后导致全部 E2E console 守卫失败），改为 `destroyOnHidden`。
 - docs/api.md 同步 `GET /api/v1/operation-logs` 契约说明（权限/scope/筛选/深链）。
 
+### 变更记录（2026-08-02）迭代第 51 轮：一键演示种子数据（seed / clean 幂等闭环）
 ### 变更记录（2026-08-02）迭代第 55 轮：经营报表导出 CSV + 移动端收口
 ### 变更记录（2026-08-02）迭代第 59 轮：商品草稿模块系统性真实走查收口
 
-- 后端新增只读导出端点 `GET /api/v1/orders/stats/daily/export.csv?days=30`：复用 `stats/daily` 数据与租户/店铺 scope，UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内每币种一列「已付款销售额(币种)」（字典序），空日期补 0；`stats/daily` 同步新增 `shippedCount` 字段（口径与 `stats/sales` 已发货一致）。附字节级单测（BOM/表头/数据行/默认天数）。
-- 报表页新增「导出 CSV」按钮与近 7/30/90 天切换（Segmented），数据请求与导出共用同一 days；导出带 loading 防重复、成功/失败提示；readonly 可用。五档视口（1440/1280/1024/768/375）无根节点横向溢出，新增 `admin/e2e/specs/orders-reports.spec.ts`（GET-only mock）。
-- 依赖修复：admin `react-dom` 由 19.2.8 回对齐 `react` 18.2.0（含 `@types/react-dom`），pnpm overrides 迁移至 `pnpm-workspace.yaml`（pnpm 10+ 不再读取 package.json `pnpm` 字段）；`SessionExpiredModal` 的 `destroyOnClose` 改 `destroyOnHidden`（antd 5.29 弃用警告导致 E2E console guard 全量失败）。
+- 新增 `backend/cmd/seeddemo`（`pnpm seed:demo:full` / `seed:demo:full:clean` / `seed:demo:full:verify`）：向指定租户（`-tenant`，默认 0）直接写库生成贯穿全链路的演示数据——店铺 ×2、商品草稿 ×5（采集/手动来源、AI 优化前后文案、主图、SKU ×10 含低库存告警样本）、供应商 + 货源档案 + 货源 SKU 映射 + 价格历史、销售订单覆盖 pending/paid/shipped/delivered/cancelled（含物流记录与 SKU 匹配/未匹配样本）、采购单覆盖 draft→delivered 全链 9 状态（不含作废，#85 未合并）、库存变动流水（订单扣减/采购入库/手动盘点）、库存同步批次与任务（成功+失败）、订单同步 partial_success、异常工作台 handled 标记。
+- 所有数据带 `DEMO-` 前缀；seed 幂等（先清后建，重复执行计数一致）；clean 只删 DEMO- 前缀数据并级联子表，verify 复核零残留；采购单状态链逐步经 `procurement.CanTransition` 校验并写 `purchase_order_events`，订单生命周期经 `order.ValidateOrderStateTransition` 校验，不产生非法状态；`APP_ENV=production` 拒绝执行；不改任何 API/权限。种子实现复用 `internal/modules/demoseed` 模块（`FullDemoSeeder`），附单测（状态链合法性/前缀/生产环境守卫）。
+- 同步 `docs/development.md`、`README.md`、`README.en.md`、`package.json`。
 
 ### 变更记录（2026-08-02）迭代第 56 轮：本地模式备份→下载→校验→恢复演练最小真实闭环
 
 - 备份下载通道：新增 `GET /api/v1/ops/backups/:id/download`（`backup.download` 权限，仅 admin；readonly/operator 403，不存在/越权 404），仅允许下载校验通过的 completed 备份，下载前重验 SHA-256，流式返回，成功/失败均写操作日志（action=`backup.download`）；管理端备份列表新增「下载」按钮。
 - 备份校验修复：未启用加密（local 模式）时加密检查按「未启用（跳过）」处理，不再恒 failed；校验结果新增 `details.checks` 结构化检查项（校验和 / manifest / 加密 / pg_restore 结构），管理端弹窗中文结构化展示。
 - 恢复演练真实化（本地/开发限定）：`POST /ops/restores/:id/verify` 与 `POST /ops/dr/drills` 真实执行备份文件完整性（SHA-256）与 `pg_restore --list` 结构校验两项检查，替换原六项硬编码 passed 桩；其余检查项（迁移版本/租户隔离/RBAC/审计链/对象清单/密钥密文、RPO/RTO/应用切换）在 `details.checks`/`reportJson.checks` 中明确标注 `not_implemented`；`APP_ENV=production` 下两接口直接拒绝，恢复安全门（隔离目标、`trademind_p6v_restore_` 前缀、二次确认、高风险确认）保持不变。附 backup/restore 服务层单测；同步 `docs/api.md` 与 `docs/docker-deployment.md` 生产备份 SOP 章节。
+
+### 变更记录（2026-08-02）迭代第 58 轮：Ops P2 修复（备份校验状态门 / 安全门原因透传 / 库存口径 / demo 采购单清理）
+
+- 备份管理：`manual_review`（及其他非 completed）状态的「校验备份」按钮禁用，Tooltip 中文说明需先在环境启用 `BACKUP_ENABLED` 并通过人工审查后重新创建备份才能校验；不改后端校验行为。附 helper 单测。
+- 恢复验证：安全门拒绝（`RESTORE_TARGET_FORBIDDEN` / `RESTORE_APP_ENV_FORBIDDEN` / `RESTORE_TARGET_NOT_ISOLATED` / 前缀 / 二次确认 / 备份未校验 / 目标库非空等 14 个结构化错误码）在 `errorMessages.ts` 补齐中文映射，创建失败 toast 透出具体原因；恢复记录表新增「失败原因」列展示 `errorSummary`。不弱化任何安全门。附映射单测。
+- 批量发货 / 订单详情：结果区补「未扣库存属手工扣库存策略的预期行为」口径 Alert 与 Tag Tooltip（Tag 文案改为「未扣库存（预期）」）；订单详情「物流」Tab 说明补同一口径。沿用 R46 口径传达模式，不改库存扣减逻辑与接口。
+- demo seed clean：`seed:demo:full:clean` 清理采购单从仅按 `idempotency_key LIKE 'DEMO-%'` 扩展为并集：`external_order_id`/`supplier_name` 带 DEMO- 前缀、挂在 DEMO- 供应商名下、或采购行关联 DEMO- 销售订单（覆盖测试期 UI 建的采购单）；verify 同步扩展。仅清 DEMO 关联数据，不动真实采购单。附 `collectDemoPurchaseOrderIDs` 单测（真实采购单不被匹配）。
+
+### 变更记录（2026-08-02）迭代第 55 轮：经营报表导出 CSV + 移动端收口
+
+- 后端新增只读导出端点 `GET /api/v1/orders/stats/daily/export.csv?days=30`：复用 `stats/daily` 数据与租户/店铺 scope，UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内每币种一列「已付款销售额(币种)」（字典序），空日期补 0；`stats/daily` 同步新增 `shippedCount` 字段（口径与 `stats/sales` 已发货一致）。附字节级单测（BOM/表头/数据行/默认天数）。
+- 报表页新增「导出 CSV」按钮与近 7/30/90 天切换（Segmented），数据请求与导出共用同一 days；导出带 loading 防重复、成功/失败提示；readonly 可用。五档视口（1440/1280/1024/768/375）无根节点横向溢出，新增 `admin/e2e/specs/orders-reports.spec.ts`（GET-only mock）。
+- 依赖修复：admin `react-dom` 由 19.2.8 回对齐 `react` 18.2.0（含 `@types/react-dom`），pnpm overrides 迁移至 `pnpm-workspace.yaml`（pnpm 10+ 不再读取 package.json `pnpm` 字段）；`SessionExpiredModal` 的 `destroyOnClose` 改 `destroyOnHidden`（antd 5.29 弃用警告导致 E2E console guard 全量失败）。
 
 ### 变更记录（2026-08-02）R57 选品中心 P2×7 走查修复
 
@@ -1254,6 +1268,13 @@ Final Production Acceptance Deferred to P10
 - 错误透传：新增 `extractApiErrorMessage`（`admin/src/services/request.ts`），选品写操作 catch 优先展示后端 envelope 结构化中文 message（如 readonly 403「当前账号为只读权限，无法执行此操作」）。
 - AI 设置：新增「清空当前服务商配置」入口（Popconfirm 确认）；settings `PUT /api/v1/settings` item 新增可选 `clear` 字段（为 true 时强制清空已存值，含加密字段，绕过「空加密值保留旧密钥」语义；不新增端点，遵循既有 settings 模式），附 sqlite 单测（保留语义回归 + clear 清空 + clear 不落敏感值）。
 - E2E：新增 `selection-r57-p2.spec.ts`（状态筛选、失败原因展示、readonly 隐藏、403 中文透传、375px 无横向溢出）；ConsoleGuard 支持单测试级预期输出白名单（故意 mock 的 4xx 等）。
+
+### 变更记录（2026-08-02）第 58 轮：采集模块写守卫与 tenant scope 审计（R54 遗留 P1）
+
+- 修复 readonly 用户可创建采集任务的 P1：collect 全部写端点（`POST /collect/tasks`、`/collect/tasks/:id/retry`、`/collect/batches`、`/collect/batches/:id/retry-failed`、各 `open-login-browser`）路由级补挂 `adminperm.RequireWritable`，readonly 直调返回 403 且数据库零变化；`check-login`/`auth-status` 视为登录态诊断读，不拦截。
+- 读端点补 tenant scope（与订单/选品口径一致）：任务/批次列表按 `tenant_id` 过滤，`GET /collect/tasks/:id`、`/collect/tasks/:id/events`、`/collect/batches/:id`、`/collect/batches/:id/tasks` 及手动重试的对象查询均走 `adminperm.ApplyTenantScope`，跨租户访问返回 404 不泄露存在性；任务/批次创建时落 `tenant_id`（与 integration/round55-preview 上 #88/#93 的 tenant_id 修复方向一致，PR → main 单独说明关系）。
+- 前端采集页对齐 readonly 模式：采集任务/批量采集页隐藏创建表单与重试入口，采集中心禁用单条/批量采集按钮（提示只读文案）；`/collect/rules`、`/collect/browser-profiles`、`/collect/monitor`、`/settings/collector` 原本已由 SETTINGS_MANAGE 菜单权限隔离。
+- 回归单测：三角色路由守卫（readonly 全写端点 403、admin/operator 不误伤、读端点不拦截）+ tenant scope（同租户 200、跨租户 404、列表不泄露、跨租户重试零变化）。同步 `docs/api.md` 采集节权限口径说明。
 - 全栈真实走查（docker compose + demo seed）商品草稿列表/详情/AI 优化/归档删除/采集回链 + 三角色权限 + 375/768/1440 响应式，发现并修复：
   - **P0（后端越权风险）**：商品写接口除 `POST /products` 外均无路由级只读守卫（PUT/DELETE 商品、SKU/图片 CRUD、平台配置、抖音 mapping/图片、AI 优化/应用/撤销、sync-images），readonly 此前仅靠店铺可见性 scope「碰巧」404。现全部补 `denyWrite`（AI 应用/撤销走 `ai_text.apply` 守卫），附 `readonly_guard_test.go` 全路由 403 回归测试；docs/api.md 商品节同步说明。
   - **P1**：前端统一 request 错误规范化——HTTP 非 2xx 时还原后端 envelope `message`（如 AI 未配置时「请配置 base_url」），不再裸显 axios「Request failed with status code 400」；附 request 单测。

@@ -20,6 +20,7 @@ import type { CollectProviderRow } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 import { retryCollectTask, type CollectTaskRow } from '@/services/collectTasks';
 import { checkTaobaoTmallLogin } from '@/services/collectAuth';
+import { usePermission } from '@/hooks/usePermission';
 import {
   parseTaobaoTmallBatchUrls,
   TAOBAO_TMALL_BATCH_HINT,
@@ -60,6 +61,7 @@ function parseUrlsFromTextarea(raw: string): string[] {
 }
 
 export default function CollectBatchesPage() {
+  const { readonly } = usePermission();
   const location = useLocation();
   const actionRef = useRef<ActionType>();
   const taskActionRef = useRef<ActionType>();
@@ -261,32 +263,39 @@ export default function CollectBatchesPage() {
       valueType: 'option',
       width: 200,
       search: false,
-      render: (_, row) => [
-        <Button key="view" type="link" size="small" onClick={() => openDrawer(row)}>
-          查看任务
-        </Button>,
-        <Button
-          key="retry"
-          type="link"
-          size="small"
-          disabled={row.failedCount <= 0}
-          onClick={async () => {
-            if (row.failedCount <= 0) return;
-            try {
-              const r = await retryFailedBatchTasks(row.id);
-              message.success(`已重新入队 ${r.retried} 条失败任务`);
-              actionRef.current?.reload();
-            } catch (e) {
-              message.error(e instanceof Error ? e.message : '重试失败');
-            }
-          }}
-        >
-          重试失败
-        </Button>,
-      ],
+      render: (_, row) => {
+        const actions = [
+          <Button key="view" type="link" size="small" onClick={() => openDrawer(row)}>
+            查看任务
+          </Button>,
+        ];
+        if (!readonly) {
+          actions.push(
+            <Button
+              key="retry"
+              type="link"
+              size="small"
+              disabled={row.failedCount <= 0}
+              onClick={async () => {
+                if (row.failedCount <= 0) return;
+                try {
+                  const r = await retryFailedBatchTasks(row.id);
+                  message.success(`已重新入队 ${r.retried} 条失败任务`);
+                  actionRef.current?.reload();
+                } catch (e) {
+                  message.error(e instanceof Error ? e.message : '重试失败');
+                }
+              }}
+            >
+              重试失败
+            </Button>,
+          );
+        }
+        return actions;
+      },
     },
   ],
-    [batchTableSourceEnum, openDrawer, providers],
+    [batchTableSourceEnum, openDrawer, providers, readonly],
   );
 
   const taskColumns: ProColumns<CollectTaskRow>[] = [
@@ -410,7 +419,7 @@ export default function CollectBatchesPage() {
             事件
           </Button>,
         ];
-        if (row.status === 'failed') {
+        if (row.status === 'failed' && !readonly) {
           actions.push(
             <Button
               key="r1"
@@ -455,6 +464,7 @@ export default function CollectBatchesPage() {
       title="批量采集"
       subTitle="一次提交多条商品链接，批量采集并生成商品草稿。"
     >
+      {!readonly && (
       <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         {sourceFromQuery &&
         providers.length > 0 &&
@@ -608,6 +618,7 @@ export default function CollectBatchesPage() {
           </Space>
         </Form>
       </ProCard>
+      )}
 
       <ProTable<CollectBatchRow>
         rowKey="id"

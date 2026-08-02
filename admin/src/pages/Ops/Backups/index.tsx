@@ -14,9 +14,17 @@ import {
   ReloadOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
-import { Alert, Button, Modal, Space, Table, Tag, message } from 'antd';
+import { Alert, Button, Modal, Space, Table, Tag, Tooltip, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { OpsCheckList } from '../opsChecks';
+
+export function verifyDisabledReason(status?: string): string | undefined {
+  if (status === 'completed') return undefined;
+  if (status === 'manual_review') {
+    return '该备份为待人工复核记录，未生成真实备份文件：需先在环境启用 BACKUP_ENABLED 并通过人工审查，再重新创建备份后才能校验。';
+  }
+  return '仅已完成（completed）的备份可以校验。';
+}
 
 function statusColor(status?: string) {
   if (status === 'completed' || status === 'passed') return 'green';
@@ -116,25 +124,32 @@ export default function BackupsPage() {
               width: 300,
               render: (_, row) => (
                 <Space>
-                  <Button
-                    size="small"
-                    icon={<SafetyCertificateOutlined />}
-                    onClick={() =>
-                      void verifyBackup(row.backupId)
-                        .then((res) => {
-                          const v = res.data;
-                          Modal.info({
-                            title: `备份校验结果：${v?.status === 'passed' ? '通过' : '失败'}`,
-                            width: 560,
-                            content: <OpsCheckList checks={v?.details?.checks} />,
-                          });
-                        })
-                        .catch((e: unknown) => message.error(formatRequestError(e, '校验备份失败')))
-                        .then(load)
-                    }
-                  >
-                    校验备份
-                  </Button>
+                  <Tooltip title={verifyDisabledReason(row.status)}>
+                    <span style={row.status !== 'completed' ? { cursor: 'not-allowed' } : undefined}>
+                      <Button
+                        size="small"
+                        icon={<SafetyCertificateOutlined />}
+                        disabled={row.status !== 'completed'}
+                        onClick={() =>
+                          void verifyBackup(row.backupId)
+                            .then((res) => {
+                              const v = res.data;
+                              Modal.info({
+                                title: `备份校验结果：${v?.status === 'passed' ? '通过' : '失败'}`,
+                                width: 560,
+                                content: <OpsCheckList checks={v?.details?.checks} />,
+                              });
+                            })
+                            .catch((e: unknown) =>
+                              message.error(formatRequestError(e, '校验备份失败')),
+                            )
+                            .then(load)
+                        }
+                      >
+                        校验备份
+                      </Button>
+                    </span>
+                  </Tooltip>
                   <Button
                     size="small"
                     icon={<DownloadOutlined />}
