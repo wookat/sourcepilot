@@ -18,10 +18,14 @@ import {
 } from '@/services/adminUsers';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { Button, Form, Input, Modal, Popconfirm, Select, Space, Tag, message } from 'antd';
+import type { Breakpoint } from 'antd';
 import { useCallback, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { PERMISSIONS } from '@/utils/permission';
+
+/** 次要列在 <768px 小屏折叠，只保留显示名 / 角色 / 状态 / 操作。 */
+const DESKTOP_ONLY: Breakpoint[] = ['md'];
 
 const ROLE_OPTIONS = [
   { label: '管理员', value: 'admin' },
@@ -77,8 +81,8 @@ export default function SettingsUsersPage() {
 
   const columns: ProColumns<AdminUserRow>[] = [
     { title: '显示名', dataIndex: 'displayName', width: 140, ellipsis: true },
-    { title: '邮箱', dataIndex: 'email', width: 180, ellipsis: true, search: false },
-    { title: '手机', dataIndex: 'phone', width: 120, search: false },
+    { title: '邮箱', dataIndex: 'email', width: 180, ellipsis: true, responsive: DESKTOP_ONLY, search: false },
+    { title: '手机', dataIndex: 'phone', width: 120, responsive: DESKTOP_ONLY, search: false },
     {
       title: '角色',
       dataIndex: 'role',
@@ -99,6 +103,7 @@ export default function SettingsUsersPage() {
     {
       title: '授权店铺',
       dataIndex: 'storePermissions',
+      responsive: DESKTOP_ONLY,
       search: false,
       ellipsis: true,
       render: (_, row) =>
@@ -110,6 +115,7 @@ export default function SettingsUsersPage() {
       title: '最近操作',
       dataIndex: 'lastOperationAt',
       width: 168,
+      responsive: DESKTOP_ONLY,
       search: false,
       render: (_, row) => formatDateTime(row.lastOperationAt),
     },

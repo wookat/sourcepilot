@@ -258,7 +258,7 @@ export default function ProductSourcesPage() {
         <Select
           showSearch
           placeholder="选择商品"
-          style={{ width: 360 }}
+          style={{ width: 'min(360px, calc(100vw - 48px))' }}
           value={productId}
           optionFilterProp="label"
           onChange={(v) => setProductId(v)}
@@ -484,6 +484,7 @@ export default function ProductSourcesPage() {
             size="small"
             dataSource={events}
             pagination={false}
+            scroll={{ x: 900 }}
             columns={[
               { title: '时间', dataIndex: 'createdAt', width: 180 },
               {
@@ -605,7 +606,7 @@ export default function ProductSourcesPage() {
 
       <Drawer
         title={`SKU 映射 - ${mappingSource?.supplier?.name || ''}`}
-        width={720}
+        width="min(720px, 100vw)"
         open={!!mappingSource}
         onClose={() => setMappingSource(null)}
         extra={
@@ -622,14 +623,16 @@ export default function ProductSourcesPage() {
             size="small"
             dataSource={mappingRows}
             pagination={false}
+            scroll={{ x: 640 }}
             rowClassName={(r) =>
               initialParams.skuId && r.localSkuId === initialParams.skuId ? 'ant-table-row-selected' : ''
             }
             columns={[
-              { title: '本地规格', dataIndex: 'skuName', width: 180 },
+              { title: '本地规格', dataIndex: 'skuName', width: 140 },
               {
                 title: '货源规格 ID',
                 dataIndex: 'externalSkuId',
+                width: 160,
                 render: (_, row, idx) => (
                   <Input
                     value={row.externalSkuId}
@@ -716,7 +719,7 @@ export default function ProductSourcesPage() {
         open={!!historySku}
         footer={null}
         onCancel={() => setHistorySku(null)}
-        width={640}
+        width="min(640px, calc(100vw - 32px))"
       >
         <Table<SourcePriceHistoryRow>
           rowKey="id"
