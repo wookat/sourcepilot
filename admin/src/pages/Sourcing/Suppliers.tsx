@@ -19,6 +19,7 @@ import {
   Tag,
   message,
 } from 'antd';
+import { httpErrorCopy } from '@/constants/errorMessages';
 import { isReadonly } from '@/utils/permission';
 import { useModel } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';
@@ -149,7 +150,7 @@ export default function SuppliersPage() {
                       message.success('已删除');
                       void load();
                     } catch (e) {
-                      message.error((e as Error).message || '删除失败');
+                      message.error(httpErrorCopy(e, '删除失败'));
                     }
                   }}
                 >

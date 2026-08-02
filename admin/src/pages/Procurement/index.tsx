@@ -15,6 +15,7 @@ import {
 } from '@/services/procurement';
 import { queryOrders, type OrderListRow } from '@/services/orders';
 import { isReadonly } from '@/utils/permission';
+import { formatDateTime } from '@/utils/formatTime';
 import { Link, useModel, useSearchParams } from '@umijs/max';
 import BatchBackfillModal, { type BatchMode } from './BatchBackfillModal';
 import {
@@ -360,7 +361,12 @@ export default function ProcurementOrdersPage() {
             width: 160,
             render: (v) => v || '-',
           },
-          { title: '创建时间', dataIndex: 'createdAt', width: 180 },
+          {
+            title: '创建时间',
+            dataIndex: 'createdAt',
+            width: 180,
+            render: (v: string) => formatDateTime(v),
+          },
           {
             title: '操作',
             width: 260,
