@@ -1152,6 +1152,15 @@ Final Production Acceptance Deferred to P10
 - 授权店铺列显示店铺名而非 UUID：后端 `loadStorePerms` 店铺名查询改 `Unscoped`（软删除店铺也能回显名称）；前端缺名时兜底「未知店铺」。
 - 同步 `docs/api.md`（用户与权限管理表）、`admin/src/services/adminUsers.ts`。API 既有端点语义/状态机/readonly 403 文案不变。
 
+### 变更记录（2026-08-02）迭代第 59 轮：设置中心系统性安全走查与修复
+
+- 设置中心全量真实走查（docker compose 全栈，15 个 /settings 子页 + /shops/manage）：脱敏（sk-****abcd）、DB 密文、日志无完整密钥、连接测试、持久化、375/768/1440 响应式均复核通过；本轮修复以下问题。
+- P1 租户隔离（QA 回归发现）：`/api/v1/admin/users` 列表与 Get/Update/SetStorePermissions/Delete 未按租户过滤，tenant-2 用户对 tenant-1 admin 可见且可删。修复：`adminuser.Service` 全部操作按 `ctxkey.TenantID` 过滤，跨租户 ID 统一 404「用户不存在」不泄露存在性，店铺权限分配仅限同租户店铺；附 admin/operator/readonly 三角色单测（`tenant_scope_test.go`）。
+- P0 readonly 写入口缺守卫：`DELETE /shops/:id`、`PUT /shops/:id/auth`、`POST /shops(/… test/oauth 写操作)`、`PUT /platform/(publish-)settings/:platform`、`POST /settings/test-image|test-ocr` 此前对 readonly 放行。修复：新增 `adminperm.RequirePermissionMW/RequireWriteMW` 路由中间件，平台设置写走 `settings.manage`、店铺写走 `store.operate`，readonly 一律 403；附路由守卫单测（`router_readonly_test.go`）。Shops 页面同步按 `store.operate` 隐藏全部写控件。
+- P1 连接测试失败提示英文直出：test-ai / test-ocr / 存储公网测试等非 2xx 时 toast 显示 axios 原文。修复：`admin/src/services/request.ts` 统一从后端 Envelope 提取中文 message 抛 `ApiRequestError`。
+- P2 采集设置「页面打开超时」对越界值静默钳制：改为显式 1000~300000 范围中文校验文案。
+- 工程修复：admin `react-dom` 声明 19.2.8 与 react 18.2.0 不一致导致前端单测挂掉；对齐 18.2.0 并把 overrides 同步进 `pnpm-workspace.yaml`（新版 pnpm 只读该文件），`pnpm test:frontend` 恢复全绿。
+
 ### 变更记录（2026-08-02）生产部署本地演练收口（R45 部署包复核）
 
 - 在开发 VM 上按生产口径完整演练 `docker-compose.prod.yml`（APP_ENV=production + Caddy 内部 CA + /etc/hosts 假域名）：从零 env → 构建 → 启动 → bootstrap 管理员 → HTTPS 登录 → 核心页面抽查 < 15 分钟，验证恢复演练生产禁用、错误统一 envelope 不泄露堆栈、静态资源 immutable 缓存。
@@ -1178,6 +1187,12 @@ Final Production Acceptance Deferred to P10
   - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
   - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
 
+### 变更记录（2026-08-01）第 46 轮会话守卫全栈验证与后端修复
+
+- 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
+- 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
+- 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
+
 ### 变更记录（2026-08-02）迭代第 53 轮：操作日志页 URL 深链 + 审计可见性验收
 
 - 现状盘点结论：审计能力后端已完备（`operation_logs` 模型含租户/店铺/角色/hash 链；写入覆盖登录、设置修改、采购状态流转/作废、任务重试、库存变动、店铺授权等；`GET /api/v1/operation-logs` 只读端点已含 `operationlog.view` 权限 + 租户/店铺 scope；管理端已有统一 `/system/operation-logs` 页）。本轮补齐 UX 缺口：
@@ -1186,12 +1201,6 @@ Final Production Acceptance Deferred to P10
   - 新增 Admin E2E `operation-logs.spec.ts`（列表渲染、筛选深链、直链恢复、375px 无溢出、无写请求/致命 console）与 mock。
   - 修复全局 `SessionExpiredModal` 的 antd `destroyOnClose` 弃用告警（antd 5.29 升级后导致全部 E2E console 守卫失败），改为 `destroyOnHidden`。
 - docs/api.md 同步 `GET /api/v1/operation-logs` 契约说明（权限/scope/筛选/深链）。
-
-### 变更记录（2026-08-01）第 46 轮会话守卫全栈验证与后端修复
-
-- 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
-- 修复后端两处缺陷（均补回归测试）：secure_session 登录先分配会话 ID 再签发访问令牌，修复 access token `session_id` 为全零导致会话吊销失效；legacy 模式 `/auth/refresh` 优先使用请求体 refreshToken，避免从 secure_session 切回后残留 HttpOnly cookie 触发复用检测使续期持续 401。
-- 已知边界：legacy 登录本身不签发 refreshToken（响应无该字段），故 legacy 纯自然场景下 401 直接走重登弹窗（前端按设计降级）；②的续期链路以数据库构造有效 refreshToken 验证。secure_session + Docker 需设置 `ADMIN_PUBLIC_URL`（CSRF Origin 校验），`.env.docker.example` 已补注释说明。
 
 ### 变更记录（2026-08-02）迭代第 51 轮：一键演示种子数据（seed / clean 幂等闭环）
 

@@ -2,6 +2,8 @@ packages:
   - "admin"
   - "collector"
 
+# Keep in sync with the "pnpm.overrides" field in package.json:
+# newer pnpm versions only read overrides from this file.
 overrides:
   rc-resize-observer: 1.4.3
   react: 18.2.0
