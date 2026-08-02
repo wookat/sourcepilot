@@ -1,8 +1,8 @@
 import { TmPageContainer } from '@/components/ui';
-import { formatRequestError } from '@/constants/errorMessages';
+import { formatRequestError, sanitizeErrorForDisplay } from '@/constants/errorMessages';
 import { createRestore, fetchRestores, verifyRestore, type RestoreJob } from '@/services/opsP6';
 import { ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { Alert, Button, Form, Input, Modal, Space, Switch, Table, Tag, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Space, Switch, Table, Tag, Tooltip, Typography, message } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { OpsCheckList } from '../opsChecks';
 
@@ -60,6 +60,21 @@ export default function RestoresPage() {
             { title: '目标环境', dataIndex: 'targetEnvironment', width: 140 },
             { title: '状态', dataIndex: 'status', width: 120, render: (v) => <Tag>{v}</Tag> },
             { title: '安全门', dataIndex: 'safetyGateStatus', width: 120, render: (v) => <Tag>{v}</Tag> },
+            {
+              title: '失败原因',
+              dataIndex: 'errorSummary',
+              width: 260,
+              render: (v?: string) =>
+                v ? (
+                  <Tooltip title={v}>
+                    <Typography.Text type="danger" ellipsis style={{ maxWidth: 240 }}>
+                      {sanitizeErrorForDisplay(v)}
+                    </Typography.Text>
+                  </Tooltip>
+                ) : (
+                  '—'
+                ),
+            },
             { title: '完整性', dataIndex: 'validationStatus', width: 120, render: (v) => <Tag>{v || '-'}</Tag> },
             { title: '创建时间', dataIndex: 'createdAt', width: 180 },
             {
