@@ -4,6 +4,7 @@ import { createRestore, fetchRestores, verifyRestore, type RestoreJob } from '@/
 import { ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { Alert, Button, Form, Input, Modal, Space, Switch, Table, Tag, message } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { OpsCheckList } from '../opsChecks';
 
 export default function RestoresPage() {
   const [items, setItems] = useState<RestoreJob[]>([]);
@@ -47,7 +48,7 @@ export default function RestoresPage() {
         <Alert
           showIcon
           type="warning"
-          message="恢复默认只允许隔离环境；真实生产恢复和 RPO/RTO 验证保持待接入。"
+          message="恢复默认只允许隔离环境（本地/开发限定）；验证仅真实执行备份文件完整性与 pg_restore 结构校验，其余检查项标注暂未实现；真实生产恢复和 RPO/RTO 验证保持待接入。"
         />
         <Table<RestoreJob>
           rowKey="restoreId"
@@ -69,7 +70,14 @@ export default function RestoresPage() {
                   size="small"
                   onClick={() =>
                     void verifyRestore(row.restoreId)
-                      .then(() => message.success('验证已触发'))
+                      .then((res) => {
+                        const v = res.data;
+                        Modal.info({
+                          title: `恢复验证结果：${v?.status === 'passed' ? '通过（仅真实检查项）' : '失败'}`,
+                          width: 560,
+                          content: <OpsCheckList checks={v?.details?.checks} />,
+                        });
+                      })
                       .catch((e: unknown) => message.error(formatRequestError(e, '验证失败')))
                       .then(load)
                   }

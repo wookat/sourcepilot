@@ -56,6 +56,43 @@ P5-V 可观测性默认使用 `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`。Docker �
 
 P7 性能数据集与负载测试只能在隔离 `APP_ENV=performance` 环境执行；普通 Docker 试用与生产部署必须保持 `PERFORMANCE_TEST_MODE=false`、`ALLOW_PERFORMANCE_DATASET=false`，不得把隔离压测描述为真实生产容量验证。
 
+## 生产备份 SOP（备份→下载→校验→恢复演练）
+
+本节描述 Ops 备份链路的操作口径。本地/开发环境可完成最小真实闭环；生产环境保留更严格门槛。
+
+### 1. 创建备份
+
+- 前置：`BACKUP_ENABLED=true`，`BACKUP_MODE=local`（本地）或 `object_storage`/`hybrid`（生产强制）。
+- 入口：Admin「运维 → 备份管理 → 创建备份」，或 `POST /api/v1/ops/backups`（需要 `backup.create` 权限）。
+- 真实执行 `pg_dump`，生成 artifact 与带校验和的 manifest；`BACKUP_ENABLED=false` 时仅生成待复核记录。
+
+### 2. 校验备份
+
+- 入口：备份列表「校验备份」，或 `POST /api/v1/ops/backups/:id/verify`（`backup.verify` 权限）。
+- 真实检查项：备份文件 SHA-256 校验和、manifest 完整性、`pg_restore --list` 结构校验。
+- 加密检查：`BACKUP_ENCRYPTION_ENABLED=false`（本地 local 模式）时按「未启用（跳过）」处理，不判失败；生产强制启用加密，加密备份缺失密钥引用则判失败。
+- 校验结果以结构化检查项（中文）返回并在页面弹窗展示。
+
+### 3. 下载备份
+
+- 入口：备份列表「下载」，或 `GET /api/v1/ops/backups/:id/download`。
+- 权限：`backup.download`（settings.manage 级，仅 admin 角色具备）；readonly/operator 返回 403。
+- 仅允许下载 `status=completed` 且校验（verification）已通过的备份；下载前再次校验 SHA-256，不匹配则拒绝。
+- 备份不存在或越权访问返回 404，不暴露资源存在性与真实路径。
+- 每次下载（含失败）写入操作日志（action=`backup.download`）。
+
+### 4. 恢复演练（本地/开发限定）
+
+- 入口：Admin「运维 → 恢复验证 / 灾备演练」，或 `POST /api/v1/ops/restores`、`POST /api/v1/ops/restores/:id/verify`、`POST /api/v1/ops/dr/drills`。
+- 安全门：目标必须为隔离环境、目标库名以 `trademind_p6v_restore_` 开头、操作者二次确认与高风险确认；备份必须 completed 且校验通过。
+- 恢复验证真实执行两项检查：备份文件完整性（SHA-256）、`pg_restore --list` 结构校验；其余检查项（迁移版本、租户隔离、RBAC、审计链、对象清单、密钥密文）明确标注「暂未实现」，不伪装通过。
+- `APP_ENV=production` 下恢复验证与 DR 演练直接拒绝执行；生产恢复流程保持待接入。
+
+### 失败处理与保留
+
+- 校验/演练失败时以结构化检查项给出失败原因（已脱敏），修复后可重新触发。
+- 需长期保留的备份可用「保留」（hold）标记，防止被保留策略清理；保留策略由 `BACKUP_RETENTION_*` 控制。
+
 ## 安全配置
 
 生产环境或公网部署前必须修改：
