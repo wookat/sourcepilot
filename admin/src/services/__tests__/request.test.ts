@@ -36,4 +36,20 @@ describe('request helpers', () => {
 
     await expect(getJSON('/api/v1/products/missing')).rejects.toThrow('商品不存在');
   });
+
+  it('surfaces the backend Chinese message on non-2xx axios errors', async () => {
+    const axiosErr = Object.assign(new Error('Request failed with status code 400'), {
+      response: { status: 400, data: { code: 40001, message: '接口密钥无效，请检查后重试', data: null } },
+    });
+    requestMock.mockRejectedValueOnce(axiosErr);
+
+    await expect(postJSON('/api/v1/settings/test-ai', {})).rejects.toThrow('接口密钥无效，请检查后重试');
+  });
+
+  it('rethrows non-envelope transport errors unchanged', async () => {
+    const netErr = new Error('Network Error');
+    requestMock.mockRejectedValueOnce(netErr);
+
+    await expect(getJSON('/api/v1/settings')).rejects.toBe(netErr);
+  });
 });
