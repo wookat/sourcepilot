@@ -200,6 +200,22 @@
 | `GET` | `/api/v1/ai/tasks` | AI 任务列表。 |
 | `GET` | `/api/v1/ai/tasks/:id` | AI 任务详情。 |
 
+**AI 调用失败的结构化错误码（errorCode）**
+
+`POST /api/v1/products/:id/ai/optimize-title`、`POST /api/v1/products/:id/ai/generate-description`、`POST /api/v1/settings/test-ai` 在 AI Gateway / Provider 调用失败时返回 HTTP 400，`message` 为中文原因；当失败可分类时 `data.errorCode` 返回以下之一（无法分类时省略，成功路径响应结构不变）：
+
+| errorCode | 含义 |
+| --- | --- |
+| `AI_NOT_CONFIGURED` | 未配置 base_url 或 API Key |
+| `AI_INVALID_KEY` | API Key 无效或未授权（上游 401） |
+| `AI_FORBIDDEN` | 无权限访问该模型（上游 403） |
+| `AI_MODEL_NOT_FOUND` | 模型不存在或无权限 |
+| `AI_BAD_BASE_URL` | base_url 不可访问或接口路径错误 |
+| `AI_QUOTA_EXCEEDED` | 请求过于频繁或额度受限（上游 429） |
+| `AI_UPSTREAM_ERROR` | 服务商 5xx 异常 |
+| `AI_TIMEOUT` | 请求超时 |
+| `AI_BAD_RESPONSE` | 响应格式不兼容 |
+
 客服 AI 回复建议见 **`POST /api/v1/customer/conversations/:id/ai/generate-reply`**（非 legacy `/ai/chat`）。
 
 ## Dev / Demo 种子（非 production）

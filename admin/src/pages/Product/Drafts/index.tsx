@@ -46,6 +46,7 @@ import {
 import { PRODUCT_STATUS } from '@/constants/status';
 import { PRODUCT_SOURCE_LABEL, productSourceLabel } from '@/constants/userFriendly';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
+import { notifyAIFailure } from '@/utils/aiFailureNotice';
 import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
@@ -540,7 +541,7 @@ export default function ProductDraftsPage() {
       actionRef.current?.reload();
     } catch (e: unknown) {
       if ((e as { errorFields?: unknown })?.errorFields) return;
-      message.error((e as Error)?.message || '创建失败');
+      notifyAIFailure({ title: '批量 AI 任务创建失败', error: e, fallback: '创建失败' });
     } finally {
       setBulkLoading(false);
     }

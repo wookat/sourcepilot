@@ -8,6 +8,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
+	"github.com/trademind-ai/trademind/backend/internal/providers/ai/errmap"
 	"gorm.io/gorm"
 )
 
@@ -192,6 +193,10 @@ func (h *Handler) TestAI(c *gin.Context) {
 				Status:   "failed",
 				Message:  msg,
 			})
+		}
+		if code := errmap.CodeOf(err); code != "" {
+			response.JSON(c, 400, response.CodeBadRequest, msg, gin.H{"errorCode": code})
+			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, msg)
 		return
