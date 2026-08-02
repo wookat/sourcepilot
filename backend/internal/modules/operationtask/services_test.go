@@ -218,6 +218,34 @@ func TestDraftVersionServiceCreatesInitialAndNextAppendOnly(t *testing.T) {
 	require.Equal(t, datatypes.JSON([]byte(`{"draft":{"title":"summer dress v1"}}`)), old.Payload)
 }
 
+func TestDraftVersionServiceCreatesInitialDraftFromSuggested(t *testing.T) {
+	db := openOperationTaskTestDB(t)
+	actor := uuid.New()
+	task := createOperationTask(t, db, operationtask.OperationTaskStatusSuggested)
+
+	draft, err := operationtask.NewDraftVersionService(db).CreateInitialDraft(context.Background(), operationtask.DraftVersionInput{
+		TenantID:         task.TenantID,
+		OperationTaskID:  task.ID,
+		ExpectedRevision: task.Revision,
+		Payload:          datatypes.JSON([]byte(`{"draft":{"title":"from suggested"}}`)),
+		ActorID:          &actor,
+		RequestID:        "req-draft-suggested",
+		IdempotencyKey:   "idem-draft-suggested",
+		ChangeReason:     "initial draft from suggested",
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, draft.DraftVersion)
+	require.Equal(t, operationtask.PlatformDraftStatusPendingReview, draft.Status)
+
+	updated, err := operationtask.NewOperationTaskRepository(db).GetByID(context.Background(), task.TenantID, task.ID)
+	require.NoError(t, err)
+	require.Equal(t, operationtask.OperationTaskStatusPendingReview, updated.Status)
+
+	event, err := operationtask.NewOperationTaskEventRepository(db).GetLatestByTask(context.Background(), task.TenantID, task.ID)
+	require.NoError(t, err)
+	require.Equal(t, operationtask.OperationTaskEventTypeReviewRequested, event.EventType)
+}
+
 func TestDraftVersionServiceIdempotencyAndCrossTenant(t *testing.T) {
 	db := openOperationTaskTestDB(t)
 	task, _, actor := createPendingReviewDraft(t, db)

@@ -28,6 +28,7 @@ type recordingExecutionPort struct {
 	result      operationtask.DraftExecutionResult
 	err         error
 	calls       int
+	lastMode    string
 	started     chan struct{}
 	release     chan struct{}
 	statusInRun string
@@ -47,6 +48,7 @@ func newRecordingExecutionPort() *recordingExecutionPort {
 func (p *recordingExecutionPort) ExecuteDraft(ctx context.Context, in operationtask.DraftExecutionInput) (operationtask.DraftExecutionResult, error) {
 	p.mu.Lock()
 	p.calls++
+	p.lastMode = in.AdapterMode
 	if p.db != nil {
 		task, err := operationtask.NewOperationTaskRepository(p.db).GetByID(ctx, in.TenantID, in.OperationTaskID)
 		if err == nil {
@@ -66,6 +68,12 @@ func (p *recordingExecutionPort) ExecuteDraft(ctx context.Context, in operationt
 		}
 	}
 	return p.result, p.err
+}
+
+func (p *recordingExecutionPort) lastAdapterMode() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.lastMode
 }
 
 func (p *recordingExecutionPort) callCount() int {
@@ -137,6 +145,38 @@ func TestExecutionOrchestratorSuccessIsAtomicAndPortOutsideTransaction(t *testin
 	require.Contains(t, eventTypes, operationtask.OperationTaskEventTypeExecutionQueued)
 	require.Contains(t, eventTypes, operationtask.OperationTaskEventTypeExecutionStarted)
 	require.Contains(t, eventTypes, operationtask.OperationTaskEventTypeDraftWritten)
+}
+
+func TestExecutionOrchestratorAcceptsPublicAdapterModes(t *testing.T) {
+	db := openOperationTaskTestDB(t)
+	cases := []struct {
+		adapterMode string
+		portMode    string
+	}{
+		{operationtask.AdapterModeMock, operationtask.ExecutionPortModeMock},
+		{operationtask.AdapterModeSandbox, operationtask.ExecutionPortModeSandboxFixture},
+		{operationtask.AdapterModeLocalDraftOnly, operationtask.ExecutionPortModeLocalDraftFixture},
+	}
+	for _, tc := range cases {
+		task, _, _, actor := createApprovedExecutionTask(t, db)
+		port := newRecordingExecutionPort()
+		out, err := operationtask.NewExecutionOrchestrator(db, allowExecutionAuthorizer{}, port).Execute(context.Background(), operationtask.ExecutionInput{
+			TenantID:        task.TenantID,
+			OperationTaskID: task.ID,
+			ActorID:         actor,
+			RequestID:       "req-mode-" + tc.adapterMode,
+			IdempotencyKey:  "idem-mode-" + tc.adapterMode,
+			AdapterMode:     tc.adapterMode,
+		})
+		require.NoError(t, err, tc.adapterMode)
+		require.Equal(t, operationtask.ExecutionIdempotencyStatusSucceeded, out.Status, tc.adapterMode)
+		require.Equal(t, 1, port.callCount(), tc.adapterMode)
+		require.Equal(t, tc.portMode, port.lastAdapterMode(), tc.adapterMode)
+
+		var attempt operationtask.ExecutionAttempt
+		require.NoError(t, db.Where("tenant_id = ? AND operation_task_id = ?", task.TenantID, task.ID).First(&attempt).Error, tc.adapterMode)
+		require.Equal(t, tc.adapterMode, attempt.AdapterMode, tc.adapterMode)
+	}
 }
 
 func TestExecutionOrchestratorRejectsPreconditionsWithoutCallingPort(t *testing.T) {

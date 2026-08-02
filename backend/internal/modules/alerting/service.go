@@ -31,23 +31,23 @@ const (
 
 // AlertEvent is the unified alert event model.
 type AlertEvent struct {
-	ID              string `gorm:"primaryKey;size:36"`
-	Fingerprint     string `gorm:"size:64;index"`
-	RuleID          string `gorm:"size:64;index"`
-	Severity        string `gorm:"size:16;index"`
-	Status          string `gorm:"size:16;index"`
-	Source          string `gorm:"size:32"`
-	Module          string `gorm:"size:64"`
-	Summary         string `gorm:"size:512"`
-	SafeDetails     string `gorm:"type:text"`
-	FirstSeenAt     time.Time
-	LastSeenAt      time.Time
-	OccurrenceCount int `gorm:"default:1"`
-	ResolvedAt      *time.Time
-	CooldownUntil   *time.Time
-	TenantScope     string `gorm:"size:64"`
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID              string     `gorm:"primaryKey;size:36" json:"id"`
+	Fingerprint     string     `gorm:"size:64;index" json:"fingerprint"`
+	RuleID          string     `gorm:"size:64;index" json:"ruleId"`
+	Severity        string     `gorm:"size:16;index" json:"severity"`
+	Status          string     `gorm:"size:16;index" json:"status"`
+	Source          string     `gorm:"size:32" json:"source"`
+	Module          string     `gorm:"size:64" json:"module"`
+	Summary         string     `gorm:"size:512" json:"summary"`
+	SafeDetails     string     `gorm:"type:text" json:"safeDetails"`
+	FirstSeenAt     time.Time  `json:"firstSeenAt"`
+	LastSeenAt      time.Time  `json:"lastSeenAt"`
+	OccurrenceCount int        `gorm:"default:1" json:"occurrenceCount"`
+	ResolvedAt      *time.Time `json:"resolvedAt"`
+	CooldownUntil   *time.Time `json:"cooldownUntil"`
+	TenantScope     string     `gorm:"size:64" json:"tenantScope"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
 }
 
 func (AlertEvent) TableName() string { return "alert_events" }
@@ -266,10 +266,20 @@ func (s *Service) Silence(ctx context.Context, alertID, reason, by string, until
 }
 
 func (s *Service) setStatus(ctx context.Context, alertID, status string) error {
-	return s.DB.WithContext(ctx).Model(&AlertEvent{}).Where("id = ?", alertID).Updates(map[string]any{
+	if strings.TrimSpace(alertID) == "" {
+		return fmt.Errorf("ALERT_NOT_FOUND: alert id is required")
+	}
+	res := s.DB.WithContext(ctx).Model(&AlertEvent{}).Where("id = ?", alertID).Updates(map[string]any{
 		"status":     status,
 		"updated_at": time.Now().UTC(),
-	}).Error
+	})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("ALERT_NOT_FOUND: alert %s not found", alertID)
+	}
+	return nil
 }
 
 func (s *Service) cooldownDuration() time.Duration {

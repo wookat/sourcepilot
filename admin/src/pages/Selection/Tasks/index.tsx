@@ -2,8 +2,8 @@ import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ModalForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import { Link } from '@umijs/renderer-react';
-import { Button, Space, Tag, message } from 'antd';
-import { useMemo, useRef, useState } from 'react';
+import { Alert, Button, Space, Tag, message } from 'antd';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { formatDateTime } from '@/utils/formatTime';
 import {
@@ -12,6 +12,7 @@ import {
   retrySelectionTask,
   type SelectionTaskRow,
 } from '@/services/selection';
+import { fetchIntegrationsOverview } from '@/services/settings';
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'default',
@@ -62,6 +63,13 @@ export default function SelectionTasksPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const emptyLocaleOpts = useMemo(() => ({ onAction: () => setCreateOpen(true) }), []);
   const emptyLocale = useListEmptyLocale('selectionTasks', emptyLocaleOpts);
+  const [aiConfigured, setAiConfigured] = useState<boolean | undefined>(undefined);
+
+  useEffect(() => {
+    fetchIntegrationsOverview()
+      .then((data) => setAiConfigured(data.ai?.configured))
+      .catch(() => setAiConfigured(undefined));
+  }, []);
 
   const columns: ProColumns<SelectionTaskRow>[] = [
     {
@@ -172,6 +180,15 @@ export default function SelectionTasksPage() {
               }
             }}
           >
+            {aiConfigured === false && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 16 }}
+                message="AI 服务商未配置，任务将使用规则兜底评分"
+                description="可前往 系统设置 → AI 完成配置后再创建任务，以获得 AI 评分与建议。"
+              />
+            )}
             <ProFormText name="name" label="任务名称" placeholder="例如：7月 TikTok 美区选品" />
             <ProFormSelect
               name="targetPlatform"

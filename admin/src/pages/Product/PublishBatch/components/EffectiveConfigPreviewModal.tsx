@@ -36,7 +36,7 @@ export default function EffectiveConfigPreviewModal({ open, onClose, cells, comm
   });
 
   return (
-    <Modal title="查看生效配置" open={open} onCancel={onClose} footer={null} width={900} destroyOnClose>
+    <Modal title="查看生效配置" open={open} onCancel={onClose} footer={null} width={900} destroyOnHidden>
       <Table
         rowKey="key"
         size="small"

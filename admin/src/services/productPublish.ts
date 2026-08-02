@@ -228,7 +228,7 @@ export async function publishProduct(
     data: body,
   });
   if (res.code !== 0) {
-    const err = new Error(res.message || 'publish_failed') as Error & { businessCode?: number; data?: unknown };
+    const err = new Error(res.message || '发布失败，请稍后重试') as Error & { businessCode?: number; data?: unknown };
     err.businessCode = res.code;
     err.data = res.data;
     throw err;
@@ -277,7 +277,7 @@ export async function createDouyinProductDraft(
     { method: 'POST', data: { publishMode: 'save_as_platform_draft', ...body } },
   );
   if (res.code !== 0) {
-    const err = new Error(res.message || 'create_draft_failed') as Error & { businessCode?: number; data?: unknown };
+    const err = new Error(res.message || '生成刊登草稿失败，请稍后重试') as Error & { businessCode?: number; data?: unknown };
     err.businessCode = res.code;
     err.data = res.data;
     throw err;
@@ -426,7 +426,7 @@ export async function checkBatchPublishTargets(body: {
     data: body,
   });
   if (res.code !== 0) {
-    const err = new Error(res.message || 'check_failed') as Error & { businessCode?: number; data?: unknown };
+    const err = new Error(res.message || '发布检查失败，请稍后重试') as Error & { businessCode?: number; data?: unknown };
     err.businessCode = res.code;
     err.data = res.data;
     throw err;
@@ -449,7 +449,7 @@ export async function createBatchPublishDrafts(body: {
     { method: 'POST', data: body },
   );
   if (res.code !== 0) {
-    const err = new Error(res.message || 'create_failed') as Error & { businessCode?: number; data?: unknown };
+    const err = new Error(res.message || '创建失败，请稍后重试') as Error & { businessCode?: number; data?: unknown };
     err.businessCode = res.code;
     err.data = res.data;
     throw err;

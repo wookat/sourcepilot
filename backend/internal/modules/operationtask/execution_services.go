@@ -251,7 +251,7 @@ func (s *ExecutionOrchestrator) execute(ctx context.Context, in ExecutionInput, 
 func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, retry bool) (preparedExecution, error) {
 	var out preparedExecution
 	key := executionIdempotencyKey(in)
-	mode := strings.TrimSpace(strings.ToLower(in.AdapterMode))
+	mode := normalizeExecutionPortMode(in.AdapterMode)
 	sm := s.stateMachine()
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		task, err := lockTask(tx, in.TenantID, in.OperationTaskID)
@@ -327,7 +327,7 @@ func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, 
 			ApprovalRecordID:         approval.ID,
 			AttemptNumber:            attemptNumber,
 			Status:                   ExecutionAttemptStatusRunning,
-			AdapterMode:              latestDraft.AdapterMode,
+			AdapterMode:              publicAdapterModeForPort(mode),
 			Platform:                 latestDraft.Platform,
 			ApprovedDraftVersion:     approval.DraftVersion,
 			ApprovedDraftPayloadHash: approval.DraftPayloadHash,
@@ -673,12 +673,40 @@ func forbiddenExecutionMode(mode string) bool {
 	}
 }
 
+// normalizeExecutionPortMode lowercases the mode and maps public draft
+// adapter modes (mock / sandbox / local_draft_only) to their internal
+// execution port modes.
+func normalizeExecutionPortMode(mode string) string {
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	switch mode {
+	case AdapterModeSandbox:
+		return ExecutionPortModeSandboxFixture
+	case AdapterModeLocalDraftOnly:
+		return ExecutionPortModeLocalDraftFixture
+	default:
+		return mode
+	}
+}
+
 func allowedExecutionPortMode(mode string) bool {
 	switch strings.TrimSpace(strings.ToLower(mode)) {
 	case ExecutionPortModeMock, ExecutionPortModeSandboxFixture, ExecutionPortModeLocalDraftFixture:
 		return true
 	default:
 		return false
+	}
+}
+
+// publicAdapterModeForPort maps an internal execution port mode back to the
+// public draft adapter mode recorded on execution attempts.
+func publicAdapterModeForPort(mode string) string {
+	switch strings.TrimSpace(strings.ToLower(mode)) {
+	case ExecutionPortModeSandboxFixture:
+		return AdapterModeSandbox
+	case ExecutionPortModeLocalDraftFixture:
+		return AdapterModeLocalDraftOnly
+	default:
+		return AdapterModeMock
 	}
 }
 

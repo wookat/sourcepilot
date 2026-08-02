@@ -10,6 +10,7 @@ import {
   markPurchaseOrderDelivered,
   markPurchaseOrderPaid,
   submitPurchaseOrder,
+  voidPurchaseOrder,
   type GenerateResult,
   type PurchaseOrder,
 } from '@/services/procurement';
@@ -42,7 +43,29 @@ export const PO_STATUS_TAG: Record<string, { text: string; color: string }> = {
   delivered: { text: '已签收', color: 'green' },
   failed: { text: '失败', color: 'red' },
   cancelled: { text: '已取消', color: 'default' },
+  voided: { text: '已作废', color: 'default' },
 };
+
+export const PO_VOIDABLE_STATUSES = ['delivered', 'failed', 'cancelled'];
+
+export function confirmVoidPurchaseOrder(id: string, onDone: () => void) {
+  Modal.confirm({
+    title: '作废该采购单？',
+    content:
+      '作废用于处置测试单或错误单据：作废后单据保留审计记录，但不再参与统计与待办。注意：已入库的库存不会自动回滚，如需调整库存请到库存模块手工处理。',
+    okText: '确认作废',
+    okButtonProps: { danger: true },
+    onOk: async () => {
+      try {
+        await voidPurchaseOrder(id, '人工作废');
+        message.success('已作废');
+        onDone();
+      } catch (e) {
+        message.error((e as Error).message || '作废失败');
+      }
+    },
+  });
+}
 
 const BATCH_SELECTABLE_STATUSES = ['draft', 'pending_confirm', 'placing', 'placed', 'shipped'];
 
@@ -420,6 +443,14 @@ export default function ProcurementOrdersPage() {
                   >
                     <a style={{ color: '#ff4d4f' }}>取消</a>
                   </Popconfirm>
+                )}
+                {writable && PO_VOIDABLE_STATUSES.includes(row.status) && (
+                  <a
+                    style={{ color: '#ff4d4f' }}
+                    onClick={() => confirmVoidPurchaseOrder(row.id, () => void load())}
+                  >
+                    作废
+                  </a>
                 )}
               </Space>
             ),
