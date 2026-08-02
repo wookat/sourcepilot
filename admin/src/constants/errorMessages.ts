@@ -192,6 +192,47 @@ export function formatUserErrorMessage(code?: string | null, fallback?: string):
   return fb || '操作失败，请稍后重试';
 }
 
+/** 后端英文原始错误串 → 用户可见中文提示 */
+const RAW_MESSAGE_MAP: { pattern: RegExp; message: string }[] = [
+  { pattern: /supplier has bound sources/i, message: '该供应商已绑定商品货源，请先解绑货源后再删除' },
+  { pattern: /not found/i, message: '记录不存在或已被删除' },
+];
+
+/** 判断字符串是否包含中文（已本地化的提示直接展示） */
+function hasCJK(s: string): boolean {
+  return /[\u4e00-\u9fff]/.test(s);
+}
+
+/** 提取错误原始文案：优先响应 envelope 的 message，其次 Error.message */
+function extractRawMessage(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const resData = (err as { response?: { data?: { message?: unknown } } }).response?.data;
+    if (resData && typeof resData.message === 'string' && resData.message.trim()) {
+      return resData.message.trim();
+    }
+  }
+  if (err instanceof Error) return err.message.trim();
+  return String(err ?? '').trim();
+}
+
+/**
+ * HTTP 错误 → 统一中文文案兜底。
+ * 已是中文的提示原样返回；英文原始串按已知模式映射，未识别时回退到 fallback。
+ */
+export function httpErrorCopy(err: unknown, fallback: string): string {
+  const raw = extractRawMessage(err);
+  if (!raw) return fallback;
+  if (hasCJK(raw)) return raw;
+  for (const { pattern, message } of RAW_MESSAGE_MAP) {
+    if (pattern.test(raw)) return message;
+  }
+  if (/^[A-Z][A-Z0-9_]+$/.test(raw)) {
+    const mapped = mapErrorCodeToUserMessage(raw);
+    if (mapped) return mapped.detail ? `${mapped.title}：${mapped.detail}` : mapped.title;
+  }
+  return fallback;
+}
+
 /** 从请求异常中提取后端 message 并格式化为用户可见错误（一行） */
 export function formatRequestError(e: unknown, fallback: string): string {
   const ax = e as {

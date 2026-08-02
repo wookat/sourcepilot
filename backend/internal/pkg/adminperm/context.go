@@ -161,6 +161,33 @@ func ApplyStoreScope(c *gin.Context, db *gorm.DB, tx *gorm.DB, column string) (*
 	return tx.Where(col+" IN ?", ids), nil
 }
 
+// ApplyStoreScopeOrNull restricts query to allowed stores for non-admin
+// principals while keeping rows without a store attribution (column IS NULL)
+// visible tenant-wide. Intended for tenant-level audit data such as operation
+// logs; business data (orders, procurement) must keep ApplyStoreScope where
+// an empty grant list means an empty result.
+func ApplyStoreScopeOrNull(c *gin.Context, db *gorm.DB, tx *gorm.DB, column string) (*gorm.DB, error) {
+	if tx == nil {
+		return tx, nil
+	}
+	p, err := LoadPrincipal(c, db)
+	if err != nil {
+		return nil, err
+	}
+	if p.IsAdmin() {
+		return tx, nil
+	}
+	col := strings.TrimSpace(column)
+	if col == "" {
+		col = "shop_id"
+	}
+	ids := p.AllowedStoreIDs()
+	if len(ids) == 0 {
+		return tx.Where(col + " IS NULL"), nil
+	}
+	return tx.Where("("+col+" IS NULL OR "+col+" IN ?)", ids), nil
+}
+
 // RequireStoreView denies with 404 when store is inaccessible (no existence leak).
 func RequireStoreView(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 	p, err := LoadPrincipal(c, db)

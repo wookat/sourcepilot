@@ -28,6 +28,7 @@ type LoginResult struct {
 	Token        string
 	RefreshToken string
 	ExpiresAt    int64 // unix seconds
+	TenantID     int64
 	User         userView
 }
 
@@ -56,6 +57,7 @@ func (s *LoginService) Login(ctx context.Context, account, password, ip, userAge
 			Token:        res.AccessToken,
 			RefreshToken: res.RefreshToken,
 			ExpiresAt:    res.AccessExp.Unix(),
+			TenantID:     res.TenantID,
 			User:         res.User,
 		}, nil
 	}
@@ -107,13 +109,13 @@ func (s *LoginService) legacyLogin(ctx context.Context, account, password string
 		p7diag.Count(p7diag.RouteAuthInvalidLogin, "wrongPasswordQueryCount", 1)
 		p7diag.Path(p7diag.RouteAuthInvalidLogin, "wrong_password")
 		p7diag.Path(p7diag.RouteAuthInvalidLogin, p7diag.PathKnownWrongPassword)
-		return nil, errors.New(ErrInvalidCredentials)
+		return nil, withAuditTenant(u.TenantID, errors.New(ErrInvalidCredentials))
 	}
 	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "password_verify", p7diag.OutcomeSuccess, stageStart)
 	p7diag.ObservePasswordVerify(p7diag.PathSuccessVerify, p7diag.PasswordAlgoBcrypt, cost, 1, stageStart)
 	p7diag.Count(p7diag.RouteAuthInvalidLogin, "passwordVerifyCount", 1)
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
-		return nil, errors.New(ErrUserDisabled)
+		return nil, withAuditTenant(u.TenantID, errors.New(ErrUserDisabled))
 	}
 	label := u.LoginLabel()
 	token, exp, err := LegacyMintToken(s.Cfg, u.ID, label, u.TenantID)
@@ -127,6 +129,7 @@ func (s *LoginService) legacyLogin(ctx context.Context, account, password string
 	return &LoginResult{
 		Token:     token,
 		ExpiresAt: exp.Unix(),
+		TenantID:  u.TenantID,
 		User: userView{
 			ID:          u.ID.String(),
 			Username:    label,
