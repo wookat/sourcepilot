@@ -8,6 +8,7 @@ import { CUSTOMER_MESSAGE_SYNC_TASK_STATUS } from '@/constants/status';
 import { PLATFORM_OPTIONS, platformLabel } from '@/constants/userFriendly';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { normalizeSource, parsePositiveInt, queryTimeRange } from '@/utils/urlState';
+import { extractErrorMessage, translateBackendErrorText } from '@/utils/httpErrorCopy';
 import {
   getCustomerMessageSyncTask,
   queryCustomerMessageSyncTasks,
@@ -204,7 +205,7 @@ export default function CustomerMessageSyncTasksPage() {
         dataIndex: 'errorMessage',
         ellipsis: true,
         search: false,
-        render: (_, r) => r.errorMessage || '—',
+        render: (_, r) => (r.errorMessage ? translateBackendErrorText(r.errorMessage) || r.errorMessage : '—'),
       },
       {
         title: '操作',
@@ -217,9 +218,13 @@ export default function CustomerMessageSyncTasksPage() {
               <Popconfirm
                 title="确认重试该同步任务？"
                 onConfirm={async () => {
-                  await retryCustomerMessageSyncTask(r.id);
-                  message.success('已提交重试');
-                  actionRef.current?.reload();
+                  try {
+                    await retryCustomerMessageSyncTask(r.id);
+                    message.success('已提交重试');
+                    actionRef.current?.reload();
+                  } catch (e) {
+                    message.error(extractErrorMessage(e, '重试失败，请稍后再试'));
+                  }
                 }}
               >
                 <Button type="link" size="small" style={{ padding: 0 }}>
@@ -322,7 +327,8 @@ export default function CustomerMessageSyncTasksPage() {
             </Typography.Paragraph>
             {detail.errorMessage ? (
               <Typography.Paragraph type="danger">
-                <Typography.Text strong>失败原因：</Typography.Text> {detail.errorMessage}
+                <Typography.Text strong>失败原因：</Typography.Text>{' '}
+                {translateBackendErrorText(detail.errorMessage) || detail.errorMessage}
               </Typography.Paragraph>
             ) : null}
             <TechnicalDetails>
