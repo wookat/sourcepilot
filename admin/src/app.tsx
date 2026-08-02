@@ -11,6 +11,7 @@ import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { themeTokens, tmSemanticTokens } from '@/constants/layoutTokens';
 import { fetchProfileWithToken } from '@/services/auth';
 import { postJSON } from '@/services/request';
+import { normalizeHttpErrorMessage } from '@/utils/httpErrorCopy';
 import { filterMenuByPermission } from '@/utils/menuAccess';
 import {
   clearSessionCredentials,
@@ -111,6 +112,15 @@ export const request: RequestConfig = {
           throw error;
         }
         return handleUnauthorizedAndRetry(error);
+      },
+    ],
+    [
+      // 全站错误文案兜底：error.message 缺失或为 axios 英文原文时改写为后端结构化中文
+      // message 或状态码中文兜底；不改动 response/status/config，专有处理（会话守卫、
+      // 只读 403、AI 路径）继续按原字段分支，兜底只兜漏网。
+      (response: unknown) => response,
+      (error: unknown) => {
+        throw normalizeHttpErrorMessage(error);
       },
     ],
   ],

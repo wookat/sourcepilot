@@ -78,7 +78,7 @@ export async function refreshWorkbenchTodos(params?: Record<string, string | num
     { method: 'POST', params },
   );
   if (res.code !== 0) {
-    throw new Error(res.message || 'request_failed');
+    throw new Error(res.message || '请求失败，请稍后重试');
   }
   return res.data;
 }
