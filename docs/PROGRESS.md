@@ -1157,3 +1157,8 @@ Final Production Acceptance Deferred to P10
   - 订单详情「新增物流」弹窗：当本单尚无成功扣减记录时提示「本单尚未扣减库存……可到库存影响 Tab 手工扣减」（编辑既有物流不提示）。
   - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
   - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
+
+### 变更记录（2026-08-02）迭代第 49 轮：草稿批量导出上架清单（选品→优化→导出→人工上架闭环）
+
+- 新增 `GET /api/v1/products/listing-list/export.csv?ids=`（复用采购清单/发货清单批量导出模式）：逗号分隔商品 UUID，去重后 ≤50 个，每草稿一行，列含 商品ID/标题/副标题(AI标题)/描述/类目(取发布配置 categoryPath)/价格(区间)/币种/主图URL/规格列表/来源/来源链接/状态，UTF-8 BOM 供 Excel 直开；租户+店铺 scope 与草稿列表一致（ApplyTenantScope + ApplyProductScope），任一 id 不在 scope 内整单 404；导出属读操作，readonly 可用（与采购/发货导出后端口径一致）。附单测（表头/BOM/类目/规格列表、跨租户 404、店铺 scope 允许/拒绝、handler 去重/上限/非法 id/未知 id）。
+- 草稿列表批量操作条新增「批量导出上架清单（N）」按钮（复用既有行选择），前端限 50 个/次与后端对齐；运营者优化完标题/描述/价格后可一键导出去 Temu/Shopee 手工上架，不再逐字段复制。

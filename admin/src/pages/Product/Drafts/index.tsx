@@ -1,5 +1,6 @@
 import {
   DollarOutlined,
+  ExportOutlined,
   MoreOutlined,
   PictureOutlined,
   PlusOutlined,
@@ -45,7 +46,12 @@ import {
 import { PRODUCT_STATUS } from '@/constants/status';
 import { PRODUCT_SOURCE_LABEL, productSourceLabel } from '@/constants/userFriendly';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
-import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
+import {
+  createProduct,
+  downloadDraftListingCsv,
+  fetchProducts,
+  type ProductListRow,
+} from '@/services/products';
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import PricingApplyModal from '@/components/PricingApplyModal';
@@ -104,6 +110,9 @@ const OPERATION_STEP_OPTIONS = [
   { label: '可以生成刊登草稿', value: 'ready' },
 ];
 
+/** 与后端 MaxListingExportProducts 对齐 */
+const LISTING_EXPORT_MAX_PRODUCTS = 50;
+
 function operationStepColor(step?: string) {
   if (step === 'ready') return 'green';
   if (step === 'publish_check') return 'orange';
@@ -149,6 +158,7 @@ export default function ProductDraftsPage() {
   const [bulkOp, setBulkOp] = useState<string>('title_optimize');
   const [bulkConfirmFiltered, setBulkConfirmFiltered] = useState(false);
   const [pricingBatchOpen, setPricingBatchOpen] = useState(false);
+  const [listingExportLoading, setListingExportLoading] = useState(false);
   const [listLoadError, setListLoadError] = useState<string>();
 
   const selectedCount = selectedRowKeys.length;
@@ -172,6 +182,26 @@ export default function ProductDraftsPage() {
       return false;
     }
     return true;
+  };
+
+  const runListingExport = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先勾选商品');
+      return;
+    }
+    if (selectedRowKeys.length > LISTING_EXPORT_MAX_PRODUCTS) {
+      message.error(`单次最多导出 ${LISTING_EXPORT_MAX_PRODUCTS} 个草稿的上架清单，请分批导出。`);
+      return;
+    }
+    setListingExportLoading(true);
+    try {
+      await downloadDraftListingCsv(selectedRowKeys);
+      message.success(`已导出 ${selectedRowKeys.length} 个草稿的上架清单`);
+    } catch (e) {
+      message.error((e as Error).message || '导出失败');
+    } finally {
+      setListingExportLoading(false);
+    }
   };
 
   const openLegacyBulkAI = () => {
@@ -622,6 +652,13 @@ export default function ProductDraftsPage() {
           </Button>
           <Button icon={<DollarOutlined />} onClick={() => setPricingBatchOpen(true)}>
             批量设置发布价
+          </Button>
+          <Button
+            icon={<ExportOutlined />}
+            loading={listingExportLoading}
+            onClick={() => void runListingExport()}
+          >
+            批量导出上架清单（{selectedCount}）
           </Button>
         </OperationToolbar>
       ) : null}
