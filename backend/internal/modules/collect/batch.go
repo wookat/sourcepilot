@@ -12,7 +12,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
-	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func (s *Service) batchMaxURLs() int {
@@ -169,7 +168,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	if !s.QueueEnabled {
 		return zero, ErrCollectQueueDisabled
 	}
-	tenantID, err := adminperm.TenantIDFromGin(c)
+	tenantID, err := tenantIDFromGin(c)
 	if err != nil {
 		return zero, err
 	}

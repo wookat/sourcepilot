@@ -21,6 +21,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
@@ -546,6 +547,25 @@ func parseOptionalRuleID(p *string) (*uuid.UUID, error) {
 	return &u, nil
 }
 
+// tenantIDFromGin returns the authenticated tenant id, or an error when the
+// request has no positive tenant scope (worker tasks require one to run).
+func tenantIDFromGin(c *gin.Context) (int64, error) {
+	if tc := security.FromGin(c); tc != nil {
+		if tc.TenantID > 0 {
+			return tc.TenantID, nil
+		}
+		return 0, fmt.Errorf("TENANT_CONTEXT_MISSING: collect requires positive tenant scope")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return 0, err
+	}
+	if tid <= 0 {
+		return 0, fmt.Errorf("TENANT_CONTEXT_MISSING: collect requires positive tenant scope")
+	}
+	return tid, nil
+}
+
 func requestIDFromGin(c *gin.Context) string {
 	if c == nil {
 		return ""
@@ -564,7 +584,7 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	if s == nil || s.DB == nil {
 		return zero, fmt.Errorf("collect: no db")
 	}
-	tenantID, err := adminperm.TenantIDFromGin(c)
+	tenantID, err := tenantIDFromGin(c)
 	if err != nil {
 		return zero, err
 	}
