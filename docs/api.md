@@ -97,6 +97,7 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/products` | 商品草稿列表；支持 `operationStep`（`collect_review` / `title` / `description` / `images` / `pricing` / `publish_check` / `ready`）筛选，并在列表行返回轻量 `operationProgress` 摘要。 |
+| `GET` | `/api/v1/products/listing-list/export.csv?ids=` | 批量导出草稿上架清单 CSV：`ids` 为逗号分隔商品 UUID（去重后 ≤50 个），每草稿一行（列含标题/副标题(AI标题)/描述/类目/价格/币种/主图URL/规格列表/来源链接等，UTF-8 BOM），租户+店铺 scope 与草稿列表一致，任一 id 不在 scope 内返回 404；导出属读操作，readonly 可用。 |
 | `POST` | `/api/v1/products` | 创建商品草稿。 |
 | `GET` | `/api/v1/products/:id` | 商品详情。 |
 | `GET` | `/api/v1/products/:id/operation-progress` | 商品运营进度摘要；只读聚合商品、图片、SKU 与既有发布前检查，不调用平台 API、不创建任务、不修改商品。 |
