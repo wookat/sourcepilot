@@ -9,12 +9,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"gorm.io/gorm"
@@ -61,6 +63,11 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&customerchat.CustomerMessage{},
 		&customerchat.CustomerReplySuggestion{},
 		&customerchat.CustomerFailureEvent{},
+		&customersync.CustomerMessageSyncTask{},
+		&selection.SelectionTask{},
+		&selection.SelectionCandidate{},
+		&selection.SelectionSourceMatch{},
+		&selection.SelectionEvaluation{},
 	); err != nil {
 		t.Fatal(err)
 	}

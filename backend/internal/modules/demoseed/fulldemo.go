@@ -9,12 +9,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"gorm.io/gorm"
@@ -570,6 +572,16 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	}
 	count("order_sync_tasks", 1)
 
+	// ---- selection center: DEMO- 选品任务全状态 + 候选/评估样本 ----
+	if err := s.seedSelection(tx, res, now, products); err != nil {
+		return err
+	}
+
+	// ---- AI 客服：DEMO- 会话/消息/AI 建议草稿 + 同步任务成功/失败 ----
+	if err := s.seedCustomerService(tx, res, now, shops); err != nil {
+		return err
+	}
+
 	// ---- exception workbench handled mark（演示处理动作留痕）----
 	mark := orderexception.OrderExceptionMark{
 		ExceptionType: orderexception.TypeInventorySyncFailed,
@@ -792,12 +804,19 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			}
 		}
 
-		// tenant-0 orphan demo customer conversations: rows created by demo
-		// seeds/scripts before conversations stamped tenant_id are stranded at
-		// tenant 0 and invisible to any real tenant. Remove them with children.
+		if err := cleanupSelection(tx, res, like); err != nil {
+			return err
+		}
+		if err := cleanupCustomerSyncTasks(tx, res, like); err != nil {
+			return err
+		}
+
+		// demo customer conversations: DEMO- seeded rows on any tenant, plus
+		// tenant-0 orphans created by older demo seeds/scripts before
+		// conversations stamped tenant_id. Remove them with children.
 		var convIDs []uuid.UUID
 		if err := tx.Model(&customerchat.CustomerConversation{}).Unscoped().
-			Where("tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ? OR customer_name LIKE ?)", like, "F8 Demo%", "Demo %").
+			Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %").
 			Pluck("id", &convIDs).Error; err != nil {
 			return err
 		}
@@ -884,8 +903,44 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		{"customer_conversations", func() (int64, error) {
 			var n int64
 			return n, tx.Model(&customerchat.CustomerConversation{}).Unscoped().
-				Where("tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ? OR customer_name LIKE ?)", like, "F8 Demo%", "Demo %").
+				Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %").
 				Count(&n).Error
+		}},
+		{"customer_messages", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&customerchat.CustomerMessage{}).
+				Where("content LIKE ?", like).Count(&n).Error
+		}},
+		{"customer_reply_suggestions", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&customerchat.CustomerReplySuggestion{}).Unscoped().
+				Where("prompt_code LIKE ? OR suggested_reply LIKE ?", like, like).Count(&n).Error
+		}},
+		{"customer_message_sync_tasks", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&customersync.CustomerMessageSyncTask{}).Unscoped().
+				Where("cursor LIKE ? OR error_message LIKE ?", like, like).Count(&n).Error
+		}},
+		{"selection_tasks", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&selection.SelectionTask{}).Unscoped().
+				Where("name LIKE ?", like).Count(&n).Error
+		}},
+		{"selection_candidates", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&selection.SelectionCandidate{}).Unscoped().
+				Where("title LIKE ?", like).Count(&n).Error
+		}},
+		{"selection_source_matches", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&selection.SelectionSourceMatch{}).Unscoped().
+				Where("source_offer_id LIKE ? OR supplier_name LIKE ?", like, like).Count(&n).Error
+		}},
+		{"selection_evaluations", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&selection.SelectionEvaluation{}).Unscoped().
+				Where("candidate_id IN (?)", tx.Model(&selection.SelectionCandidate{}).Unscoped().
+					Select("id").Where("title LIKE ?", like)).Count(&n).Error
 		}},
 	}
 	for _, c := range checks {
