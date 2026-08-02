@@ -15,7 +15,8 @@ import {
   type PurchaseOrderItem,
 } from '@/services/procurement';
 import { formatDateTime } from '@/utils/formatTime';
-import { Link, useParams } from '@umijs/max';
+import { isReadonly } from '@/utils/permission';
+import { Link, useModel, useParams } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -36,12 +37,16 @@ import {
   message,
 } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
-import { PO_STATUS_TAG } from './index';
+import { confirmVoidPurchaseOrder, PO_STATUS_TAG, PO_VOIDABLE_STATUSES } from './index';
 
 const FLOW = ['draft', 'pending_confirm', 'placing', 'placed', 'paid', 'shipped', 'delivered'];
 
 export default function ProcurementOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: API.CurrentUser };
+  };
+  const writable = !isReadonly(initialState?.currentUser?.role);
   const [po, setPo] = useState<PurchaseOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -129,12 +134,18 @@ export default function ProcurementOrderDetailPage() {
       title={`采购单 ${po.id.slice(0, 8)}`}
       subTitle={<Tag color={statusCfg.color}>{statusCfg.text}</Tag>}
     >
-      {['failed', 'cancelled'].includes(po.status) ? (
+      {['failed', 'cancelled', 'voided'].includes(po.status) ? (
         <Alert
           style={{ marginBottom: 16 }}
           type={po.status === 'failed' ? 'error' : 'warning'}
           showIcon
-          message={po.status === 'failed' ? `采购失败：${po.errorMessage || '未知原因'}` : '采购单已取消'}
+          message={
+            po.status === 'failed'
+              ? `采购失败：${po.errorMessage || '未知原因'}`
+              : po.status === 'voided'
+                ? '采购单已作废：不再参与统计与待办，已入库库存未自动回滚'
+                : '采购单已取消'
+          }
         />
       ) : (
         <Steps
@@ -186,6 +197,11 @@ export default function ProcurementOrderDetailPage() {
           <Popconfirm title="取消该采购单？" onConfirm={() => void run(() => cancelPurchaseOrder(po.id, '人工取消'), '已取消')}>
             <Button danger>取消采购单</Button>
           </Popconfirm>
+        )}
+        {writable && PO_VOIDABLE_STATUSES.includes(po.status) && (
+          <Button danger onClick={() => confirmVoidPurchaseOrder(po.id, () => void load())}>
+            作废采购单
+          </Button>
         )}
       </Space>
 

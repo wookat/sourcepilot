@@ -182,8 +182,8 @@ func orderCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) 
 }
 
 // activePOCoverageExists matches orders having at least one line covered by a
-// non-cancelled / non-failed purchase order (same rule as generate dedupe).
-const activePOCoverageExists = "EXISTS (SELECT 1 FROM purchase_order_items poi JOIN purchase_orders po2 ON po2.id = poi.purchase_order_id WHERE poi.sales_order_id = orders.id AND po2.status NOT IN ('cancelled','failed'))"
+// non-cancelled / non-failed / non-voided purchase order (same rule as generate dedupe).
+const activePOCoverageExists = "EXISTS (SELECT 1 FROM purchase_order_items poi JOIN purchase_orders po2 ON po2.id = poi.purchase_order_id WHERE poi.sales_order_id = orders.id AND po2.status NOT IN ('cancelled','failed','voided'))"
 
 func hasPurchaseKey(v *bool) string {
 	if v == nil {
