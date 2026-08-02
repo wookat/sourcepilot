@@ -230,7 +230,7 @@ export default function AiTasksPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
+        search={{ labelWidth: 'auto' }}
         options={{ reload: true, density: true, setting: true }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         scroll={{ x: 1400 }}

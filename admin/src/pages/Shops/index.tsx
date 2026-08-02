@@ -665,7 +665,6 @@ export default function ShopsPage() {
         scroll={{ x: 1376 }}
         search={{
           labelWidth: 'auto',
-          defaultCollapsed: false,
           span: { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 6 },
         }}
         options={{ reload: true, density: true, setting: true }}
