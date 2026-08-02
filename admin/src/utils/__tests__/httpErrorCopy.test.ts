@@ -82,6 +82,8 @@ describe('translateBackendErrorText', () => {
     expect(translateBackendErrorText('product: ai not configured')).toContain('AI Provider 未配置');
     expect(translateBackendErrorText('ai gateway: not configured')).toContain('AI Provider 未配置');
     expect(translateBackendErrorText('ai gateway not configured')).toContain('AI 设置');
+    expect(translateBackendErrorText('请配置 base_url')).toContain('AI Provider 未配置');
+    expect(translateBackendErrorText('请配置 API Key')).toContain('AI Provider 未配置');
   });
 
   it('translates customer message sync errors', () => {
