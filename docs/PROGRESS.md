@@ -1157,3 +1157,11 @@ Final Production Acceptance Deferred to P10
   - 订单详情「新增物流」弹窗：当本单尚无成功扣减记录时提示「本单尚未扣减库存……可到库存影响 Tab 手工扣减」（编辑既有物流不提示）。
   - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
   - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
+
+### 变更记录（2026-08-02）R57 选品中心 P2×7 走查修复
+
+- 选品任务列表：新增状态筛选（复用后端既有 `status` 查询参数）；处理中/待处理任务自动轮询刷新（4s，无活跃任务或页面隐藏时停止）；失败/部分失败状态 Tag 悬浮显示失败原因；readonly 隐藏「新建选品任务」「重试」写入口（仅前端对齐既有权限模型，后端 403 守卫不变）。
+- 选品详情：失败/部分失败任务页顶 Alert 显示任务级失败原因；失败候选状态列直接展示失败原因文本；处理中任务自动轮询并提示；readonly 隐藏「通过/拒绝/转草稿」；任务信息 Descriptions 改响应式列数；全局 PageHeader 标题/副标题窄屏允许换行，修复 375px 头部溢出/挤压。
+- 错误透传：新增 `extractApiErrorMessage`（`admin/src/services/request.ts`），选品写操作 catch 优先展示后端 envelope 结构化中文 message（如 readonly 403「当前账号为只读权限，无法执行此操作」）。
+- AI 设置：新增「清空当前服务商配置」入口（Popconfirm 确认）；settings `PUT /api/v1/settings` item 新增可选 `clear` 字段（为 true 时强制清空已存值，含加密字段，绕过「空加密值保留旧密钥」语义；不新增端点，遵循既有 settings 模式），附 sqlite 单测（保留语义回归 + clear 清空 + clear 不落敏感值）。
+- E2E：新增 `selection-r57-p2.spec.ts`（状态筛选、失败原因展示、readonly 隐藏、403 中文透传、375px 无横向溢出）；ConsoleGuard 支持单测试级预期输出白名单（故意 mock 的 4xx 等）。

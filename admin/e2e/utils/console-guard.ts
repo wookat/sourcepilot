@@ -12,8 +12,14 @@ const allowedWarnings: RegExp[] = [
 export class ConsoleGuard {
   private readonly errors: GuardEntry[] = [];
   private readonly warnings: GuardEntry[] = [];
+  private readonly allowedForTest: RegExp[] = [];
 
   constructor(private readonly page: Page) {}
+
+  /** 单测试级白名单：仅用于测试场景本身预期产生的控制台输出（如故意 mock 的 4xx 响应）。 */
+  allowForTest(pattern: RegExp) {
+    this.allowedForTest.push(pattern);
+  }
 
   install() {
     this.page.on('pageerror', (error) => {
@@ -23,8 +29,9 @@ export class ConsoleGuard {
   }
 
   async expectNoFatalErrors() {
-    const fatalErrors = this.errors.filter((entry) => !allowedWarnings.some((pattern) => pattern.test(entry.text)));
-    const fatalWarnings = this.warnings.filter((entry) => !allowedWarnings.some((pattern) => pattern.test(entry.text)));
+    const allowed = [...allowedWarnings, ...this.allowedForTest];
+    const fatalErrors = this.errors.filter((entry) => !allowed.some((pattern) => pattern.test(entry.text)));
+    const fatalWarnings = this.warnings.filter((entry) => !allowed.some((pattern) => pattern.test(entry.text)));
     expect([...fatalErrors, ...fatalWarnings], 'fatal console/page errors').toEqual([]);
   }
 

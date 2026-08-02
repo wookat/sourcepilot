@@ -39,6 +39,7 @@ type putItemJSON struct {
 	ValueType   string `json:"valueType" binding:"omitempty,max=50"`
 	IsEncrypted bool   `json:"isEncrypted"`
 	Remark      string `json:"remark" binding:"omitempty,max=255"`
+	Clear       bool   `json:"clear"`
 }
 
 // List GET /api/v1/settings
@@ -78,6 +79,7 @@ func (h *Handler) Put(c *gin.Context) {
 			ValueType:   it.ValueType,
 			IsEncrypted: it.IsEncrypted,
 			Remark:      it.Remark,
+			Clear:       it.Clear,
 		})
 	}
 	if err := h.Svc.PutBulk(c.Request.Context(), items); err != nil {

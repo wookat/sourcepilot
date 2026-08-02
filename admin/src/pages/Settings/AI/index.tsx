@@ -17,6 +17,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Popconfirm,
   Radio,
   Row,
   Space,
@@ -71,6 +72,7 @@ export default function AISettingsPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const provider = Form.useWatch('provider', form) as AIProviderValue | undefined;
   const batchEnabled = Form.useWatch('ai_batch_enabled', form) as boolean | undefined;
   const preset = provider ? AI_PROVIDER_PRESETS[provider] : AI_PROVIDER_PRESETS.openai_compatible;
@@ -137,6 +139,35 @@ export default function AISettingsPage() {
       message.error((e as Error)?.message || '连接失败');
     } finally {
       setTesting(false);
+    }
+  };
+
+  const clearProviderConfig = async () => {
+    if (!provider) {
+      message.error('请选择 AI 服务商');
+      return;
+    }
+    setClearing(true);
+    try {
+      const specs = buildAISaveFieldSpecs(provider);
+      await saveSettingsItems(
+        Object.entries(specs).map(([itemKey, spec]) => ({
+          tenantId: 0,
+          groupKey: GROUP,
+          itemKey,
+          itemValue: '',
+          valueType: 'string',
+          isEncrypted: !!spec.encrypted,
+          remark: '',
+          clear: true,
+        })),
+      );
+      message.success('已清空当前服务商的接口地址、模型与密钥');
+      await load();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '清空失败');
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -454,6 +485,17 @@ export default function AISettingsPage() {
               <Button size="large" loading={testing} onClick={() => void runTest()}>
                 测试连接
               </Button>
+              <Popconfirm
+                title="清空当前服务商配置？"
+                description="将清空该服务商已保存的接口地址、模型和接口密钥，清空后 AI 功能将使用规则兑底。"
+                okText="确认清空"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => void clearProviderConfig()}
+              >
+                <Button size="large" danger loading={clearing}>
+                  清空当前服务商配置
+                </Button>
+              </Popconfirm>
             </Space>
           </ProCard>
         </Form>
