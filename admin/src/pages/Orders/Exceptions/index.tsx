@@ -1,5 +1,5 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import { MetricCard, PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { platformLabel } from '@/constants/userFriendly';
 import { formatDateTime } from '@/utils/formatTime';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
@@ -7,7 +7,6 @@ import { history, useModel } from '@umijs/max';
 import {
   Alert,
   Button,
-  Card,
   Col,
   Drawer,
   Input,
@@ -16,7 +15,6 @@ import {
   Row,
   Select,
   Space,
-  Statistic,
   Switch,
   Table,
   Tag,
@@ -724,46 +722,24 @@ export default function OrderExceptionsPage() {
       <KeywordSafetyHint visible={showSensitiveHint} />
       {summary ? (
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="未处理总数" value={summary.totalOpen} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="规格未匹配" value={summary.skuUnmatched} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="规格多候选" value={summary.skuAmbiguous} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="库存不足" value={summary.insufficientStock} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="扣库存失败" value={summary.inventoryDeductFailed} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="库存同步失败" value={summary.inventorySyncFailed} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="采购受阻" value={summary.procurementBlocked ?? 0} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Card size="small">
-              <Statistic title="利润为负" value={summary.negativeMargin ?? 0} />
-            </Card>
-          </Col>
+          {[
+            { title: '未处理总数', value: summary.totalOpen, danger: true },
+            { title: '规格未匹配', value: summary.skuUnmatched },
+            { title: '规格多候选', value: summary.skuAmbiguous },
+            { title: '库存不足', value: summary.insufficientStock },
+            { title: '扣库存失败', value: summary.inventoryDeductFailed },
+            { title: '库存同步失败', value: summary.inventorySyncFailed },
+            { title: '采购受阻', value: summary.procurementBlocked ?? 0 },
+            { title: '利润为负', value: summary.negativeMargin ?? 0 },
+          ].map((card) => (
+            <Col xs={12} sm={12} md={6} lg={6} key={card.title}>
+              <MetricCard
+                title={card.title}
+                value={card.value}
+                intent={card.value > 0 ? (card.danger ? 'danger' : 'warning') : 'default'}
+              />
+            </Col>
+          ))}
         </Row>
       ) : null}
 

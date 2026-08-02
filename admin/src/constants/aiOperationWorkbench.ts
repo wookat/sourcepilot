@@ -13,9 +13,9 @@ export const WORKBENCH_TODO_TYPES = [
 
 export const WORKBENCH_PRIORITY_OPTIONS = [
   { value: 'P0', label: '紧急', color: 'red' },
-  { value: 'P1', label: '阻断', color: 'red' },
-  { value: 'P2', label: '建议处理', color: 'orange' },
-  { value: 'P3', label: '普通提醒', color: 'blue' },
+  { value: 'P1', label: '阻断', color: 'orange' },
+  { value: 'P2', label: '建议处理', color: 'gold' },
+  { value: 'P3', label: '普通提醒', color: 'default' },
 ] as const;
 
 export function workbenchTypeLabel(type?: string) {

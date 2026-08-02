@@ -135,9 +135,6 @@ export default function LoginPage() {
           <div className="login-left-decor" aria-hidden="true">
             <div className="decor-line decor-line-1" />
             <div className="decor-line decor-line-2" />
-            <div className="decor-card decor-card-1" />
-            <div className="decor-card decor-card-2" />
-            <div className="decor-card decor-card-3" />
           </div>
 
           <div className="login-left-content">

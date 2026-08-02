@@ -1306,3 +1306,15 @@ Final Production Acceptance Deferred to P10
 - 首页经营概览统计卡与报表页口径一致：计数 `formatCount` + tabular-nums，销售额 `formatAmount`（如 `USD 1,234.50`）。
 - 订单列表 cost-estimates 批量接口 `data:null` 空值防御（`out?.items ?? {}`），不白屏；预估毛利涨跌色改引用 chartTokens。不改任何 API/权限/数据口径。
 - 测试：新增 `chartTokens` 单测（9 用例）与 E2E `round64-charts-visual.spec.ts`（千分位合计+双图渲染、空数据引导、375px 无溢出、cost-estimates `data:null` 回归）。
+
+### 变更记录（2026-08-02）第 65 轮：R62 视觉走查 P2 批量收口（仅 antd token/配置，无 API/权限/口径变更）
+
+- 首页经营概览窗口标签映射补 `last7d`/`last30d` 别名，任何后端 key 口径均展示中文（今日/近 7 日/近 30 日），不再英文直出。
+- P2-1：今日待办卡仅首个待办用 primary 按钮，其余降级 default，消除满屏蓝主按钮。
+- P2-2/P2-12：订单异常工作台 8 张裸 Statistic 卡改共享 `MetricCard`（>0 时 danger/warning 语义色），栅格改 xs12/md6 均衡 2 或 4 列，消除残行。
+- P2-3：AI 工作台优先级 Tag 仅 P0 用红色（P1 orange、P2 gold、P3 default），消除红墙。
+- P2-7：商品草稿列表无封面占位由灰字「无图」改图形图标占位（保留 aria-label）。
+- P2-9：登录页删除 3 张空白幽灵装饰卡（decor-card）及关联动画。
+- P2-11：客服会话「买家」列加 ellipsis，脱敏名不再折行。
+- chartTokens.heightCompact 落地：抽共享 `useWideScreen` hook（TmProTable 同步复用），报表页 <768px 图表用紧凑高度 220。
+- 测试：新增 `aiOperationWorkbench` 优先级色彩单测与 E2E `round65-visual-p2.spec.ts`（窗口标签中文、待办按钮层级、异常统计卡语义色+375 无溢出、报表紧凑高度、无图占位、登录页无幽灵卡）。

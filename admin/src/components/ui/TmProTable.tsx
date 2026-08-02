@@ -1,8 +1,9 @@
 import { ReloadOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ActionType, ProColumns, ProTableProps } from '@ant-design/pro-components';
-import { Button, Grid, Tooltip } from 'antd';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Tooltip } from 'antd';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useWideScreen } from '@/hooks/useWideScreen';
 
 export type TmProTableProps<T extends Record<string, unknown>, U extends Record<string, unknown> = Record<string, unknown>> =
   ProTableProps<T, U>;
@@ -11,16 +12,6 @@ type TmToolBarRender<T extends Record<string, unknown>, U extends Record<string,
   ProTableProps<T, U>['toolBarRender'],
   false | undefined
 >;
-
-/** 宽屏判断：惰性初始化保证移动端首帧即非固定（pro-table columnsMap 会固化首帧列 fixed）。 */
-function useWideScreen(): boolean {
-  const screens = Grid.useBreakpoint();
-  const [wide, setWide] = useState(() => typeof window === 'undefined' || window.innerWidth >= 768);
-  useEffect(() => {
-    if (screens.md !== undefined) setWide(screens.md);
-  }, [screens.md]);
-  return wide;
-}
 
 function stripColumnsFixed<T, U>(columns: ProColumns<T, U>[]): ProColumns<T, U>[] {
   return columns.map((col) => {
