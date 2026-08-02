@@ -9,6 +9,7 @@ import {
 import {
   Button,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -19,9 +20,13 @@ import {
   Tag,
   message,
 } from 'antd';
+import type { Breakpoint } from 'antd';
 import { isReadonly } from '@/utils/permission';
 import { useModel } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';
+
+/** 次要列在 <768px 小屏折叠，只保留名称 / 平台 / 状态 / 操作。 */
+const DESKTOP_ONLY: Breakpoint[] = ['md'];
 
 const STATUS_TAG: Record<string, { text: string; color: string }> = {
   active: { text: '启用', color: 'green' },
@@ -33,6 +38,13 @@ export default function SuppliersPage() {
     initialState?: { currentUser?: { role?: string } };
   };
   const writable = !isReadonly(initialState?.currentUser?.role);
+  const screens = Grid.useBreakpoint();
+  const [wideScreen, setWideScreen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 768,
+  );
+  useEffect(() => {
+    if (screens.md !== undefined) setWideScreen(screens.md);
+  }, [screens.md]);
   const [rows, setRows] = useState<Supplier[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -107,7 +119,7 @@ export default function SuppliersPage() {
         rowKey="id"
         loading={loading}
         dataSource={rows}
-        scroll={{ x: 900 }}
+        scroll={{ x: wideScreen ? 900 : undefined }}
         pagination={{
           current: page,
           pageSize,
@@ -121,8 +133,8 @@ export default function SuppliersPage() {
         columns={[
           { title: '名称', dataIndex: 'name', width: 200 },
           { title: '平台', dataIndex: 'platform', width: 90 },
-          { title: '外部ID', dataIndex: 'externalId', width: 140, render: (v) => v || '-' },
-          { title: '评分', dataIndex: 'rating', width: 80, render: (v) => v ?? '-' },
+          { title: '外部ID', dataIndex: 'externalId', width: 140, responsive: DESKTOP_ONLY, render: (v) => v || '-' },
+          { title: '评分', dataIndex: 'rating', width: 80, responsive: DESKTOP_ONLY, render: (v) => v ?? '-' },
           {
             title: '状态',
             dataIndex: 'status',
@@ -132,7 +144,7 @@ export default function SuppliersPage() {
               return <Tag color={cfg.color}>{cfg.text}</Tag>;
             },
           },
-          { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v) => v || '-' },
+          { title: '备注', dataIndex: 'remark', ellipsis: true, responsive: DESKTOP_ONLY, render: (v) => v || '-' },
           ...(writable
             ? [{
             title: '操作',
