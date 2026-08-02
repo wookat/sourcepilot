@@ -1157,3 +1157,9 @@ Final Production Acceptance Deferred to P10
   - 订单详情「新增物流」弹窗：当本单尚无成功扣减记录时提示「本单尚未扣减库存……可到库存影响 Tab 手工扣减」（编辑既有物流不提示）。
   - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
   - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
+
+### 变更记录（2026-08-02）迭代第 55 轮：经营报表导出 CSV + 移动端收口
+
+- 后端新增只读导出端点 `GET /api/v1/orders/stats/daily/export.csv?days=30`：复用 `stats/daily` 数据与租户/店铺 scope，UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内每币种一列「已付款销售额(币种)」（字典序），空日期补 0；`stats/daily` 同步新增 `shippedCount` 字段（口径与 `stats/sales` 已发货一致）。附字节级单测（BOM/表头/数据行/默认天数）。
+- 报表页新增「导出 CSV」按钮与近 7/30/90 天切换（Segmented），数据请求与导出共用同一 days；导出带 loading 防重复、成功/失败提示；readonly 可用。五档视口（1440/1280/1024/768/375）无根节点横向溢出，新增 `admin/e2e/specs/orders-reports.spec.ts`（GET-only mock）。
+- 依赖修复：admin `react-dom` 由 19.2.8 回对齐 `react` 18.2.0（含 `@types/react-dom`），pnpm overrides 迁移至 `pnpm-workspace.yaml`（pnpm 10+ 不再读取 package.json `pnpm` 字段）；`SessionExpiredModal` 的 `destroyOnClose` 改 `destroyOnHidden`（antd 5.29 弃用警告导致 E2E console guard 全量失败）。

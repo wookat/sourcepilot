@@ -210,6 +210,7 @@ export type DailyStat = {
   date: string;
   orderCount: number;
   paidCount: number;
+  shippedCount: number;
   paidAmounts: SalesAmount[];
 };
 
@@ -221,6 +222,25 @@ export type DailyStatsDTO = {
 
 export async function fetchOrderDailyStats(days = 30): Promise<DailyStatsDTO> {
   return getJSON(`/api/v1/orders/stats/daily?days=${days}`);
+}
+
+export async function downloadDailyReportCsv(days: number) {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const resp = await fetch(`/api/v1/orders/stats/daily/export.csv?days=${days}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!resp.ok) {
+    throw new Error(`export failed: ${resp.status}`);
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `daily-report-${days}d.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export async function getOrder(id: string): Promise<OrderDetailDTO> {
