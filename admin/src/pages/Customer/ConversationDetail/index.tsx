@@ -35,6 +35,7 @@ import {
 } from '@/constants/status';
 import { platformLabel } from '@/constants/userFriendly';
 import { confirmCustomerReplySend } from '@/constants/sensitiveActions';
+import { extractErrorMessage } from '@/utils/httpErrorCopy';
 import {
   acceptReplySuggestion,
   createMessage,
@@ -235,7 +236,7 @@ export default function CustomerConversationDetailPage() {
       message.success('已生成建议（需人工确认，不会对外发送）');
       loadAll();
     } catch (e: unknown) {
-      message.error(extractApiErrorMessage(e, '生成失败'));
+      message.error(extractErrorMessage(e, '生成失败'));
     } finally {
       setGenLoading(false);
     }
