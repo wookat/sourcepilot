@@ -27,6 +27,7 @@ import {
 } from 'antd';
 import type { Breakpoint } from 'antd';
 import { httpErrorCopy } from '@/constants/errorMessages';
+import { formatDateTime } from '@/utils/formatTime';
 import { isReadonly } from '@/utils/permission';
 import { useModel } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';
@@ -229,7 +230,12 @@ export default function SuppliersPage() {
                 render: (v: boolean) => (v ? <Tag color="blue">主</Tag> : '-'),
               },
               { title: '规格映射数', dataIndex: 'skuCount', width: 100 },
-              { title: '绑定时间', dataIndex: 'createdAt', width: 180 },
+              {
+                title: '绑定时间',
+                dataIndex: 'createdAt',
+                width: 180,
+                render: (v: string) => formatDateTime(v),
+              },
               ...(writable
                 ? [{
                     title: '操作',
