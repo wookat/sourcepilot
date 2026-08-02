@@ -85,6 +85,7 @@ P7 性能数据集与负载测试只能在隔离 `APP_ENV=performance` 环境执
 
 - 入口：Admin「运维 → 恢复验证 / 灾备演练」，或 `POST /api/v1/ops/restores`、`POST /api/v1/ops/restores/:id/verify`、`POST /api/v1/ops/dr/drills`。
 - 安全门：目标必须为隔离环境、目标库名以 `trademind_p6v_restore_` 开头、操作者二次确认与高风险确认；备份必须 completed 且校验通过。
+- 前置条件：目标数据库必须**预先创建且为空**（例如 `docker compose -f docker-compose.full.yml exec postgres psql -U trademind -c 'CREATE DATABASE trademind_p6v_restore_drill1;'`），否则安全门以 `RESTORE_TARGET_CONNECT_FAILED` 拒绝。
 - 恢复验证真实执行两项检查：备份文件完整性（SHA-256）、`pg_restore --list` 结构校验；其余检查项（迁移版本、租户隔离、RBAC、审计链、对象清单、密钥密文）明确标注「暂未实现」，不伪装通过。
 - `APP_ENV=production` 下恢复验证与 DR 演练直接拒绝执行；生产恢复流程保持待接入。
 
