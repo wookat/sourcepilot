@@ -198,7 +198,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if ps > 100 {
 		ps = 100
 	}
-	tx := s.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{})
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	tx := s.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{}).Where("tenant_id = ?", tenantID)
 	if v := strings.TrimSpace(q.Role); v != "" {
 		tx = tx.Where("LOWER(role) = ?", strings.ToLower(v))
 	}
@@ -240,11 +244,27 @@ func (s *Service) Get(c *gin.Context, userID uuid.UUID) (*UserRow, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("adminuser: no db")
 	}
-	var u admin.AdminUser
-	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ?", userID).Error; err != nil {
+	u, err := s.findInTenant(c, userID)
+	if err != nil {
 		return nil, err
 	}
-	return s.toUserRow(c.Request.Context(), &u, true)
+	return s.toUserRow(c.Request.Context(), u, true)
+}
+
+// findInTenant loads a user scoped to the caller's tenant; cross-tenant IDs
+// surface as gorm.ErrRecordNotFound so handlers respond 404 without leaking
+// existence.
+func (s *Service) findInTenant(c *gin.Context, userID uuid.UUID) (*admin.AdminUser, error) {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	var u admin.AdminUser
+	if err := s.DB.WithContext(c.Request.Context()).
+		First(&u, "id = ? AND tenant_id = ?", userID, tenantID).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
 }
 
 // Create registers a new admin user.
@@ -328,10 +348,11 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("adminuser: no db")
 	}
-	var u admin.AdminUser
-	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ?", userID).Error; err != nil {
+	up, err := s.findInTenant(c, userID)
+	if err != nil {
 		return nil, err
 	}
+	u := *up
 	oldRole := normalizeRole(u.Role)
 	if body.Role != nil {
 		newRole := normalizeRole(*body.Role)
@@ -372,14 +393,14 @@ func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body Set
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("adminuser: no db")
 	}
-	var u admin.AdminUser
-	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ?", userID).Error; err != nil {
+	u, err := s.findInTenant(c, userID)
+	if err != nil {
 		return nil, err
 	}
 	if normalizeRole(u.Role) == adminperm.RoleAdmin {
 		return nil, fmt.Errorf("管理员无需分配店铺权限")
 	}
-	err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("user_id = ?", userID).Delete(&admin.UserStorePermission{}).Error; err != nil {
 			return err
 		}
@@ -389,7 +410,7 @@ func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body Set
 				return fmt.Errorf("无效的店铺 ID")
 			}
 			var sh shop.Shop
-			if err := tx.First(&sh, "id = ?", sid).Error; err != nil {
+			if err := tx.First(&sh, "id = ? AND tenant_id = ?", sid, u.TenantID).Error; err != nil {
 				return fmt.Errorf("店铺不存在")
 			}
 			row := admin.UserStorePermission{
@@ -433,19 +454,19 @@ func (s *Service) Delete(c *gin.Context, userID uuid.UUID, actorID *uuid.UUID) e
 	if actorID != nil && *actorID == userID {
 		return ErrSelfDelete
 	}
-	var u admin.AdminUser
-	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ?", userID).Error; err != nil {
+	u, err := s.findInTenant(c, userID)
+	if err != nil {
 		return err
 	}
-	err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&admin.AdminUser{}).Where("id = ?", userID).
+	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&admin.AdminUser{}).Where("id = ? AND tenant_id = ?", userID, u.TenantID).
 			UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("user_id = ?", userID).Delete(&admin.UserStorePermission{}).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&admin.AdminUser{}, "id = ?", userID).Error
+		return tx.Delete(&admin.AdminUser{}, "id = ? AND tenant_id = ?", userID, u.TenantID).Error
 	})
 	if err != nil {
 		return err
