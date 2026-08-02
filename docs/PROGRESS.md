@@ -1234,8 +1234,12 @@ Final Production Acceptance Deferred to P10
   - 修复全局 `SessionExpiredModal` 的 antd `destroyOnClose` 弃用告警（antd 5.29 升级后导致全部 E2E console 守卫失败），改为 `destroyOnHidden`。
 - docs/api.md 同步 `GET /api/v1/operation-logs` 契约说明（权限/scope/筛选/深链）。
 
+### 变更记录（2026-08-02）迭代第 55 轮：经营报表导出 CSV + 移动端收口
 ### 变更记录（2026-08-02）迭代第 59 轮：商品草稿模块系统性真实走查收口
 
+- 后端新增只读导出端点 `GET /api/v1/orders/stats/daily/export.csv?days=30`：复用 `stats/daily` 数据与租户/店铺 scope，UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内每币种一列「已付款销售额(币种)」（字典序），空日期补 0；`stats/daily` 同步新增 `shippedCount` 字段（口径与 `stats/sales` 已发货一致）。附字节级单测（BOM/表头/数据行/默认天数）。
+- 报表页新增「导出 CSV」按钮与近 7/30/90 天切换（Segmented），数据请求与导出共用同一 days；导出带 loading 防重复、成功/失败提示；readonly 可用。五档视口（1440/1280/1024/768/375）无根节点横向溢出，新增 `admin/e2e/specs/orders-reports.spec.ts`（GET-only mock）。
+- 依赖修复：admin `react-dom` 由 19.2.8 回对齐 `react` 18.2.0（含 `@types/react-dom`），pnpm overrides 迁移至 `pnpm-workspace.yaml`（pnpm 10+ 不再读取 package.json `pnpm` 字段）；`SessionExpiredModal` 的 `destroyOnClose` 改 `destroyOnHidden`（antd 5.29 弃用警告导致 E2E console guard 全量失败）。
 - 全栈真实走查（docker compose + demo seed）商品草稿列表/详情/AI 优化/归档删除/采集回链 + 三角色权限 + 375/768/1440 响应式，发现并修复：
   - **P0（后端越权风险）**：商品写接口除 `POST /products` 外均无路由级只读守卫（PUT/DELETE 商品、SKU/图片 CRUD、平台配置、抖音 mapping/图片、AI 优化/应用/撤销、sync-images），readonly 此前仅靠店铺可见性 scope「碰巧」404。现全部补 `denyWrite`（AI 应用/撤销走 `ai_text.apply` 守卫），附 `readonly_guard_test.go` 全路由 403 回归测试；docs/api.md 商品节同步说明。
   - **P1**：前端统一 request 错误规范化——HTTP 非 2xx 时还原后端 envelope `message`（如 AI 未配置时「请配置 base_url」），不再裸显 axios「Request failed with status code 400」；附 request 单测。
