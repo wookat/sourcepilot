@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func (s *Service) batchMaxURLs() int {
@@ -168,6 +169,10 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	if !s.QueueEnabled {
 		return zero, ErrCollectQueueDisabled
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return zero, err
+	}
 	ctx := c.Request.Context()
 	if err := s.redisPing(ctx); err != nil {
 		return zero, err
@@ -212,6 +217,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		batch = CollectBatch{
+			TenantID:       tenantID,
 			Source:         source,
 			TotalCount:     len(urls),
 			PendingCount:   0,
@@ -242,6 +248,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 				reqOpts = s.buildTaobaoTmallRequestOptions(ctx, u, true)
 			}
 			task := CollectTask{
+				TenantID:       tenantID,
 				BatchID:        &bid,
 				Source:         source,
 				SourceURL:      u,
