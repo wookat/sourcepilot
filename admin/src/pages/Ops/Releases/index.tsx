@@ -1,4 +1,5 @@
 import { TmPageContainer } from '@/components/ui';
+import { formatRequestError } from '@/constants/errorMessages';
 import {
   createRelease,
   executeRelease,
@@ -31,6 +32,42 @@ export default function ReleasesPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const confirmExecute = (row: ReleaseRun) => {
+    Modal.confirm({
+      title: '执行发布',
+      content: `即将执行发布 ${row.releaseId}（版本 ${row.version}），状态将流转为已完成。确认继续？`,
+      onOk: async () => {
+        try {
+          await executeRelease(row.releaseId);
+          message.success('发布已执行');
+        } catch (e: unknown) {
+          message.error(formatRequestError(e, '执行发布失败'));
+        } finally {
+          await load();
+        }
+      },
+    });
+  };
+
+  const confirmRollback = (row: ReleaseRun) => {
+    Modal.confirm({
+      title: '回滚应用',
+      okText: '确认回滚',
+      okButtonProps: { danger: true },
+      content: `即将回滚发布 ${row.releaseId}（版本 ${row.version}）。仅回滚应用层，不恢复数据库。确认继续？`,
+      onOk: async () => {
+        try {
+          await rollbackRelease(row.releaseId, 'operator rollback');
+          message.success('回滚已执行');
+        } catch (e: unknown) {
+          message.error(formatRequestError(e, '回滚失败'));
+        } finally {
+          await load();
+        }
+      },
+    });
+  };
 
   return (
     <TmPageContainer
@@ -69,14 +106,10 @@ export default function ReleasesPage() {
               width: 220,
               render: (_, row) => (
                 <Space>
-                  <Button size="small" onClick={() => void executeRelease(row.releaseId).then(load)}>
+                  <Button size="small" onClick={() => confirmExecute(row)}>
                     执行发布
                   </Button>
-                  <Button
-                    size="small"
-                    danger
-                    onClick={() => void rollbackRelease(row.releaseId, 'operator rollback').then(load)}
-                  >
+                  <Button size="small" danger onClick={() => confirmRollback(row)}>
                     回滚应用
                   </Button>
                 </Space>
@@ -91,11 +124,16 @@ export default function ReleasesPage() {
         onCancel={() => setOpen(false)}
         onOk={async () => {
           const values = await form.validateFields();
-          await createRelease(values);
-          message.success('发布记录已创建');
-          setOpen(false);
-          form.resetFields();
-          await load();
+          try {
+            await createRelease(values);
+            message.success('发布记录已创建');
+            setOpen(false);
+            form.resetFields();
+          } catch (e: unknown) {
+            message.error(formatRequestError(e, '创建发布失败'));
+          } finally {
+            await load();
+          }
         }}
       >
         <Form form={form} layout="vertical">
