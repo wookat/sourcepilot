@@ -1217,3 +1217,9 @@ Final Production Acceptance Deferred to P10
   - 新增 Admin E2E `operation-logs.spec.ts`（列表渲染、筛选深链、直链恢复、375px 无溢出、无写请求/致命 console）与 mock。
   - 修复全局 `SessionExpiredModal` 的 antd `destroyOnClose` 弃用告警（antd 5.29 升级后导致全部 E2E console 守卫失败），改为 `destroyOnHidden`。
 - docs/api.md 同步 `GET /api/v1/operation-logs` 契约说明（权限/scope/筛选/深链）。
+
+### 变更记录（2026-08-02）迭代第 55 轮：经营报表导出 CSV + 移动端收口
+
+- 后端新增只读导出端点 `GET /api/v1/orders/stats/daily/export.csv?days=30`：复用 `stats/daily` 数据与租户/店铺 scope，UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内每币种一列「已付款销售额(币种)」（字典序），空日期补 0；`stats/daily` 同步新增 `shippedCount` 字段（口径与 `stats/sales` 已发货一致）。附字节级单测（BOM/表头/数据行/默认天数）。
+- 报表页新增「导出 CSV」按钮与近 7/30/90 天切换（Segmented），数据请求与导出共用同一 days；导出带 loading 防重复、成功/失败提示；readonly 可用。五档视口（1440/1280/1024/768/375）无根节点横向溢出，新增 `admin/e2e/specs/orders-reports.spec.ts`（GET-only mock）。
+- 依赖修复：admin `react-dom` 由 19.2.8 回对齐 `react` 18.2.0（含 `@types/react-dom`），pnpm overrides 迁移至 `pnpm-workspace.yaml`（pnpm 10+ 不再读取 package.json `pnpm` 字段）；`SessionExpiredModal` 的 `destroyOnClose` 改 `destroyOnHidden`（antd 5.29 弃用警告导致 E2E console guard 全量失败）。

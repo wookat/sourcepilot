@@ -15,10 +15,11 @@ const (
 
 // DailyStat summarizes orders created on one local calendar day.
 type DailyStat struct {
-	Date        string        `json:"date"`
-	OrderCount  int64         `json:"orderCount"`
-	PaidCount   int64         `json:"paidCount"`
-	PaidAmounts []SalesAmount `json:"paidAmounts"`
+	Date         string        `json:"date"`
+	OrderCount   int64         `json:"orderCount"`
+	PaidCount    int64         `json:"paidCount"`
+	ShippedCount int64         `json:"shippedCount"`
+	PaidAmounts  []SalesAmount `json:"paidAmounts"`
 }
 
 // DailyStatsDTO is GET /orders/stats/daily.
@@ -53,21 +54,28 @@ func (s *Service) DailyStats(c *gin.Context, days int) (*DailyStatsDTO, error) {
 		return nil, err
 	}
 	var rows []struct {
-		CreatedAt     time.Time
-		PaymentStatus string
-		Currency      string
-		TotalAmount   float64
+		CreatedAt         time.Time
+		PaymentStatus     string
+		Status            string
+		FulfillmentStatus string
+		Currency          string
+		TotalAmount       float64
 	}
-	if err := tx.Select("created_at, payment_status, currency, total_amount").Scan(&rows).Error; err != nil {
+	if err := tx.Select("created_at, payment_status, status, fulfillment_status, currency, total_amount").Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 
 	orderCounts := make(map[string]int64, days)
 	paidCounts := make(map[string]int64, days)
+	shippedCounts := make(map[string]int64, days)
 	paidAmounts := make(map[string]map[string]*SalesAmount, days)
 	for _, r := range rows {
 		d := r.CreatedAt.In(now.Location()).Format("2006-01-02")
 		orderCounts[d]++
+		if r.Status == StatusShipped || r.Status == StatusDelivered ||
+			r.FulfillmentStatus == FulfillmentFulfilled || r.FulfillmentStatus == FulfillmentPartial {
+			shippedCounts[d]++
+		}
 		if r.PaymentStatus != PaymentPaid {
 			continue
 		}
@@ -89,7 +97,7 @@ func (s *Service) DailyStats(c *gin.Context, days int) (*DailyStatsDTO, error) {
 	out := &DailyStatsDTO{GeneratedAt: now.UTC().Format(time.RFC3339), Days: days, Items: make([]DailyStat, 0, days)}
 	for i := 0; i < days; i++ {
 		d := since.AddDate(0, 0, i).Format("2006-01-02")
-		st := DailyStat{Date: d, OrderCount: orderCounts[d], PaidCount: paidCounts[d], PaidAmounts: []SalesAmount{}}
+		st := DailyStat{Date: d, OrderCount: orderCounts[d], PaidCount: paidCounts[d], ShippedCount: shippedCounts[d], PaidAmounts: []SalesAmount{}}
 		for _, a := range paidAmounts[d] {
 			st.PaidAmounts = append(st.PaidAmounts, *a)
 		}
