@@ -175,6 +175,7 @@ pnpm collect:test -- --url "https://detail.1688.com/offer/1048021652334.html"
 | 2026-05-20 | 价格误取 `unitWeight` | `price-extract.ts`、`context-parse.ts` |
 | 2026-05-20 | SKU 维度噪声 + mm 价表未解析 | `browser-extract-1688.ts`、`sku-helpers.ts`、`parser.ts` |
 | 2026-05-20 | 失败分类「采集脚本执行错误」 | `collect-task.ts`、`failureclassifier.go`、`taskCenter.ts` |
+| 2026-08-02 | 采集任务未写 `tenant_id` Worker 全拒；风控早期拦截无快照；UA 与内核版本不一致；代理配置项 | `backend/.../collect/service.go`、`batch.go`、`alibaba-1688.ts`、`launch-options.ts` |
 
 ---
 

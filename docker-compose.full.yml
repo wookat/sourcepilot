@@ -60,6 +60,8 @@ services:
     volumes:
       - ./data/browser-profiles:/workspace/data/browser-profiles
       - ./data/storage-states:/workspace/data/storage-states
+      # 失败调试快照（HTML+PNG）落宿主机，便于排查风控/解析问题
+      - ./data/snapshots:/workspace/collector/data/snapshots
     healthcheck:
       test:
         [

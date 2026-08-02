@@ -212,3 +212,23 @@ export async function ignoreSwitchSuggestion(eventId: string) {
 export async function fetchSourceAlerts() {
   return getJSON<{ items: SourceAlertRow[] }>('/api/v1/product-source-alerts');
 }
+
+export type OrphanSourceRow = {
+  sourceId: string;
+  productId: string;
+  productTitle: string;
+  supplierId: string;
+  supplierName: string;
+  status: string;
+  isPrimary: boolean;
+  skuCount: number;
+  createdAt: string;
+};
+
+export async function fetchOrphanSources() {
+  return getJSON<{ items: OrphanSourceRow[] }>('/api/v1/product-sources/orphans');
+}
+
+export async function deleteProductSource(sourceId: string) {
+  return deleteJSON<{ deleted: boolean }>(`/api/v1/product-sources/${sourceId}`);
+}
