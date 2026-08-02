@@ -1,14 +1,17 @@
 package backup
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"gorm.io/gorm"
 )
 
 type Handler struct {
@@ -23,6 +26,7 @@ func Register(r gin.IRouter, h *Handler) {
 	g.GET("", h.List)
 	g.POST("", h.Create)
 	g.GET("/:id", h.Get)
+	g.GET("/:id/download", h.Download)
 	g.POST("/:id/verify", h.Verify)
 	g.POST("/:id/hold", h.Hold)
 	g.DELETE("/:id", h.Delete)
@@ -78,6 +82,39 @@ func (h *Handler) Verify(c *gin.Context) {
 		return
 	}
 	response.OK(c, row)
+}
+
+func (h *Handler) Download(c *gin.Context) {
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermBackupDownload) {
+		return
+	}
+	backupID := c.Param("id")
+	row, artifact, err := h.Svc.Download(c.Request.Context(), backupID)
+	if err != nil {
+		h.logDownload(c, backupID, "failed", err.Error())
+		if errors.Is(err, gorm.ErrRecordNotFound) || !validID(backupID) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "backup not found")
+			return
+		}
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		return
+	}
+	h.logDownload(c, row.BackupID, "success", "backup artifact downloaded")
+	c.FileAttachment(artifact.LocalPath, artifact.Name)
+}
+
+func (h *Handler) logDownload(c *gin.Context, backupID, status, msg string) {
+	if h.Svc == nil || h.Svc.OpLog == nil {
+		return
+	}
+	_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+		Action:     "backup.download",
+		Resource:   "backup",
+		ResourceID: backupID,
+		Permission: adminperm.PermBackupDownload,
+		Status:     status,
+		Message:    msg,
+	})
 }
 
 func (h *Handler) Hold(c *gin.Context) {
