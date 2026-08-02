@@ -349,7 +349,9 @@ export default function ProductDraftsPage() {
             className="product-drafts-table__image"
           />
         ) : (
-          <div className="product-drafts-table__image-placeholder">无图</div>
+          <div className="product-drafts-table__image-placeholder" role="img" aria-label="无图">
+            <PictureOutlined />
+          </div>
         ),
     },
     {
