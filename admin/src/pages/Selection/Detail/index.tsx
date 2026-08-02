@@ -1,7 +1,7 @@
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Link, useParams } from '@umijs/renderer-react';
-import { Button, Descriptions, Image, Popconfirm, Space, Tag, Tooltip, Typography, message } from 'antd';
+import { Alert, Button, Descriptions, Image, Popconfirm, Space, Tag, Tooltip, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { formatDateTime } from '@/utils/formatTime';
 import {
@@ -36,6 +36,7 @@ type AIReasons = {
   summary?: string;
   risks?: string[];
   sellingPoints?: string[];
+  fallback?: boolean;
 };
 
 function parseReasons(raw: unknown): AIReasons {
@@ -179,12 +180,16 @@ export default function SelectionTaskDetailPage() {
                 {reasons.sellingPoints?.length ? <div>卖点：{reasons.sellingPoints.join('；')}</div> : null}
                 {reasons.risks?.length ? <div>风险：{reasons.risks.join('；')}</div> : null}
                 {ev.aiModel ? <div>模型：{ev.aiModel}</div> : null}
+                {reasons.fallback ? <div>AI 未配置或调用失败，已使用规则兜底评分</div> : null}
               </div>
             }
           >
-            <Tag color={ev.aiScore >= 70 ? 'green' : ev.aiScore >= 50 ? 'orange' : 'red'}>
-              {ev.aiScore.toFixed(0)} 分
-            </Tag>
+            <Space size={4}>
+              <Tag color={ev.aiScore >= 70 ? 'green' : ev.aiScore >= 50 ? 'orange' : 'red'}>
+                {ev.aiScore.toFixed(0)} 分
+              </Tag>
+              {reasons.fallback ? <Tag color="warning">规则兜底</Tag> : null}
+            </Space>
           </Tooltip>
         );
       },
@@ -251,6 +256,15 @@ export default function SelectionTaskDetailPage() {
         </Button>,
       ]}
     >
+      {rows.some((row) => parseReasons(row.evaluation?.aiReasons).fallback) && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="本任务存在规则兜底评分"
+          description="AI 服务商未配置或调用失败，部分候选的评分由利润率规则生成。可前往 系统设置 → AI 完成配置后重试任务，以获得 AI 评分。"
+        />
+      )}
       {task && (
         <Descriptions size="small" column={4} style={{ marginBottom: 16 }}>
           <Descriptions.Item label="状态">

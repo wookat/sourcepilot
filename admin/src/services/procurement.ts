@@ -1,4 +1,5 @@
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
+import { responseErrorMessage } from '@/utils/httpErrorCopy';
 import { getJSON, getWithParams, postJSON, putJSON } from './request';
 
 export type PurchaseOrderItem = {
@@ -165,6 +166,10 @@ export async function cancelPurchaseOrder(id: string, reason?: string) {
   return postJSON<PurchaseOrder>(`/api/v1/procurement/orders/${id}/cancel`, { reason });
 }
 
+export async function voidPurchaseOrder(id: string, reason?: string) {
+  return postJSON<PurchaseOrder>(`/api/v1/procurement/orders/${id}/void`, { reason });
+}
+
 export async function markPurchaseOrderPlaced(id: string, externalOrderId: string) {
   return postJSON<PurchaseOrder>(`/api/v1/procurement/orders/${id}/mark-placed`, {
     externalOrderId,
@@ -226,7 +231,7 @@ export async function downloadPurchaseOrderCsv(id: string) {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (!resp.ok) {
-    throw new Error(`export failed: ${resp.status}`);
+    throw new Error(await responseErrorMessage(resp));
   }
   const blob = await resp.blob();
   const url = URL.createObjectURL(blob);
@@ -248,7 +253,7 @@ export async function downloadPurchaseOrdersBatchCsv(ids: string[]) {
     },
   );
   if (!resp.ok) {
-    throw new Error(`export failed: ${resp.status}`);
+    throw new Error(await responseErrorMessage(resp));
   }
   const blob = await resp.blob();
   const url = URL.createObjectURL(blob);

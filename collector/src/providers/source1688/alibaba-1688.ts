@@ -116,6 +116,28 @@ function throwBlocked(reason: string): never {
   throw new Error(`PAGE_BLOCKED_OR_VERIFY_REQUIRED:${reason}`);
 }
 
+async function throwBlockedWithSnapshot(page: Page, sourceUrl: string, reason: string): Promise<never> {
+  const snap = await save1688FailureSnapshot(page, `blocked_${reason}`);
+  log1688CollectDebug({
+    sourceUrl,
+    finalUrl: page.url(),
+    pageTitle: await page.title().catch(() => ''),
+    loginOrVerifyHit: true,
+    titleFound: false,
+    priceFound: false,
+    mainImagesCount: 0,
+    detailImagesCount: 0,
+    skuCount: 0,
+    extractors: [],
+    missingFields: [],
+    collectStatus: 'failed',
+    error: reason,
+    snapshotHtml: snap.htmlPath,
+    snapshotPng: snap.screenshotPath,
+  });
+  throwBlocked(reason);
+}
+
 async function gotoOfferPage(page: Page, navUrl: string, fallbackUrl: string, timeout: number): Promise<void> {
   try {
     await page.goto(navUrl, { waitUntil: 'domcontentloaded', timeout });
@@ -238,7 +260,7 @@ class Alibaba1688Provider implements CollectorProvider {
         const finalHref = page.url();
         if (isCaptchaRedirectUrl(finalHref)) {
           loginOrVerifyHit = true;
-          throwBlocked('verification_or_login_page_detected');
+          await throwBlockedWithSnapshot(page, sourceUrl, 'verification_or_login_page_detected');
         }
 
         let hostOk = false;
@@ -248,7 +270,7 @@ class Alibaba1688Provider implements CollectorProvider {
           hostOk = false;
         }
         if (!hostOk) {
-          throwBlocked('redirected_off_1688_host');
+          await throwBlockedWithSnapshot(page, sourceUrl, 'redirected_off_1688_host');
         }
 
         const onOfferPath = isLikelyOfferPath(finalHref);
@@ -268,17 +290,17 @@ class Alibaba1688Provider implements CollectorProvider {
 
         if (!onOfferPath && (isBlockedPage(assembled) || isHardEmptyCollected(assembled))) {
           if (loginOrVerifyHit) {
-            throwBlocked('verification_or_login_page_detected');
+            await throwBlockedWithSnapshot(page, sourceUrl, 'verification_or_login_page_detected');
           }
         }
 
         if (isBlockedPage(assembled) && isHardEmptyCollected(assembled)) {
-          throwBlocked('verification_challenge_or_offer_unreadable');
+          await throwBlockedWithSnapshot(page, sourceUrl, 'verification_challenge_or_offer_unreadable');
         }
 
         if (isHardEmptyCollected(assembled)) {
           if (loginOrVerifyHit) {
-            throwBlocked('verification_challenge_or_offer_unreadable');
+            await throwBlockedWithSnapshot(page, sourceUrl, 'verification_challenge_or_offer_unreadable');
           }
         }
 

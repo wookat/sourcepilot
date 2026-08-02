@@ -5,16 +5,17 @@ import { getCustomProfileUserDataDir } from './browser-paths.js';
 import { PAGE_EVALUATE_POLYFILL } from './evaluate-in-page.js';
 import { sanitizeProfileKey } from './profile-key.js';
 import { getBrowserHeadless, getDefaultNavigationTimeoutMs } from '../config/env.js';
+import { getCollectorProxyOption, resolveCollectorUserAgent } from './launch-options.js';
 
-function persistentContextOptions(headless: boolean) {
+async function persistentContextOptions(headless: boolean) {
+  const proxy = getCollectorProxyOption();
   return {
     headless,
     locale: 'zh-CN' as const,
-    userAgent:
-      process.env.COLLECTOR_USER_AGENT ??
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    userAgent: await resolveCollectorUserAgent(),
     args: ['--disable-blink-features=AutomationControlled'],
     viewport: { width: 1280, height: 800 },
+    ...(proxy ? { proxy } : {}),
   };
 }
 
@@ -61,7 +62,7 @@ export class CustomProfileSessionManager {
     const userDataDir = getCustomProfileUserDataDir(key);
     const context = await chromium.launchPersistentContext(
       userDataDir,
-      persistentContextOptions(wantHeadless),
+      await persistentContextOptions(wantHeadless),
     );
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
     const timeout = getDefaultNavigationTimeoutMs();

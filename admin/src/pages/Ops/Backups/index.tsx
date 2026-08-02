@@ -1,4 +1,5 @@
 import { TmPageContainer } from '@/components/ui';
+import { formatRequestError } from '@/constants/errorMessages';
 import {
   createBackup,
   fetchBackups,
@@ -42,9 +43,14 @@ export default function BackupsPage() {
       title: '创建备份记录',
       content: '当前操作会通过后端安全门执行；未启用备份时仅生成待复核记录。',
       onOk: async () => {
-        await createBackup({ reason: 'operator requested from admin', dryRun: false });
-        message.success('备份任务已创建');
-        await load();
+        try {
+          await createBackup({ reason: 'operator requested from admin', dryRun: false });
+          message.success('备份任务已创建');
+        } catch (e: unknown) {
+          message.error(formatRequestError(e, '创建备份失败'));
+        } finally {
+          await load();
+        }
       },
     });
   };
@@ -106,13 +112,23 @@ export default function BackupsPage() {
                   <Button
                     size="small"
                     icon={<SafetyCertificateOutlined />}
-                    onClick={() => void verifyBackup(row.backupId).then(load)}
+                    onClick={() =>
+                      void verifyBackup(row.backupId)
+                        .then(() => message.success('校验已触发'))
+                        .catch((e: unknown) => message.error(formatRequestError(e, '校验备份失败')))
+                        .then(load)
+                    }
                   >
                     校验备份
                   </Button>
                   <Button
                     size="small"
-                    onClick={() => void holdBackup(row.backupId, 'operator manual hold').then(load)}
+                    onClick={() =>
+                      void holdBackup(row.backupId, 'operator manual hold')
+                        .then(() => message.success('已设置保留'))
+                        .catch((e: unknown) => message.error(formatRequestError(e, '设置保留失败')))
+                        .then(load)
+                    }
                   >
                     保留
                   </Button>

@@ -20,6 +20,7 @@ import {
   Drawer,
   Dropdown,
   Form,
+  Grid,
   Image,
   Input,
   InputNumber,
@@ -34,6 +35,7 @@ import {
   message,
   type MenuProps,
 } from 'antd';
+import type { Breakpoint } from 'antd';
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { history, useLocation } from '@umijs/max';
 import { PAGE_COPY } from '@/constants/copywriting';
@@ -55,6 +57,9 @@ import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
 import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { normalizeSource, parsePositiveInt } from '@/utils/urlState';
 import './index.less';
+
+/** 次要列在 <768px 小屏折叠，只保留标题 / 状态 / 操作；完整信息进草稿详情查看。 */
+const DESKTOP_ONLY: Breakpoint[] = ['md'];
 
 const DRAFT_QUERY_KEYS = [
   'page',
@@ -135,7 +140,15 @@ export default function ProductDraftsPage() {
     actionRef,
     setTablePage,
   });
+  const screens = Grid.useBreakpoint();
+  const [wideScreen, setWideScreen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 768,
+  );
+  useEffect(() => {
+    if (screens.md !== undefined) setWideScreen(screens.md);
+  }, [screens.md]);
   const [createOpen, setCreateOpen] = useState(false);
+  const { readonly } = usePermission();
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [selectedRows, setSelectedRows] = useState<ProductListRow[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
@@ -293,7 +306,8 @@ export default function ProductDraftsPage() {
       title: '商品图',
       dataIndex: 'coverUrl',
       width: 96,
-      fixed: 'left',
+      fixed: wideScreen ? 'left' : undefined,
+      responsive: DESKTOP_ONLY,
       search: false,
       render: (_, row) =>
         row.coverUrl ? (
@@ -346,6 +360,7 @@ export default function ProductDraftsPage() {
       title: '来源',
       dataIndex: 'source',
       width: 110,
+      responsive: DESKTOP_ONLY,
       ellipsis: true,
       valueType: 'select',
       valueEnum: Object.fromEntries(
@@ -380,6 +395,7 @@ export default function ProductDraftsPage() {
       title: '运营进度',
       dataIndex: 'operationStep',
       width: 220,
+      responsive: DESKTOP_ONLY,
       valueType: 'select',
       fieldProps: {
         options: OPERATION_STEP_OPTIONS,
@@ -410,6 +426,7 @@ export default function ProductDraftsPage() {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 168,
+      responsive: DESKTOP_ONLY,
       search: false,
       valueType: 'dateTime',
       render: (_, row) => formatDateTime(row.createdAt),
@@ -418,7 +435,7 @@ export default function ProductDraftsPage() {
       title: '操作',
       valueType: 'option',
       width: 132,
-      fixed: 'right',
+      fixed: wideScreen ? 'right' : undefined,
       render: (_, row) => [
         <Typography.Link
           key="detail"
@@ -430,7 +447,7 @@ export default function ProductDraftsPage() {
       ],
     },
   ],
-    [keywordFieldProps],
+    [keywordFieldProps, wideScreen],
   );
 
   const eligibleBatchPlatforms = ['tiktok', 'shopee', 'lazada', 'amazon', 'mock'];
@@ -769,7 +786,12 @@ export default function ProductDraftsPage() {
               description: vals.description,
             });
           } catch (e: unknown) {
-            message.error((e as Error)?.message || '创建失败');
+            const status = (e as { response?: { status?: number } })?.response?.status;
+            if (status === 403) {
+              message.error('当前账号无商品写权限，无法新建草稿');
+            } else {
+              message.error((e as Error)?.message || '新建草稿失败');
+            }
             return false;
           }
           message.success('草稿已创建');
