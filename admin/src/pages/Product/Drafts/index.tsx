@@ -671,18 +671,22 @@ export default function ProductDraftsPage() {
           >
             批量发布检查
           </Button>
-          <Button
-            icon={<ShopOutlined />}
-            onClick={() => {
-              if (!ensureBatchSelection()) return;
-              history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
-            }}
-          >
-            批量创建刊登草稿
-          </Button>
-          <Button icon={<DollarOutlined />} onClick={() => setPricingBatchOpen(true)}>
-            批量设置发布价
-          </Button>
+          {readonly ? null : (
+            <>
+              <Button
+                icon={<ShopOutlined />}
+                onClick={() => {
+                  if (!ensureBatchSelection()) return;
+                  history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
+                }}
+              >
+                批量创建刊登草稿
+              </Button>
+              <Button icon={<DollarOutlined />} onClick={() => setPricingBatchOpen(true)}>
+                批量设置发布价
+              </Button>
+            </>
+          )}
           <Button
             icon={<ExportOutlined />}
             loading={listingExportLoading}
@@ -862,6 +866,21 @@ export default function ProductDraftsPage() {
               />
             </Form.Item>
             <Form.Item label="店铺">
+              {shopsForBatchPlat.length === 0 ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className="product-drafts-drawer__no-shop-alert"
+                  message={`当前平台（${batchPlat}）没有已授权店铺`}
+                  description={
+                    <span>
+                      发布检查需要选择店铺。请先到{' '}
+                      <Typography.Link href="/store/list">店铺管理</Typography.Link>
+                      完成授权，或切换其他平台。
+                    </span>
+                  }
+                />
+              ) : null}
               <Select
                 placeholder="选择已授权店铺"
                 value={batchShopId || undefined}
