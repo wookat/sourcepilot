@@ -179,11 +179,13 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	}
 	count("shops", int64(len(shops)))
 
-	// ---- operator demo accounts: grant one DEMO shop so scoped positive
-	// paths are testable out of the box. Only users with zero existing store
-	// grants are touched; real scope configuration is never modified.
+	// ---- operator / readonly demo accounts: grant one DEMO shop so scoped
+	// positive paths are testable out of the box (readonly gets view scope to
+	// exercise the read-visible / write-denied permission boundary). Only
+	// users with zero existing store grants are touched; real scope
+	// configuration is never modified.
 	var operators []admin.AdminUser
-	if err := tx.Where("tenant_id = ? AND role = ?", s.TenantID, "operator").Find(&operators).Error; err != nil {
+	if err := tx.Where("tenant_id = ? AND role IN ?", s.TenantID, []string{"operator", "readonly"}).Find(&operators).Error; err != nil {
 		return fmt.Errorf("demoseed: list operators: %w", err)
 	}
 	for _, op := range operators {
@@ -194,8 +196,12 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		if n > 0 {
 			continue
 		}
+		scope := admin.StorePermScopeOperate
+		if strings.EqualFold(op.Role, "readonly") {
+			scope = admin.StorePermScopeView
+		}
 		grant := admin.UserStorePermission{UserID: op.ID, StoreID: shops[0].ID,
-			Platform: shops[0].Platform, PermissionScope: admin.StorePermScopeOperate}
+			Platform: shops[0].Platform, PermissionScope: scope}
 		if err := tx.Create(&grant).Error; err != nil {
 			return fmt.Errorf("demoseed: operator store grant: %w", err)
 		}
@@ -627,6 +633,33 @@ func collectDemoPurchaseOrderIDs(tx *gorm.DB, like string, demoOrderIDs, demoSup
 	return out, nil
 }
 
+// collectDemoProductIDs returns products that belong to the demo dataset:
+// DEMO- titled rows plus products still owning DEMO- SKUs, so a seeded
+// product renamed from the UI is still cleaned with all its children. Real
+// products are never matched.
+func collectDemoProductIDs(tx *gorm.DB, like string) ([]uuid.UUID, error) {
+	seen := map[uuid.UUID]struct{}{}
+	var ids []uuid.UUID
+	if err := tx.Model(&product.Product{}).Unscoped().Where("title LIKE ?", like).Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		seen[id] = struct{}{}
+	}
+	ids = ids[:0]
+	if err := tx.Model(&product.ProductSKU{}).Unscoped().Where("sku_code LIKE ?", like).Distinct().Pluck("product_id", &ids).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		seen[id] = struct{}{}
+	}
+	out := make([]uuid.UUID, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
+	}
+	return out, nil
+}
+
 // Cleanup hard-deletes all DEMO- prefixed rows and their children.
 func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 	if err := s.guard(); err != nil {
@@ -717,8 +750,8 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			}
 		}
 
-		var productIDs []uuid.UUID
-		if err := tx.Model(&product.Product{}).Unscoped().Where("title LIKE ?", like).Pluck("id", &productIDs).Error; err != nil {
+		productIDs, err := collectDemoProductIDs(tx, like)
+		if err != nil {
 			return err
 		}
 		if len(productIDs) > 0 {
