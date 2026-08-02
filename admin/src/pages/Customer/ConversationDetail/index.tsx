@@ -1,4 +1,4 @@
-import { extractApiErrorMessage } from '@/utils/apiErrorMessage';
+import { extractErrorMessage } from '@/utils/httpErrorCopy';
 import { formatDateTime } from '@/utils/formatTime';
 import { TmPageContainer } from '@/components/ui';
 import { history, useParams, useSearchParams } from '@umijs/max';
@@ -201,7 +201,7 @@ export default function CustomerConversationDetailPage() {
     try {
       await createMessage(id, { role: 'customer', content: t, language: lang });
     } catch (e: unknown) {
-      message.error(extractApiErrorMessage(e, '添加失败'));
+      message.error(extractErrorMessage(e, '添加失败'));
       return;
     }
     setNewCustomerMsg('');
@@ -235,7 +235,7 @@ export default function CustomerConversationDetailPage() {
       message.success('已生成建议（需人工确认，不会对外发送）');
       loadAll();
     } catch (e: unknown) {
-      message.error(extractApiErrorMessage(e, '生成失败'));
+      message.error(extractErrorMessage(e, '生成失败'));
     } finally {
       setGenLoading(false);
     }
@@ -298,7 +298,7 @@ export default function CustomerConversationDetailPage() {
         message.success('已发送到平台');
         loadAll();
       } catch (e: unknown) {
-        message.error(extractApiErrorMessage(e, '发送失败'));
+        message.error(extractErrorMessage(e, '发送失败'));
         throw e;
       }
     });
