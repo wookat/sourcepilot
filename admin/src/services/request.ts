@@ -30,6 +30,26 @@ export class ApiRequestError extends Error {
   }
 }
 
+/**
+ * 提取用户可读的接口错误信息：优先取后端 envelope 的结构化 message
+ * （业务错误 ApiRequestError，或非 2xx 时 axios error.response.data.message），
+ * 避免向用户展示 "Request failed with status code 403" 这类英文技术文案。
+ */
+export function extractApiErrorMessage(e: unknown, fallback: string): string {
+  if (e instanceof ApiRequestError) {
+    return e.message || fallback;
+  }
+  const ax = e as {
+    response?: { data?: { message?: string } };
+    message?: string;
+  } | null;
+  const envelopeMessage = (ax?.response?.data?.message ?? '').trim();
+  if (envelopeMessage) return envelopeMessage;
+  const raw = (ax?.message ?? '').trim();
+  if (raw && !/request failed|network error|timeout/i.test(raw)) return raw;
+  return fallback;
+}
+
 function unwrap<T>(res: ApiResponse<T>): T {
   if (res.code !== 0) {
     throw new ApiRequestError(res as ApiResponse<unknown>);
