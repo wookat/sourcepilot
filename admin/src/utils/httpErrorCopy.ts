@@ -51,11 +51,38 @@ type HttpErrorLike = {
 const CJK_RE = /[\u4e00-\u9fff]/;
 const ERROR_CODE_RE = /^[A-Z][A-Z0-9_]+$/;
 
+/**
+ * 后端已知英文错误原文 → 用户可见中文（集中维护，不散落到各页面）。
+ * 按顺序匹配，命中即返回；仅收录会直出到界面的后端 message。
+ */
+const BACKEND_MESSAGE_COPY: Array<[RegExp, string]> = [
+  [/\bai( gateway)?:?\s+not configured\b/i, 'AI Provider 未配置，请到「系统设置 → AI 设置」完成配置后重试'],
+  [/^请配置 (base_url|API Key)$/, 'AI Provider 未配置，请到「系统设置 → AI 设置」完成配置后重试'],
+  [/only failed tasks can be retried/i, '仅失败状态的任务可以重试，请刷新列表后再试'],
+  [/platform does not implement customer messaging/i, '该平台暂不支持客服消息同步'],
+  [/customer message permission denied or not configured/i, '平台客服消息权限未开通或店铺凭证未配置'],
+  [/customer (chat|message sync) (service )?unavailable/i, '客服服务暂不可用，请稍后再试'],
+  [/invalid json body/i, '请求参数有误，请检查后重试'],
+];
+
+/** 已知后端英文错误原文翻译为中文；未收录返回空串 */
+export function translateBackendErrorText(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  const msg = raw.trim();
+  if (!msg) return '';
+  for (const [re, copy] of BACKEND_MESSAGE_COPY) {
+    if (re.test(msg)) return copy;
+  }
+  return '';
+}
+
 /** 只采纳可直接展示的结构化中文 message；错误码走 ERROR_MAP 映射；英文原文一律不采纳 */
 function usableStructuredMessage(raw: unknown): string {
   if (typeof raw !== 'string') return '';
   const msg = raw.trim();
   if (!msg || isRawTransportMessage(msg)) return '';
+  const translated = translateBackendErrorText(msg);
+  if (translated) return translated;
   if (CJK_RE.test(msg)) return msg;
   if (ERROR_CODE_RE.test(msg)) {
     const mapped = mapErrorCodeToUserMessage(msg);
@@ -105,8 +132,11 @@ export function normalizeHttpErrorMessage<T>(error: T): T {
   const err = error as HttpErrorLike;
   if (!err || typeof err !== 'object') return error;
   const own = typeof err.message === 'string' ? err.message.trim() : '';
-  if (own && !isRawTransportMessage(own) && CJK_RE.test(own)) return error;
-  const next = envelopeMessage(err) || (own && !isRawTransportMessage(own) ? own : '') || httpStatusCopy(err.response?.status);
+  if (own && !isRawTransportMessage(own) && CJK_RE.test(own) && !translateBackendErrorText(own)) return error;
+  const next =
+    envelopeMessage(err) ||
+    (own && !isRawTransportMessage(own) ? translateBackendErrorText(own) || own : '') ||
+    httpStatusCopy(err.response?.status);
   try {
     err.message = next;
   } catch {

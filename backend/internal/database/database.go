@@ -3,6 +3,8 @@ package database
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/config"
@@ -19,7 +21,13 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 	}
 
 	gormCfg := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+		// IgnoreRecordNotFoundError：record-not-found 属正常业务分支，若按错误记录，
+		// GORM 会把含账号等入参的完整 SQL 打进日志
+		Logger: logger.New(log.New(os.Stderr, "", log.LstdFlags), logger.Config{
+			SlowThreshold:             200 * time.Millisecond,
+			LogLevel:                  logger.Warn,
+			IgnoreRecordNotFoundError: true,
+		}),
 	}
 
 	var (

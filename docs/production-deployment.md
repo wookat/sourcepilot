@@ -2,7 +2,7 @@
 
 本文是 TradeMind 从零到公网上线的标准操作流程，面向不熟悉本项目的运维人员。目标：拿到服务器与域名后 **30 分钟内上线**。
 
-本地试用 Docker 部署见 [docker-deployment.md](docker-deployment.md)；裸机（systemd + nginx）部署见 `deploy/nginx/`、`deploy/systemd/` 与 `.env.production.example`。
+上线所需资源清单、逐步命令、回滚方案与上线后验证清单见 [production-launch-checklist.md](production-launch-checklist.md)。本地试用 Docker 部署见 [docker-deployment.md](docker-deployment.md)；裸机（systemd + nginx）部署见 `deploy/nginx/`、`deploy/systemd/` 与 `.env.production.example`。
 
 ## 架构
 
