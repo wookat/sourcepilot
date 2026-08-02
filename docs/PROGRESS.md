@@ -905,6 +905,14 @@ Final Production Acceptance Deferred to P10
 - 订单列表 375px 优化（第 45 轮 UX 走查 Top5）：次要列（外部单号/平台/店铺/客户/支付/商品数/规格匹配/库存扣减/同步/异常/预估毛利/物流/三个时间列）加 `responsive: ['md']` 在 <768px 折叠，小屏默认仅保留订单号/订单状态/金额/操作四列（复现时 20 列 scrollWidth 2382px vs 视口 295px，修复后无横向滚动）；操作列小屏取消 fixed 并收窄，完整信息进订单详情查看；桌面端列集与交互不变（沿用第 26 轮异常工作台 `Grid.useBreakpoint` + 表格 key 重挂载模式）。
 - 纯前端改动，无 API / 权限 / 状态机变更。
 
+### 变更记录（2026-08-02）迭代第 52 轮：库存中心 UX 走查与修复
+
+- 库存流水可追溯性：`GET /api/v1/inventory/logs` 行内补 `productId/productSkuId/productTitle/skuCode/skuName/refOrderNo`（service 层批量 enrich，无 N+1，不改状态机/权限）；前端流水页新增「商品」（直达商品库存 Tab）与「商品规格」列，关联订单显示订单号并直达订单详情。
+- 流水页体验：变更类型筛选改中文 select、原因列中文化（`INVENTORY_CHANGE_REASON`）、接入共享空态（`inventoryLogs` 文案）、宽表横向滚动；库存中心行操作新增「流水」直达链接；扣减记录页补横向滚动。
+- readonly 口径：库存预警（调整库存/预警线/批量设置预警线/批量同步库存/同步库存）、同步任务（重试/批量重试）、同步批次（重试失败）写入口按 `canWriteInventory` 隐藏/禁用。
+- 新增 `admin/e2e/specs/inventory-center.spec.ts`（17 用例：列表可读性、流水可追溯、空态、五档视口、手工调整写请求拦截 0/1/防重复、readonly 口径）；修正 e2e mock 用户 `permissions: ['*']` 为 `[]`（`hasPermission` 不识别通配符导致写入口在 E2E 中不可见）。
+- 已知遗留：`/inventory` 菜单重复 key（PR #94 迁移 `/inventory/center` 根治）、antd `destroyOnClose` 告警（PR #91），console guard 临时放行并注明合并后删除。
+
 ### 变更记录（2026-08-02）迭代第 16 轮：全站列表页 params 覆盖问题审计修复
 
 - 按第 15 轮根因对全站 ProTable 列表页做同类问题审计：失败任务（TaskCenter/Failures）、商品草稿（Product/Drafts）、客服会话（Customer/Conversations）三页仍在 `params` 中透传 URL 筛选值，存在与订单列表相同的「分页点击/表单提交被旧值冲掉」风险。统一改为「URL query 为唯一筛选来源」模式：移除 `params`、新增 `onSubmit` 写回 URL、urlState 变化 effect 触发 reload、`request` 一律读 urlState/legacy URL 值。

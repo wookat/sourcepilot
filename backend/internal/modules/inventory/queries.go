@@ -244,9 +244,60 @@ func (s *Service) ListGlobalLogs(ctx context.Context, q GlobalLogsQuery) (*Pagin
 	if err := tx.Order("created_at DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
 		return nil, err
 	}
+	items := s.enrichChangeLogRows(rows)
+	return &PaginatedLogs{Items: items, Total: total, Page: page, PageSize: ps, TotalPages: pagesOf(total, ps)}, nil
+}
+
+// enrichChangeLogRows projects ledger rows and joins SKU / product / order labels
+// so the global audit feed is traceable without extra lookups.
+func (s *Service) enrichChangeLogRows(rows []InventoryChangeLog) []ChangeLogDTO {
+	skuIDs := make([]uuid.UUID, 0, len(rows))
+	orderIDs := make([]uuid.UUID, 0, len(rows))
+	seenSKU := map[uuid.UUID]bool{}
+	seenOrder := map[uuid.UUID]bool{}
+	for _, r := range rows {
+		if r.ProductSKUID != uuid.Nil && !seenSKU[r.ProductSKUID] {
+			seenSKU[r.ProductSKUID] = true
+			skuIDs = append(skuIDs, r.ProductSKUID)
+		}
+		if r.RefOrderID != nil && *r.RefOrderID != uuid.Nil && !seenOrder[*r.RefOrderID] {
+			seenOrder[*r.RefOrderID] = true
+			orderIDs = append(orderIDs, *r.RefOrderID)
+		}
+	}
+	type skuMini struct {
+		ID           uuid.UUID `gorm:"column:id"`
+		SKUCode      string    `gorm:"column:sku_code"`
+		SKUName      string    `gorm:"column:sku_name"`
+		ProductTitle string    `gorm:"column:product_title"`
+	}
+	skuInfo := map[uuid.UUID]skuMini{}
+	if len(skuIDs) > 0 {
+		var sm []skuMini
+		_ = s.DB.Table("product_skus AS sk").
+			Select("sk.id, sk.sku_code, sk.sku_name, p.title AS product_title").
+			Joins("INNER JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL").
+			Where("sk.id IN ?", skuIDs).
+			Scan(&sm).Error
+		for _, m := range sm {
+			skuInfo[m.ID] = m
+		}
+	}
+	orderNo := map[uuid.UUID]string{}
+	if len(orderIDs) > 0 {
+		type orderMini struct {
+			ID      uuid.UUID `gorm:"column:id"`
+			OrderNo string    `gorm:"column:order_no"`
+		}
+		var om []orderMini
+		_ = s.DB.Table("orders").Where("id IN ?", orderIDs).Scan(&om).Error
+		for _, m := range om {
+			orderNo[m.ID] = m.OrderNo
+		}
+	}
 	items := make([]ChangeLogDTO, 0, len(rows))
 	for _, r := range rows {
-		items = append(items, ChangeLogDTO{
+		dto := ChangeLogDTO{
 			ID:             r.ID,
 			CreatedAt:      r.CreatedAt,
 			ChangeType:     r.ChangeType,
@@ -258,9 +309,26 @@ func (s *Service) ListGlobalLogs(ctx context.Context, q GlobalLogsQuery) (*Pagin
 			CreatedBy:      r.CreatedBy,
 			RefOrderID:     r.RefOrderID,
 			RefOrderItemID: r.RefOrderItemID,
-		})
+		}
+		if r.ProductID != uuid.Nil {
+			pid := r.ProductID
+			dto.ProductID = &pid
+		}
+		if r.ProductSKUID != uuid.Nil {
+			sid := r.ProductSKUID
+			dto.ProductSKUID = &sid
+		}
+		if si, ok := skuInfo[r.ProductSKUID]; ok {
+			dto.SKUCode = si.SKUCode
+			dto.SKUName = si.SKUName
+			dto.ProductTitle = si.ProductTitle
+		}
+		if r.RefOrderID != nil {
+			dto.RefOrderNo = orderNo[*r.RefOrderID]
+		}
+		items = append(items, dto)
 	}
-	return &PaginatedLogs{Items: items, Total: total, Page: page, PageSize: ps, TotalPages: pagesOf(total, ps)}, nil
+	return items
 }
 
 // ListTasks paginates outbound rows with tenant scope.

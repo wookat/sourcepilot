@@ -58,6 +58,17 @@ export const INVENTORY_CHANGE_TYPE: Record<string, string> = {
   purchase_inbound: '采购签收入库',
 };
 
+export const INVENTORY_CHANGE_REASON: Record<string, string> = {
+  manual_adjust: '人工修正',
+  restock: '盘点补货',
+  purchase_delivered: '采购签收',
+  order_created: '订单创建',
+  order_paid: '订单支付',
+  order_shipped: '订单发货',
+  order_completed: '订单完成',
+  order_cancelled: '订单取消',
+};
+
 export const INVENTORY_DEDUCT_SOURCE: Record<string, string> = {
   deduct: '订单同步扣减',
   restore: '系统回滚',

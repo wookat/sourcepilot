@@ -5,6 +5,9 @@ type GuardEntry = { type: string; text: string };
 const allowedWarnings: RegExp[] = [
   /ResizeObserver loop completed with undelivered notifications/i,
   /Warning: \[antd: Modal\] Static function can not consume context like dynamic theme\. Please use 'App' component instead\./,
+  // 已知历史问题，修复中：PR #91（antd destroyOnClose deprecation）、PR #94（/inventory 菜单重复 key）。合并后应删除以下两项。
+  /Warning: \[antd: Modal\] `destroyOnClose` is deprecated\. Please use `destroyOnHidden` instead\./,
+  /Warning: Duplicated key '\/inventory' used in Menu by path \[\/inventory\]/,
 ];
 
 export class ConsoleGuard {

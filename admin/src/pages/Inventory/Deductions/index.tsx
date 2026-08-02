@@ -149,6 +149,7 @@ export default function InventoryDeductionsPage() {
         rowKey="id"
         actionRef={actionRef}
         columns={columns}
+        scroll={{ x: 1300 }}
         form={{ initialValues: initialSearch }}
         search={{ labelWidth: 112, defaultCollapsed: false }}
         pagination={{ pageSize: 20, showSizeChanger: true }}

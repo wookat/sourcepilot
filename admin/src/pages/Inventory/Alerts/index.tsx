@@ -1,6 +1,7 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { usePermission } from '@/hooks/usePermission';
 import {
   Button,
   Checkbox,
@@ -101,6 +102,7 @@ function stockStatusTag(raw: string) {
 
 export default function InventoryAlertsPage() {
   const emptyLocale = useListEmptyLocale('inventoryAlerts', { permissionScoped: true });
+  const { canWriteInventory: writable } = usePermission();
   const actionRef = useRef<ActionType>();
   const searchFormRef = useRef<ProFormInstance>();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
@@ -402,30 +404,34 @@ export default function InventoryAlertsPage() {
         render: (_, r) => (
           <Space wrap size="small">
             <Link to={`/product/drafts/${r.productId}?tab=inventory`}>商品</Link>
-            <Button
-              type="link"
-              size="small"
-              style={{ padding: 0 }}
-              onClick={() => {
-                setActive(r);
-                adjustForm.setFieldsValue({ stock: r.stock });
-                setAdjustOpen(true);
-              }}
-            >
-              调整库存
-            </Button>
-            <Button
-              type="link"
-              size="small"
-              style={{ padding: 0 }}
-              onClick={() => {
-                setActive(r);
-                settingsForm.setFieldsValue({ warningStock: r.warningStock, safetyStock: r.safetyStock });
-                setSettingsOpen(true);
-              }}
-            >
-              预警线
-            </Button>
+            {writable ? (
+              <Button
+                type="link"
+                size="small"
+                style={{ padding: 0 }}
+                onClick={() => {
+                  setActive(r);
+                  adjustForm.setFieldsValue({ stock: r.stock });
+                  setAdjustOpen(true);
+                }}
+              >
+                调整库存
+              </Button>
+            ) : null}
+            {writable ? (
+              <Button
+                type="link"
+                size="small"
+                style={{ padding: 0 }}
+                onClick={() => {
+                  setActive(r);
+                  settingsForm.setFieldsValue({ warningStock: r.warningStock, safetyStock: r.safetyStock });
+                  setSettingsOpen(true);
+                }}
+              >
+                预警线
+              </Button>
+            ) : null}
             <Link
               to={`/inventory/logs?productId=${encodeURIComponent(r.productId)}&productSkuId=${encodeURIComponent(r.productSkuId)}`}
             >
@@ -436,7 +442,7 @@ export default function InventoryAlertsPage() {
         ),
       },
     ],
-    [adjustForm, settingsForm, keywordFieldProps],
+    [adjustForm, settingsForm, keywordFieldProps, writable],
   );
 
   return (
@@ -479,7 +485,7 @@ export default function InventoryAlertsPage() {
           onChange: (keys) => setSelectedSkuIds(keys.map(String)),
         }}
         tableAlertRender={false}
-        toolBarRender={() => [
+        toolBarRender={() => (writable ? [
           <Button
             key="batch-stock"
             onClick={() => {
@@ -502,7 +508,7 @@ export default function InventoryAlertsPage() {
           >
             批量同步库存
           </Button>,
-        ]}
+        ] : [])}
         expandable={{
           expandedRowRender: (r) =>
             r.platformStocks?.length ? (
@@ -527,7 +533,7 @@ export default function InventoryAlertsPage() {
                       <Button
                         type="link"
                         size="small"
-                        disabled={!runnable}
+                        disabled={!runnable || !writable}
                         onClick={() => {
                           const stock = r.stock;
                           const targetLabel = `[${p.platform}] ${p.shopName || p.shopId}`;
