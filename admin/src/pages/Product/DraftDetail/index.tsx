@@ -2582,7 +2582,7 @@ export default function ProductDraftDetailPage() {
       }
       loading={loading}
       extra={
-        data ? (
+        data && !readonly ? (
           <div className="product-draft-header__actions">
             <div className="product-draft-header__action-group">
               <span>状态操作</span>
@@ -2599,8 +2599,10 @@ export default function ProductDraftDetailPage() {
               >
                 标记为可用
               </Button>
-              <Button
-                onClick={async () => {
+              <Popconfirm
+                title="确定归档该草稿？"
+                description="归档后不能批量刊登，可在本页重新标记为可用"
+                onConfirm={async () => {
                   try {
                     await updateProduct(id, { status: 'archived' });
                     message.success('已归档');
@@ -2610,8 +2612,8 @@ export default function ProductDraftDetailPage() {
                   }
                 }}
               >
-                归档
-              </Button>
+                <Button>归档</Button>
+              </Popconfirm>
             </div>
             <div className="product-draft-header__action-group product-draft-header__action-group--danger">
               <span>危险操作</span>
@@ -3658,6 +3660,10 @@ export default function ProductDraftDetailPage() {
                               imageUrl: row.imageUrl,
                             });
                             message.success('商品规格已创建');
+                            // EditableProTable 在 onSave 后会用本地临时行回写 value，
+                            // 延后一拍再拉取真实 SKU，让新行拿到后端 id 和完整行内操作
+                            setTimeout(() => void reloadDetail(), 0);
+                            return;
                           } else {
                             await updateProductSku(id, row.id, {
                               skuCode: row.skuCode,

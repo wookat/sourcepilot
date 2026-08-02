@@ -1157,3 +1157,13 @@ Final Production Acceptance Deferred to P10
   - 订单详情「新增物流」弹窗：当本单尚无成功扣减记录时提示「本单尚未扣减库存……可到库存影响 Tab 手工扣减」（编辑既有物流不提示）。
   - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
   - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
+
+### 变更记录（2026-08-02）迭代第 59 轮：商品草稿模块系统性真实走查收口
+
+- 全栈真实走查（docker compose + demo seed）商品草稿列表/详情/AI 优化/归档删除/采集回链 + 三角色权限 + 375/768/1440 响应式，发现并修复：
+  - **P0（后端越权风险）**：商品写接口除 `POST /products` 外均无路由级只读守卫（PUT/DELETE 商品、SKU/图片 CRUD、平台配置、抖音 mapping/图片、AI 优化/应用/撤销、sync-images），readonly 此前仅靠店铺可见性 scope「碰巧」404。现全部补 `denyWrite`（AI 应用/撤销走 `ai_text.apply` 守卫），附 `readonly_guard_test.go` 全路由 403 回归测试；docs/api.md 商品节同步说明。
+  - **P1**：前端统一 request 错误规范化——HTTP 非 2xx 时还原后端 envelope `message`（如 AI 未配置时「请配置 base_url」），不再裸显 axios「Request failed with status code 400」；附 request 单测。
+  - **P1**：商品草稿列表 readonly 隐藏「新建草稿」「更多」及选中工具栏批量写入口（批量发布检查保留，为只读聚合）；详情页 readonly 隐藏「标记为可用/归档/删除」头部操作；附 readonly E2E。
+  - **P2**：归档增加二次确认 Popconfirm；新建草稿失败给出 message.error；新建 SKU 保存后延迟拉取真实行修复「新行只有删除按钮」；`operationStep` 筛选加入口径说明 Alert（筛选=该步骤未完成，行内 Tag=当前所处步骤）；批量发布检查抽屉在当前平台无授权店铺时给出空态引导并禁用店铺选择。
+  - **修复 main 上 test:frontend 挂掉**：dependabot 将 admin `react-dom` 升到 19.2.8（react 仍 18.2.0）导致 3 个组件测试套件崩溃；回退 `react-dom`/`@types/react-dom` 到 18 系，`pnpm-workspace.yaml` 增加 overrides（pnpm 10 读取位置，与 package.json `pnpm.overrides` 保持一致），root devDependencies 固定 react/react-dom 供 @testing-library/react peer 解析。
+- 遗留（待产品决策）：列表「批量导出上架清单」未实现（现有能力为批量创建刊登草稿）；operator demo 账号无授权店铺，operator 正常店铺 scope 场景未覆盖；商品计数口径（列表 total 与看板数）建议后续统一。

@@ -49,6 +49,7 @@ import { createProduct, fetchProducts, type ProductListRow } from '@/services/pr
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import PricingApplyModal from '@/components/PricingApplyModal';
+import { usePermission } from '@/hooks/usePermission';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
 import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
@@ -113,6 +114,7 @@ function operationStepColor(step?: string) {
 
 export default function ProductDraftsPage() {
   const location = useLocation();
+  const { readonly } = usePermission();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof DRAFT_QUERY_KEYS)[number], string | undefined>>(DRAFT_QUERY_KEYS);
   const urlFilters = useMemo(() => readDraftLegacyFilters(location.search), [location.search]);
@@ -547,17 +549,19 @@ export default function ProductDraftsPage() {
       title={PAGE_COPY.productDrafts.title}
       subTitle={PAGE_COPY.productDrafts.description}
     >
-      <OperationToolbar className="product-drafts-page__toolbar">
-        <Button icon={<PlusOutlined />} type="primary" onClick={() => setCreateOpen(true)}>
-          新建草稿
-        </Button>
-        <Dropdown
-          menu={{ items: moreActionItems, onClick: onMoreActionClick }}
-          trigger={['click']}
-        >
-          <Button icon={<MoreOutlined />}>更多</Button>
-        </Dropdown>
-      </OperationToolbar>
+      {readonly ? null : (
+        <OperationToolbar className="product-drafts-page__toolbar">
+          <Button icon={<PlusOutlined />} type="primary" onClick={() => setCreateOpen(true)}>
+            新建草稿
+          </Button>
+          <Dropdown
+            menu={{ items: moreActionItems, onClick: onMoreActionClick }}
+            trigger={['click']}
+          >
+            <Button icon={<MoreOutlined />}>更多</Button>
+          </Dropdown>
+        </OperationToolbar>
+      )}
       <DouyinE2EPrecheckBanner blockedByCredentials compact />
       {(urlFilters.missingAiTitle ||
         urlFilters.missingAiDescription ||
@@ -573,6 +577,14 @@ export default function ProductDraftsPage() {
         />
       )}
       <KeywordSafetyHint visible={showSensitiveHint} />
+      {urlState.operationStep ? (
+        <Alert
+          type="info"
+          showIcon
+          className="product-drafts-page__operation-step-alert"
+          message="运营进度筛选展示「该步骤尚未完成」的商品；行内标签是每个商品当前所处步骤，可能早于所筛步骤。"
+        />
+      ) : null}
       {selectedCount > 0 ? (
         <OperationToolbar
           className="product-drafts-page__selection-toolbar"
@@ -586,43 +598,51 @@ export default function ProductDraftsPage() {
             <Typography.Text strong>已选择 {selectedCount} 个商品</Typography.Text>
             <Typography.Text type="secondary">{selectedScopeText}</Typography.Text>
           </div>
-          <Button
-            icon={<RobotOutlined />}
-            type="primary"
-            onClick={() => {
-              if (!ensureBatchSelection()) return;
-              history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
-            }}
-          >
-            批量 AI 优化
-          </Button>
-          <Button
-            icon={<PictureOutlined />}
-            onClick={() => {
-              if (!ensureBatchSelection()) return;
-              history.push(`/product/ai-image-batch?productIds=${selectedRowKeys.join(',')}`);
-            }}
-          >
-            批量 AI 图片处理
-          </Button>
+          {readonly ? null : (
+            <>
+              <Button
+                icon={<RobotOutlined />}
+                type="primary"
+                onClick={() => {
+                  if (!ensureBatchSelection()) return;
+                  history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
+                }}
+              >
+                批量 AI 优化
+              </Button>
+              <Button
+                icon={<PictureOutlined />}
+                onClick={() => {
+                  if (!ensureBatchSelection()) return;
+                  history.push(`/product/ai-image-batch?productIds=${selectedRowKeys.join(',')}`);
+                }}
+              >
+                批量 AI 图片处理
+              </Button>
+            </>
+          )}
           <Button
             icon={<SafetyCertificateOutlined />}
             onClick={() => void openBatchDrawer()}
           >
             批量发布检查
           </Button>
-          <Button
-            icon={<ShopOutlined />}
-            onClick={() => {
-              if (!ensureBatchSelection()) return;
-              history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
-            }}
-          >
-            批量创建刊登草稿
-          </Button>
-          <Button icon={<DollarOutlined />} onClick={() => setPricingBatchOpen(true)}>
-            批量设置发布价
-          </Button>
+          {readonly ? null : (
+            <>
+              <Button
+                icon={<ShopOutlined />}
+                onClick={() => {
+                  if (!ensureBatchSelection()) return;
+                  history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
+                }}
+              >
+                批量创建刊登草稿
+              </Button>
+              <Button icon={<DollarOutlined />} onClick={() => setPricingBatchOpen(true)}>
+                批量设置发布价
+              </Button>
+            </>
+          )}
         </OperationToolbar>
       ) : null}
       <ProTable<ProductListRow>
@@ -741,12 +761,18 @@ export default function ProductDraftsPage() {
           onCancel: () => setCreateOpen(false),
         }}
         onFinish={async (vals) => {
-          await createProduct({
-            title: vals.title,
-            source: vals.source || 'manual',
-            sourceUrl: vals.sourceUrl,
-            description: vals.description,
-          });
+          try {
+            await createProduct({
+              title: vals.title,
+              source: vals.source || 'manual',
+              sourceUrl: vals.sourceUrl,
+              description: vals.description,
+            });
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '创建失败');
+            return false;
+          }
+          message.success('草稿已创建');
           setCreateOpen(false);
           actionRef.current?.reload();
           return true;
@@ -784,8 +810,18 @@ export default function ProductDraftsPage() {
               />
             </Form.Item>
             <Form.Item label="店铺">
+              {shopsForBatchPlat.length === 0 ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className="product-drafts-drawer__no-shop-alert"
+                  message={`当前平台（${batchPlat}）没有已授权店铺`}
+                  description={<span>发布检查需要选择店铺。请先到 <Typography.Link href="/store/list">店铺管理</Typography.Link> 完成授权，或切换其他平台。</span>}
+                />
+              ) : null}
               <Select
                 placeholder="选择已授权店铺"
+                disabled={shopsForBatchPlat.length === 0}
                 value={batchShopId || undefined}
                 onChange={(v) => setBatchShopId(v ? String(v) : '')}
                 options={shopsForBatchPlat.map((s) => ({
