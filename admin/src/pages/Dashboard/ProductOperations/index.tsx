@@ -528,7 +528,7 @@ function QuickLinkGroups({ links }: { links: { title: string; link: string }[] }
   );
 }
 
-function buildKpiCards(summary: DashboardSummary): {
+export function buildKpiCards(summary: DashboardSummary): {
   title: string;
   value: number;
   link: string;
@@ -546,7 +546,7 @@ function buildKpiCards(summary: DashboardSummary): {
     },
     {
       title: '商品草稿',
-      value: summary.draftTotal ?? summary.draftProducts + summary.readyProducts,
+      value: summary.draftTotal ?? (summary.draftProducts ?? 0) + (summary.readyProducts ?? 0),
       link: '/product/drafts',
       emptyHint: '还没有商品草稿',
     },
@@ -581,7 +581,7 @@ function buildKpiCards(summary: DashboardSummary): {
     {
       title: '库存异常',
       value:
-        (summary.inventoryAlerts ?? summary.lowStockSkus + summary.outOfStockSkus) +
+        (summary.inventoryAlerts ?? (summary.lowStockSkus ?? 0) + (summary.outOfStockSkus ?? 0)) +
         (summary.inventorySyncFailedCount ?? 0),
       link: '/inventory/alerts',
       intent: 'danger',

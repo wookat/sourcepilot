@@ -12,11 +12,16 @@ export const chartTokens = {
   ],
   height: 300,
   heightCompact: 220,
+  /** Column 单柱宽度上限（px）：数据点少时避免单柱铺满整卡 */
+  barMaxWidth: 40,
   /** 涨/正向语义色（与订单列表预估毛利一致） */
   trendUp: '#3f8600',
   /** 跌/负向语义色 */
   trendDown: '#cf1322',
 } as const;
+
+/** x 轴标签公共配置：自动旋转 + 自动抽样隐藏，密集日期不重叠 */
+export const chartAxisXLabel = { labelAutoRotate: true, labelAutoHide: true } as const;
 
 /** 数字排版：等宽数字，用于统计卡与金额列 */
 export const tabularNumsStyle = { fontVariantNumeric: 'tabular-nums' } as const;

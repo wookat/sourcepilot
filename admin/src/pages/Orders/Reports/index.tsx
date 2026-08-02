@@ -4,7 +4,7 @@ import { ProCard } from '@ant-design/pro-components';
 import { Alert, Button, Col, Row, Segmented, Skeleton, Space, Statistic, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState, TmPageContainer } from '@/components/ui';
-import { chartTokens, formatAmount, formatCount, tabularNumsStyle } from '@/constants/chartTokens';
+import { chartAxisXLabel, chartTokens, formatAmount, formatCount, tabularNumsStyle } from '@/constants/chartTokens';
 import { downloadDailyReportCsv, fetchOrderDailyStats, type DailyStatsDTO } from '@/services/orders';
 import { useWideScreen } from '@/hooks/useWideScreen';
 
@@ -153,7 +153,7 @@ export default function OrderReports() {
             autoFit
             scale={{ color: { range: [...chartTokens.seriesColors] } }}
             axis={{
-              x: { labelAutoRotate: true, labelAutoHide: true },
+              x: { ...chartAxisXLabel },
               y: { labelFormatter: (v: number) => formatCount(Number(v)) },
             }}
             legend={{ color: { position: 'top' } }}
@@ -182,9 +182,10 @@ export default function OrderReports() {
             stack
             height={chartHeight}
             autoFit
+            style={{ maxWidth: chartTokens.barMaxWidth }}
             scale={{ color: { range: [...chartTokens.seriesColors] } }}
             axis={{
-              x: { labelAutoRotate: true, labelAutoHide: true },
+              x: { ...chartAxisXLabel },
               y: { labelFormatter: (v: number) => formatCount(Number(v)) },
             }}
             legend={{ color: { position: 'top' } }}
