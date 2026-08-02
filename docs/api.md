@@ -319,7 +319,7 @@
 | `GET` | `/api/v1/inventory` | 库存中心 SKU 列表（F3）；筛选 stockStatus / skuBindStatus / syncStatus / hasException 等。 |
 | `GET` | `/api/v1/inventory/alerts` | 库存预警列表。 |
 | `GET` | `/api/v1/inventory/effects` | 订单库存扣减/回滚影响（扣减记录页数据源）。 |
-| `GET` | `/api/v1/inventory/logs` | 本地库存变更流水。 |
+| `GET` | `/api/v1/inventory/logs` | 本地库存变更流水；行内附带 `productId` / `productSkuId` / `productTitle` / `skuCode` / `skuName` / `refOrderNo`（若有）便于溯源。 |
 | `GET` | `/api/v1/inventory-sync/tasks` | 库存同步任务列表。 |
 | `GET` | `/api/v1/inventory-sync/tasks/:id` | 任务详情。 |
 | `POST` | `/api/v1/inventory-sync/tasks/:id/retry` | 重试 failed 任务。 |
