@@ -62,6 +62,7 @@ type CollectTask struct {
 	RequestOptions  datatypes.JSON `gorm:"type:jsonb" json:"requestOptions,omitempty"`
 	NextRetryAt     *time.Time     `json:"nextRetryAt,omitempty"`
 	RetryEnqueuedAt *time.Time     `json:"retryEnqueuedAt,omitempty"`
+	QueuedAt        *time.Time     `gorm:"index" json:"queuedAt,omitempty"`
 	CreatedBy       *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 	StartedAt       *time.Time     `json:"startedAt,omitempty"`
 	FinishedAt      *time.Time     `json:"finishedAt,omitempty"`

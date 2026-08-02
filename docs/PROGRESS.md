@@ -1157,3 +1157,9 @@ Final Production Acceptance Deferred to P10
   - 订单详情「新增物流」弹窗：当本单尚无成功扣减记录时提示「本单尚未扣减库存……可到库存影响 Tab 手工扣减」（编辑既有物流不提示）。
   - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
   - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
+
+### 变更记录（2026-08-02）迭代第 48 轮：采集任务处理超时终态 + 等待时长/失败原因反馈（UX P1-6）
+
+- 修复采集任务在无外网/采集器异常时长期停留「处理中」无反馈的问题。后端新增采集任务处理超时终态机制：任务在 `pending`/`running`/`retrying` 停留超过 settings `collector.collect_task_processing_timeout_seconds`（默认 600 秒，最小 30 秒，后台「采集设置 → 通用采集设置 → 任务处理超时」可配）时，由 task reaper 周期扫描自动置为 `failed`，`errorMessage` 标注「任务超时」，事件时间线记录 `task.processing_timeout`，操作日志记 `collect.task.processing_timeout`，批次计数同步 reconcile。
+- 任务模型/DTO 新增向后兼容字段 `queuedAt`（最近一次入队/重试入队时间；旧数据为空时以 `createdAt` 计），创建、批量创建、手动重试、批次重试失败任务时写入/重置，保证重试后超时重新计时。
+- 采集中心任务列表：处理中（排队/处理中/重试中）行在状态下方显示「已等待 X 秒/分钟/小时」；失败原因列在错误码/提示缺失时回退展示 `errorMessage`（超时原因可见）；既有「重试」按钮对超时失败任务可用。附后端单测（超时置失败/未超时与终态不动/重试重新计时/旧数据回退 createdAt）。
