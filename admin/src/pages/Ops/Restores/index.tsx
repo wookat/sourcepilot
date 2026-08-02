@@ -3,13 +3,14 @@ import { formatRequestError } from '@/constants/errorMessages';
 import { createRestore, fetchRestores, verifyRestore, type RestoreJob } from '@/services/opsP6';
 import { ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { Alert, Button, Form, Input, Modal, Space, Switch, Table, Tag, message } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export default function RestoresPage() {
   const [items, setItems] = useState<RestoreJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [form] = Form.useForm();
 
   const load = useCallback(async () => {
@@ -86,8 +87,17 @@ export default function RestoresPage() {
         confirmLoading={submitting}
         onCancel={() => setOpen(false)}
         onOk={async () => {
-          const values = await form.validateFields();
+          if (submittingRef.current) return;
+          submittingRef.current = true;
           setSubmitting(true);
+          let values;
+          try {
+            values = await form.validateFields();
+          } catch {
+            submittingRef.current = false;
+            setSubmitting(false);
+            return;
+          }
           try {
             await createRestore(values);
             message.success('恢复验证已创建');
@@ -96,6 +106,7 @@ export default function RestoresPage() {
           } catch (e: unknown) {
             message.error(formatRequestError(e, '创建恢复验证失败'));
           } finally {
+            submittingRef.current = false;
             setSubmitting(false);
             await load();
           }
