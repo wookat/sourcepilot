@@ -1387,7 +1387,7 @@ export default function ShopsPage() {
                       用户在 TikTok 授权后复制返回的 code，填入下方并提交：
                     </Typography.Text>
                     <Form.Item name="tiktokAuthCode">
-                      <Input placeholder="Paste authorization code" />
+                      <Input placeholder="粘贴授权码" />
                     </Form.Item>
                     <Button
                       type="default"
@@ -1491,7 +1491,7 @@ export default function ShopsPage() {
                       <code style={{ padding: '0 4px' }}>shop_id</code>，填入下方：
                     </Typography.Text>
                     <Form.Item name="shopeeAuthCode" label="授权码">
-                      <Input placeholder="Paste authorization code" />
+                      <Input placeholder="粘贴授权码" />
                     </Form.Item>
                     <Form.Item name="shopeeCallbackShopId" label="shopId（回调 shop_id）" rules={[{ required: false }]}>
                       <Input placeholder="例如 92348765" />
@@ -1607,7 +1607,7 @@ export default function ShopsPage() {
                       从 Lazada 授权回调 URL 复制 <code style={{ padding: '0 4px' }}>code</code>，与上方 state 一并提交：
                     </Typography.Text>
                     <Form.Item name="lazadaAuthCode" label="授权码">
-                      <Input placeholder="Paste authorization code" />
+                      <Input placeholder="粘贴授权码" />
                     </Form.Item>
                     <Button
                       type="default"
@@ -1703,7 +1703,7 @@ export default function ShopsPage() {
                       提交授权 code（Seller Central 回调中的 spapi_oauth_code）、selling_partner_id，以及可选 marketplaceId：
                     </Typography.Text>
                     <Form.Item name="amazonAuthCode" label="code（spapi_oauth_code）">
-                      <Input placeholder="Paste authorization code" />
+                      <Input placeholder="粘贴授权码" />
                     </Form.Item>
                     <Form.Item
                       name="amazonSellingPartnerId"

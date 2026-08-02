@@ -697,6 +697,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-08-02 | **R60 发布/运营任务链路复查**：全栈 docker compose + demo seed 实测发布链路（含 #98/#99 回归、三角色 RBAC、375/768/1440 响应式），未发现 P0/P1；修复 P2：执行尝试记录改为回显实际生效 adapterMode（`publicAdapterModeForPort`）、readonly 运营总览隐藏写向快捷入口；根 workspace 固定 react/react-dom 18.2.0 使 `pnpm test:frontend` 恢复通过；已知 operator 运营任务读扩权待后续（任务缺 shop 维度） |
 | 2026-08-02 | **1688 采集链路首次真实实测（Round 51）**：修复采集任务创建未写入 `tenant_id` 导致 Worker 全部拒绝（`任务缺少租户上下文`）的 P0 缺陷（单条 + 批量）；collector 新增 `COLLECTOR_PROXY_SERVER/_USERNAME/_PASSWORD/_BYPASS` 代理配置项（仅配置，不内置代理）；UA 默认按 bundled Chromium 主版本自动生成；风控/验证早期拦截路径补失败快照与 `[1688-collect]` 调试日志；compose 挂载 `./data/snapshots`。实测 6 条真实 1688 链接 0/6 成功、100% 风控跳转登录/验证页，失败上报（`PAGE_BLOCKED_OR_VERIFY_REQUIRED`/「页面需要验证」）准确；报告见 Round 51 实测报告 |
 | 2026-07-11 | **Phase P4.2 全量租户 Worker 与安全 Worker 收口**：`tasktenant` 接入 7 类生产 Worker；`security_secret_reencrypt` + `file_security_scan`；`migrate_p4_2`；`secret_targets`；安全中心 UI 九区块；11 份 `P4_2_*` 文档；`scripts/p4-2-security-final-closure-check.mjs`；IDOR 22 / shop scope 5 自动化；race deferred_on_windows |
 | 2026-07-11 | **P2.2 文档与扫描收口**：AI apply/undo、Webhook HTTP/签名、Worker 租约矩阵、race 占位报告；`p2-2-reliability-closure-check.mjs`；更新 IDEMPOTENCY / TASK_RELIABILITY / P2.1 矩阵 / CHANGELOG / README |
@@ -1151,6 +1152,12 @@ Final Production Acceptance Deferred to P10
 - 授权店铺列显示店铺名而非 UUID：后端 `loadStorePerms` 店铺名查询改 `Unscoped`（软删除店铺也能回显名称）；前端缺名时兜底「未知店铺」。
 - 同步 `docs/api.md`（用户与权限管理表）、`admin/src/services/adminUsers.ts`。API 既有端点语义/状态机/readonly 403 文案不变。
 
+### 变更记录（2026-08-02）生产部署本地演练收口（R45 部署包复核）
+
+- 在开发 VM 上按生产口径完整演练 `docker-compose.prod.yml`（APP_ENV=production + Caddy 内部 CA + /etc/hosts 假域名）：从零 env → 构建 → 启动 → bootstrap 管理员 → HTTPS 登录 → 核心页面抽查 < 15 分钟，验证恢复演练生产禁用、错误统一 envelope 不泄露堆栈、静态资源 immutable 缓存。
+- 修复演练发现缺陷：① backend 镜像缺 `pg_dump`/`pg_restore`/`psql` 导致 `/api/v1/ops/backups` 生产必失败，Dockerfile 增装 PGDG postgresql-client-16；② GORM record-not-found 按错误打完整 SQL（含账号入参）入生产日志，database.go 改用 `IgnoreRecordNotFoundError: true`；③ `.env.prod.example` 澄清 `BACKUP_SCHEDULE` 仅为元数据、每日自动备份须配宿主机 crontab。
+- 新增 `docs/production-launch-checklist.md`：资源清单（服务器/域名/DNS/防火墙）、逐步上线命令、回滚方案、上线后验证清单。
+
 ### 变更记录（2026-08-01）迭代第 46 轮：生成采购单前置条件阻断引导闭环
 
 - 「生成采购单结果」弹窗的 blockers 每条附可点击直达入口（第 45 轮 UX 走查 P1：新手被 sku.unmatched → source.missing → mapping.missing 3 连环阻断且报错只给文案不给入口）：`sku.unmatched` →「去规格匹配」直达该订单详情规格匹配 Tab（`/orders/:id?tab=sku`，可用 Tab 内既有「自动匹配整单」）；`source.missing` →「去绑定主货源」直达货源档案并自动打开绑定弹窗（`/sourcing/product-sources?productId=…&action=bind`）；`mapping.missing` →「去补 SKU 映射」直达货源档案自动打开主货源 SKU 映射抽屉并高亮对应行（`…&action=mapping&skuId=…`）。点击链接自动关闭结果弹窗；订单列表/订单详情/采购单页三处入口统一生效。
@@ -1171,6 +1178,15 @@ Final Production Acceptance Deferred to P10
   - 「库存影响」Tab 顶部新增口径说明 Alert：发货不会自动扣减库存，扣减由手工/策略触发，取消订单自动回滚。
   - 批量发货：结果成功行按订单是否已有成功扣减新增标记「未扣库存」；`POST /orders/shipments/batch` 成功行新增可选返回字段 `inventoryDeducted`（仅新增字段，见 docs/api.md），弹窗说明文案同步补充口径。附 handler 层单测（TestAnnotateBatchShipmentInventory）。
 
+### 变更记录（2026-08-02）迭代第 53 轮：操作日志页 URL 深链 + 审计可见性验收
+
+- 现状盘点结论：审计能力后端已完备（`operation_logs` 模型含租户/店铺/角色/hash 链；写入覆盖登录、设置修改、采购状态流转/作废、任务重试、库存变动、店铺授权等；`GET /api/v1/operation-logs` 只读端点已含 `operationlog.view` 权限 + 租户/店铺 scope；管理端已有统一 `/system/operation-logs` 页）。本轮补齐 UX 缺口：
+  - 操作日志页筛选（操作/用户/资源/时间范围）与分页写入 URL 深链（`page`/`pageSize`/`action`/`username`/`resource`/`start`/`end`），刷新/直链可恢复；`urlState` 允许清单新增 `action`/`username`/`resource`。
+  - 新增「对象」列（`resourceId`，可复制），满足「时间/操作人/模块/动作/对象/摘要」验收口径；敏感字段不展示（后端本就不落 Secret/Token，IP 仅哈希）。
+  - 新增 Admin E2E `operation-logs.spec.ts`（列表渲染、筛选深链、直链恢复、375px 无溢出、无写请求/致命 console）与 mock。
+  - 修复全局 `SessionExpiredModal` 的 antd `destroyOnClose` 弃用告警（antd 5.29 升级后导致全部 E2E console 守卫失败），改为 `destroyOnHidden`。
+- docs/api.md 同步 `GET /api/v1/operation-logs` 契约说明（权限/scope/筛选/深链）。
+
 ### 变更记录（2026-08-01）第 46 轮会话守卫全栈验证与后端修复
 
 - 全栈（docker-compose.full.yml）真实环境验证 PR #73 四个未测分支均通过：①secure_session 模式 401 后经 HttpOnly cookie 静默续期并重放；②legacy 模式响应体 refreshToken 续期+轮换保存；③token 剩余 <5 分钟请求前 single-flight 提前续期；④并发多请求 401 仅发一次 refresh 并全部重放。legacy「登录已过期」弹窗+重登+重放回归不回退。
@@ -1182,3 +1198,4 @@ Final Production Acceptance Deferred to P10
 - 后端新增只读导出端点 `GET /api/v1/orders/stats/daily/export.csv?days=30`：复用 `stats/daily` 数据与租户/店铺 scope，UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内每币种一列「已付款销售额(币种)」（字典序），空日期补 0；`stats/daily` 同步新增 `shippedCount` 字段（口径与 `stats/sales` 已发货一致）。附字节级单测（BOM/表头/数据行/默认天数）。
 - 报表页新增「导出 CSV」按钮与近 7/30/90 天切换（Segmented），数据请求与导出共用同一 days；导出带 loading 防重复、成功/失败提示；readonly 可用。五档视口（1440/1280/1024/768/375）无根节点横向溢出，新增 `admin/e2e/specs/orders-reports.spec.ts`（GET-only mock）。
 - 依赖修复：admin `react-dom` 由 19.2.8 回对齐 `react` 18.2.0（含 `@types/react-dom`），pnpm overrides 迁移至 `pnpm-workspace.yaml`（pnpm 10+ 不再读取 package.json `pnpm` 字段）；`SessionExpiredModal` 的 `destroyOnClose` 改 `destroyOnHidden`（antd 5.29 弃用警告导致 E2E console guard 全量失败）。
+
