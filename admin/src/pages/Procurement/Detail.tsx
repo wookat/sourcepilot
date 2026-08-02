@@ -14,6 +14,7 @@ import {
   type PurchaseOrder,
   type PurchaseOrderItem,
 } from '@/services/procurement';
+import { formatDateTime } from '@/utils/formatTime';
 import { Link, useParams } from '@umijs/max';
 import {
   Alert,
@@ -195,8 +196,8 @@ export default function ProcurementOrderDetailPage() {
         <Descriptions.Item label="金额">{`${po.totalAmount.toFixed(2)} ${po.currency}`}</Descriptions.Item>
         <Descriptions.Item label="支付状态">{po.payStatus}</Descriptions.Item>
         <Descriptions.Item label="支付渠道">{po.payChannel || '-'}</Descriptions.Item>
-        <Descriptions.Item label="创建时间">{po.createdAt}</Descriptions.Item>
-        <Descriptions.Item label="确认时间">{po.confirmedAt || '-'}</Descriptions.Item>
+        <Descriptions.Item label="创建时间">{formatDateTime(po.createdAt)}</Descriptions.Item>
+        <Descriptions.Item label="确认时间">{formatDateTime(po.confirmedAt, '-')}</Descriptions.Item>
         <Descriptions.Item label="来源销售订单" span={2}>
           {salesOrderIds.length === 0 ? (
             '-'
@@ -337,7 +338,12 @@ export default function ProcurementOrderDetailPage() {
         dataSource={po.events || []}
         pagination={false}
         columns={[
-          { title: '时间', dataIndex: 'createdAt', width: 200 },
+          {
+            title: '时间',
+            dataIndex: 'createdAt',
+            width: 200,
+            render: (v: string) => formatDateTime(v),
+          },
           {
             title: '从',
             dataIndex: 'fromStatus',
