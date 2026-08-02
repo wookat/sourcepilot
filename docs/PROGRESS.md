@@ -1181,3 +1181,8 @@ Final Production Acceptance Deferred to P10
 - 修复采集任务在无外网/采集器异常时长期停留「处理中」无反馈的问题。后端新增采集任务处理超时终态机制：任务在 `pending`/`running`/`retrying` 停留超过 settings `collector.collect_task_processing_timeout_seconds`（默认 600 秒，最小 30 秒，后台「采集设置 → 通用采集设置 → 任务处理超时」可配）时，由 task reaper 周期扫描自动置为 `failed`，`errorMessage` 标注「任务超时」，事件时间线记录 `task.processing_timeout`，操作日志记 `collect.task.processing_timeout`，批次计数同步 reconcile。
 - 任务模型/DTO 新增向后兼容字段 `queuedAt`（最近一次入队/重试入队时间；旧数据为空时以 `createdAt` 计），创建、批量创建、手动重试、批次重试失败任务时写入/重置，保证重试后超时重新计时。
 - 采集中心任务列表：处理中（排队/处理中/重试中）行在状态下方显示「已等待 X 秒/分钟/小时」；失败原因列在错误码/提示缺失时回退展示 `errorMessage`（超时原因可见）；既有「重试」按钮对超时失败任务可用。附后端单测（超时置失败/未超时与终态不动/重试重新计时/旧数据回退 createdAt）。
+
+### 变更记录（2026-08-02）迭代第 49 轮：草稿批量导出上架清单（选品→优化→导出→人工上架闭环）
+
+- 新增 `GET /api/v1/products/listing-list/export.csv?ids=`（复用采购清单/发货清单批量导出模式）：逗号分隔商品 UUID，去重后 ≤50 个，每草稿一行，列含 商品ID/标题/副标题(AI标题)/描述/类目(取发布配置 categoryPath)/价格(区间)/币种/主图URL/规格列表/来源/来源链接/状态，UTF-8 BOM 供 Excel 直开；租户+店铺 scope 与草稿列表一致（ApplyTenantScope + ApplyProductScope），任一 id 不在 scope 内整单 404；导出属读操作，readonly 可用（与采购/发货导出后端口径一致）。附单测（表头/BOM/类目/规格列表、跨租户 404、店铺 scope 允许/拒绝、handler 去重/上限/非法 id/未知 id）。
+- 草稿列表批量操作条新增「批量导出上架清单（N）」按钮（复用既有行选择），前端限 50 个/次与后端对齐；运营者优化完标题/描述/价格后可一键导出去 Temu/Shopee 手工上架，不再逐字段复制。
