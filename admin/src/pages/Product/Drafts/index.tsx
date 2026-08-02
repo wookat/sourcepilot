@@ -59,6 +59,7 @@ import {
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import PricingApplyModal from '@/components/PricingApplyModal';
+import { usePermission } from '@/hooks/usePermission';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
 import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
@@ -157,6 +158,7 @@ export default function ProductDraftsPage() {
     if (screens.md !== undefined) setWideScreen(screens.md);
   }, [screens.md]);
   const [createOpen, setCreateOpen] = useState(false);
+  const { readonly } = usePermission();
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [selectedRows, setSelectedRows] = useState<ProductListRow[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
@@ -600,9 +602,11 @@ export default function ProductDraftsPage() {
       subTitle={PAGE_COPY.productDrafts.description}
     >
       <OperationToolbar className="product-drafts-page__toolbar">
-        <Button icon={<PlusOutlined />} type="primary" onClick={() => setCreateOpen(true)}>
-          新建草稿
-        </Button>
+        {readonly ? null : (
+          <Button icon={<PlusOutlined />} type="primary" onClick={() => setCreateOpen(true)}>
+            新建草稿
+          </Button>
+        )}
         <Dropdown
           menu={{ items: moreActionItems, onClick: onMoreActionClick }}
           trigger={['click']}
@@ -800,12 +804,23 @@ export default function ProductDraftsPage() {
           onCancel: () => setCreateOpen(false),
         }}
         onFinish={async (vals) => {
-          await createProduct({
-            title: vals.title,
-            source: vals.source || 'manual',
-            sourceUrl: vals.sourceUrl,
-            description: vals.description,
-          });
+          try {
+            await createProduct({
+              title: vals.title,
+              source: vals.source || 'manual',
+              sourceUrl: vals.sourceUrl,
+              description: vals.description,
+            });
+          } catch (e: unknown) {
+            const status = (e as { response?: { status?: number } })?.response?.status;
+            if (status === 403) {
+              message.error('当前账号无商品写权限，无法新建草稿');
+            } else {
+              message.error((e as Error)?.message || '新建草稿失败');
+            }
+            return false;
+          }
+          message.success('草稿已创建');
           setCreateOpen(false);
           actionRef.current?.reload();
           return true;
