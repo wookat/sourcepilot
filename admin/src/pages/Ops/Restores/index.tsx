@@ -1,4 +1,5 @@
 import { TmPageContainer } from '@/components/ui';
+import { formatRequestError } from '@/constants/errorMessages';
 import { createRestore, fetchRestores, verifyRestore, type RestoreJob } from '@/services/opsP6';
 import { ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { Alert, Button, Form, Input, Modal, Space, Switch, Table, Tag, message } from 'antd';
@@ -8,6 +9,7 @@ export default function RestoresPage() {
   const [items, setItems] = useState<RestoreJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
 
   const load = useCallback(async () => {
@@ -62,7 +64,15 @@ export default function RestoresPage() {
               title: '操作',
               width: 140,
               render: (_, row) => (
-                <Button size="small" onClick={() => void verifyRestore(row.restoreId).then(load)}>
+                <Button
+                  size="small"
+                  onClick={() =>
+                    void verifyRestore(row.restoreId)
+                      .then(() => message.success('验证已触发'))
+                      .catch((e: unknown) => message.error(formatRequestError(e, '验证失败')))
+                      .then(load)
+                  }
+                >
                   验证结果
                 </Button>
               ),
@@ -73,14 +83,22 @@ export default function RestoresPage() {
       <Modal
         title="创建恢复验证"
         open={open}
+        confirmLoading={submitting}
         onCancel={() => setOpen(false)}
         onOk={async () => {
           const values = await form.validateFields();
-          await createRestore(values);
-          message.success('恢复验证已创建');
-          setOpen(false);
-          form.resetFields();
-          await load();
+          setSubmitting(true);
+          try {
+            await createRestore(values);
+            message.success('恢复验证已创建');
+            setOpen(false);
+            form.resetFields();
+          } catch (e: unknown) {
+            message.error(formatRequestError(e, '创建恢复验证失败'));
+          } finally {
+            setSubmitting(false);
+            await load();
+          }
         }}
       >
         <Form form={form} layout="vertical" initialValues={{ targetEnvironment: 'isolated', targetIsIsolated: true }}>
