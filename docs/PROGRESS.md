@@ -1298,3 +1298,11 @@ Final Production Acceptance Deferred to P10
 - 扩展共享 `StatusTag` 集中映射（matched/partial/completed/manual_review/verified/deferred/ready/not_ready/ready_with_warning/active/revoked 等），`copywriting.ts` 补对应中文文案；替换全站裸枚举直出处（订单/异常/SKU 匹配/详情、库存告警与同步、选品任务与详情、货源供应商、任务失败中心、客服、商品草稿/刊登覆写、设置用户/安全、采购、运维备份/恢复/灾备），仅改展示层，不改 API/权限/数据口径。
 - 首页 `Dashboard/ProductOperations`：漏斗转化率超 100% 时封顶展示 100% 并以「超额 +N%」另行标注（Tooltip 保留真实转化值），进度条宽度封顶；待办卡改用 antd token（间距/警示色）与 tabular-nums 数字排版。
 - 测试：新增 `PlatformTag` 单测、扩展 `StatusTag` 单测；新增 E2E `round63-semantic-visual.spec.ts`（漏斗超额标注、375 无溢出、供应商/任务失败中心语义 Tag）。
+
+### 变更记录（2026-08-02）第 64 轮：报表图表规范化（R62 视觉走查 Top5 第 5 项收口）
+
+- 新增 `admin/src/constants/chartTokens.ts`：图表系列色取自 AntD 主题 seed（首色 = `colorPrimary`）、涨跌语义色（沿用订单预估毛利 #3f8600/#cf1322）、`formatCount`（千分位）、`formatAmount`（千分位+两位小数+币种前缀）、`tabularNumsStyle`。
+- `/orders/reports`：Line/Column 图表统一 `scale.color.range` 配色 token，y 轴/tooltip 千分位与金额格式，legend 置顶，合计卡 tabular-nums；堆叠销售额图 tooltip 取原始 `amount` 字段避免展示堆叠累计值；空态/骨架/375px autoFit 保持。
+- 首页经营概览统计卡与报表页口径一致：计数 `formatCount` + tabular-nums，销售额 `formatAmount`（如 `USD 1,234.50`）。
+- 订单列表 cost-estimates 批量接口 `data:null` 空值防御（`out?.items ?? {}`），不白屏；预估毛利涨跌色改引用 chartTokens。不改任何 API/权限/数据口径。
+- 测试：新增 `chartTokens` 单测（9 用例）与 E2E `round64-charts-visual.spec.ts`（千分位合计+双图渲染、空数据引导、375px 无溢出、cost-estimates `data:null` 回归）。
