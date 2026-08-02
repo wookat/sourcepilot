@@ -56,6 +56,16 @@ describe('extractErrorMessage', () => {
     expect(extractErrorMessage(axiosError(409))).toBe('操作冲突，请刷新页面后重试');
   });
 
+  it('does not surface English envelope messages; falls back to status copy', () => {
+    const err = axiosError(400, { code: 40001, message: 'too many ids', data: null });
+    expect(extractErrorMessage(err)).toBe('请求参数有误，请检查后重试');
+  });
+
+  it('maps error-code envelope messages through ERROR_MAP', () => {
+    const err = axiosError(401, { code: 40100, message: 'AUTH_INVALID_CREDENTIALS', data: null });
+    expect(extractErrorMessage(err)).toContain('账号或密码');
+  });
+
   it('uses the provided fallback before status copy', () => {
     expect(extractErrorMessage(axiosError(500), '同步失败')).toBe('同步失败');
   });

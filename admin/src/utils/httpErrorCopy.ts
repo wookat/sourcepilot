@@ -9,6 +9,8 @@
  * 因此依赖这些字段的既有分支不受影响。
  */
 
+import { mapErrorCodeToUserMessage } from '@/constants/errorMessages';
+
 const STATUS_COPY: Record<number, string> = {
   400: '请求参数有误，请检查后重试',
   401: '登录已过期，请重新登录',
@@ -46,11 +48,24 @@ type HttpErrorLike = {
   response?: { status?: number; data?: EnvelopeLike | null };
 };
 
-function envelopeMessage(error: HttpErrorLike): string {
-  const raw = error?.response?.data?.message;
+const CJK_RE = /[\u4e00-\u9fff]/;
+const ERROR_CODE_RE = /^[A-Z][A-Z0-9_]+$/;
+
+/** 只采纳可直接展示的结构化中文 message；错误码走 ERROR_MAP 映射；英文原文一律不采纳 */
+function usableStructuredMessage(raw: unknown): string {
   if (typeof raw !== 'string') return '';
   const msg = raw.trim();
-  return msg && !isRawTransportMessage(msg) ? msg : '';
+  if (!msg || isRawTransportMessage(msg)) return '';
+  if (CJK_RE.test(msg)) return msg;
+  if (ERROR_CODE_RE.test(msg)) {
+    const mapped = mapErrorCodeToUserMessage(msg);
+    if (mapped) return mapped.detail ? `${mapped.title}：${mapped.detail}` : mapped.title;
+  }
+  return '';
+}
+
+function envelopeMessage(error: HttpErrorLike): string {
+  return usableStructuredMessage(error?.response?.data?.message);
 }
 
 /**
@@ -61,8 +76,8 @@ export function extractErrorMessage(error: unknown, fallback?: string): string {
   const err = (error || {}) as HttpErrorLike;
   const fromEnvelope = envelopeMessage(err);
   if (fromEnvelope) return fromEnvelope;
-  const own = typeof err.message === 'string' ? err.message.trim() : '';
-  if (own && !isRawTransportMessage(own)) return own;
+  const own = usableStructuredMessage(err.message);
+  if (own) return own;
   if (fallback) return fallback;
   return httpStatusCopy(err.response?.status);
 }
@@ -74,11 +89,8 @@ export async function responseErrorMessage(resp: {
 }): Promise<string> {
   try {
     const body = (await resp.json()) as EnvelopeLike | null;
-    const raw = body?.message;
-    if (typeof raw === 'string') {
-      const msg = raw.trim();
-      if (msg && !isRawTransportMessage(msg)) return msg;
-    }
+    const msg = usableStructuredMessage(body?.message);
+    if (msg) return msg;
   } catch {
     /* 非 JSON 响应体，走状态码兜底 */
   }
@@ -93,8 +105,8 @@ export function normalizeHttpErrorMessage<T>(error: T): T {
   const err = error as HttpErrorLike;
   if (!err || typeof err !== 'object') return error;
   const own = typeof err.message === 'string' ? err.message.trim() : '';
-  if (own && !isRawTransportMessage(own)) return error;
-  const next = envelopeMessage(err) || httpStatusCopy(err.response?.status);
+  if (own && !isRawTransportMessage(own) && CJK_RE.test(own)) return error;
+  const next = envelopeMessage(err) || (own && !isRawTransportMessage(own) ? own : '') || httpStatusCopy(err.response?.status);
   try {
     err.message = next;
   } catch {
