@@ -1,3 +1,4 @@
+import { extractApiErrorMessage } from '@/utils/apiErrorMessage';
 import { formatDateTime } from '@/utils/formatTime';
 import { TmPageContainer } from '@/components/ui';
 import { history, useParams, useSearchParams } from '@umijs/max';
@@ -229,7 +230,7 @@ export default function CustomerConversationDetailPage() {
       message.success('已生成建议（需人工确认，不会对外发送）');
       loadAll();
     } catch (e: unknown) {
-      message.error(e instanceof Error ? e.message : '生成失败');
+      message.error(extractApiErrorMessage(e, '生成失败'));
     } finally {
       setGenLoading(false);
     }
@@ -292,7 +293,7 @@ export default function CustomerConversationDetailPage() {
         message.success('已发送到平台');
         loadAll();
       } catch (e: unknown) {
-        message.error(e instanceof Error ? e.message : '发送失败');
+        message.error(extractApiErrorMessage(e, '发送失败'));
         throw e;
       }
     });
