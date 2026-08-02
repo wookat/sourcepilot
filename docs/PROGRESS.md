@@ -1283,3 +1283,9 @@ Final Production Acceptance Deferred to P10
   - **P2**：归档增加二次确认 Popconfirm；新建草稿失败给出 message.error；新建 SKU 保存后延迟拉取真实行修复「新行只有删除按钮」；`operationStep` 筛选加入口径说明 Alert（筛选=该步骤未完成，行内 Tag=当前所处步骤）；批量发布检查抽屉在当前平台无授权店铺时给出空态引导并禁用店铺选择。
   - **修复 main 上 test:frontend 挂掉**：dependabot 将 admin `react-dom` 升到 19.2.8（react 仍 18.2.0）导致 3 个组件测试套件崩溃；回退 `react-dom`/`@types/react-dom` 到 18 系，`pnpm-workspace.yaml` 增加 overrides（pnpm 10 读取位置，与 package.json `pnpm.overrides` 保持一致），root devDependencies 固定 react/react-dom 供 @testing-library/react peer 解析。
 - 遗留（待产品决策）：列表「批量导出上架清单」未实现（现有能力为批量创建刊登草稿）；operator demo 账号无授权店铺，operator 正常店铺 scope 场景未覆盖；商品计数口径（列表 total 与看板数）建议后续统一。
+
+### 变更记录（2026-08-02）第 61 轮：运营任务店铺 scope（P2）+ execute 校验失败 4xx（P3）
+
+- **P2（越权）**：`operation_tasks` 新增可空 `shop_id`（索引 `idx_operation_tasks_tenant_shop_updated`），运营任务按订单/采购/异常口径纳入店铺 scope：admin 不受限；operator/readonly 仅见授权店铺任务，无授权店铺列表为空；`shop_id IS NULL`（租户级）仅 admin 可见；越权/跨租户直读（含 drafts/approvals/attempts/events 子资源与全部写路径）统一 404 不泄露存在性。创建接受可选 `shopId`（admin 可省略=租户级；非 admin 必须绑定授权店铺，缺失 400、越权 404）。存量 backfill 随迁移执行：`source_reference` 命中同租户店铺 id → 归属该店铺；命中商品 id 且发布关联唯一店铺 → 归属该店铺；推导不出保持租户级。
+- **P3（错误码）**：execute/retry 适配器 payload 校验失败由 HTTP 500/50000 改为 HTTP 400、业务码 40001、`errorCode=execution_validation_failed`（适配器 permission/state/idempotency 类分别映射 403/409）；失败 attempt 创建与 finalize 行为不变。
+- 回归：`api_scope_test.go`（admin/operator/readonly/跨租户四口径读写 + backfill + execute 4xx HTTP 层断言）+ 权限矩阵套件新增 `TestOperationTaskStoreScope`；docs/api.md 新增运营任务节、docs/permission-matrix.md、docs/P8_OPERATION_TASK_API.md 同步；前端 `operationTasks.ts` 类型补 `shopId`（无 UI 行为变更）。基于 integration/round55-preview（收敛 #79–#119）。

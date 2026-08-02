@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -99,6 +100,7 @@ func (r *OperationTaskRepository) List(ctx context.Context, p OperationTaskListP
 	}
 
 	q := r.DB.WithContext(ctx).Model(&OperationTask{}).Where("tenant_id = ?", p.TenantID)
+	q = applyTaskShopScope(q, p.AllowedShopIDs)
 	if p.Status = strings.TrimSpace(strings.ToLower(p.Status)); p.Status != "" {
 		q = q.Where("status = ?", p.Status)
 	}
@@ -199,12 +201,48 @@ func (r *OperationTaskRepository) UpdateRevision(ctx context.Context, tenantID i
 
 func operationTaskListScopeHash(p OperationTaskListParams) string {
 	return pagination.Fingerprint(map[string]any{
-		"tenantId": p.TenantID,
-		"status":   p.Status,
-		"platform": p.Platform,
-		"taskType": p.TaskType,
-		"sort":     "updated_at_desc_id_desc",
+		"tenantId":  p.TenantID,
+		"status":    p.Status,
+		"platform":  p.Platform,
+		"taskType":  p.TaskType,
+		"shopScope": shopScopeFingerprint(p.AllowedShopIDs),
+		"sort":      "updated_at_desc_id_desc",
 	})
+}
+
+// applyTaskShopScope narrows a task query to the principal's authorized
+// shops. nil means all shops (admin). An empty slice matches nothing.
+// Tasks without a shop binding (tenant-level) are admin-only.
+func applyTaskShopScope(q *gorm.DB, allowed []uuid.UUID) *gorm.DB {
+	if allowed == nil {
+		return q
+	}
+	if len(allowed) == 0 {
+		return q.Where("1 = 0")
+	}
+	ids := make([]string, 0, len(allowed))
+	for _, id := range allowed {
+		if id == uuid.Nil {
+			continue
+		}
+		ids = append(ids, id.String())
+	}
+	if len(ids) == 0 {
+		return q.Where("1 = 0")
+	}
+	return q.Where("shop_id IN ?", ids)
+}
+
+func shopScopeFingerprint(allowed []uuid.UUID) string {
+	if allowed == nil {
+		return "all"
+	}
+	ids := make([]string, 0, len(allowed))
+	for _, id := range allowed {
+		ids = append(ids, id.String())
+	}
+	sort.Strings(ids)
+	return strings.Join(ids, ",")
 }
 
 type PlatformDraftRepository struct {

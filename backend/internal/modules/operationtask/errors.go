@@ -35,6 +35,11 @@ const (
 	ErrCodeRetryLimitExceeded      = "retry_limit_exceeded"
 	ErrCodeFinalizeConflict        = "finalize_conflict"
 	ErrCodeResultUnknown           = "result_unknown"
+
+	// ErrCodeExecutionValidationFailed marks an execute request whose
+	// approved draft payload was rejected by the platform adapter's
+	// validation. The attempt is still persisted as failed.
+	ErrCodeExecutionValidationFailed = "execution_validation_failed"
 )
 
 var (

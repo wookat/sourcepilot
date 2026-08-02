@@ -456,6 +456,31 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `POST` | `/api/v1/task-center/alerts/:id/notify` | Webhook 通知（需配置） |
 | `GET` | `/api/v1/task-center/failure-categories` | 含 `sub:douyin_*` 分类 |
 
+### 运营任务（Operation Task）
+
+详见 [`P8_OPERATION_TASK_API.md`](P8_OPERATION_TASK_API.md)。权限与 scope 口径（与订单/采购/异常一致，round61）：
+
+- 运营任务为店铺维度业务数据（`operation_tasks.shop_id`，可空=租户级）。admin 不受限；operator/readonly 仅见已授权店铺任务，无授权店铺列表为空；租户级任务（`shop_id IS NULL`）仅 admin 可见。
+- 越权/跨租户直读（含 drafts/approvals/attempts/events 子资源与全部写路径）统一 **404**，不泄露存在性。
+- 创建接受可选 `shopId`：admin 可省略（租户级）；非 admin 必须绑定已授权店铺（缺失 400；未授权/跨租户店铺 404）。存量数据按 `source_reference`（店铺 id / 唯一店铺关联的商品 id）迁移时自动 backfill，推导不出的保持租户级。
+- execute/retry 适配器 payload 校验失败返回 HTTP **400**、业务码 **40001**、`data.errorCode=execution_validation_failed`（round61 前误为 500/50000）；失败 attempt 记录行为不变。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/operation-tasks` | 创建运营任务（可选 `shopId`） |
+| `GET` | `/api/v1/operation-tasks` | 任务列表（keyset cursor；店铺 scope） |
+| `GET` | `/api/v1/operation-tasks/:taskId` | 任务详情 |
+| `POST` | `/api/v1/operation-tasks/:taskId/cancel` | 取消 |
+| `POST` | `/api/v1/operation-tasks/:taskId/drafts` | 创建初始草稿 |
+| `PATCH` | `/api/v1/operation-tasks/:taskId/drafts/latest` | 编辑最新草稿 |
+| `GET` | `/api/v1/operation-tasks/:taskId/drafts` | 草稿历史 |
+| `POST` | `/api/v1/operation-tasks/:taskId/approve` | 审批通过 |
+| `POST` | `/api/v1/operation-tasks/:taskId/reject` | 审批驳回 |
+| `POST` | `/api/v1/operation-tasks/:taskId/execute` | 执行（安全适配器） |
+| `POST` | `/api/v1/operation-tasks/:taskId/retry` | 手动重试 |
+| `GET` | `/api/v1/operation-tasks/:taskId/attempts` | 执行 attempt 历史 |
+| `GET` | `/api/v1/operation-tasks/:taskId/events` | 审计事件历史 |
+
 ### 操作日志与运营看板
 
 | 方法 | 路径 | 说明 |

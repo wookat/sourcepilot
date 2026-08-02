@@ -25,6 +25,17 @@ All routes are registered on the existing authenticated `/api/v1` group. Tenant 
 
 Request bodies must not provide or override `tenantId`, `actorId`, `reviewerRole`, `isAdmin`, `canApprove`, or `canExecute`. Strict JSON binding rejects unknown fields on write APIs.
 
+## Shop scope (round61)
+
+Operation tasks carry an optional `shopId` binding (`operation_tasks.shop_id`) and are treated as shop-scoped business data, matching the order/procurement/exception scope semantics:
+
+- admin (`AllowedStoreIDs() == nil`) is unrestricted.
+- operator/readonly only see tasks bound to granted shops; with no shop grants the task list is empty.
+- tasks with `shop_id IS NULL` are tenant-level and admin-only.
+- out-of-scope or cross-tenant direct access to a task or any child resource (drafts, approvals, attempts, events) and every write path returns 404 without revealing existence.
+- `POST /api/v1/operation-tasks` accepts an optional `shopId`. Admin may omit it (tenant-level task); non-admin roles must bind a granted shop (missing: 400; ungranted or foreign-tenant shop: 404). The bound shop must belong to the authenticated tenant.
+- legacy rows are backfilled at migration time from `source_reference` (same-tenant shop id, or product id whose publish links resolve to exactly one shop); non-inferable rows stay tenant-level.
+
 ## Routes
 
 ### P8-501 Task CRUD / Query API
@@ -87,8 +98,10 @@ Task and attempt lists use keyset cursors. Event history uses sequence-based pag
 Errors use the existing response envelope with sanitized messages:
 
 - validation errors: HTTP 400
+- adapter payload validation failures during execute/retry: HTTP 400 with business code `40001` and `errorCode=execution_validation_failed` (round61; previously a generic HTTP 500/50000). The failed execution attempt is still persisted and finalized before the error is returned.
+- adapter-reported permission denials: HTTP 403; adapter state/idempotency conflicts: HTTP 409
 - permission and execution-mode denials: HTTP 403
-- not found or tenant mismatch: HTTP 404
+- not found, tenant mismatch, or out-of-shop-scope access: HTTP 404
 - revision, state, draft, idempotency, retry, or execution conflicts: HTTP 409
 - unexpected failures: HTTP 500 generic internal error
 

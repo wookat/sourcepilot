@@ -20,6 +20,8 @@ func apiError(err error) apiErrorSpec {
 	switch {
 	case err == nil:
 		return apiErrorSpec{status: http.StatusOK, code: "ok", msg: "ok", biz: response.CodeOK}
+	case isExecutionDomainError(err):
+		return executionDomainErrorSpec(err)
 	case errors.Is(err, ErrValidation):
 		return apiErrorSpec{status: http.StatusBadRequest, code: ErrCodeValidation, msg: "validation error", biz: response.CodeBadRequest}
 	case errors.Is(err, ErrNotFound), errors.Is(err, ErrTenantMismatch):
@@ -54,6 +56,32 @@ func apiError(err error) apiErrorSpec {
 		return apiErrorSpec{status: http.StatusConflict, code: ErrCodeFinalizeConflict, msg: "state conflict", biz: response.CodeBadRequest}
 	}
 	return spec
+}
+
+func isExecutionDomainError(err error) bool {
+	var domain *ExecutionDomainError
+	return errors.As(err, &domain)
+}
+
+// executionDomainErrorSpec maps sanitized adapter domain failures (already
+// classified and persisted on the attempt) onto business error envelopes so
+// adapter-side payload validation rejections surface as 4xx instead of a
+// generic HTTP 500 / 50000.
+func executionDomainErrorSpec(err error) apiErrorSpec {
+	var domain *ExecutionDomainError
+	if !errors.As(err, &domain) || domain == nil {
+		return apiErrorSpec{status: http.StatusInternalServerError, code: "internal_error", msg: "internal error", biz: response.CodeInternalError}
+	}
+	switch domain.Category {
+	case ExecutionErrorCategoryValidation:
+		return apiErrorSpec{status: http.StatusBadRequest, code: ErrCodeExecutionValidationFailed, msg: "execution payload validation failed", biz: response.CodeBadRequest}
+	case ExecutionErrorCategoryPermissionDenied:
+		return apiErrorSpec{status: http.StatusForbidden, code: ErrCodePermissionDenied, msg: "permission denied", biz: response.CodePermissionDenied}
+	case ExecutionErrorCategoryStateConflict, ExecutionErrorCategoryIdempotencyConflict:
+		return apiErrorSpec{status: http.StatusConflict, code: ErrCodeStateConflict, msg: "state conflict", biz: response.CodeBadRequest}
+	default:
+		return apiErrorSpec{status: http.StatusInternalServerError, code: "internal_error", msg: "internal error", biz: response.CodeInternalError}
+	}
 }
 
 func apiRespondError(c *gin.Context, err error) {

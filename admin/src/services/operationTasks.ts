@@ -11,6 +11,7 @@ export type AllowedTaskActions = {
 
 export type OperationTaskSummary = {
   id: string;
+  shopId?: string;
   sourceType: string;
   sourceReference?: string;
   taskType: string;
@@ -127,6 +128,7 @@ export type DraftListResponse = {
 };
 
 export type CreateTaskRequest = {
+  shopId?: string;
   sourceType: string;
   sourceReference: string;
   taskType: string;

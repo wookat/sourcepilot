@@ -29,6 +29,7 @@ APP_ENV=test go test ./internal/securitytests/permmatrix/ -v
 | `TestOperatorStoreScope` | operator 仅见已授权店铺，未授权店铺读取被拒。 |
 | `TestReadonlyStoreScope` | readonly（无店铺授权）列表为空，写既有资源 403。 |
 | `TestReadonlyWriteGuardRegression` | round52 P0 修复回归（见下）。 |
+| `TestOperationTaskStoreScope` | round61 P2 修复回归：运营任务按店铺 scope 隔离（见下）。 |
 
 ## matrix.json 条目格式
 
@@ -88,6 +89,17 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
   - `DELETE /api/v1/product-sources/:id`、`POST /api/v1/procurement/orders/:id/void`（写，readonly forbid）
 - 修正 7 条平台配置路由预期：`platform/settings/:platform`（GET/PUT/test-connection）、`platform/publish-settings/:platform`（GET/PUT）、抖音类目 sync × 2 现由 `settings.manage`（仅 admin）守卫（round59 设置中心收口口径），矩阵由 operator/readonly allow 收紧为 forbid。
 - 未发现真实权限缺口（无「预期 403/404 实际 200」条目）；全部差异均为守卫比矩阵登记更严，属登记表滞后。
+
+## round61 运营任务店铺 scope（P2）
+
+- `operation_tasks` 表新增 `shop_id`（可空，`char(36)`，索引 `idx_operation_tasks_tenant_shop_updated`）；运营任务从红线外的租户级数据改为店铺维度业务数据，口径与订单/采购/异常一致：
+  - admin（`AllowedStoreIDs()==nil`）不受限；
+  - operator/readonly 仅见已授权店铺的任务，无授权店铺则列表为空；
+  - `shop_id IS NULL`（租户级）任务仅 admin 可见（与订单列表 `ApplyStoreScope` 对未绑定行的处理一致）；
+  - 越权/跨租户直读（含 drafts/approvals/attempts/events 等子资源与全部写路径）统一 404，不泄露存在性。
+- 存量 backfill（`backfillTaskShopScope`，随迁移自动执行）：`source_reference` 命中同租户店铺 id → 归属该店铺；命中商品 id 且发布关联（publish config/publication）唯一指向一个店铺 → 归属该店铺；推导不出的保持租户级（admin-only，不放大可见性）。
+- 创建口径：`POST /api/v1/operation-tasks` 新增可选 `shopId`；admin 可省略（租户级任务）；非 admin 必须绑定已授权店铺（缺失 400，未授权/跨租户店铺 404）。
+- 回归证据：`TestOperationTaskStoreScope`（本套件）+ `operationtask` 模块 `api_scope_test.go`（admin/operator/readonly/跨租户四口径、全写路径、backfill）。
 
 ## docs/api.md 口径差异说明
 
