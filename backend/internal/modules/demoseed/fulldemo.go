@@ -555,7 +555,7 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	}
 
 	// ---- order sync task partial_success（异常工作台样本）----
-	syncTask := ordersync.OrderSyncTask{ShopID: shops[0].ID, Platform: shops[0].Platform,
+	syncTask := ordersync.OrderSyncTask{TenantID: s.TenantID, ShopID: shops[0].ID, Platform: shops[0].Platform,
 		TaskType: "order_sync", Status: "partial_success", Mode: "manual",
 		StartedAt: &started, FinishedAt: &finished,
 		TotalCount: 60, SuccessCount: 50, FailedCount: 10,
