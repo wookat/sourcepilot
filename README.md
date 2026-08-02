@@ -195,6 +195,14 @@ pnpm seed:demo:full:clean    # 只清理 DEMO- 前缀演示数据
 pnpm seed:demo:full:verify   # 复核清理后零残留
 ```
 
+Go 版全链路演示种子（幂等，可一键清理）：
+
+```bash
+pnpm seed:demo:full          # 生成 DEMO- 前缀全链路演示数据
+pnpm seed:demo:full:verify   # 校验演示数据
+pnpm seed:demo:full:clean    # 仅清理 DEMO- 前缀数据
+```
+
 Linux / macOS 需先安装 [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)，再执行 `bash scripts/seed-demo-data.sh`。详见 [docs/DEMO_SEEDING_GUIDE.md](docs/DEMO_SEEDING_GUIDE.md)。
 
 ### 本地开发

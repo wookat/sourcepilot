@@ -195,6 +195,14 @@ pnpm seed:demo:full:clean    # clean only DEMO- prefixed demo data
 pnpm seed:demo:full:verify   # verify zero DEMO- residual rows after clean
 ```
 
+Go full-chain demo seed (idempotent, one-command cleanup):
+
+```bash
+pnpm seed:demo:full          # generate DEMO- prefixed full-chain demo data
+pnpm seed:demo:full:verify   # verify demo data
+pnpm seed:demo:full:clean    # remove only DEMO- prefixed data
+```
+
 On Linux / macOS, install [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) first, then run `bash scripts/seed-demo-data.sh`. See [docs/DEMO_SEEDING_GUIDE.md](docs/DEMO_SEEDING_GUIDE.md) for details.
 
 ### Local Development

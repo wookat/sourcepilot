@@ -74,6 +74,21 @@ describe('extractErrorMessage', () => {
   it('handles network errors without a response', () => {
     expect(extractErrorMessage(new Error('Network Error'))).toBe('网络异常，请检查网络后重试');
   });
+
+  it('maps known business error codes to friendly text', () => {
+    const err = axiosError(403, { code: 40301, message: 'DOUYIN_STORE_NOT_AUTHORIZED', data: null });
+    expect(extractErrorMessage(err, '提交失败')).toContain('店铺尚未授权');
+  });
+
+  it('never surfaces raw JSON payloads; uses caller fallback', () => {
+    const err = axiosError(500, { code: 50000, message: '{"trace":"x"}', data: null });
+    expect(extractErrorMessage(err, '操作失败')).toBe('操作失败');
+  });
+
+  it('uses caller fallback for empty or undefined errors', () => {
+    expect(extractErrorMessage({}, '提交失败')).toBe('提交失败');
+    expect(extractErrorMessage(undefined, '提交失败')).toBe('提交失败');
+  });
 });
 
 describe('translateBackendErrorText', () => {
