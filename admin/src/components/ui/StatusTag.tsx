@@ -30,6 +30,21 @@ const STATUS_COLOR_MAP: Record<string, StatusColor> = {
   unmatched: 'default',
   ambiguous: 'warning',
   skipped: 'default',
+  partial: 'warning',
+  matched: 'success',
+  manual_bound: 'processing',
+  completed: 'success',
+  passed: 'success',
+  manual_review: 'warning',
+  queued: 'processing',
+  succeeded: 'success',
+  verified: 'success',
+  deferred: 'default',
+  ready: 'success',
+  not_ready: 'error',
+  ready_with_warning: 'warning',
+  active: 'success',
+  revoked: 'default',
 };
 
 /** 统一状态 Tag */

@@ -1,4 +1,4 @@
-import { TmPageContainer } from '@/components/ui';
+import { PlatformTag, TmPageContainer } from '@/components/ui';
 import {
   createSupplier,
   deleteProductSource,
@@ -157,7 +157,7 @@ export default function SuppliersPage() {
         }}
         columns={[
           { title: '名称', dataIndex: 'name', width: 200 },
-          { title: '平台', dataIndex: 'platform', width: 90 },
+          { title: '平台', dataIndex: 'platform', width: 90, render: (v) => <PlatformTag platform={String(v ?? '')} /> },
           { title: '外部ID', dataIndex: 'externalId', width: 140, responsive: DESKTOP_ONLY, render: (v) => v || '-' },
           { title: '评分', dataIndex: 'rating', width: 80, responsive: DESKTOP_ONLY, render: (v) => v ?? '-' },
           {

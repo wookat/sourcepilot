@@ -3,6 +3,8 @@ export { default as SectionCard } from './SectionCard';
 export { FormGrid, FormGridFull, FormGridItem } from './FormGrid';
 export { default as FieldHelp } from './FieldHelp';
 export { default as StatusTag } from './StatusTag';
+export { default as PlatformTag } from './PlatformTag';
+export type { PlatformTagProps } from './PlatformTag';
 export { default as EmptyState } from './EmptyState';
 export { default as ErrorAlert } from './ErrorAlert';
 export { default as TechnicalDetails } from './TechnicalDetails';

@@ -1,5 +1,5 @@
 import { ProCard, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import { PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { history, useLocation } from '@umijs/max';
 import { confirmFailureTaskRetry } from '@/constants/sensitiveActions';
 import { formatDateTime } from '@/utils/formatTime';
@@ -427,6 +427,7 @@ export default function TaskCenterFailuresPage() {
         title: '平台',
         dataIndex: 'platform',
         width: 90,
+        render: (_, r) => <PlatformTag platform={r.platform} />,
       },
       {
         title: '店铺 ID',

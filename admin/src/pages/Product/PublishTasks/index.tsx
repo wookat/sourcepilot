@@ -450,7 +450,7 @@ export default function ProductPublishTasksPage() {
             </div>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId}{' '}
-              <Typography.Text type="secondary">({detail.platform})</Typography.Text>
+              <Typography.Text type="secondary">({platformLabel(detail.platform)})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               <Typography.Text strong>商品：</Typography.Text>{' '}

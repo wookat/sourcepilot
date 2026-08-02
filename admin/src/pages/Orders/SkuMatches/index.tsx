@@ -1,5 +1,6 @@
 import { type ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { PlatformTag, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { platformLabel } from '@/constants/userFriendly';
 import { Button, Space } from 'antd';
 import { history, useSearchParams } from '@umijs/max';
 import { queryOrderSkuMatches, type OrderSkuMatchListRow } from '@/services/orders';
@@ -26,12 +27,13 @@ export default function OrderSkuMatchesPage() {
       width: 90,
       valueType: 'select',
       valueEnum: {
-        tiktok: { text: 'tiktok' },
-        shopee: { text: 'shopee' },
-        lazada: { text: 'lazada' },
-        amazon: { text: 'amazon' },
-        manual: { text: 'manual' },
+        tiktok: { text: 'TikTok' },
+        shopee: { text: 'Shopee' },
+        lazada: { text: 'Lazada' },
+        amazon: { text: 'Amazon' },
+        manual: { text: '手动' },
       },
+      render: (_, row) => <PlatformTag platform={row.platform} />,
     },
     {
       title: '店铺',
@@ -40,7 +42,7 @@ export default function OrderSkuMatchesPage() {
       valueType: 'select',
       request: async () => {
         const r = await queryShops({ page: 1, pageSize: 500 });
-        return r.list.map((s) => ({ label: `${s.shopName} (${s.platform})`, value: s.id }));
+        return r.list.map((s) => ({ label: `${s.shopName} (${platformLabel(s.platform)})`, value: s.id }));
       },
     },
     {

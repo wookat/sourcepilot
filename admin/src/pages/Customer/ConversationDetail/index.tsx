@@ -147,7 +147,7 @@ export default function CustomerConversationDetailPage() {
     const res = await queryShops({ page: 1, pageSize: 300 });
     setShopOpts(
       res.list.map((s) => ({
-        label: `${s.shopName} (${s.platform})`,
+        label: `${s.shopName} (${platformLabel(s.platform)})`,
         value: s.id,
       })),
     );

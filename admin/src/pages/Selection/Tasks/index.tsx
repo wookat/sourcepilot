@@ -1,8 +1,8 @@
-import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { PlatformTag, StatusTag, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ModalForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import { Link } from '@umijs/renderer-react';
-import { Alert, Button, Space, Tag, Tooltip, message } from 'antd';
+import { Alert, Button, Space, Tooltip, message } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { formatDateTime } from '@/utils/formatTime';
@@ -15,14 +15,6 @@ import {
 } from '@/services/selection';
 import { extractApiErrorMessage } from '@/services/request';
 import { fetchIntegrationsOverview } from '@/services/settings';
-
-const STATUS_COLOR: Record<string, string> = {
-  pending: 'default',
-  running: 'processing',
-  success: 'success',
-  partial: 'warning',
-  failed: 'error',
-};
 
 const STATUS_FILTER_OPTIONS: Record<string, { text: string }> = {
   pending: { text: 'pending（待处理）' },
@@ -106,7 +98,7 @@ export default function SelectionTasksPage() {
         <Link to={`/selection/tasks/${row.id}`}>{row.name || row.id.slice(0, 8)}</Link>
       ),
     },
-    { title: '目标平台', dataIndex: 'targetPlatform', width: 100, hideInSearch: true },
+    { title: '目标平台', dataIndex: 'targetPlatform', width: 100, hideInSearch: true, render: (_, row) => <PlatformTag platform={row.targetPlatform} /> },
     { title: '国家', dataIndex: 'targetCountry', width: 80, hideInSearch: true },
     {
       title: '状态',
@@ -116,7 +108,7 @@ export default function SelectionTasksPage() {
       valueEnum: STATUS_FILTER_OPTIONS,
       fieldProps: { placeholder: '全部状态', allowClear: true },
       render: (_, row) => {
-        const tag = <Tag color={STATUS_COLOR[row.status] || 'default'}>{row.status}</Tag>;
+        const tag = <StatusTag status={row.status} />;
         if ((row.status === 'failed' || row.status === 'partial') && row.errorMessage) {
           return <Tooltip title={`失败原因：${row.errorMessage}`}>{tag}</Tooltip>;
         }
