@@ -210,8 +210,9 @@ func buildItems(body CreateTaskBody) []CandidateItem {
 	return items
 }
 
-// ListTasks returns a paged task list with candidate counters.
-func (s *Service) ListTasks(ctx context.Context, page, pageSize int, status string) (*ListResult, error) {
+// ListTasks returns a paged task list with candidate counters, scoped to the
+// caller's tenant.
+func (s *Service) ListTasks(ctx context.Context, tenantID int64, page, pageSize int, status string) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("selection: no db")
 	}
@@ -224,7 +225,7 @@ func (s *Service) ListTasks(ctx context.Context, page, pageSize int, status stri
 	if pageSize > 100 {
 		pageSize = 100
 	}
-	tx := s.DB.WithContext(ctx).Model(&SelectionTask{})
+	tx := s.DB.WithContext(ctx).Model(&SelectionTask{}).Where("tenant_id = ?", tenantID)
 	if v := strings.TrimSpace(status); v != "" {
 		tx = tx.Where("status = ?", v)
 	}
@@ -243,13 +244,13 @@ func (s *Service) ListTasks(ctx context.Context, page, pageSize int, status stri
 	return &ListResult{Items: out, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
-// GetTask returns one task with counters.
-func (s *Service) GetTask(ctx context.Context, id uuid.UUID) (*TaskDTO, error) {
+// GetTask returns one task with counters, scoped to the caller's tenant.
+func (s *Service) GetTask(ctx context.Context, tenantID int64, id uuid.UUID) (*TaskDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("selection: no db")
 	}
 	var row SelectionTask
-	if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&row, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotFound
 		}
@@ -282,10 +283,18 @@ func (s *Service) taskDTO(ctx context.Context, t *SelectionTask) TaskDTO {
 	}
 }
 
-// ListCandidates returns candidates of a task, ranked by AI score desc (可上架清单).
-func (s *Service) ListCandidates(ctx context.Context, taskID uuid.UUID) ([]CandidateDTO, error) {
+// ListCandidates returns candidates of a task, ranked by AI score desc (可上架清单),
+// scoped to the caller's tenant.
+func (s *Service) ListCandidates(ctx context.Context, tenantID int64, taskID uuid.UUID) ([]CandidateDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("selection: no db")
+	}
+	var task SelectionTask
+	if err := s.DB.WithContext(ctx).First(&task, "id = ? AND tenant_id = ?", taskID, tenantID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
 	}
 	var cands []SelectionCandidate
 	if err := s.DB.WithContext(ctx).Where("task_id = ?", taskID).Find(&cands).Error; err != nil {
@@ -365,6 +374,17 @@ func (s *Service) Decide(c *gin.Context, candidateID uuid.UUID, decision string,
 		return nil, fmt.Errorf("decision must be approved or rejected")
 	}
 	ctx := c.Request.Context()
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	var cand SelectionCandidate
+	if err := s.DB.WithContext(ctx).First(&cand, "id = ? AND tenant_id = ?", candidateID, tenantID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
 	var ev SelectionEvaluation
 	if err := s.DB.WithContext(ctx).First(&ev, "candidate_id = ?", candidateID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -399,8 +419,12 @@ func (s *Service) ToDraft(c *gin.Context, candidateID uuid.UUID, adminID *uuid.U
 		return nil, fmt.Errorf("selection: no db")
 	}
 	ctx := c.Request.Context()
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var cand SelectionCandidate
-	if err := s.DB.WithContext(ctx).First(&cand, "id = ?", candidateID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&cand, "id = ? AND tenant_id = ?", candidateID, tenantID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotFound
 		}
@@ -510,13 +534,13 @@ func truncate(s string, max int) string {
 	return string(r[:max])
 }
 
-// Retry re-enqueues a failed/partial task.
-func (s *Service) Retry(ctx context.Context, id uuid.UUID) (*SelectionTask, error) {
+// Retry re-enqueues a failed/partial task, scoped to the caller's tenant.
+func (s *Service) Retry(ctx context.Context, tenantID int64, id uuid.UUID) (*SelectionTask, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("selection: no db")
 	}
 	var task SelectionTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&task, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotFound
 		}
