@@ -348,7 +348,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 		Where("payment_status = ? AND fulfillment_status = ? AND status NOT IN ?",
 			order.PaymentPaid, order.FulfillmentUnfulfilled,
 			[]string{order.StatusShipped, order.StatusDelivered, order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
-		Where("NOT EXISTS (SELECT 1 FROM purchase_order_items poi JOIN purchase_orders po2 ON po2.id = poi.purchase_order_id WHERE poi.sales_order_id = orders.id AND po2.status NOT IN ('cancelled','failed'))").
+		Where("NOT EXISTS (SELECT 1 FROM purchase_order_items poi JOIN purchase_orders po2 ON po2.id = poi.purchase_order_id WHERE poi.sales_order_id = orders.id AND po2.status NOT IN ('cancelled','failed','voided'))").
 		Count(&sum.AwaitProcurementOrderCount).Error
 	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
 		Where("payment_status = ? AND status NOT IN ?",

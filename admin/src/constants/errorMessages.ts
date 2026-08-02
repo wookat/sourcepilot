@@ -192,6 +192,19 @@ export function formatUserErrorMessage(code?: string | null, fallback?: string):
   return fb || '操作失败，请稍后重试';
 }
 
+/** 从请求异常中提取后端 message 并格式化为用户可见错误（一行） */
+export function formatRequestError(e: unknown, fallback: string): string {
+  const ax = e as {
+    response?: { status?: number; data?: { message?: string } };
+    message?: string;
+  };
+  if (ax?.response?.status === 403) {
+    return '当前账号无权限执行该操作';
+  }
+  const raw = ax?.response?.data?.message || ax?.message;
+  return formatUserErrorMessage(raw, fallback);
+}
+
 /** 从英文异常信息中提取用户可读部分（隐藏 JSON / 堆栈） */
 export function sanitizeErrorForDisplay(raw?: string | null): string {
   const s = (raw ?? '').trim();

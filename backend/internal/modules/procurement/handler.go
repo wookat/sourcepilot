@@ -389,6 +389,28 @@ func (h *Handler) Cancel(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// Void POST /procurement/orders/:id/void
+func (h *Handler) Void(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "procurement unavailable")
+		return
+	}
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	out, err := h.Svc.Void(c.Request.Context(), id, body.Reason, adminUUID(c))
+	if err != nil {
+		handleProcurementError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
 // BatchMarkPlaced POST /procurement/orders/batch-mark-placed
 func (h *Handler) BatchMarkPlaced(c *gin.Context) {
 	if !h.ok() {
