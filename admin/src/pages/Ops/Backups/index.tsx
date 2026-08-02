@@ -2,14 +2,21 @@ import { TmPageContainer } from '@/components/ui';
 import { formatRequestError } from '@/constants/errorMessages';
 import {
   createBackup,
+  downloadBackup,
   fetchBackups,
   holdBackup,
   verifyBackup,
   type BackupJob,
 } from '@/services/opsP6';
-import { DatabaseOutlined, ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import {
+  DatabaseOutlined,
+  DownloadOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+} from '@ant-design/icons';
 import { Alert, Button, Modal, Space, Table, Tag, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import { OpsCheckList } from '../opsChecks';
 
 function statusColor(status?: string) {
   if (status === 'completed' || status === 'passed') return 'green';
@@ -73,7 +80,7 @@ export default function BackupsPage() {
         <Alert
           showIcon
           type="info"
-          message="真实对象存储和真实生产备份验证保持待接入；页面不提供完整备份下载。"
+          message="真实对象存储和真实生产备份验证保持待接入；校验通过的 completed 备份可由管理员下载。"
         />
         <Table<BackupJob>
           rowKey="backupId"
@@ -106,7 +113,7 @@ export default function BackupsPage() {
             { title: '创建时间', dataIndex: 'createdAt', width: 180 },
             {
               title: '操作',
-              width: 220,
+              width: 300,
               render: (_, row) => (
                 <Space>
                   <Button
@@ -114,12 +121,31 @@ export default function BackupsPage() {
                     icon={<SafetyCertificateOutlined />}
                     onClick={() =>
                       void verifyBackup(row.backupId)
-                        .then(() => message.success('校验已触发'))
+                        .then((res) => {
+                          const v = res.data;
+                          Modal.info({
+                            title: `备份校验结果：${v?.status === 'passed' ? '通过' : '失败'}`,
+                            width: 560,
+                            content: <OpsCheckList checks={v?.details?.checks} />,
+                          });
+                        })
                         .catch((e: unknown) => message.error(formatRequestError(e, '校验备份失败')))
                         .then(load)
                     }
                   >
                     校验备份
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<DownloadOutlined />}
+                    disabled={row.status !== 'completed' || row.verificationStatus !== 'passed'}
+                    onClick={() =>
+                      void downloadBackup(row.backupId)
+                        .then(() => message.success('备份文件下载已开始'))
+                        .catch((e: unknown) => message.error(formatRequestError(e, '下载备份失败')))
+                    }
+                  >
+                    下载
                   </Button>
                   <Button
                     size="small"

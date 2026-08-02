@@ -101,25 +101,53 @@ func (s *Service) Create(ctx context.Context, req CreateRequest, actor *uuid.UUI
 	return row, s.DB.WithContext(ctx).Save(row).Error
 }
 
+// Verify runs the restore drill validation. Only the backup file integrity and
+// pg_restore --list structure checks are real; the remaining checks are
+// explicitly reported as not implemented instead of fake passes.
 func (s *Service) Verify(ctx context.Context, restoreID string) (*Validation, error) {
 	row, err := s.Get(ctx, restoreID)
 	if err != nil {
 		return nil, err
 	}
-	v := &Validation{
-		RestoreID:               row.RestoreID,
-		Status:                  "passed",
-		MigrationVersionChecked: true,
-		TenantIsolationChecked:  true,
-		RBACChecked:             true,
-		AuditChainChecked:       true,
-		ObjectInventoryChecked:  true,
-		SecretCiphertextChecked: true,
-		ValidatedAt:             time.Now().UTC(),
+	if s.Cfg != nil && config.IsProduction(s.Cfg.AppEnv) {
+		return nil, fmt.Errorf("RESTORE_VERIFY_APP_ENV_FORBIDDEN: restore drill validation is limited to local/development environments")
 	}
+	v := &Validation{
+		RestoreID:   row.RestoreID,
+		Status:      "passed",
+		ValidatedAt: time.Now().UTC(),
+	}
+	if s.Backup == nil {
+		return nil, fmt.Errorf("restore validation unavailable: backup service missing")
+	}
+	checks := make([]backup.Check, 0, 8)
 	if row.Status != StatusCompleted {
 		v.Status = "failed"
 		v.ErrorSummary = "restore job is not completed"
+		checks = append(checks, backup.Check{Key: "backup_file_integrity", Status: backup.CheckSkipped, Message: "restore job is not completed"})
+		checks = append(checks, backup.Check{Key: "pg_restore_list", Status: backup.CheckSkipped, Message: "restore job is not completed"})
+	} else {
+		if err := s.Backup.ArtifactIntegrityCheck(ctx, row.BackupID); err != nil {
+			v.Status = "failed"
+			v.ErrorSummary = backupruntime.RedactCommandOutput(err.Error())
+			checks = append(checks, backup.Check{Key: "backup_file_integrity", Status: backup.CheckFailed, Message: backupruntime.RedactCommandOutput(err.Error())})
+			checks = append(checks, backup.Check{Key: "pg_restore_list", Status: backup.CheckSkipped, Message: "integrity check failed"})
+		} else {
+			checks = append(checks, backup.Check{Key: "backup_file_integrity", Status: backup.CheckPassed})
+			if err := s.Backup.ArtifactStructureCheck(ctx, row.BackupID); err != nil {
+				v.Status = "failed"
+				v.ErrorSummary = backupruntime.RedactCommandOutput(err.Error())
+				checks = append(checks, backup.Check{Key: "pg_restore_list", Status: backup.CheckFailed, Message: backupruntime.RedactCommandOutput(err.Error())})
+			} else {
+				checks = append(checks, backup.Check{Key: "pg_restore_list", Status: backup.CheckPassed})
+			}
+		}
+	}
+	for _, key := range []string{"migration_version", "tenant_isolation", "rbac", "audit_chain", "object_inventory", "secret_ciphertext"} {
+		checks = append(checks, backup.Check{Key: key, Status: backup.CheckNotImplemented})
+	}
+	if raw, err := json.Marshal(map[string]any{"checks": checks}); err == nil {
+		v.Details = datatypes.JSON(raw)
 	}
 	if err := s.DB.WithContext(ctx).Create(v).Error; err != nil {
 		return nil, err

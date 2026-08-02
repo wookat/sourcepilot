@@ -6,9 +6,6 @@ const allowedWarnings: RegExp[] = [
   /ResizeObserver loop completed with undelivered notifications/i,
   /Warning: Instance created by `useForm` is not connected to any Form element\. Forget to pass `form` prop\?/,
   /Warning: \[antd: Modal\] Static function can not consume context like dynamic theme\. Please use 'App' component instead\./,
-  /Warning: \[antd: Modal\] `destroyOnClose` is deprecated\. Please use `destroyOnHidden` instead\./,
-  // 已知历史问题，修复中：PR #94（/inventory 菜单重复 key）。合并后应删除下一项。
-  /Warning: Duplicated key '\/inventory' used in Menu by path \[\/inventory\]/,
 ];
 
 export class ConsoleGuard {
