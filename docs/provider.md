@@ -145,6 +145,7 @@ Douyin Shop Phase 8 adds order sync MVP via existing order sync orchestration (`
   - `open1688`：官方 API 空壳，凭证可用前始终 `ErrUnavailable`。
 - **FX Provider**（`providers/fx`）：汇率，默认内置固定表，可由 settings `selection` 分组（`fx_rate_usd` 等）覆盖。
 - **Logistics Provider**（`providers/logistics`）：物流报价，线性模型 `base + perKG × weight`，参数可配置。
+- **Tracking Provider**（`providers/tracking`，round91 预留）：物流轨迹抓取抽象 `Provider{Name, SupportsFetch, Fetch(carrierCode, trackingNo)}`；当前仅内置 `manual` provider（`SupportsFetch=false`，不调真实快递 API），轨迹状态由人工编辑物流记录推动订单在途→送达既有流转；后续接入快递100/17TRACK 等真实 API 时实现 `Fetch` 并通过 `orders/:id/shipments/:shipmentId/refresh-tracking` 端点回写。
 
 ## 扩展建议
 

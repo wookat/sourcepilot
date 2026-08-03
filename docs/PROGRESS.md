@@ -1465,3 +1465,12 @@ Final Production Acceptance Deferred to P10
 - `POST /api/v1/products` operator 由 forbid 改回 allow（round83 收紧的产品口径补全）：请求体新增可选 `shopId`，operator 必填且须属其授权范围（不传 400、越权 404 不泄露存在性、仅 view 授权 403 40303），校验全部发生在写入前，被拒绝零落库；创建成功在同一事务写入 `product_platform_publish_configs` 关联，草稿按既有可见性口径对创建者可见。admin 保持现口径（`shopId` 可选）；readonly 仍路由级 403。
 - 前端新建草稿弹窗增加「归属店铺」选择（operator 必填含中文引导、下拉由后端店铺 scope 只列授权店铺；admin 可选）。
 - 权限矩阵 operator=allow 已登记并复跑契约测试；回归测试 `product/create_scope_test.go` 全场景重写（含零脏数据断言）；E2E 补 operator 建草稿动线。docs/api.md、docs/permission-matrix.md 已同步。
+
+### 变更记录（2026-08-03）第 91 轮：打单发货物流闭环（物流商 / 运单 / 轨迹 Provider 预留 / 拣货单打印）
+
+- 物流商管理：新增 `carriers` 表与 `carrier` 模块（租户隔离，`GET/POST/PUT/DELETE /api/v1/carriers`），按租户幂等预置国内常用快递（顺丰/京东/中通/圆通/申通/韵达/邮政EMS/极兔/德邦/其他，含轨迹 URL 模板），支持自定义新增与启停；预置不可删除只可停用。前端新增设置页 `/settings/carriers`。
+- 运单模型升级：`order_shipments` 补 `carrier_id`/`carrier_code`/`tracking_url`（保留 `carrier` 名称快照，legacy 自由文本兼容）；传 `carrierCode` 时关联已启用物流商并按其规则宽松校验运单号（顺丰/京东/EMS 专用、其余通用 6~40 位）、自动补轨迹 URL。发货弹窗（列表/详情）升级为物流商选择（AutoComplete，自由文本兼容）。
+- 批量粘贴发货升级：第三列物流商（代码/名称/前缀）+ `defaultCarrierCode` 默认物流商下拉，旧两列格式兼容（沿用「其他快递」）。
+- 轨迹 Provider 预留：`providers/tracking`（`TrackingProvider` 接口 + `manual` provider，不接真实 API），`POST /orders/:id/shipments/:shipmentId/refresh-tracking` 端点返回 manual 口径；手工编辑物流状态推动订单在途→送达既有流转不变。
+- 拣货/发货单打印：`GET /api/v1/orders/print/sheets?ids=`（≤50 单，店铺 scope）+ 前端打印页 `/orders/print`（订单+收件人+SKU 明细+物流商+运单号+贴单区，浏览器打印，非电子面单），订单列表勾选后「打印拣货单」入口。
+- 权限矩阵登记 6 条新路由（readonly 写 403、operator 店铺 scope），docs/api.md / module-map / permission-matrix / provider.md 同步；demo seed 补物流商预置与顺丰运单样本；契约测试补 7 端点。回归：carrier `service_test.go`、order `carrier_shipment_test.go`。

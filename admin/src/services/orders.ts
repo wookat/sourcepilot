@@ -7,6 +7,8 @@ export type OrderShipmentRow = {
   id: string;
   orderId: string;
   carrier: string;
+  carrierId?: string;
+  carrierCode?: string;
   trackingNo: string;
   trackingUrl?: string;
   status: string;
@@ -305,9 +307,53 @@ export type BatchShipmentsResult = {
 };
 
 export async function batchCreateOrderShipments(
-  items: { orderNo: string; trackingNo: string; carrier?: string }[],
+  items: { orderNo: string; trackingNo: string; carrier?: string; carrierCode?: string }[],
+  defaultCarrierCode?: string,
 ): Promise<BatchShipmentsResult> {
-  return postJSON('/api/v1/orders/shipments/batch', { items });
+  return postJSON('/api/v1/orders/shipments/batch', { items, defaultCarrierCode });
+}
+
+export type PrintSheetItem = {
+  productTitle: string;
+  skuName?: string;
+  skuCode?: string;
+  sellerSku?: string;
+  quantity: number;
+};
+
+export type PrintSheetShipment = {
+  carrier: string;
+  carrierCode?: string;
+  trackingNo?: string;
+  status: string;
+};
+
+export type PrintSheet = {
+  orderId: string;
+  orderNo: string;
+  platform: string;
+  shopName?: string;
+  customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  remark?: string;
+  orderedAt?: string;
+  items: PrintSheetItem[];
+  shipments: PrintSheetShipment[];
+};
+
+export async function getOrderPrintSheets(ids: string[]): Promise<PrintSheet[]> {
+  const data = await getWithParams<{ items: PrintSheet[] }>('/api/v1/orders/print/sheets', {
+    ids: ids.join(','),
+  });
+  return data.items || [];
+}
+
+export async function refreshShipmentTracking(
+  orderId: string,
+  shipmentId: string,
+): Promise<{ provider: string; supported: boolean; message: string; shipment: OrderShipmentRow }> {
+  return postJSON(`/api/v1/orders/${orderId}/shipments/${shipmentId}/refresh-tracking`, {});
 }
 
 export async function deductOrderInventory(

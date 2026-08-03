@@ -65,8 +65,12 @@ func (OrderItem) TableName() string { return "order_items" }
 // OrderShipment is logistics info for one package / tracking segment.
 type OrderShipment struct {
 	model.HardDeleteBase
-	OrderID     uuid.UUID      `gorm:"type:char(36);index;not null" json:"orderId"`
+	OrderID uuid.UUID `gorm:"type:char(36);index;not null" json:"orderId"`
+	// Carrier keeps the display-name snapshot; CarrierID / CarrierCode link
+	// the tenant carrier the waybill was booked with (nil for legacy rows).
 	Carrier     string         `gorm:"size:128;not null" json:"carrier"`
+	CarrierID   *uuid.UUID     `gorm:"type:char(36);index" json:"carrierId,omitempty"`
+	CarrierCode string         `gorm:"size:64;index" json:"carrierCode,omitempty"`
 	TrackingNo  string         `gorm:"size:255;not null;index" json:"trackingNo"`
 	TrackingURL string         `gorm:"type:text" json:"trackingUrl,omitempty"`
 	Status      string         `gorm:"size:32;index;not null" json:"status"`

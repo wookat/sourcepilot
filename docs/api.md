@@ -702,10 +702,23 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `GET` | `/api/v1/orders/stats/daily` | 经营报表按日统计：`?days=30`（默认 30，最大 90），返回 `{generatedAt, days, items:[{date: YYYY-MM-DD, orderCount, paidCount, shippedCount, paidAmounts:[{currency, amount, orders}]}]}`；口径与 `stats/sales` 一致（当前租户、软删除订单不计入，已发货口径同 `stats/sales` 的 `shippedCount`），店铺 scope 与订单列表一致（非 admin 按授权店铺过滤）。 |
 | `GET` | `/api/v1/orders/stats/daily/export.csv` | 导出经营报表逐日明细 CSV：`?days=30`（默认 30，最大 90），只读端点（readonly 可用），数据、口径与 scope 与 `stats/daily` 完全一致；UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内出现的每个币种一列「已付款销售额(币种)」（币种字典序），空日期行补 0。 |
 | `GET` | `/api/v1/orders/shipping-list/export.csv?ids=` | 批量导出发货清单 CSV：`ids` 为逗号分隔销售订单 UUID（去重后 ≤50 个），逐单合并明细行（「订单号」列区分来源，含客户名/电话/商品/SKU/数量/币种/金额），「快递单号(回填)」「承运商(回填)」列留空供线下打单后回填批量发货；任一 id 不在租户内返回 404。 |
-| `POST` | `/api/v1/orders/shipments/batch` | 批量发货：`{items:[{orderNo, trackingNo, carrier?}]}`（≤200 条），按订单号在租户内匹配销售订单并新增 `shipped` 物流（订单自动流转）；未付款/已取消/未找到/重复订单号逐行失败，返回 `{succeeded, failed, results[]}`；成功行附 `inventoryDeducted`（该订单是否已有成功库存扣减；发货本身不扣库存，仅提示口径）。 |
-| `POST` | `/api/v1/orders/:id/shipments` | 新增物流记录：`{carrier, trackingNo?, trackingUrl?, status?, shippedAt?, deliveredAt?}`；`status` 缺省 `pending`。 |
+| `POST` | `/api/v1/orders/shipments/batch` | 批量发货：`{items:[{orderNo, trackingNo, carrier?, carrierCode?}], defaultCarrierCode?}`（≤200 条），按订单号在租户内匹配销售订单并新增 `shipped` 物流（订单自动流转）；R91 起支持第三列物流商（代码/名称/名称前缀均可，仅限已启用物流商）与 `defaultCarrierCode` 默认物流商；旧两列格式兼容（无物流商时沿用「其他快递」）；命中物流商时按其规则宽松校验运单号并自动补轨迹 URL；未付款/已取消/未找到/重复订单号/运单号校验失败逐行失败，返回 `{succeeded, failed, results[]}`；成功行附 `inventoryDeducted`（该订单是否已有成功库存扣减；发货本身不扣库存，仅提示口径）。 |
+| `POST` | `/api/v1/orders/:id/shipments` | 新增物流记录：`{carrier, carrierCode?, trackingNo?, trackingUrl?, status?, shippedAt?, deliveredAt?}`；`status` 缺省 `pending`；传 `carrierCode` 时关联租户内已启用物流商（回写 `carrierId` 与名称快照，按物流商规则宽松校验运单号、自动补轨迹 URL）；不传保持自由文本承运商兼容。 |
 | `PUT` | `/api/v1/orders/:id/shipments/:shipmentId` | 更新物流记录（同上字段）。 |
 | `DELETE` | `/api/v1/orders/:id/shipments/:shipmentId` | 删除物流记录。 |
+| `GET` | `/api/v1/orders/print/sheets?ids=` | 拣货/发货单打印数据：`ids` 为逗号分隔销售订单 UUID（去重后 ≤50），返回 `{items:[{orderNo, platform, shopName, customerName/Phone/Email, remark, orderedAt, items[], shipments[]}]}` 供浏览器打印页渲染（人工贴单，非电子面单）；越权/不存在 404，店铺 scope 同订单详情。 |
+| `POST` | `/api/v1/orders/:id/shipments/:shipmentId/refresh-tracking` | 轨迹刷新（Provider 预留）：当前仅 `manual` provider，返回 `{provider:"manual", supported:false, message, shipment}` 不调真实 API；轨迹状态仍通过手工编辑物流状态推动订单在途→送达既有流转。 |
+
+### 物流商管理（carriers，round91）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/carriers` | 物流商列表（租户隔离）：`?enabled=1&keyword=`；首次访问自动为租户幂等预置国内常用快递（顺丰/京东/中通/圆通/申通/韵达/邮政EMS/极兔/德邦/其他）；返回 `{items:[{id, code, name, enabled, isPreset, trackingUrlTemplate, sortOrder}]}`。 |
+| `POST` | `/api/v1/carriers` | 新增自定义物流商：`{code, name, trackingUrlTemplate?, sortOrder?}`；`code` 限 `^[a-z0-9_-]{1,64}$` 且租户内唯一。 |
+| `PUT` | `/api/v1/carriers/:id` | 更新物流商（启停 `enabled`、改名、轨迹模板、排序）；预置物流商可停用。 |
+| `DELETE` | `/api/v1/carriers/:id` | 删除自定义物流商；预置物流商不可删除（400），只能停用。 |
+
+运单号校验（宽松）：顺丰 `SF+10~15 位数字`、京东 `JD+10~18 位`、EMS `两字母+9 数字+两字母`；其余物流商统一 `6~40 位字母数字横线`；自由文本承运商（不传 `carrierCode`）不校验，保持旧行为。
 
 物流写入时的自动流转（仅前进、不回退，按订单生命周期 rank 判定）：
 

@@ -48,6 +48,7 @@ import {
   restoreOrderInventory,
   updateOrder,
   updateOrderItem,
+  refreshShipmentTracking,
   updateOrderShipment,
   type OrderDetailDTO,
   type OrderItemRow,
@@ -56,6 +57,7 @@ import {
 } from '@/services/orders';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
+import CarrierSelect, { matchCarrier, useEnabledCarriers } from '@/components/CarrierSelect';
 import { PRODUCT_COPY } from '@/constants/copywriting';
 import {
   INVENTORY_DEDUCT_STATUS,
@@ -108,6 +110,8 @@ export default function OrderDetailPage() {
   const [invRows, setInvRows] = useState<OrderInventoryEffectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const { carriers, loading: carriersLoading } = useEnabledCarriers();
+  const [refreshingShipmentId, setRefreshingShipmentId] = useState('');
   const [shipModal, setShipModal] = useState<{ open: boolean; row?: OrderShipmentRow | null }>({
     open: false,
   });
@@ -821,7 +825,7 @@ export default function OrderDetailPage() {
                     locale={{ emptyText: '暂无物流记录' }}
                     scroll={{ x: 720 }}
                     columns={[
-                      { title: '承运商', dataIndex: 'carrier', width: 120 },
+                      { title: '物流商', dataIndex: 'carrier', width: 120 },
                       { title: '运单号', dataIndex: 'trackingNo', width: 160, render: (v) => v || '—' },
                       {
                         title: '状态',
@@ -858,10 +862,31 @@ export default function OrderDetailPage() {
                         ? [
                             {
                               title: '操作',
-                              width: 120,
+                              width: 180,
                               render: (_: unknown, row: OrderShipmentRow) => (
                                 <Space>
                                   <Typography.Link onClick={() => openShipModal(row)}>编辑</Typography.Link>
+                                  <Typography.Link
+                                    disabled={refreshingShipmentId === row.id}
+                                    onClick={async () => {
+                                      setRefreshingShipmentId(row.id);
+                                      try {
+                                        const res = await refreshShipmentTracking(detail.id, row.id);
+                                        if (res.supported) {
+                                          message.success(res.message);
+                                          await load();
+                                        } else {
+                                          message.info(res.message);
+                                        }
+                                      } catch (e) {
+                                        message.error((e as Error)?.message || '刷新轨迹失败');
+                                      } finally {
+                                        setRefreshingShipmentId('');
+                                      }
+                                    }}
+                                  >
+                                    刷新轨迹
+                                  </Typography.Link>
                                   <Popconfirm
                                     title="确认删除该物流记录？"
                                     onConfirm={async () => {
@@ -998,10 +1023,12 @@ export default function OrderDetailPage() {
           const v = await shipForm.validateFields();
           if (!detail) return;
           try {
+            const matched = matchCarrier(carriers, v.carrier as string);
+            const payload = { ...v, carrierCode: matched?.code } as Record<string, unknown>;
             if (shipModal.row) {
-              await updateOrderShipment(detail.id, shipModal.row.id, v as Record<string, unknown>);
+              await updateOrderShipment(detail.id, shipModal.row.id, payload);
             } else {
-              await createOrderShipment(detail.id, v as Record<string, unknown>);
+              await createOrderShipment(detail.id, payload);
             }
             message.success('已保存');
             setShipModal({ open: false });
@@ -1021,8 +1048,13 @@ export default function OrderDetailPage() {
               description="发货不会自动扣减库存；保存后可到「库存影响」Tab 手工扣减，避免库存与实际不符。"
             />
           ) : null}
-          <Form.Item name="carrier" label="承运商" rules={[{ required: true, message: '请填写承运商' }]}>
-            <Input placeholder="如：云途物流 / J&T" />
+          <Form.Item
+            name="carrier"
+            label="物流商"
+            rules={[{ required: true, message: '请选择或填写物流商' }]}
+            extra="选择预置物流商可按其规则校验运单号；也可直接输入自定义承运商名称"
+          >
+            <CarrierSelect carriers={carriers} loading={carriersLoading} />
           </Form.Item>
           <Form.Item name="trackingNo" label="运单号">
             <Input />
