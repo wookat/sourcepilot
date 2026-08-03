@@ -1,3 +1,5 @@
+import { forwardRef } from 'react';
+import type { HTMLAttributes } from 'react';
 import { Tag } from 'antd';
 import { commonStatusLabel } from '@/constants/copywriting';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
@@ -10,7 +12,7 @@ export type StatusTagProps = {
   text?: string;
   color?: StatusColor;
   className?: string;
-};
+} & Omit<HTMLAttributes<HTMLSpanElement>, 'color'>;
 
 const STATUS_COLOR_MAP: Record<string, StatusColor> = {
   pending: 'processing',
@@ -47,15 +49,20 @@ const STATUS_COLOR_MAP: Record<string, StatusColor> = {
   revoked: 'default',
 };
 
-/** 统一状态 Tag */
-export default function StatusTag({ status, text, color, className }: StatusTagProps) {
+/** 统一状态 Tag；转发 ref 与 DOM 属性，可被 Tooltip 等组件直接包裹 */
+const StatusTag = forwardRef<HTMLElement, StatusTagProps>(function StatusTag(
+  { status, text, color, className, ...rest },
+  ref,
+) {
   const k = (status ?? '').trim().toLowerCase();
   const collectMeta = k ? COLLECT_TASK_STATUS[k as keyof typeof COLLECT_TASK_STATUS] : undefined;
   const label = text ?? collectMeta?.text ?? commonStatusLabel(status);
   const tagColor = color ?? collectMeta?.color ?? STATUS_COLOR_MAP[k] ?? 'default';
   return (
-    <Tag color={tagColor as never} className={className}>
+    <Tag ref={ref} color={tagColor as never} className={className} {...rest}>
       {label}
     </Tag>
   );
-}
+});
+
+export default StatusTag;
