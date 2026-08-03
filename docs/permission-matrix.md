@@ -106,6 +106,13 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - sourcing 货源/价格历史、imagetask 任务明细、aioperationbatch 批次子资源、productpublish 发布记录/SKU 绑定、ordersync `POST /shops/:id/sync-orders` 统一补父资源 tenant（+店铺）scope，越权/跨租户 404，不泄露存在性；见 docs/api.md「业务子资源 scope 口径（round71）」。
 - 数据级回归证据：各模块 `subresource_scope_test.go`（三角色 + 跨租户 404 + 越权写无副作用）。路由级守卫矩阵不变（本轮未新增端点）。
 
+## round72 AI 批次租户建模（R71 遗留收口）
+
+- `ai_operation_batches` 新增 `tenant_id` 列（默认 0，索引 `idx_ai_op_batches_tenant_created`）；创建批次（`POST /ai/batches/product-text|product-images`）写入当前租户。
+- `GET /ai/batches` 列表按 `ApplyTenantScope` 过滤（此前无租户过滤）；详情/子资源（`/:id`、`/:id/tasks`、`retry-failed`、`apply-results`）改按 `tenant_id` 列校验，跨租户 404 口径与 round71 一致。批次无店铺维度，admin/operator/readonly 同租户口径一致。
+- 存量 backfill（`migrateRound72AIBatchTenant`，随迁移自动执行）：按 `created_by` → `admin_users.tenant_id` 推导；推导不出（无创建人/创建人已删）保持租户 0（legacy 单租户桶，不放大可见性）。未 backfill 的 tenant-0 且有创建人的行，`ensureBatchVisible` 回退按创建人租户校验（与 round71 口径一致）。
+- 回归证据：`aioperationbatch` 模块 `TestAIOperationBatchTenantColumnScope`（三角色列表过滤 + 跨租户 404 + backfill/回退口径）与既有 `TestAIOperationBatchScopedByTenant`。路由级守卫矩阵不变（本轮未新增端点）。
+
 ## docs/api.md 口径差异说明
 
 - docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。

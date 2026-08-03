@@ -1339,4 +1339,11 @@ Final Production Acceptance Deferred to P10
   - productpublish：`GET /products/:id/publications` 补父商品 tenant scope 并按店铺 scope 过滤发布行；`GET /product-publications/:id/douyin/sku-bindings` 及 sync/手工绑定/解绑写路径统一走 `loadDouyinPublicationScoped`（父商品 tenant + `EnsureStoreVisible` 店铺 scope）。发布行无租户列，按父商品归属校验。
   - ordersync：`POST /shops/:id/sync-orders` 补店铺 tenant+店铺 scope（与 GET/retry 口径一致），新建任务写入店铺 `tenant_id`（此前恒为 0）。
 - 回归单测：五个模块各补三角色（同租户 admin / 跨租户 admin / operator 店铺授权与否）+ 跨租户 404 + 越权写无副作用的 `subresource_scope_test.go` / `task_scope_test.go` 同款用例。
-- 无「不宜收口」项；`GET /ai/batches`（列表）无租户过滤属遗留（批次表无租户列，需建模后收口），已记录为后续复扫项。
+- 无「不宜收口」项；`GET /ai/batches`（列表）无租户过滤属遗留（批次表无租户列，需建模后收口），已记录为后续复扫项。→ 已于第 72 轮收口（见下）。
+
+### 变更记录（2026-08-03）第 72 轮：AI 批次租户建模（R71 遗留收口）
+
+- `ai_operation_batches` 新增 `tenant_id` 列（默认 0、`json:"-"` 不进 DTO；索引 `idx_ai_op_batches_tenant_created`）；创建批次写入当前租户。
+- 存量 backfill（`database.migrateRound72AIBatchTenant`，随迁移自动执行）：按 `created_by` → `admin_users.tenant_id` 推导；推导不出（无创建人/创建人已删）保持租户 0（legacy 单租户桶，不放大可见性）。
+- `GET /ai/batches` 列表接入 `adminperm.ApplyTenantScope`（此前无租户过滤）；`ensureBatchVisible` 改按 `tenant_id` 列校验，未 backfill 的 tenant-0 且有创建人的行回退按创建人租户（与 R71 `GetScoped` 口径一致）；详情/子资源跨租户仍统一 404。批次无店铺维度，各角色同租户口径一致。
+- 回归单测：`TestAIOperationBatchTenantColumnScope`（三角色列表过滤 + 跨租户 404 + 缺租户上下文报错 + backfill/回退口径）；docs/api.md「AI 批次租户口径（round72）」与 docs/permission-matrix.md「round72」已登记。

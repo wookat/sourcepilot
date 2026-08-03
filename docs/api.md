@@ -238,6 +238,11 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 - productpublish：`GET /products/:id/publications` 先校验父商品 tenant，再按店铺 scope 过滤发布行；`GET /product-publications/:id/douyin/sku-bindings`（及 sync/绑定/解绑写路径）先校验发布记录父商品 tenant + 店铺 scope。
 - ordersync：`POST /shops/:id/sync-orders` 先校验店铺 tenant + 店铺 scope（与 GET/retry 一致）；新建同步任务写入店铺所属 `tenant_id`。
 
+### AI 批次租户口径（round72）
+
+- `ai_operation_batches` 新增 `tenant_id` 列；创建批次写入当前租户，存量按 `created_by` 所属租户 backfill（推导不出保持租户 0，不放大可见性）。
+- `GET /api/v1/ai/batches` 列表按当前租户过滤；`GET /ai/batches/:id`、`GET /ai/batches/:id/tasks`、`POST /ai/batches/:id/retry-failed`、`POST /ai/batches/:id/apply-results` 按 `tenant_id` 列校验（未 backfill 的 tenant-0 行回退按创建人租户），跨租户统一 **404**，不泄露存在性；正常授权路径行为与 DTO 不变（`tenant_id` 不出现在响应中）。
+
 ## Dev / Demo 种子（非 production）
 
 | 方法 | 路径 | 说明 |

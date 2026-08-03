@@ -304,6 +304,10 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	applyModeStr := applyModeTaskOnly
 	if saveField {
 		applyModeStr = applyModeSaveAIField
@@ -317,6 +321,7 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 	inJSON, _ := json.Marshal(inSum)
 
 	batch := &AIOperationBatch{
+		TenantID:      tenantID,
 		BatchNo:       batchNo,
 		OperationType: op,
 		Status:        StatusRunning,
@@ -573,6 +578,10 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 	if len(ids) == 0 {
 		return nil, fmt.Errorf("no products matched")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 
 	batchNo, err := s.nextBatchNo(ctx)
 	if err != nil {
@@ -582,6 +591,7 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 	inJSON, _ := json.Marshal(inSum)
 
 	batch := &AIOperationBatch{
+		TenantID:      tenantID,
 		BatchNo:       batchNo,
 		OperationType: op,
 		Status:        StatusRunning,
@@ -846,6 +856,10 @@ func (s *Service) ListBatches(c *gin.Context, q ListBatchesQuery) ([]AIOperation
 		ps = 100
 	}
 	tx := s.DB.WithContext(c.Request.Context()).Model(&AIOperationBatch{})
+	tx, _, err := adminperm.ApplyTenantScope(c, tx)
+	if err != nil {
+		return nil, 0, err
+	}
 	if v := strings.TrimSpace(q.OperationType); v != "" {
 		tx = tx.Where("operation_type = ?", v)
 	}
@@ -897,9 +911,10 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*AIOperationBatch,
 }
 
 // ensureBatchVisible verifies the batch belongs to the request's tenant via
-// its creator admin user (batches have no tenant column). Cross-tenant access
-// returns gorm.ErrRecordNotFound so endpoints respond 404 without leaking
-// existence. Legacy rows without a creator are treated as tenant 0 data.
+// the tenant_id column. Rows still at tenant 0 with a creator (not yet
+// backfilled) fall back to the creator admin user's tenant. Cross-tenant
+// access returns gorm.ErrRecordNotFound so endpoints respond 404 without
+// leaking existence. Legacy rows without a creator are treated as tenant 0.
 func (s *Service) ensureBatchVisible(c *gin.Context, b *AIOperationBatch) error {
 	if s == nil || s.DB == nil || b == nil {
 		return fmt.Errorf("no db")
@@ -908,17 +923,15 @@ func (s *Service) ensureBatchVisible(c *gin.Context, b *AIOperationBatch) error 
 	if err != nil {
 		return err
 	}
-	if b.CreatedBy == nil {
-		if tid == 0 {
-			return nil
+	batchTenant := b.TenantID
+	if batchTenant == 0 && b.CreatedBy != nil {
+		var u admin.AdminUser
+		if err := s.DB.WithContext(c.Request.Context()).Select("id", "tenant_id").First(&u, "id = ?", *b.CreatedBy).Error; err != nil {
+			return err
 		}
-		return gorm.ErrRecordNotFound
+		batchTenant = u.TenantID
 	}
-	var u admin.AdminUser
-	if err := s.DB.WithContext(c.Request.Context()).Select("id", "tenant_id").First(&u, "id = ?", *b.CreatedBy).Error; err != nil {
-		return err
-	}
-	if u.TenantID != tid {
+	if batchTenant != tid {
 		return gorm.ErrRecordNotFound
 	}
 	return nil
