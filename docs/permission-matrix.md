@@ -127,6 +127,13 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 平台管理员正向路径与非平台角色 403、越权无副作用由 `platformtenant` 模块 `api_test.go` 覆盖（tenant0 admin 开租成功、初始管理员落新租户 admin、tenant1 admin / tenant0 operator / tenant0 readonly 403）。
 - 开租写操作日志 `tenant.create`（不含密码）；`/auth/register` 行为不变（不提供自助开租）。
 
+## round82 租户治理与平台管理员 persona
+
+- harness 新增第五个 persona `platformAdmin`（tenant 0 + 角色 admin，即平台管理员）。它是**可选 persona**：仅在 matrix.json 条目显式声明时参与探测；未声明的路由不强制登记（避免为全部存量路由补平台管理员口径的大改动）。
+- 平台租户管理全部 5 条路由（`GET/POST /platform/tenants`、`PUT /platform/tenants/:id`、`POST /platform/tenants/:id/disable|enable`）均登记 `platformAdmin: allow`，矩阵四常规角色一律 `forbid`（统一 403，收紧优先）。
+- 治理语义：租户可停用/启用/改名（不提供删除）；tenant 0 不可停用/改名（handler 400）；不存在的租户 404。停用后该租户所有账号登录拒绝、已有会话下次请求失效（错误码 `AUTH_TENANT_DISABLED`），由登录 / refresh / `ValidateSessionAccess` 三处统一强制，模块级证据：`auth` 包 `tenant_state_test.go`、`platformtenant` 包 `api_test.go`。
+- 全部治理操作写操作日志（`tenant.rename` / `tenant.disable` / `tenant.enable`）。
+
 ## round83 手工建草稿限管理员（R82 双租户回归 P2 收口）
 
 - `POST /api/v1/products`（手工新建草稿）operator 由 `allow` 改为 `forbid`：新建草稿无店铺关联，按商品可见性口径（未关联店铺的草稿仅 admin 可见）operator 创建后自己永远不可见；修复前校验发生在写入后，返回 400 `record not found` 且残留孤儿行。

@@ -70,7 +70,6 @@
 
 **Stage update**: 2026-07-11 — **Phase P2 Fully Closed（生产能力可靠性收口）**。AI apply/undo 幂等、Webhook HTTP 接收地基、六大生产 Worker 统一 tasklease、WSL2 `-race` 通过（无 data race）、P2.1 三 warning 清零、P2.2 静态扫描通过。策略：**Phase P2 Fully Closed** · **Production Capability Development In Progress** · **AI Result Application Idempotency Ready** · **Webhook Receiver Foundation Ready** · **All Production Workers Lease-Protected** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **非 Production Ready** · **抖店 Release Candidate** · **Final Acceptance Deferred**（AI Provider Key 可能仍为 environment_blocked）。
 
-
 **Stage update**: 2026-07-11 — **Phase P2.2 AI 文案/图片 apply+undo 幂等完成**。`keys.go` 扩展 `ai-text-apply/undo`、`ai-image-apply/undo`；`aiproducttext`/`aiproductimage` 接入 `idempotency.Service`；目标版本冲突码；生成 Worker `WHERE status=running` 写回守卫；`set_main` undo 恢复 `previousBestMainId`；并发单测通过。策略：**Production Capability Development In Progress** · **非 Production Ready**。
 
 **Stage update**: 2026-07-11 — **Phase P2.2 Webhook HTTP 接收地基完成**。公开 `POST /api/v1/webhooks/:platform/:eventType`（无 JWT）；签名/时间戳/体限制；幂等持久化后快速 ACK；DB 轮询异步 noop 处理；`WEBHOOK_*` 配置。策略：**Production Capability Development In Progress** · **非 Production Ready**。
@@ -415,7 +414,6 @@
 ### 3.1a 变更记录（2026-05-17）
 
 1. **订单库存扣减基座**：… 2. **`order.Handler`/`ordersync`** 链式调用。3. **SKU 自动匹配（2026-05-17）**：**`order_item_sku_matches`**、**`MatchOrderItemsForOrder`**、管理端 **`/orders/sku-matches`** 与设置扩展。4. **库存预警基础（2026-05-17）**：**`product_skus` 阈值列**、**`GET /api/v1/inventory/alerts`**、**`PUT …/stock-settings`**、**`settings.inventory`** 预警默认项、管理端 **`/inventory/alerts`** 与草稿 **「库存」Tab**；**预警只读、不自动改库存/不回写平台**；本节仅作文档对齐。
-
 
 ### 3.2 后端（`backend/`）
 
@@ -1180,7 +1178,6 @@ Final Production Acceptance Deferred to P10
 - 修复演练发现缺陷：① backend 镜像缺 `pg_dump`/`pg_restore`/`psql` 导致 `/api/v1/ops/backups` 生产必失败，Dockerfile 增装 PGDG postgresql-client-16；② GORM record-not-found 按错误打完整 SQL（含账号入参）入生产日志，database.go 改用 `IgnoreRecordNotFoundError: true`；③ `.env.prod.example` 澄清 `BACKUP_SCHEDULE` 仅为元数据、每日自动备份须配宿主机 crontab。
 - 新增 `docs/production-launch-checklist.md`：资源清单（服务器/域名/DNS/防火墙）、逐步上线命令、回滚方案、上线后验证清单。
 
-
 - 修复第 45 轮 UX 走查 P1：JWT 过期后提交表单遇 401 直接 `window.location.assign` 跳登录页，弹窗内未保存内容全部丢失。新增前端会话守卫（`admin/src/utils/sessionGuard.ts`）：
   - 401 处理链路改为 umi `responseInterceptors` 内先静默续期（复用后端既有 `POST /api/v1/auth/refresh`，secure_session 走 HttpOnly cookie、legacy 走响应体 refreshToken），成功后原样重放原请求，调用方无感知；续期不可用/失败时在当前页弹「登录已过期」重新登录弹窗（`SessionExpiredModal`，挂载于 innerProvider），重登成功后同样重放请求，页面与表单状态不丢失；用户选择「去登录页」才清凭证跳转。
   - 临期静默续期：登录/注册开始保存 `expiresAt`（及 legacy 模式的 refreshToken），请求拦截器在 token 剩余有效期 < 5 分钟时先 single-flight 续期再发请求；续期失败有 60s 冷却，legacy 无 refreshToken 时直接跳过续期走重登弹窗。
@@ -1239,7 +1236,6 @@ Final Production Acceptance Deferred to P10
 - 新增 `backend/cmd/seeddemo`（`pnpm seed:demo:full` / `seed:demo:full:clean` / `seed:demo:full:verify`）：向指定租户（`-tenant`，默认 0）直接写库生成贯穿全链路的演示数据——店铺 ×2、商品草稿 ×5（采集/手动来源、AI 优化前后文案、主图、SKU ×10 含低库存告警样本）、供应商 + 货源档案 + 货源 SKU 映射 + 价格历史、销售订单覆盖 pending/paid/shipped/delivered/cancelled（含物流记录与 SKU 匹配/未匹配样本）、采购单覆盖 draft→delivered 全链 9 状态（不含作废，#85 未合并）、库存变动流水（订单扣减/采购入库/手动盘点）、库存同步批次与任务（成功+失败）、订单同步 partial_success、异常工作台 handled 标记。
 - 所有数据带 `DEMO-` 前缀；seed 幂等（先清后建，重复执行计数一致）；clean 只删 DEMO- 前缀数据并级联子表，verify 复核零残留；采购单状态链逐步经 `procurement.CanTransition` 校验并写 `purchase_order_events`，订单生命周期经 `order.ValidateOrderStateTransition` 校验，不产生非法状态；`APP_ENV=production` 拒绝执行；不改任何 API/权限。种子实现复用 `internal/modules/demoseed` 模块（`FullDemoSeeder`），附单测（状态链合法性/前缀/生产环境守卫）。
 - 同步 `docs/development.md`、`README.md`、`README.en.md`、`package.json`。
-
 
 ### 变更记录（2026-08-02）迭代第 56 轮：本地模式备份→下载→校验→恢复演练最小真实闭环
 
@@ -1385,9 +1381,19 @@ Final Production Acceptance Deferred to P10
 - 前端 401 竞态收口：`sessionGuard` 的 `requireRelogin` single-flight 扩展到「弹窗未注册」窗口（硬刷新首屏并发 401 等待 `SessionExpiredModal` 注册后共享同一次重登引导，超时兜底 false）；`redirectToLoginPage` 并发去重只跳转一次。
 - 回归：后端 `TestPublishBatchScopedByTenant` / `TestFailedTargetsFromBatchScopedByTenant` / `TestPublishMutationEndpointsCrossTenant404`；前端 sessionGuard 新增硬刷新并发 401 用例；docs/api.md、permission-matrix.md「round81」、PUBLISH_BATCH_MIGRATION.md 已登记。Docker 双租户实测（PostgreSQL）：批次详情/重试/取消与任务 retry/cancel/recover 跨租户全部 404，列表互不可见。
 
+### 变更记录（2026-08-03）第 82 轮：平台租户治理（停用/启用/改名）
+
+- 租户生命周期（不做删除）：`tenants` 表新增 `status`（active/disabled）；新增 `PUT /platform/tenants/:id`（改名）、`POST /platform/tenants/:id/disable|enable`；tenant 0 不可停用/改名（400）、不存在 404、重名 400；全部操作写操作日志（`tenant.rename` / `tenant.disable` / `tenant.enable`）。
+- 停用强制：登录（legacy/secure）、refresh 轮换、`ValidateSessionAccess`（每次 Bearer 请求）三处统一检查租户状态，租户停用返回 401 `AUTH_TENANT_DISABLED`（前端中文提示「租户已被停用」），已有会话下次请求即失效；无 `tenants` 行的 legacy 租户与 tenant 0 恒为 active（fail-open，避免误锁全站）。
+- 权限矩阵：harness 新增可选 persona `platformAdmin`（tenant0 admin），平台租户 5 条路由全部登记（platformAdmin allow、四常规角色 forbid 403）；模块证据 `auth/tenant_state_test.go`、`platformtenant/api_test.go`。
+- Admin 前端：平台租户页新增状态列与改名/停用/启用入口（Modal 二次确认，停用为危险操作文案），仅平台管理员可见；E2E `round82-tenant-govern.spec.ts`（写请求 mock + 取消不发请求 + 非平台角色 403）。
+- R81 遗留 UX：操作日志「路径」「说明」列补数值列宽（220/240），按 TmProTable 列宽口径参与横向滚动估算，默认视口不再被挤出。
+- docs/api.md、docs/permission-matrix.md 已同步。
+
 ### 变更记录（2026-08-03）第 83 轮：草稿创建脏数据收口 + 引导管理员租户口径 + React warning 清理（R82 遗留 P2）
 
 - P2 修复：`POST /api/v1/products` 手工新建草稿此前对 operator 先落库后做可见性校验，校验失败返回 400 但残留孤儿行。现 `product.Service.Create` 在写入前做 principal 校验：新草稿无店铺关联，仅 admin 可见/可建，非 admin 统一 403 且不落库；权限矩阵 operator 由 allow 改 forbid（见 docs/permission-matrix.md「round83」）。前端草稿列表「新建草稿」按钮改为仅 admin 显示。
 - 引导管理员租户口径：设计意图确认为「引导账号 = tenant 0 平台管理员」（平台租户治理入口）。代码默认本就是 0，本轮把 `.env.example` / `.env.docker.example` 的 `ADMIN_BOOTSTRAP_TENANT_ID` 由 1 收口为 0，并在 docs/env.md 说明（显式 >0 配置仍兼容遗留单租户部署；仅 admin_users 为空首次创建生效，不迁移存量）。
 - React console warning 清理（R82 报告 5 条）：Settings/Users 店铺权限弹窗 `Form.List` 行内 `{...field}` 展开重复传 `key`（4 条 duplicate key warning）改为解构 `{ key, name, ...restField }`；「新建用户」弹窗 `destroyOnHidden` 导致 `useForm` 未连接 warning，改为 `forceRender` + 取消时 `resetFields`。
 - 回归：`product/create_scope_test.go`（operator/readonly 403 + 0 残留行、admin 正常创建）；权限矩阵契约复跑；go fmt/vet/build/test、pnpm test:frontend/build:admin/test:contracts；Docker 实测两条动线（operator 建草稿 403 无残留、bootstrap 账号落 tenant 0 可开租）。
+

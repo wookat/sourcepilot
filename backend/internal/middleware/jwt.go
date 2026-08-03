@@ -66,6 +66,12 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 				c.Abort()
 				return
 			}
+		} else if db != nil {
+			if err := auth.EnsureTenantActive(c.Request.Context(), db, claims.TenantID); err != nil {
+				response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+				c.Abort()
+				return
+			}
 		}
 		c.Set(ctxkey.AdminID, claims.Subject)
 		c.Set(ctxkey.AdminUsername, claims.Username)
