@@ -1,5 +1,6 @@
 import type { DashboardRecentItem } from '@/services/dashboard';
 import { aiTaskTypeLabel } from '@/constants/aiPrompts';
+import { PLATFORM_DISPLAY_LABEL } from '@/constants/platformLabels';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { taskTypeLabel, translateLayoutWarningLabel } from '@/services/imageTasks';
 
@@ -83,6 +84,15 @@ const IMAGE_TASK_RAW = new Set([
   'enhance',
 ]);
 
+/** Replace a leading raw platform key (e.g. `douyin_shop 刊登`) with its display name. */
+function humanizeLeadingPlatform(text: string): string {
+  const idx = text.indexOf(' ');
+  if (idx <= 0) return text;
+  const head = text.slice(0, idx).toLowerCase();
+  const label = PLATFORM_DISPLAY_LABEL[head];
+  return label ? label + text.slice(idx) : text;
+}
+
 /** Map backend recent row to display title / subtitle (handles legacy raw keys). */
 export function formatRecentItem(item: DashboardRecentItem): { title: string; subtitle?: string } {
   let title = (item.title || '').trim();
@@ -110,6 +120,16 @@ export function formatRecentItem(item: DashboardRecentItem): { title: string; su
     case 'collect':
       if (subtitle) {
         subtitle = RECENT_SOURCE_LABEL[subtitle.toLowerCase()] ?? subtitle;
+      }
+      break;
+    case 'product_publish':
+    case 'failed_publish':
+    case 'failed_inventory_sync':
+      title = humanizeLeadingPlatform(title);
+      break;
+    case 'customer_conversation':
+      if (subtitle) {
+        subtitle = PLATFORM_DISPLAY_LABEL[subtitle.toLowerCase()] ?? subtitle;
       }
       break;
     default:

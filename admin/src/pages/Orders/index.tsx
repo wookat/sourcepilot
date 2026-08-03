@@ -471,7 +471,7 @@ export default function OrdersPage() {
           r.shopName ? (
             <span>
               {r.shopName}
-              {r.shopPlatform ? ` / ${r.shopPlatform}` : ''}
+              {r.shopPlatform ? ` / ${platformLabel(r.shopPlatform)}` : ''}
             </span>
           ) : (
             '—'
