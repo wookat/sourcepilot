@@ -1,5 +1,5 @@
 import { history } from '@umijs/max';
-import { Button, notification } from 'antd';
+import { Button, Tooltip, Typography, notification } from 'antd';
 
 /** 后端 AI 调用失败时随 envelope data 下发的结构化错误码（见 docs/api.md） */
 export type AIErrorCode =
@@ -24,6 +24,33 @@ const AI_ERROR_COPY: Record<AIErrorCode, string> = {
   AI_TIMEOUT: 'AI 请求超时，请稍后重试或在 AI 设置中调大超时时间',
   AI_BAD_RESPONSE: 'AI 服务响应格式不兼容，请在 AI 设置中检查服务商与模型配置',
 };
+
+/** 将任务 errorMessage 中的结构化 AI 错误码映射为中文原因；无法识别时原样返回 */
+export function mapAiTaskErrorText(raw?: string | null): string {
+  const msg = (raw ?? '').trim();
+  if (!msg) return '';
+  for (const code of Object.keys(AI_ERROR_COPY) as AIErrorCode[]) {
+    if (msg.includes(code)) return AI_ERROR_COPY[code];
+  }
+  return msg;
+}
+
+/** 列表单元格：中文化失败原因 + 悬浮查看完整原始原因 */
+export function AiTaskErrorText({ raw }: { raw?: string | null }) {
+  const msg = (raw ?? '').trim();
+  if (!msg) return <>—</>;
+  const mapped = mapAiTaskErrorText(msg);
+  return (
+    <Tooltip title={msg}>
+      <Typography.Text
+        ellipsis
+        style={{ maxWidth: '100%', display: 'inline-block', verticalAlign: 'bottom' }}
+      >
+        {mapped}
+      </Typography.Text>
+    </Tooltip>
+  );
+}
 
 type ApiEnvelope = {
   code?: number;

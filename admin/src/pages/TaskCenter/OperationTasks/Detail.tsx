@@ -381,6 +381,11 @@ export default function OperationTaskDetailPage() {
                 label: '审计时间线',
                 children: (
                   <Space direction="vertical" style={{ width: '100%' }}>
+                    {!events.length ? (
+                      <Text type="secondary">
+                        暂无审计事件：任务提交、审核、执行等操作发生后会按时间顺序展示在这里。
+                      </Text>
+                    ) : null}
                     <Timeline
                       items={events.map((event) => ({
                         key: event.eventId,

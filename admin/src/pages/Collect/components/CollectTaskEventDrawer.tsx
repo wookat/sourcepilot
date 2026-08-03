@@ -174,7 +174,9 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
           </Typography.Title>
 
           {!events?.length ? (
-            <Typography.Text type="secondary">暂无事件记录</Typography.Text>
+            <Typography.Text type="secondary">
+              暂无事件记录：任务尚未产生状态变化，开始采集、重试或失败等事件发生后会按时间顺序展示在这里。
+            </Typography.Text>
           ) : (
             <Timeline
               items={events.map((ev) => ({
