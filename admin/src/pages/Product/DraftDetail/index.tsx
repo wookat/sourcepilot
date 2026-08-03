@@ -6412,7 +6412,7 @@ export default function ProductDraftDetailPage() {
         }}
       >
         <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
-          平台：{syncRow?.platform ?? '—'}；店铺：{syncRow?.shopName ?? syncRow?.shopId ?? '—'}
+          平台：{syncRow?.platform ? platformDisplayName(syncRow.platform) : '—'}；店铺：{syncRow?.shopName ?? syncRow?.shopId ?? '—'}
         </Typography.Paragraph>
         <InventorySyncPlatformHint platform={syncRow?.platform} />
         <Form form={syncForm} layout="vertical">
