@@ -240,7 +240,12 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   },
   menu: { locale: false },
   menuDataRender: (menuData: MenuDataItem[]) =>
-    filterMenuByPermission(menuData, initialState?.currentUser?.role, initialState?.currentUser?.permissions),
+    filterMenuByPermission(
+      menuData,
+      initialState?.currentUser?.role,
+      initialState?.currentUser?.permissions,
+      initialState?.currentUser?.tenantId,
+    ),
   onPageChange: () => {
     const { pathname } = history.location;
     if (pathname === '/user/login' || pathname.startsWith('/user/login')) return;

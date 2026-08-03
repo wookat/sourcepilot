@@ -156,5 +156,10 @@ export function canReviewOperationTasks(role?: string | null, perms?: string[]):
   return hasPermission(role, PERMISSIONS.OPERATION_TASK_REVIEW, perms);
 }
 
+/** 平台管理员 = tenant 0 的 admin 账号，可管理平台租户。 */
+export function isPlatformAdmin(role?: string | null, tenantId?: number): boolean {
+  return normalizeRole(role) === ROLES.ADMIN && tenantId === 0;
+}
+
 export const PERMISSION_DENIED_MESSAGE = '当前账号无权限访问此页面';
 export const READONLY_DENIED_MESSAGE = '只读账号不可执行写操作';

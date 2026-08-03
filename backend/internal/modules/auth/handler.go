@@ -189,6 +189,7 @@ func (h *Handler) Profile(c *gin.Context) {
 		"displayName":      dn,
 		"role":             strings.TrimSpace(u.Role),
 		"status":           strings.TrimSpace(u.Status),
+		"tenantId":         u.TenantID,
 		"permissions":      perms,
 		"storePermissions": storePerms,
 		"createdAt":        u.CreatedAt,

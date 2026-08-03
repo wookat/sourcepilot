@@ -1,6 +1,7 @@
 import type { MenuDataItem } from '@umijs/route-utils';
 import {
   hasPermission,
+  isPlatformAdmin,
   normalizeRole,
   PERMISSIONS,
   type PermissionKey,
@@ -67,6 +68,9 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/settings/users': PERMISSIONS.USER_MANAGE,
 };
 
+/** 仅平台管理员（tenant 0 admin）可见的路由。 */
+export const PLATFORM_ADMIN_ROUTES = new Set(['/settings/platform-tenants']);
+
 function routePerm(path?: string): PermissionKey | PermissionKey[] | undefined {
   if (!path) return undefined;
   const exact = ROUTE_PERMISSIONS[path];
@@ -82,7 +86,11 @@ function canAccessRoute(
   path: string | undefined,
   role?: string | null,
   profilePerms?: string[],
+  tenantId?: number,
 ): boolean {
+  if (path && PLATFORM_ADMIN_ROUTES.has(path)) {
+    return isPlatformAdmin(role, tenantId);
+  }
   const perm = routePerm(path);
   if (!perm) return true;
   const list = Array.isArray(perm) ? perm : [perm];
@@ -94,6 +102,7 @@ export function filterMenuByPermission(
   menus: MenuDataItem[],
   role?: string | null,
   profilePerms?: string[],
+  tenantId?: number,
 ): MenuDataItem[] {
   const r = normalizeRole(role);
 
@@ -102,7 +111,7 @@ export function filterMenuByPermission(
       .map((item) => {
         if (item.hideInMenu) return item;
         const path = item.path || item.redirect;
-        if (path && !canAccessRoute(path, r, profilePerms)) {
+        if (path && !canAccessRoute(path, r, profilePerms, tenantId)) {
           return null;
         }
         const children = item.children ? walk(item.children) : undefined;
@@ -120,6 +129,7 @@ export function canAccessPath(
   pathname: string,
   role?: string | null,
   profilePerms?: string[],
+  tenantId?: number,
 ): boolean {
-  return canAccessRoute(pathname, role, profilePerms);
+  return canAccessRoute(pathname, role, profilePerms, tenantId);
 }
