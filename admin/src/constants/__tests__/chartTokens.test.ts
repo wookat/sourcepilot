@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { chartAxisXLabel, chartTokens, formatAmount, formatCount } from '../chartTokens';
+import {
+  chartAxisXLabel,
+  chartAxisXTickCount,
+  chartTokens,
+  formatAmount,
+  formatCount,
+  formatDateTickShort,
+} from '../chartTokens';
 import { themeTokens } from '../layoutTokens';
 
 describe('图表 token（R64）', () => {
@@ -50,5 +57,21 @@ describe('formatAmount 千分位 + 两位小数 + 币种', () => {
   it('零与负数', () => {
     expect(formatAmount(0)).toBe('0.00');
     expect(formatAmount(-7.5, 'USD')).toBe('USD -7.50');
+  });
+});
+
+describe('x 轴刻度抽稀（R77）', () => {
+  it('宽屏/紧凑刻度档位在 6–10 之间且紧凑 ≤ 宽屏', () => {
+    expect(chartAxisXTickCount.compact).toBeGreaterThanOrEqual(6);
+    expect(chartAxisXTickCount.wide).toBeLessThanOrEqual(10);
+    expect(chartAxisXTickCount.compact).toBeLessThanOrEqual(chartAxisXTickCount.wide);
+  });
+
+  it('formatDateTickShort：YYYY-MM-DD → MM-DD，其余原样', () => {
+    expect(formatDateTickShort('2026-08-03')).toBe('08-03');
+    expect(formatDateTickShort('2026-08-03T00:00:00Z')).toBe('08-03');
+    expect(formatDateTickShort('08-03')).toBe('08-03');
+    expect(formatDateTickShort('')).toBe('');
+    expect(formatDateTickShort(undefined)).toBe('');
   });
 });

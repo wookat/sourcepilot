@@ -70,6 +70,7 @@ import { queryShops, type ShopListRow } from '@/services/shops';
 import { fetchOrderSalesStats, type SalesStatsDTO, type SalesWindowStats } from '@/services/orders';
 import { formatAmount, formatCount, tabularNumsStyle } from '@/constants/chartTokens';
 import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useWideScreen } from '@/hooks/useWideScreen';
 import { appendSourceToUrl, resolveProductSourceFromQuery } from '@/utils/urlState';
 
 const { RangePicker } = DatePicker;
@@ -116,6 +117,9 @@ function SalesWindowCard({ win }: { win: SalesWindowStats }) {
     </ProCard>
   );
 }
+
+/** 窄屏（<768px）今日待办默认收纳条数，其余通过「查看全部」展开 */
+const TODO_COLLAPSE_LIMIT = 5;
 
 const SOURCE_OPTIONS = [
   { label: '1688', value: '1688' },
@@ -818,6 +822,8 @@ export default function ProductOperationsDashboardPage() {
   const [filters, setFilters] = useState<FilterState>(() => buildDashboardFiltersFromUrl(urlState));
   const [shops, setShops] = useState<ShopListRow[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const wideScreen = useWideScreen();
+  const [todosExpanded, setTodosExpanded] = useState(false);
   const [board, setBoard] = useState<ProductOperationDashboard | null>(null);
   const [salesStats, setSalesStats] = useState<SalesStatsDTO | null>(null);
   const [loading, setLoading] = useState(true);
@@ -896,6 +902,8 @@ export default function ProductOperationsDashboardPage() {
     });
   }, [board?.todos]);
   const activeTodos = useMemo(() => todos.filter((t) => (t.count || 0) > 0), [todos]);
+  const todosCollapsed = !wideScreen && !todosExpanded && activeTodos.length > TODO_COLLAPSE_LIMIT;
+  const visibleTodos = todosCollapsed ? activeTodos.slice(0, TODO_COLLAPSE_LIMIT) : activeTodos;
   const funnelSteps = useMemo(() => mergeFunnel(board?.funnel), [board?.funnel]);
   const exceptions = useMemo(() => mergeExceptions(board?.exceptions), [board?.exceptions]);
   const quickLinks = DEFAULT_QUICK_LINKS;
@@ -1097,13 +1105,24 @@ export default function ProductOperationsDashboardPage() {
             }
           >
             {activeTodos.length > 0 ? (
-              <Row gutter={[16, 16]}>
-                {activeTodos.map((item, index) => (
-                  <Col xs={24} sm={12} md={8} lg={6} xl={6} key={item.key || item.id}>
-                    <TodoCardItem item={item} primary={index === 0} />
-                  </Col>
-                ))}
-              </Row>
+              <>
+                <Row gutter={[16, 16]}>
+                  {visibleTodos.map((item, index) => (
+                    <Col xs={24} sm={12} md={8} lg={6} xl={6} key={item.key || item.id}>
+                      <TodoCardItem item={item} primary={index === 0} />
+                    </Col>
+                  ))}
+                </Row>
+                {!wideScreen && activeTodos.length > TODO_COLLAPSE_LIMIT ? (
+                  <Button
+                    block
+                    style={{ marginTop: 12 }}
+                    onClick={() => setTodosExpanded((v) => !v)}
+                  >
+                    {todosCollapsed ? `查看全部 ${activeTodos.length} 项待办` : '收起待办'}
+                  </Button>
+                ) : null}
+              </>
             ) : (
               <EmptyState
                 compact

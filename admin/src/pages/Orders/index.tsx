@@ -1,5 +1,5 @@
 import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { PlatformTag, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { DateTimeText, PlatformTag, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { platformLabel } from '@/constants/userFriendly';
 import {
   Badge,
@@ -658,14 +658,14 @@ export default function OrdersPage() {
         title: '下单时间',
         dataIndex: 'orderedAt',
         search: false,
-        width: 160,
+        width: 120,
         responsive: DESKTOP_ONLY,
-        render: (_, r) => (r.orderedAt ? formatDateTime(r.orderedAt) : '—'),
+        render: (_, r) => <DateTimeText value={r.orderedAt} />,
       },
       {
         title: '创建时间',
         dataIndex: 'createdAt',
-        width: 160,
+        width: 120,
         responsive: DESKTOP_ONLY,
         valueType: 'dateTimeRange',
         search: {
@@ -674,15 +674,15 @@ export default function OrdersPage() {
             end: end ? dayjs(end as string).toISOString() : undefined,
           }),
         },
-        render: (_, r) => formatDateTime(r.createdAt),
+        render: (_, r) => <DateTimeText value={r.createdAt} />,
       },
       {
         title: '更新时间',
         dataIndex: 'updatedAt',
-        width: 160,
+        width: 120,
         responsive: DESKTOP_ONLY,
         search: false,
-        render: (_, r) => (r.updatedAt ? formatDateTime(r.updatedAt) : '—'),
+        render: (_, r) => <DateTimeText value={r.updatedAt} />,
       },
       {
         title: '操作',

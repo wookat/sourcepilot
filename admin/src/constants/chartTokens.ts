@@ -23,6 +23,16 @@ export const chartTokens = {
 /** x 轴标签公共配置：自动旋转 + 自动抽样隐藏，密集日期不重叠 */
 export const chartAxisXLabel = { labelAutoRotate: true, labelAutoHide: true } as const;
 
+/** x 轴日期刻度目标数量：宽屏/紧凑两档，密集日期抽稀不成标签墙 */
+export const chartAxisXTickCount = { wide: 10, compact: 6 } as const;
+
+/** 日期刻度短标签：YYYY-MM-DD → MM-DD，其余原样返回 */
+export function formatDateTickShort(value: unknown): string {
+  const text = String(value ?? '');
+  const m = /^\d{4}-(\d{2}-\d{2})/.exec(text);
+  return m ? m[1] : text;
+}
+
 /** 数字排版：等宽数字，用于统计卡与金额列 */
 export const tabularNumsStyle = { fontVariantNumeric: 'tabular-nums' } as const;
 

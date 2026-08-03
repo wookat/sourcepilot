@@ -3,7 +3,7 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { history, useModel } from '@umijs/max';
 import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ErrorAlert, TmPageContainer, TmProTable } from '@/components/ui';
+import { DateTimeText, ErrorAlert, TmPageContainer, TmProTable } from '@/components/ui';
 import { PAGE_COPY } from '@/constants/copywriting';
 import {
   OPERATION_PLATFORM_LABELS,
@@ -22,10 +22,10 @@ import {
   type OperationTaskAPIError,
   type OperationTaskSummary,
 } from '@/services/operationTasks';
-import { formatDateTime } from '@/utils/formatTime';
 import { canReviewOperationTasks } from '@/utils/permission';
 import {
   NonProductionBoundary,
+  OperationAttemptStatusTag,
   OperationPriorityTag,
   OperationTaskStatusTag,
   copyableText,
@@ -226,10 +226,10 @@ export default function OperationTasksPage() {
     { title: '状态', dataIndex: 'status', width: 130, render: (v) => <OperationTaskStatusTag status={String(v || '')} /> },
     { title: '优先级', dataIndex: 'priority', width: 100, render: (v) => <OperationPriorityTag priority={String(v || '')} /> },
     { title: '最新草稿', dataIndex: 'latestDraftVersion', width: 110, render: (v) => v ? `v${v}` : '—' },
-    { title: '最新执行状态', dataIndex: 'latestExecutionStatus', width: 130, render: (v) => v ? <OperationTaskStatusTag status={String(v)} /> : '—' },
+    { title: '最新执行状态', dataIndex: 'latestExecutionStatus', width: 130, render: (v) => v ? <OperationAttemptStatusTag status={String(v)} /> : '—' },
     { title: '创建人', dataIndex: 'createdBy', width: 130, render: (v) => copyableText(String(v || ''), 10) },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
+    { title: '创建时间', dataIndex: 'createdAt', width: 130, render: (v) => <DateTimeText value={String(v || '')} /> },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 130, render: (v) => <DateTimeText value={String(v || '')} /> },
     {
       title: '操作',
       valueType: 'option',
