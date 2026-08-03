@@ -26,6 +26,10 @@ const ERROR_MAP: Record<string, UserErrorMessage> = {
     title: '账号已被停用',
     detail: '请联系管理员启用账号后再登录。',
   },
+  AUTH_TENANT_DISABLED: {
+    title: '租户已被停用',
+    detail: '该租户已被平台管理员停用，请联系平台管理员启用后再登录。',
+  },
   DOUYIN_SKU_NOT_BOUND: {
     title: '该规格尚未绑定抖店规格',
     detail: '请先完成规格绑定后再同步库存。',

@@ -76,6 +76,7 @@
       "admin": "forbid",
       "crossTenantAdmin": "forbid",
       "operator": "forbid",
+      "platformAdmin": "allow",
       "readonly": "forbid"
     },
     "note": "平台租户管理：仅 tenant 0 admin（平台管理员）可用；矩阵四角色均为非 tenant 0，统一 403"
@@ -87,9 +88,46 @@
       "admin": "forbid",
       "crossTenantAdmin": "forbid",
       "operator": "forbid",
+      "platformAdmin": "allow",
       "readonly": "forbid"
     },
     "note": "平台租户管理：仅 tenant 0 admin（平台管理员）可开租；矩阵四角色均为非 tenant 0，统一 403"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/platform/tenants/:id",
+    "personas": {
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "platformAdmin": "allow",
+      "readonly": "forbid"
+    },
+    "note": "平台租户改名：仅 tenant 0 admin（平台管理员）可用；矩阵四角色均为非 tenant 0，统一 403"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/platform/tenants/:id/disable",
+    "personas": {
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "platformAdmin": "allow",
+      "readonly": "forbid"
+    },
+    "note": "平台租户停用：仅 tenant 0 admin（平台管理员）可用；tenant 0 不可停用（handler 拒绝）"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/platform/tenants/:id/enable",
+    "personas": {
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "platformAdmin": "allow",
+      "readonly": "forbid"
+    },
+    "note": "平台租户启用：仅 tenant 0 admin（平台管理员）可用"
   },
   {
     "method": "GET",

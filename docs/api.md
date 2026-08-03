@@ -173,8 +173,8 @@
 | `GET` | `/api/v1/product-publish/targets` | 全局可刊登平台与店铺（批量向导） |
 | `POST` | `/api/v1/product-publish/batch-targets/check` | 多商品 × 多目标矩阵预检查；body 含 `productIds[]`、`targets[]`、`commonConfig`、`overrides` |
 | `POST` | `/api/v1/product-publish/batch-targets/create-drafts` | 多商品批量创建刊登草稿；`onlyReady`、`includeWarnings` |
-| `GET` | `/api/v1/product-publish/batches` | 多商品刊登批次列表 |
-| `GET` | `/api/v1/product-publish/batches/:id` | 批次详情与子任务（仅创建者可访问，历史无 `createdBy` 批次兼容） |
+| `GET` | `/api/v1/product-publish/batches` | 多商品刊登批次列表（按当前租户过滤） |
+| `GET` | `/api/v1/product-publish/batches/:id` | 批次详情与子任务（先校验租户归属，跨租户 404；同租户仅创建者可访问，历史无 `createdBy` 批次兼容） |
 | `POST` | `/api/v1/product-publish/batches/:id/retry-failed` | 只重试失败子任务 |
 | `POST` | `/api/v1/product-publish/batches/:id/cancel-pending` | 只取消 pending 子任务 |
 
@@ -242,6 +242,12 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 
 - `ai_operation_batches` 新增 `tenant_id` 列；创建批次写入当前租户，存量按 `created_by` 所属租户 backfill（推导不出保持租户 0，不放大可见性）。
 - `GET /api/v1/ai/batches` 列表按当前租户过滤；`GET /ai/batches/:id`、`GET /ai/batches/:id/tasks`、`POST /ai/batches/:id/retry-failed`、`POST /ai/batches/:id/apply-results` 按 `tenant_id` 列校验（未 backfill 的 tenant-0 行回退按创建人租户），跨租户统一 **404**，不泄露存在性；正常授权路径行为与 DTO 不变（`tenant_id` 不出现在响应中）。
+
+### 刊登批次租户口径与越权 404 统一（round81）
+
+- `product_publish_batches` 新增 `tenant_id` 列（默认 0，索引 `idx_publish_batches_tenant_created`）；创建批次（单商品 `create-drafts` 与多商品 `batch-targets/create-drafts`）写入当前租户，存量按 `created_by` 所属租户 backfill（`migrateRound81PublishBatchTenant`，推导不出保持租户 0，不放大可见性），口径与 round72 `ai_operation_batches` 一致。
+- `GET /product-publish/batches` 列表按 `ApplyTenantScope` 过滤；`GET /batches/:id`、`POST /batches/:id/retry-failed`、`POST /batches/:id/cancel-pending` 及 `retryFailedOnly` 重试回放按 `tenant_id` 列校验（未 backfill 的 tenant-0 行回退按创建人租户），跨租户统一 **404**；DTO 不变（`tenant_id` 不出现在响应中）。
+- 发布任务越权口径统一：`POST /product-publish/tasks/:id/retry|cancel|recover` 与批次 `retry-failed`/`cancel-pending` 对跨租户/不存在对象由 400 改为 **404**（不泄露存在性）；`recover` 增加租户归属前置校验。同租户业务校验错误仍为 400，同租户非创建者仍为 403。
 
 ## Dev / Demo 种子（非 production）
 
@@ -541,8 +547,13 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/platform/tenants` | 租户列表（含隐式平台租户 0），每项返回 `id` / `name` / `adminCount` / `createdAt` |
+| `GET` | `/api/v1/platform/tenants` | 租户列表（含隐式平台租户 0），每项返回 `id` / `name` / `status`（`active` / `disabled`）/ `adminCount` / `createdAt` |
 | `POST` | `/api/v1/platform/tenants` | 创建租户 + 初始管理员（事务一次建好）。请求体 `{name, adminEmail, adminPassword}`；返回 `{tenant, adminId, adminEmail}`。租户名 / 管理员邮箱重复返回 400；初始管理员登录后即为新租户 admin |
+| `PUT` | `/api/v1/platform/tenants/:id` | 租户改名。请求体 `{name}`；重名 400、租户不存在 404、平台租户（id 0）不可改名 400。写操作日志 `tenant.rename` |
+| `POST` | `/api/v1/platform/tenants/:id/disable` | 停用租户。停用后该租户所有账号登录被拒（错误码 `AUTH_TENANT_DISABLED`，中文提示「租户已被停用」），已有会话在下次请求（access 校验 / refresh 轮换）时失效；平台租户（id 0）不可停用 400、不存在 404。写操作日志 `tenant.disable` |
+| `POST` | `/api/v1/platform/tenants/:id/enable` | 启用租户，恢复该租户账号登录；不存在 404。写操作日志 `tenant.enable` |
+
+租户停用生效口径（round82）：登录（legacy / secure session）、refresh 轮换、每次带 Bearer 的请求（session 令牌走 `ValidateSessionAccess`，legacy 令牌由中间件按 claims 租户检查）都会检查用户所属租户状态，租户 `disabled` 时统一返回 401 `AUTH_TENANT_DISABLED`；tenant 0（平台租户）与无 `tenants` 行的 legacy 租户恒为 active。不提供租户删除。
 
 ## AI 比价选品引擎 API
 

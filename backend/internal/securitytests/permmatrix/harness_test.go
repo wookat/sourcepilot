@@ -136,6 +136,7 @@ func (h *harness) seedPersonas() error {
 		{personaOperator, adminperm.RoleOperator, tenantA},
 		{personaReadonly, adminperm.RoleReadonly, tenantA},
 		{personaCrossTenant, adminperm.RoleAdmin, tenantB},
+		{personaPlatformAdmin, adminperm.RoleAdmin, 0},
 	}
 	for _, s := range specs {
 		id := uuid.New()

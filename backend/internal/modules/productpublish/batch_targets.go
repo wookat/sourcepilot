@@ -321,7 +321,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	}
 	var existing ProductPublishBatch
 	if idemKey != "" {
-		if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND status NOT IN ?", idemKey, []string{BatchFailed, BatchCancelled}).
+		if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND tenant_id = ? AND status NOT IN ?", idemKey, tid, []string{BatchFailed, BatchCancelled}).
 			Order("created_at DESC").First(&existing).Error; err == nil {
 			return s.batchCreateResponseFromExisting(ctx, &existing)
 		}
@@ -343,6 +343,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	}
 
 	batch := ProductPublishBatch{
+		TenantID:       tid,
 		BatchType:      BatchTypeMultiProduct,
 		Name:           strings.TrimSpace(req.Name),
 		Status:         BatchRunning,
@@ -356,7 +357,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	if err := s.DB.WithContext(ctx).Create(&batch).Error; err != nil {
 		if isDuplicateKeyError(err) && idemKey != "" {
 			var dupBatch ProductPublishBatch
-			if err2 := s.DB.WithContext(ctx).Where("idempotency_key = ? AND status NOT IN ?", idemKey, []string{BatchFailed, BatchCancelled}).
+			if err2 := s.DB.WithContext(ctx).Where("idempotency_key = ? AND tenant_id = ? AND status NOT IN ?", idemKey, tid, []string{BatchFailed, BatchCancelled}).
 				Order("created_at DESC").First(&dupBatch).Error; err2 == nil {
 				return s.batchCreateResponseFromExisting(ctx, &dupBatch)
 			}
@@ -606,6 +607,10 @@ func (s *Service) ListPublishBatches(c *gin.Context, page, pageSize int) ([]Publ
 		pageSize = 20
 	}
 	q := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishBatch{}).Where("batch_type = ?", BatchTypeMultiProduct)
+	q, _, err := adminperm.ApplyTenantScope(c, q)
+	if err != nil {
+		return nil, 0, err
+	}
 	taskSub := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{}).Select("DISTINCT batch_id").Where("batch_id IS NOT NULL")
 	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, taskSub, "shop_id"); err != nil {
 		return nil, 0, err
@@ -660,9 +665,13 @@ func batchToListItem(r ProductPublishBatch) PublishBatchListItem {
 }
 
 // GetPublishBatchDetail returns batch summary with child task rows.
-func (s *Service) GetPublishBatchDetail(ctx context.Context, batchID uuid.UUID, adminID *uuid.UUID) (*PublishBatchDetailDTO, error) {
+func (s *Service) GetPublishBatchDetail(c *gin.Context, batchID uuid.UUID, adminID *uuid.UUID) (*PublishBatchDetailDTO, error) {
+	ctx := c.Request.Context()
 	batch, tasks, err := s.GetPublishBatch(ctx, batchID)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureBatchVisible(c, batch); err != nil {
 		return nil, err
 	}
 	if err := s.assertBatchAccess(batch, adminID); err != nil {
@@ -750,6 +759,9 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 	}
 	var batch ProductPublishBatch
 	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
+		return nil, err
+	}
+	if err := s.ensureBatchVisibleTenant(ctx, &batch, tid); err != nil {
 		return nil, err
 	}
 	if err := s.assertBatchAccess(&batch, adminID); err != nil {
@@ -879,6 +891,9 @@ func (s *Service) CancelPendingBatchTasks(c *gin.Context, batchID uuid.UUID, adm
 	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
 		return nil, err
 	}
+	if err := s.ensureBatchVisible(c, &batch); err != nil {
+		return nil, err
+	}
 	if err := s.assertBatchAccess(&batch, adminID); err != nil {
 		return nil, err
 	}
@@ -915,7 +930,7 @@ func (s *Service) CancelPendingBatchTasks(c *gin.Context, batchID uuid.UUID, adm
 
 	s.writeBatchOpLog(c, batchID, batchStatus, int(cancelled), 0, int(totalSkipped), "product.publish.batch.cancel_pending")
 
-	return s.GetPublishBatchDetail(ctx, batchID, adminID)
+	return s.GetPublishBatchDetail(c, batchID, adminID)
 }
 
 func (s *Service) writeBatchOpLog(c *gin.Context, batchID uuid.UUID, status string, successN, failedN, skippedN int, action string) {

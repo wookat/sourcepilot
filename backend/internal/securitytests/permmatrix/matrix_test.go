@@ -15,10 +15,11 @@ import (
 
 // Persona keys (matrix.json columns).
 const (
-	personaAdmin       = "admin"
-	personaOperator    = "operator"
-	personaReadonly    = "readonly"
-	personaCrossTenant = "crossTenantAdmin"
+	personaAdmin         = "admin"
+	personaOperator      = "operator"
+	personaReadonly      = "readonly"
+	personaCrossTenant   = "crossTenantAdmin"
+	personaPlatformAdmin = "platformAdmin"
 )
 
 // Expectation classes.
@@ -28,6 +29,11 @@ const (
 )
 
 var personaOrder = []string{personaReadonly, personaOperator, personaCrossTenant, personaAdmin}
+
+// optionalPersonas are only probed on routes that declare an expectation for
+// them. platformAdmin (tenant 0 admin) is registered on the platform tenant
+// management routes; other routes are not probed with it by default.
+var optionalPersonas = []string{personaPlatformAdmin}
 
 // routeEntry is one row of the permission matrix registry.
 type routeEntry struct {
@@ -106,6 +112,12 @@ func TestRouteRegistryComplete(t *testing.T) {
 			require.Containsf(t, []string{expectAllow, expectForbid}, exp,
 				"%s %s: persona %q must declare %q or %q", e.Method, e.Path, p, expectAllow, expectForbid)
 		}
+		for _, p := range optionalPersonas {
+			if exp, ok := e.Personas[p]; ok {
+				require.Containsf(t, []string{expectAllow, expectForbid}, exp,
+					"%s %s: persona %q must declare %q or %q", e.Method, e.Path, p, expectAllow, expectForbid)
+			}
+		}
 	}
 }
 
@@ -136,7 +148,13 @@ func TestPermissionMatrix(t *testing.T) {
 			continue
 		}
 		path := fillPathParams(e.Path)
-		for _, pk := range personaOrder {
+		personas := personaOrder
+		for _, pk := range optionalPersonas {
+			if _, ok := e.Personas[pk]; ok {
+				personas = append(append([]string{}, personas...), pk)
+			}
+		}
+		for _, pk := range personas {
 			exp := e.Personas[pk]
 			w := h.do(t, e.Method, path, h.Personas[pk].Token)
 			switch exp {

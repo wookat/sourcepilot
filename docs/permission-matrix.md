@@ -113,6 +113,13 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 存量 backfill（`migrateRound72AIBatchTenant`，随迁移自动执行）：按 `created_by` → `admin_users.tenant_id` 推导；推导不出（无创建人/创建人已删）保持租户 0（legacy 单租户桶，不放大可见性）。未 backfill 的 tenant-0 且有创建人的行，`ensureBatchVisible` 回退按创建人租户校验（与 round71 口径一致）。
 - 回归证据：`aioperationbatch` 模块 `TestAIOperationBatchTenantColumnScope`（三角色列表过滤 + 跨租户 404 + backfill/回退口径）与既有 `TestAIOperationBatchScopedByTenant`。路由级守卫矩阵不变（本轮未新增端点）。
 
+## round81 刊登批次租户建模 + 发布任务越权 404 统一（R80 遗留 P2）
+
+- `product_publish_batches` 新增 `tenant_id` 列（默认 0，索引 `idx_publish_batches_tenant_created`）；创建批次（单商品 `publish-targets/create-drafts` 与多商品 `batch-targets/create-drafts`）写入当前租户。存量按 `created_by` → `admin_users.tenant_id` backfill（`migrateRound81PublishBatchTenant`，随迁移自动执行；推导不出保持租户 0，不放大可见性），口径与 round72 `ai_operation_batches` 一致。
+- `GET /product-publish/batches` 列表按 `ApplyTenantScope` 过滤（此前无租户过滤）；`GET /batches/:id`、`POST /batches/:id/retry-failed`、`POST /batches/:id/cancel-pending` 及 `retryFailedOnly` 重试回放按 `tenant_id` 列校验（未 backfill 的 tenant-0 行回退按创建人租户），跨租户统一 **404**。DTO 不变（`tenant_id` 不出现在响应中）。同租户创建者隔离（403）口径不变。
+- 发布任务越权口径统一：`POST /product-publish/tasks/:id/retry`、`/cancel`、`/recover` 此前对跨租户/不存在对象返回 400（带错误文案），与 `GET /tasks/:id` 的 404 混用；现统一 **404**（不泄露存在性）。`recover` 增加租户归属前置校验（此前内部按裸 id 加载任务）。同租户业务校验错误（如状态不允许重试）仍为 400。
+- 回归证据：`productpublish` 模块 `TestPublishBatchScopedByTenant`（批次创建落租户 + 详情/重试/取消跨租户 404 + 列表过滤）、`TestFailedTargetsFromBatchScopedByTenant`（重试回放跨租户 404）、`TestPublishMutationEndpointsCrossTenant404`（handler 层 6 端点跨租户 404 状态码）。路由级守卫矩阵不变（本轮未新增端点）。
+
 ## round81 平台租户管理（R80 开租缺口收口）
 
 - 新增 `GET/POST /api/v1/platform/tenants`（平台级租户列表 / 开租）。平台管理员采用**最保守判定**：当前登录账号 `tenant_id = 0` 且角色为 `admin`（现有语义中无独立"平台管理员"角色，tenant 0 为 legacy/平台桶）。
@@ -120,7 +127,14 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 平台管理员正向路径与非平台角色 403、越权无副作用由 `platformtenant` 模块 `api_test.go` 覆盖（tenant0 admin 开租成功、初始管理员落新租户 admin、tenant1 admin / tenant0 operator / tenant0 readonly 403）。
 - 开租写操作日志 `tenant.create`（不含密码）；`/auth/register` 行为不变（不提供自助开租）。
 
-## round82 仪表盘/库存聚合租户收口（双租户实测 P1）
+## round82 租户治理与平台管理员 persona
+
+- harness 新增第五个 persona `platformAdmin`（tenant 0 + 角色 admin，即平台管理员）。它是**可选 persona**：仅在 matrix.json 条目显式声明时参与探测；未声明的路由不强制登记（避免为全部存量路由补平台管理员口径的大改动）。
+- 平台租户管理全部 5 条路由（`GET/POST /platform/tenants`、`PUT /platform/tenants/:id`、`POST /platform/tenants/:id/disable|enable`）均登记 `platformAdmin: allow`，矩阵四常规角色一律 `forbid`（统一 403，收紧优先）。
+- 治理语义：租户可停用/启用/改名（不提供删除）；tenant 0 不可停用/改名（handler 400）；不存在的租户 404。停用后该租户所有账号登录拒绝、已有会话下次请求失效（错误码 `AUTH_TENANT_DISABLED`），由登录 / refresh / `ValidateSessionAccess` 三处统一强制，模块级证据：`auth` 包 `tenant_state_test.go`、`platformtenant` 包 `api_test.go`。
+- 全部治理操作写操作日志（`tenant.rename` / `tenant.disable` / `tenant.enable`）。
+
+## round83 仪表盘/库存聚合租户收口（双租户实测 P1）
 
 - 运营仪表盘（`/dashboard/product-operations|overview|todos|health`）聚合查询补租户过滤：`operationdashboard.Scope` 新增 `applyTenantColumn` / `applyTenantViaProduct` / `applyTenantViaShop` 助手，产品、采集、AI 任务/批次、图片任务、选品、货源、采购、订单、客服会话/建议、刊登任务/发布记录、库存同步、任务中心失败与告警等 Summary/Exceptions/Recent 查询全部按可信 `tenant_id` 限定（`TenantID` 为 nil 保持 legacy 内部调用行为）。无 `tenant_id` 列的 `ai_tasks` / `image_tasks` 经商品关联限定（口径同 taskcenter `applyTenantListFilterVia`）；`product_publications` 经店铺关联限定；任务中心 Summary 透传 `TenantID`（沿用其 tenant-0 legacy 桶口径）。
 - 库存共享基础查询 `buildSKUAlertBaseTX` 支持可选 `TenantID`，`GET /inventory/alerts`、`POST /inventory/stock-settings/batch-preview|batch-update` handler 注入当前租户（此前三端点无租户过滤，batch-update 可跨租户改库存阈值）。

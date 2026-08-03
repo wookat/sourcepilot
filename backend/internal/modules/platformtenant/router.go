@@ -12,4 +12,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	rg := g.Group("/platform/tenants")
 	rg.GET("", h.List)
 	rg.POST("", h.Create)
+	rg.PUT("/:id", h.Rename)
+	rg.POST("/:id/disable", h.Disable)
+	rg.POST("/:id/enable", h.Enable)
 }

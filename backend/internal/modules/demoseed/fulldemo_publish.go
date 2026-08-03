@@ -141,6 +141,7 @@ func (s *FullDemoSeeder) seedPublishBatchWithTasks(tx *gorm.DB, res *FullDemoRes
 	createdAt := now.Add(-36 * time.Hour)
 	finishedAt := now.Add(-35 * time.Hour)
 	batch := productpublish.ProductPublishBatch{
+		TenantID:       s.TenantID,
 		BatchType:      productpublish.BatchTypeMultiProduct,
 		Name:           DemoPrefix + "刊登批次（TikTok 本地草稿演示）",
 		Status:         productpublish.BatchPartialSuccess,

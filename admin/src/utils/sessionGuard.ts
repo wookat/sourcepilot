@@ -130,29 +130,67 @@ type ReloginHandler = () => Promise<boolean>;
 
 let reloginHandler: ReloginHandler | null = null;
 let reloginInFlight: Promise<boolean> | null = null;
+let handlerWaiters: Array<(h: ReloginHandler | null) => void> = [];
+
+/** 弹窗组件挂载前（如硬刷新首屏）到达的 401 等待注册完成，超时则按无弹窗处理 */
+const RELOGIN_HANDLER_WAIT_MS = 3000;
 
 /** 由「登录已过期」弹窗组件注册；返回 Promise，重新登录成功 resolve(true) */
 export function registerReloginHandler(handler: ReloginHandler | null) {
   reloginHandler = handler;
+  if (handler) {
+    const waiters = handlerWaiters;
+    handlerWaiters = [];
+    waiters.forEach((w) => w(handler));
+  }
 }
 
-/** 弹出重新登录弹窗并等待结果（single-flight：并发 401 共享同一个弹窗） */
+function waitForReloginHandler(): Promise<ReloginHandler | null> {
+  if (reloginHandler) return Promise.resolve(reloginHandler);
+  return new Promise((resolve) => {
+    const onReady = (h: ReloginHandler | null) => {
+      clearTimeout(timer);
+      resolve(h);
+    };
+    const timer = setTimeout(() => {
+      handlerWaiters = handlerWaiters.filter((w) => w !== onReady);
+      resolve(null);
+    }, RELOGIN_HANDLER_WAIT_MS);
+    handlerWaiters.push(onReady);
+  });
+}
+
+/**
+ * 弹出重新登录弹窗并等待结果。single-flight 对「弹窗未注册」也生效：
+ * 硬刷新时并发 401 全部共享同一次重登引导，不会各自 resolve(false)
+ * 后触发多次跳转/多个错误弹窗。
+ */
 export function requireRelogin(): Promise<boolean> {
-  if (!reloginHandler) return Promise.resolve(false);
   if (!reloginInFlight) {
-    reloginInFlight = reloginHandler().finally(() => {
-      reloginInFlight = null;
-    });
+    reloginInFlight = waitForReloginHandler()
+      .then((h) => (h ? h() : false))
+      .finally(() => {
+        reloginInFlight = null;
+      });
   }
   return reloginInFlight;
 }
 
-/** 用户放弃重新登录时的兜底：清凭证并整页跳登录页 */
+let redirectingToLogin = false;
+
+/** 用户放弃重新登录时的兜底：清凭证并整页跳登录页（并发 401 只跳一次） */
 export function redirectToLoginPage() {
   clearSessionCredentials();
+  if (redirectingToLogin) return;
   const path = window.location.pathname;
   if (path === '/user/login' || path.startsWith('/user/login')) return;
+  redirectingToLogin = true;
   window.location.assign(
     `${window.location.origin}/user/login?redirect=${encodeURIComponent(path)}`,
   );
+}
+
+/** 仅供测试：重置登录页跳转去重状态 */
+export function resetLoginRedirectGuard() {
+  redirectingToLogin = false;
 }

@@ -1378,8 +1378,24 @@ Final Production Acceptance Deferred to P10
 - 前端构建链 `pnpm.overrides` 补 `vite ^4.5.14`、`postcss ^8.5.18`（同大版本补丁，dependabot major 封禁范围外）；vitest / umi 系高危均为构建期依赖且补丁需跨大版本，按封禁保留并列入清单。
 - 回归单测：sourcing `TestSourcingWritesScopedByTenant`、imagetask `TestImageTaskDetailAndApplyScopedByTenant`、productpublish `TestPublishTargetsScopedByTenant` / `TestCancelTaskScopedByTenant`；权限矩阵契约全量复跑通过（新增路由无漏登记）。
 
-### 变更记录（2026-08-03）第 82 轮：双租户全链路隔离实测 + 仪表盘/库存聚合租户收口（P1）
+### 变更记录（2026-08-03）第 81 轮：安全审计遗留 P2 收口（刊登批次租户建模 + 越权 404 统一 + 前端 401 竞态）
+
+- `product_publish_batches` 补租户建模（口径同 round72 `ai_operation_batches`）：`tenant_id` 列 + `idx_publish_batches_tenant_created` 索引 + 按 `created_by` backfill（`migrateRound81PublishBatchTenant`，推导不出保持租户 0）；创建（单/多商品 create-drafts）写入当前租户；列表 `ApplyTenantScope` 过滤，详情/retry-failed/cancel-pending/`retryFailedOnly` 回放按 `tenant_id` 校验（tenant-0 行回退按创建人租户），跨租户 404，DTO 不变。
+- 发布任务越权口径统一：tasks `:id/retry|cancel|recover*` 与批次 retry/cancel 对跨租户/不存在对象由 400 统一为 404（不泄露存在性）；`recover` 增加租户归属前置校验；同租户业务校验 400、同租户非创建者 403 口径不变。
+- 前端 401 竞态收口：`sessionGuard` 的 `requireRelogin` single-flight 扩展到「弹窗未注册」窗口（硬刷新首屏并发 401 等待 `SessionExpiredModal` 注册后共享同一次重登引导，超时兜底 false）；`redirectToLoginPage` 并发去重只跳转一次。
+- 回归：后端 `TestPublishBatchScopedByTenant` / `TestFailedTargetsFromBatchScopedByTenant` / `TestPublishMutationEndpointsCrossTenant404`；前端 sessionGuard 新增硬刷新并发 401 用例；docs/api.md、permission-matrix.md「round81」、PUBLISH_BATCH_MIGRATION.md 已登记。Docker 双租户实测（PostgreSQL）：批次详情/重试/取消与任务 retry/cancel/recover 跨租户全部 404，列表互不可见。
+
+### 变更记录（2026-08-03）第 82 轮：平台租户治理（停用/启用/改名）
+
+- 租户生命周期（不做删除）：`tenants` 表新增 `status`（active/disabled）；新增 `PUT /platform/tenants/:id`（改名）、`POST /platform/tenants/:id/disable|enable`；tenant 0 不可停用/改名（400）、不存在 404、重名 400；全部操作写操作日志（`tenant.rename` / `tenant.disable` / `tenant.enable`）。
+- 停用强制：登录（legacy/secure）、refresh 轮换、`ValidateSessionAccess`（每次 Bearer 请求）三处统一检查租户状态，租户停用返回 401 `AUTH_TENANT_DISABLED`（前端中文提示「租户已被停用」），已有会话下次请求即失效；无 `tenants` 行的 legacy 租户与 tenant 0 恒为 active（fail-open，避免误锁全站）。
+- 权限矩阵：harness 新增可选 persona `platformAdmin`（tenant0 admin），平台租户 5 条路由全部登记（platformAdmin allow、四常规角色 forbid 403）；模块证据 `auth/tenant_state_test.go`、`platformtenant/api_test.go`。
+- Admin 前端：平台租户页新增状态列与改名/停用/启用入口（Modal 二次确认，停用为危险操作文案），仅平台管理员可见；E2E `round82-tenant-govern.spec.ts`（写请求 mock + 取消不发请求 + 非平台角色 403）。
+- R81 遗留 UX：操作日志「路径」「说明」列补数值列宽（220/240），按 TmProTable 列宽口径参与横向滚动估算，默认视口不再被挤出。
+- docs/api.md、docs/permission-matrix.md 已同步。
+
+### 变更记录（2026-08-03）第 83 轮：双租户全链路隔离实测 + 仪表盘/库存聚合租户收口（P1）
 
 - 双租户实测（docker compose 全栈 + seed:demo:full + 平台租户页正规开租租户 B）发现：运营仪表盘聚合数值跨租户泄露（商品/客服/刊登/库存等计数含他租户数据）；代码走查同时发现 `GET /inventory/alerts` 与 `POST /inventory/stock-settings/batch-preview|batch-update` 无租户过滤（后者可跨租户批量改库存阈值）。
-- 修复：`operationdashboard.Scope` 新增 `applyTenantColumn` / `applyTenantViaProduct` / `applyTenantViaShop`，Summary/Exceptions/Recent 全部聚合查询按可信租户限定；库存 `buildSKUAlertBaseTX` 支持可选 `TenantID`，三个库存端点 handler 注入当前租户。详见 docs/permission-matrix.md「round82」。
+- 修复：`operationdashboard.Scope` 新增 `applyTenantColumn` / `applyTenantViaProduct` / `applyTenantViaShop`，Summary/Exceptions/Recent 全部聚合查询按可信租户限定；库存 `buildSKUAlertBaseTX` 支持可选 `TenantID`，三个库存端点 handler 注入当前租户。详见 docs/permission-matrix.md「round83」。
 - 回归：`operationdashboard` / `inventory` 新增 dry-run 租户谓词单测；`go test ./...` 全量通过。

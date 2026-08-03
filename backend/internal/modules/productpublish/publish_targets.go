@@ -535,9 +535,13 @@ func (s *Service) CreateDraftsForTargets(c *gin.Context, productID uuid.UUID, re
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	targets := req.Targets
 	if req.RetryFailedOnly && strings.TrimSpace(req.BatchID) != "" {
-		retryTargets, err := s.failedTargetsFromBatch(ctx, req.BatchID)
+		retryTargets, err := s.failedTargetsFromBatch(ctx, tid, req.BatchID)
 		if err != nil {
 			return nil, err
 		}
@@ -562,6 +566,7 @@ func (s *Service) CreateDraftsForTargets(c *gin.Context, productID uuid.UUID, re
 	inRaw, _ := json.Marshal(req)
 	pid := productID
 	batch := ProductPublishBatch{
+		TenantID:    tid,
 		BatchType:   BatchTypeSingleProduct,
 		ProductID:   &pid,
 		Status:      BatchRunning,
@@ -824,10 +829,17 @@ func (s *Service) createLocalDraftForTarget(ctx context.Context, productID uuid.
 	return res
 }
 
-func (s *Service) failedTargetsFromBatch(ctx context.Context, batchID string) ([]PublishTargetRef, error) {
+func (s *Service) failedTargetsFromBatch(ctx context.Context, tenantID int64, batchID string) ([]PublishTargetRef, error) {
 	bid, err := uuid.Parse(strings.TrimSpace(batchID))
 	if err != nil {
 		return nil, fmt.Errorf("invalid batchId")
+	}
+	var batch ProductPublishBatch
+	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", bid).Error; err != nil {
+		return nil, err
+	}
+	if err := s.ensureBatchVisibleTenant(ctx, &batch, tenantID); err != nil {
+		return nil, err
 	}
 	var tasks []ProductPublishTask
 	if err := s.DB.WithContext(ctx).Where("batch_id = ? AND status = ?", bid, TaskFailed).Find(&tasks).Error; err != nil {
@@ -839,10 +851,6 @@ func (s *Service) failedTargetsFromBatch(ctx context.Context, batchID string) ([
 		out = append(out, PublishTargetRef{Platform: t.Platform, ShopID: &sid})
 	}
 	if len(out) == 0 {
-		var batch ProductPublishBatch
-		if err := s.DB.WithContext(ctx).First(&batch, "id = ?", bid).Error; err != nil {
-			return nil, err
-		}
 		var in PublishTargetsCreateDraftsRequest
 		_ = json.Unmarshal(batch.Input, &in)
 		out = in.Targets

@@ -174,8 +174,26 @@ describe('sessionGuard', () => {
   });
 
   describe('requireRelogin', () => {
-    it('未注册弹窗 handler 时直接返回 false', async () => {
-      await expect(requireRelogin()).resolves.toBe(false);
+    it('弹窗 handler 始终未注册时超时返回 false', async () => {
+      vi.useFakeTimers();
+      try {
+        const p = requireRelogin();
+        await vi.runAllTimersAsync();
+        await expect(p).resolves.toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    // 回归（R81）：JWT 过期后硬刷新，首屏并发请求的 401 早于弹窗组件挂载到达。
+    // 旧实现各自立即 resolve(false)，触发多次跳转/多个错误弹窗；
+    // 现在须等待 handler 注册并共享同一次重登引导。
+    it('硬刷新并发 401 在弹窗注册前到达时共享同一次重登引导', async () => {
+      const pending = [requireRelogin(), requireRelogin(), requireRelogin()];
+      const handler = vi.fn(() => Promise.resolve(true));
+      registerReloginHandler(handler);
+      await expect(Promise.all(pending)).resolves.toEqual([true, true, true]);
+      expect(handler).toHaveBeenCalledTimes(1);
     });
 
     it('并发 401 共享同一个重登弹窗（single-flight）', async () => {

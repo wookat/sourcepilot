@@ -117,6 +117,9 @@ func (s *LoginService) legacyLogin(ctx context.Context, account, password string
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
 		return nil, withAuditTenant(u.TenantID, errors.New(ErrUserDisabled))
 	}
+	if tenantDisabled(ctx, db, u.TenantID) {
+		return nil, withAuditTenant(u.TenantID, errors.New(ErrTenantDisabled))
+	}
 	label := u.LoginLabel()
 	token, exp, err := LegacyMintToken(s.Cfg, u.ID, label, u.TenantID)
 	if err != nil {
