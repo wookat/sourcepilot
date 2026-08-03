@@ -1402,3 +1402,11 @@ Final Production Acceptance Deferred to P10
 - 引导管理员租户口径：设计意图确认为「引导账号 = tenant 0 平台管理员」（平台租户治理入口）。代码默认本就是 0，本轮把 `.env.example` / `.env.docker.example` 的 `ADMIN_BOOTSTRAP_TENANT_ID` 由 1 收口为 0，并在 docs/env.md 说明（显式 >0 配置仍兼容遗留单租户部署；仅 admin_users 为空首次创建生效，不迁移存量）。
 - React console warning 清理（R82 报告 5 条）：Settings/Users 店铺权限弹窗 `Form.List` 行内 `{...field}` 展开重复传 `key`（4 条 duplicate key warning）改为解构 `{ key, name, ...restField }`；「新建用户」弹窗 `destroyOnHidden` 导致 `useForm` 未连接 warning，改为 `forceRender` + 取消时 `resetFields`。
 - 回归：`product/create_scope_test.go`（operator/readonly 403 + 0 残留行、admin 正常创建）；权限矩阵契约复跑；go fmt/vet/build/test、pnpm test:frontend/build:admin/test:contracts；Docker 实测两条动线（operator 建草稿 403 无残留、bootstrap 账号落 tenant 0 可开租）。
+
+### 变更记录（2026-08-03）第 84 轮：设置中心/用户与店铺授权深度回归 + P1/P2 修复
+
+- R83 全栈回归（docker compose + seed:demo:full，#179/#180 本地叠加）：用户管理全动线、平台租户治理、设置子页、readonly/operator 口径、三视口通过；发现 P1「被删用户旧会话下次请求触发未处理 Promise 拒绝整页红屏遮罩」与 P2「店铺授权弹窗重复 key 告警」「缺少改密码入口」。
+- P1 修复：`app.tsx` 会话守卫在跳登录页兜底路径改为悬挂原请求 Promise（不再向页面抛出无人消费的 401 错误），旧会话失效体验为静默跳转登录页。
+- P2 修复：店铺授权 `Form.List` 不再向 `Form.Item` 透传 `key`（消除 React 重复 key/AntD 告警；与 main 上 #181 同源修复已合并取 `restField` 写法）。
+- 新增用户改密码：`POST /admin/users/:id/reset-password`（≥6 位、bcrypt、`token_version+1` + 吊销全部 secure 会话/refresh token 使旧会话失效且不可 refresh 复活、操作日志 `user.password.reset`、权限矩阵已登记 admin-only）；Admin 用户管理页新增「改密码」入口；E2E `r83-users-reset-password.spec.ts` + 后端 `reset_password_test.go`。
+- docs/api.md 已同步；权限矩阵契约全量复跑通过。

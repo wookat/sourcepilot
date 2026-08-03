@@ -190,6 +190,17 @@
     }
   },
   {
+    "method": "POST",
+    "path": "/api/v1/admin/users/:id/reset-password",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "forbid",
+      "readonly": "forbid"
+    },
+    "note": "user.manage 守卫；改密码后 token_version+1，旧会话失效"
+  },
+  {
     "method": "GET",
     "path": "/api/v1/ai/batches",
     "personas": {

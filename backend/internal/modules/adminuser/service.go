@@ -24,10 +24,16 @@ var (
 	ErrDuplicateAccount  = errors.New("邮箱或手机号已被使用")
 )
 
+// SessionRevoker revokes all secure sessions of a user (implemented by auth.SessionService).
+type SessionRevoker interface {
+	RevokeAllUserSessions(ctx context.Context, userID uuid.UUID, reason string) (int64, error)
+}
+
 // Service manages admin users and store permissions.
 type Service struct {
-	DB    *gorm.DB
-	OpLog *operationlog.Service
+	DB       *gorm.DB
+	OpLog    *operationlog.Service
+	Sessions SessionRevoker
 }
 
 // ListQuery filters admin users.
@@ -386,6 +392,55 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 		})
 	}
 	return s.toUserRow(c.Request.Context(), &u, true)
+}
+
+// ResetPasswordBody sets a new login password for a user.
+type ResetPasswordBody struct {
+	Password string `json:"password"`
+}
+
+// ResetPassword replaces the user's password hash and bumps token_version so
+// existing sessions are invalidated on their next request.
+func (s *Service) ResetPassword(c *gin.Context, userID uuid.UUID, body ResetPasswordBody, actorID *uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("adminuser: no db")
+	}
+	pw := strings.TrimSpace(body.Password)
+	if len(pw) < 6 {
+		return fmt.Errorf("密码至少 6 位")
+	}
+	u, err := s.findInTenant(c, userID)
+	if err != nil {
+		return err
+	}
+	hash, err := hashPassword(pw)
+	if err != nil {
+		return err
+	}
+	if err := s.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{}).
+		Where("id = ? AND tenant_id = ?", userID, u.TenantID).
+		Updates(map[string]interface{}{
+			"password_hash": hash,
+			"token_version": gorm.Expr("token_version + 1"),
+		}).Error; err != nil {
+		return err
+	}
+	// 同步吊销 secure_session 会话与 refresh token family，避免旧会话通过 /auth/refresh 续命
+	if s.Sessions != nil {
+		_, _ = s.Sessions.RevokeAllUserSessions(c.Request.Context(), userID, "password_reset")
+	}
+	adminperm.InvalidateUserPermissionCache(userID)
+	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: actorID,
+			Action:      "user.password.reset",
+			Resource:    "admin_user",
+			ResourceID:  userID.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("userId=%s", userID.String()),
+		})
+	}
+	return nil
 }
 
 // SetStorePermissions replaces store grants for a user.

@@ -21,5 +21,6 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	rg.GET("/:id", h.Get)
 	rg.PATCH("/:id", h.Update)
 	rg.PUT("/:id/store-permissions", h.SetStorePermissions)
+	rg.POST("/:id/reset-password", h.ResetPassword)
 	rg.DELETE("/:id", adminperm.RequireWritable(db), h.Delete)
 }

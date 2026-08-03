@@ -13,6 +13,7 @@ import {
   createAdminUser,
   deleteAdminUser,
   fetchAdminUsers,
+  resetAdminUserPassword,
   setAdminUserStorePermissions,
   updateAdminUser,
   type AdminUserRow,
@@ -68,8 +69,10 @@ export default function SettingsUsersPage() {
   const [permOpen, setPermOpen] = useState(false);
   const [editUser, setEditUser] = useState<AdminUserRow | null>(null);
   const [shops, setShops] = useState<ShopListRow[]>([]);
+  const [pwdUser, setPwdUser] = useState<AdminUserRow | null>(null);
   const [createForm] = Form.useForm();
   const [permForm] = Form.useForm();
+  const [pwdForm] = Form.useForm();
 
   const loadShops = useCallback(async () => {
     try {
@@ -123,7 +126,7 @@ export default function SettingsUsersPage() {
     {
       title: '操作',
       valueType: 'option',
-      width: 260,
+      width: 320,
       render: (_, row) => [
         <Button
           key="role"
@@ -166,6 +169,18 @@ export default function SettingsUsersPage() {
           }}
         >
           改角色
+        </Button>,
+        <Button
+          key="password"
+          type="link"
+          size="small"
+          disabled={!canManageUsers}
+          onClick={() => {
+            pwdForm.resetFields();
+            setPwdUser(row);
+          }}
+        >
+          改密码
         </Button>,
         row.role !== 'admin' ? (
           <Button
@@ -304,6 +319,38 @@ export default function SettingsUsersPage() {
             </Form.Item>
             <Form.Item name="role" label="角色" initialValue="operator">
               <Select options={ROLE_OPTIONS} />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title={`修改密码 — ${pwdUser ? adminUserLabel(pwdUser) : ''}`}
+          open={!!pwdUser}
+          onCancel={() => setPwdUser(null)}
+          onOk={() => pwdForm.submit()}
+          okText="确认修改"
+          forceRender
+        >
+          <Form
+            form={pwdForm}
+            layout="vertical"
+            onFinish={async (v: { password: string }) => {
+              if (!pwdUser) return;
+              try {
+                await resetAdminUserPassword(pwdUser.id, v.password);
+                message.success('密码已修改，该账号需重新登录');
+                setPwdUser(null);
+              } catch (e: unknown) {
+                message.error((e as Error)?.message || '修改失败');
+              }
+            }}
+          >
+            <Form.Item
+              name="password"
+              label="新密码"
+              rules={[{ required: true, min: 6, message: '密码至少 6 位' }]}
+            >
+              <Input.Password placeholder="至少 6 位" autoComplete="new-password" />
             </Form.Item>
           </Form>
         </Modal>

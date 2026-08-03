@@ -808,7 +808,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	aiOpsWorkbenchH := &aiopsworkbench.Handler{Svc: aiOpsWorkbenchSvc}
 	aiopsworkbench.Register(authed, aiOpsWorkbenchH)
 
-	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc}
+	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc, Sessions: sessionSvc}
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
 

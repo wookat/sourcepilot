@@ -57,6 +57,13 @@ export async function deleteAdminUser(id: string) {
   return deleteJSON<{ ok: boolean }>(`/api/v1/admin/users/${id}`);
 }
 
+export async function resetAdminUserPassword(id: string, password: string) {
+  return postJSON<{ ok: boolean }, { password: string }>(
+    `/api/v1/admin/users/${id}/reset-password`,
+    { password },
+  );
+}
+
 export async function setAdminUserStorePermissions(id: string, items: SetStorePermissionsBody['items']) {
   const body: SetStorePermissionsBody = { items };
   return putJSON<AdminUserRow, SetStorePermissionsBody>(

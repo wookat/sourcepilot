@@ -169,6 +169,32 @@ func (h *Handler) SetStorePermissions(c *gin.Context) {
 	response.OK(c, row)
 }
 
+// ResetPassword POST /api/v1/admin/users/:id/reset-password
+func (h *Handler) ResetPassword(c *gin.Context) {
+	if !h.requireManage(c) {
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "无效的用户 ID")
+		return
+	}
+	var body ResetPasswordBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "请求参数无效")
+		return
+	}
+	if err := h.Svc.ResetPassword(c, id, body, adminUUID(c)); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "用户不存在")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
 // Delete DELETE /api/v1/admin/users/:id
 func (h *Handler) Delete(c *gin.Context) {
 	if !h.requireManage(c) {
