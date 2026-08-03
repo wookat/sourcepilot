@@ -15,6 +15,7 @@ import {
   isAuthUrl,
   redirectToLoginPage,
   refreshAccessToken,
+  requireRelogin,
   shouldRefreshSoon,
 } from '@/utils/sessionGuard';
 import type { InitialState } from '@/typings/umi-runtime';

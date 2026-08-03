@@ -24,10 +24,16 @@ var (
 	ErrDuplicateAccount  = errors.New("邮箱或手机号已被使用")
 )
 
+// SessionRevoker revokes all secure sessions of a user (implemented by auth.SessionService).
+type SessionRevoker interface {
+	RevokeAllUserSessions(ctx context.Context, userID uuid.UUID, reason string) (int64, error)
+}
+
 // Service manages admin users and store permissions.
 type Service struct {
-	DB    *gorm.DB
-	OpLog *operationlog.Service
+	DB       *gorm.DB
+	OpLog    *operationlog.Service
+	Sessions SessionRevoker
 }
 
 // ListQuery filters admin users.
@@ -418,6 +424,10 @@ func (s *Service) ResetPassword(c *gin.Context, userID uuid.UUID, body ResetPass
 			"token_version": gorm.Expr("token_version + 1"),
 		}).Error; err != nil {
 		return err
+	}
+	// 同步吊销 secure_session 会话与 refresh token family，避免旧会话通过 /auth/refresh 续命
+	if s.Sessions != nil {
+		_, _ = s.Sessions.RevokeAllUserSessions(c.Request.Context(), userID, "password_reset")
 	}
 	adminperm.InvalidateUserPermissionCache(userID)
 	if s.OpLog != nil {
