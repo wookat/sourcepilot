@@ -57,6 +57,43 @@ func (sc Scope) applyProductScope(tx *gorm.DB) *gorm.DB {
 	)`, sc.AllowedShopIDs, sc.AllowedShopIDs)
 }
 
+// applyTenantColumn restricts rows to the current tenant via a tenant_id column.
+func (sc Scope) applyTenantColumn(tx *gorm.DB, column string) *gorm.DB {
+	if tx == nil || sc.TenantID == nil {
+		return tx
+	}
+	col := column
+	if col == "" {
+		col = "tenant_id"
+	}
+	return tx.Where(col+" = ?", *sc.TenantID)
+}
+
+// applyTenantViaProduct restricts rows whose tenant derives from a product FK
+// (same convention as taskcenter: rows without product linkage stay visible).
+func (sc Scope) applyTenantViaProduct(tx *gorm.DB, productIDColumn string) *gorm.DB {
+	if tx == nil || sc.TenantID == nil {
+		return tx
+	}
+	return tx.Where("("+productIDColumn+" IS NULL OR "+productIDColumn+" IN (SELECT id FROM products WHERE tenant_id = ?))", *sc.TenantID)
+}
+
+// applyTenantViaShop restricts rows whose tenant derives from a shop FK.
+func (sc Scope) applyTenantViaShop(tx *gorm.DB, shopIDColumn string) *gorm.DB {
+	if tx == nil || sc.TenantID == nil {
+		return tx
+	}
+	return tx.Where(shopIDColumn+" IN (SELECT id FROM shops WHERE tenant_id = ?)", *sc.TenantID)
+}
+
+// tenantValue returns the trusted tenant id or 0 when context is missing.
+func (sc Scope) tenantValue() int64 {
+	if sc.TenantID == nil {
+		return 0
+	}
+	return *sc.TenantID
+}
+
 func (sc Scope) shopIDStrings() []string {
 	if len(sc.AllowedShopIDs) == 0 {
 		return nil

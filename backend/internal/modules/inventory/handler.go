@@ -416,6 +416,9 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 		Page:          atoiQ(c, "page", 1),
 		PageSize:      atoiQ(c, "pageSize", 20),
 	}
+	if tid, err := adminperm.TenantIDFromGin(c); err == nil {
+		q.TenantID = &tid
+	}
 	if raw := strings.TrimSpace(c.Query("productId")); raw != "" {
 		if u, err := uuid.Parse(raw); err == nil {
 			q.ProductID = &u
@@ -771,6 +774,9 @@ func (h *Handler) BatchPreviewStockSettings(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
+	if tid, err := adminperm.TenantIDFromGin(c); err == nil {
+		body.TenantID = &tid
+	}
 	out, err := h.Svc.PreviewStockSettingsBatch(c.Request.Context(), body)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -792,6 +798,9 @@ func (h *Handler) BatchUpdateStockSettings(c *gin.Context) {
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
+	}
+	if tid, err := adminperm.TenantIDFromGin(c); err == nil {
+		body.TenantID = &tid
 	}
 	out, err := h.Svc.BatchUpdateStockSettings(c.Request.Context(), body, adminUUID(c))
 	if err != nil {

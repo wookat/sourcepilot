@@ -1393,3 +1393,9 @@ Final Production Acceptance Deferred to P10
 - Admin 前端：平台租户页新增状态列与改名/停用/启用入口（Modal 二次确认，停用为危险操作文案），仅平台管理员可见；E2E `round82-tenant-govern.spec.ts`（写请求 mock + 取消不发请求 + 非平台角色 403）。
 - R81 遗留 UX：操作日志「路径」「说明」列补数值列宽（220/240），按 TmProTable 列宽口径参与横向滚动估算，默认视口不再被挤出。
 - docs/api.md、docs/permission-matrix.md 已同步。
+
+### 变更记录（2026-08-03）第 82 轮：双租户全链路隔离实测 + 仪表盘/库存聚合租户收口（P1）
+
+- 双租户实测（docker compose 全栈 + seed:demo:full + 平台租户页正规开租租户 B）发现：运营仪表盘聚合数值跨租户泄露（商品/客服/刊登/库存等计数含他租户数据）；代码走查同时发现 `GET /inventory/alerts` 与 `POST /inventory/stock-settings/batch-preview|batch-update` 无租户过滤（后者可跨租户批量改库存阈值）。
+- 修复：`operationdashboard.Scope` 新增 `applyTenantColumn` / `applyTenantViaProduct` / `applyTenantViaShop`，Summary/Exceptions/Recent 全部聚合查询按可信租户限定；库存 `buildSKUAlertBaseTX` 支持可选 `TenantID`，三个库存端点 handler 注入当前租户。详见 docs/permission-matrix.md「round82」。
+- 回归：`operationdashboard` / `inventory` 新增 dry-run 租户谓词单测；`go test ./...` 全量通过。
