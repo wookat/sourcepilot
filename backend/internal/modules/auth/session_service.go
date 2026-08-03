@@ -104,6 +104,9 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
 		return nil, withAuditTenant(u.TenantID, errors.New(ErrUserDisabled))
 	}
+	if tenantDisabled(ctx, s.DB, u.TenantID) {
+		return nil, withAuditTenant(u.TenantID, errors.New(ErrTenantDisabled))
+	}
 	if u.MustChangePassword {
 		return nil, withAuditTenant(u.TenantID, errors.New(ErrPasswordChangeRequired))
 	}
@@ -251,6 +254,10 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 		if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
 			_ = s.revokeSessionTx(tx, sess.ID, "user_disabled")
 			return errors.New(ErrUserDisabled)
+		}
+		if tenantDisabled(ctx, tx, u.TenantID) {
+			_ = s.revokeSessionTx(tx, sess.ID, "tenant_disabled")
+			return errors.New(ErrTenantDisabled)
 		}
 
 		newRaw, err := authutil.NewOpaqueToken(32)
@@ -448,11 +455,14 @@ func (s *SessionService) ValidateSessionAccess(ctx context.Context, sessionID uu
 		return errors.New(ErrSessionRevoked)
 	}
 	var u admin.AdminUser
-	if err := s.DB.WithContext(ctx).Select("token_version", "status").First(&u, "id = ?", userID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Select("token_version", "status", "tenant_id").First(&u, "id = ?", userID).Error; err != nil {
 		return errors.New(ErrSessionRevoked)
 	}
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
 		return errors.New(ErrUserDisabled)
+	}
+	if tenantDisabled(ctx, s.DB, u.TenantID) {
+		return errors.New(ErrTenantDisabled)
 	}
 	if tokenVersion > 0 && u.TokenVersion > 0 && tokenVersion != u.TokenVersion {
 		return errors.New(ErrSessionRevoked)

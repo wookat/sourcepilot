@@ -547,8 +547,13 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/platform/tenants` | 租户列表（含隐式平台租户 0），每项返回 `id` / `name` / `adminCount` / `createdAt` |
+| `GET` | `/api/v1/platform/tenants` | 租户列表（含隐式平台租户 0），每项返回 `id` / `name` / `status`（`active` / `disabled`）/ `adminCount` / `createdAt` |
 | `POST` | `/api/v1/platform/tenants` | 创建租户 + 初始管理员（事务一次建好）。请求体 `{name, adminEmail, adminPassword}`；返回 `{tenant, adminId, adminEmail}`。租户名 / 管理员邮箱重复返回 400；初始管理员登录后即为新租户 admin |
+| `PUT` | `/api/v1/platform/tenants/:id` | 租户改名。请求体 `{name}`；重名 400、租户不存在 404、平台租户（id 0）不可改名 400。写操作日志 `tenant.rename` |
+| `POST` | `/api/v1/platform/tenants/:id/disable` | 停用租户。停用后该租户所有账号登录被拒（错误码 `AUTH_TENANT_DISABLED`，中文提示「租户已被停用」），已有会话在下次请求（access 校验 / refresh 轮换）时失效；平台租户（id 0）不可停用 400、不存在 404。写操作日志 `tenant.disable` |
+| `POST` | `/api/v1/platform/tenants/:id/enable` | 启用租户，恢复该租户账号登录；不存在 404。写操作日志 `tenant.enable` |
+
+租户停用生效口径（round82）：登录（legacy / secure session）、refresh 轮换、每次带 Bearer 的请求（session 令牌走 `ValidateSessionAccess`，legacy 令牌由中间件按 claims 租户检查）都会检查用户所属租户状态，租户 `disabled` 时统一返回 401 `AUTH_TENANT_DISABLED`；tenant 0（平台租户）与无 `tenants` 行的 legacy 租户恒为 active。不提供租户删除。
 
 ## AI 比价选品引擎 API
 

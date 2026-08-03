@@ -37,6 +37,7 @@ const (
 	ErrRefreshTokenReused       = "AUTH_REFRESH_TOKEN_REUSED"
 	ErrSessionRevoked           = "AUTH_SESSION_REVOKED"
 	ErrUserDisabled             = "AUTH_USER_DISABLED"
+	ErrTenantDisabled           = "AUTH_TENANT_DISABLED"
 	ErrReauthenticationRequired = "AUTH_REAUTHENTICATION_REQUIRED"
 	ErrInvalidCredentials       = "AUTH_INVALID_CREDENTIALS"
 	ErrAccountTemporarilyLocked = "AUTH_ACCOUNT_TEMPORARILY_LOCKED"

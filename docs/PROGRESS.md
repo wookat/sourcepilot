@@ -1384,3 +1384,12 @@ Final Production Acceptance Deferred to P10
 - 发布任务越权口径统一：tasks `:id/retry|cancel|recover*` 与批次 retry/cancel 对跨租户/不存在对象由 400 统一为 404（不泄露存在性）；`recover` 增加租户归属前置校验；同租户业务校验 400、同租户非创建者 403 口径不变。
 - 前端 401 竞态收口：`sessionGuard` 的 `requireRelogin` single-flight 扩展到「弹窗未注册」窗口（硬刷新首屏并发 401 等待 `SessionExpiredModal` 注册后共享同一次重登引导，超时兜底 false）；`redirectToLoginPage` 并发去重只跳转一次。
 - 回归：后端 `TestPublishBatchScopedByTenant` / `TestFailedTargetsFromBatchScopedByTenant` / `TestPublishMutationEndpointsCrossTenant404`；前端 sessionGuard 新增硬刷新并发 401 用例；docs/api.md、permission-matrix.md「round81」、PUBLISH_BATCH_MIGRATION.md 已登记。Docker 双租户实测（PostgreSQL）：批次详情/重试/取消与任务 retry/cancel/recover 跨租户全部 404，列表互不可见。
+
+### 变更记录（2026-08-03）第 82 轮：平台租户治理（停用/启用/改名）
+
+- 租户生命周期（不做删除）：`tenants` 表新增 `status`（active/disabled）；新增 `PUT /platform/tenants/:id`（改名）、`POST /platform/tenants/:id/disable|enable`；tenant 0 不可停用/改名（400）、不存在 404、重名 400；全部操作写操作日志（`tenant.rename` / `tenant.disable` / `tenant.enable`）。
+- 停用强制：登录（legacy/secure）、refresh 轮换、`ValidateSessionAccess`（每次 Bearer 请求）三处统一检查租户状态，租户停用返回 401 `AUTH_TENANT_DISABLED`（前端中文提示「租户已被停用」），已有会话下次请求即失效；无 `tenants` 行的 legacy 租户与 tenant 0 恒为 active（fail-open，避免误锁全站）。
+- 权限矩阵：harness 新增可选 persona `platformAdmin`（tenant0 admin），平台租户 5 条路由全部登记（platformAdmin allow、四常规角色 forbid 403）；模块证据 `auth/tenant_state_test.go`、`platformtenant/api_test.go`。
+- Admin 前端：平台租户页新增状态列与改名/停用/启用入口（Modal 二次确认，停用为危险操作文案），仅平台管理员可见；E2E `round82-tenant-govern.spec.ts`（写请求 mock + 取消不发请求 + 非平台角色 403）。
+- R81 遗留 UX：操作日志「路径」「说明」列补数值列宽（220/240），按 TmProTable 列宽口径参与横向滚动估算，默认视口不再被挤出。
+- docs/api.md、docs/permission-matrix.md 已同步。
