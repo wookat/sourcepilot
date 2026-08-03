@@ -17,6 +17,8 @@ import { history, useSearchParams } from '@umijs/max';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from '@umijs/renderer-react';
 import { AI_FIELD_COPY, commonStatusLabel } from '@/constants/copywriting';
+import { AiTaskErrorText } from '@/utils/aiFailureNotice';
+import { usePermission } from '@/hooks/usePermission';
 import { taskTypeLabel } from '@/services/imageTasks';
 import {
   applyAiBatchResults,
@@ -62,6 +64,7 @@ export default function AiBatchesPage() {
     recentImageTasks: unknown[];
   } | null>(null);
   const [tasksKind, setTasksKind] = useState<string>('');
+  const { readonly } = usePermission();
 
   const columns: ProColumns<AIOperationBatchRow>[] = [
     { title: '创建时间', dataIndex: 'createdAt', width: 176, valueType: 'dateTime',
@@ -102,10 +105,13 @@ export default function AiBatchesPage() {
         <Typography.Link key="t" onClick={() => void openTasks(row)}>
           子任务
         </Typography.Link>,
-        <Typography.Link key="r" onClick={() => void runRetry(row.id)}>
-          重试失败
-        </Typography.Link>,
-        row.operationType === 'title_optimize' || row.operationType === 'description_generate' ? (
+        readonly ? null : (
+          <Typography.Link key="r" onClick={() => void runRetry(row.id)}>
+            重试失败
+          </Typography.Link>
+        ),
+        !readonly &&
+        (row.operationType === 'title_optimize' || row.operationType === 'description_generate') ? (
           <Typography.Link key="a" onClick={() => void runApply(row.id)}>
             应用结果
           </Typography.Link>
@@ -257,9 +263,11 @@ export default function AiBatchesPage() {
                     { title: '状态', dataIndex: 'status', width: 90, render: (v) => commonStatusLabel(v as string) },
                     { title: '商品', dataIndex: 'productId', ellipsis: true },
                     {
-                      title: '错误摘要',
+                      title: '失败原因',
                       dataIndex: 'errorMessage',
-                      ellipsis: true,
+                      render: (_, row) => (
+                        <AiTaskErrorText raw={(row as { errorMessage?: string }).errorMessage} />
+                      ),
                     },
                   ]}
                 />
@@ -281,6 +289,7 @@ export default function AiBatchesPage() {
                 />
               </>
             )}
+            {readonly ? null : (
             <Space style={{ marginTop: 16 }}>
               <Button
                 type="primary"
@@ -296,6 +305,7 @@ export default function AiBatchesPage() {
               </Button>
               <Button onClick={() => currentId && runRetry(currentId)}>重试失败</Button>
             </Space>
+            )}
           </>
         ) : null}
       </Drawer>
@@ -331,17 +341,29 @@ export default function AiBatchesPage() {
             tasksKind === 'image_tasks'
               ? [
                   { title: '任务编号', dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
-                  { title: '类型', dataIndex: 'taskType', width: 140, render: (v) => taskTypeLabel(v as string) },
-                  { title: '状态', dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
+                  { title: '类型', dataIndex: 'taskType', width: 140, render: (_, row) => taskTypeLabel((row as { taskType?: string }).taskType ?? '') },
+                  { title: '状态', dataIndex: 'status', width: 96, render: (_, row) => commonStatusLabel((row as { status?: string }).status ?? '') },
                   { title: '商品', dataIndex: 'productId', ellipsis: true },
-                  { title: '错误', dataIndex: 'errorMessage', ellipsis: true },
+                  {
+                    title: '失败原因',
+                    dataIndex: 'errorMessage',
+                    render: (_, row) => (
+                      <AiTaskErrorText raw={(row as { errorMessage?: string }).errorMessage} />
+                    ),
+                  },
                 ]
               : [
                   { title: '任务编号', dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
                   { title: '类型', dataIndex: 'taskType', width: 140 },
-                  { title: '状态', dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
+                  { title: '状态', dataIndex: 'status', width: 96, render: (_, row) => commonStatusLabel((row as { status?: string }).status ?? '') },
                   { title: '商品', dataIndex: 'productId', ellipsis: true },
-                  { title: '错误摘要', dataIndex: 'errorMessage', ellipsis: true },
+                  {
+                    title: '失败原因',
+                    dataIndex: 'errorMessage',
+                    render: (_, row) => (
+                      <AiTaskErrorText raw={(row as { errorMessage?: string }).errorMessage} />
+                    ),
+                  },
                 ]
           }
         />

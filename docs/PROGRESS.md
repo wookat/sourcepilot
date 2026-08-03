@@ -1444,3 +1444,10 @@ Final Production Acceptance Deferred to P10
 - seeddemo 自定义前缀：`cmd/seeddemo` 新增 `-prefix`（默认 `DEMO-`），仅 clean/verify 生效（seed 仍只写 DEMO-，传自定义前缀直接报错）；前缀白名单校验（字母数字加连字符、以 `-` 结尾、禁 SQL LIKE 通配符）；`FullDemoSeeder.Prefix` 贯穿 Cleanup/VerifyClean 的全部 LIKE 条件，legacy 客服会话兜底（`F8 Demo%`/`Demo %` tenant-0 孤儿）与 DEMO 设置预设 remark 清理仅在默认 DEMO- 前缀下执行，避免自定义前缀误删；production 拒绝口径不变（cmd 层 + guard 双重）。回归单测 `fulldemo_round85_test.go`：前缀校验、QA- 清理幂等零残留、DEMO-/普通数据不受影响、seed/production 守卫。
 - collector 不可达优雅降级：collector 代理传输层错误（连接拒绝/超时/DNS）由裸 502+50000 收口为 502 + 新业务码 `CodeCollectorUnreachable=50302` + 中文引导文案（`failCollectorProxy`，collector 业务拒绝仍保留原 message）；前端 `request.ts` 新增 `isCollectorUnreachableError`，设置中心采集页对 1688/拼多多/淘宝天猫登录态检测与打开采集浏览器失败识别该码，页面顶部渲染「采集服务未启动或不可达」warning Alert（含启动指引 + 重新检测按钮），不再弹裸错误 toast，采集参数表单不受影响可正常查看保存。回归：后端 `collector_unreachable_test.go`（unreachable 走 50302 引导、业务拒绝不被掩盖）、前端 request.test.ts 补 2 用例。
 - R84 报告其他杂项：R84 报告（第 84 轮变更记录）所列 P1/P2 已随 #182/#185 合入 main，本轮除上述两条外无其他待收口小杂项。
+
+### 变更记录（2026-08-03）第 86 轮：R85 AI/采集季度复查 P2 UX 收口
+
+- 采集失败原因中文化：`collectErrors.ts` 新增 `UNSUPPORTED_URL` 标签/建议映射，并识别 collector 原始英文消息 `url is not supported by source "1688"` 与 `INVALID_URL:*`（不改错误码契约）；补单测。
+- readonly 写按钮 UI 收口：失败中心（行内重试/生成告警/更多、批量重试/忽略/已处理、抽屉登录浏览器/恢复/重试/生成告警）、AI 批次（重试失败/应用结果）、AI 图片任务（新建/快捷模板/重试/保存到商品/设为主图等）、AI 文案批量复核（重试/批量应用/撤销/复核弹窗写按钮）按既有口径隐藏；E2E `round86-ux-p2.spec.ts`。
+- readonly 时间线空态：采集任务事件抽屉与运营任务审计时间线补中文空态说明。
+- AI 批次子任务失败原因可读化：`mapAiTaskErrorText`/`AiTaskErrorText`（AI 错误码中文映射 + 悬浮查看完整原始原因），应用于 AI 批次详情/子任务表与文案复核详情（失败原因列 + 弹窗失败原因块，完整原始错误可展开复制）。
