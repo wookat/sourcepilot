@@ -10,6 +10,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
+	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
@@ -142,6 +143,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&productpublish.ProductPublishBatch{},
 		&productpublish.ProductPublication{},
 		&productpublish.ProductPublicationSKU{},
+		&carrier.Carrier{},
 		&order.Order{},
 		&order.OrderItem{},
 		&order.OrderShipment{},

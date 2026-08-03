@@ -357,6 +357,12 @@ export default [
         component: './Orders/Exceptions',
       },
       {
+        path: '/orders/print',
+        name: '拣货发货单打印',
+        hideInMenu: true,
+        component: './Orders/PrintSheets',
+      },
+      {
         path: '/orders/:id',
         name: '订单详情',
         hideInMenu: true,
@@ -539,6 +545,11 @@ export default [
         path: '/settings/inventory',
         name: '库存 / 订单',
         component: './Settings/Inventory',
+      },
+      {
+        path: '/settings/carriers',
+        name: '物流商',
+        component: './Settings/Carriers',
       },
       {
         path: '/settings/pricing',

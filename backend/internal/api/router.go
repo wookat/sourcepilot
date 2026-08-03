@@ -24,6 +24,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/alerting"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
+	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
@@ -468,7 +469,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	inventoryH := &inventory.Handler{Svc: inventorySvc}
 
-	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc}
+	carrierSvc := &carrier.Service{DB: dep.DB, OpLog: opLogSvc}
+	carrierH := &carrier.Handler{Svc: carrierSvc}
+
+	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Carriers: carrierSvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
 
 	orderSyncSvc := &ordersync.Service{
@@ -700,6 +704,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
+	carrier.Register(authed, carrierH)
 	sourcingSvc := &sourcing.Service{DB: dep.DB, Settings: settingsSvc, OpLog: opLogSvc, Provider: &sourceinfo.Mock{}}
 	sourcingH := &sourcing.Handler{Svc: sourcingSvc}
 	sourcing.Register(authed, sourcingH)

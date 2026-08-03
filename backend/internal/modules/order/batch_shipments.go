@@ -10,15 +10,21 @@ import (
 )
 
 // BatchShipmentItem fills one tracking number matched by order number.
+// Carrier keeps the legacy free-text column; CarrierCode selects a tenant
+// carrier explicitly (three-column paste with carrier codes).
 type BatchShipmentItem struct {
-	OrderNo    string `json:"orderNo"`
-	TrackingNo string `json:"trackingNo"`
-	Carrier    string `json:"carrier"`
+	OrderNo     string `json:"orderNo"`
+	TrackingNo  string `json:"trackingNo"`
+	Carrier     string `json:"carrier"`
+	CarrierCode string `json:"carrierCode"`
 }
 
-// BatchShipmentsBody is POST /orders/shipments/batch.
+// BatchShipmentsBody is POST /orders/shipments/batch. DefaultCarrierCode
+// applies to lines without their own carrier column (two-column legacy
+// paste), so a whole SF batch needs no per-line carrier.
 type BatchShipmentsBody struct {
-	Items []BatchShipmentItem `json:"items"`
+	Items              []BatchShipmentItem `json:"items"`
+	DefaultCarrierCode string              `json:"defaultCarrierCode"`
 }
 
 // BatchShipmentLineResult reports the outcome of one pasted line.
@@ -112,15 +118,26 @@ func (s *Service) BatchShipments(c *gin.Context, body BatchShipmentsBody, adminI
 			res.add(line)
 			continue
 		}
-		carrier := strings.TrimSpace(it.Carrier)
-		if carrier == "" {
-			carrier = "其他快递"
+		input := OrderShipmentInput{
+			Carrier:     strings.TrimSpace(it.Carrier),
+			CarrierCode: strings.TrimSpace(it.CarrierCode),
+			TrackingNo:  tn,
+			Status:      ShipmentShipped,
 		}
-		if _, err := s.AppendShipment(c, o.ID, OrderShipmentInput{
-			Carrier:    carrier,
-			TrackingNo: tn,
-			Status:     ShipmentShipped,
-		}, adminID); err != nil {
+		if input.CarrierCode == "" && input.Carrier != "" && s.Carriers != nil {
+			// Best-effort: map the pasted carrier column onto a tenant
+			// carrier; unmatched text stays as a free-text carrier (legacy).
+			if cr, err := s.Carriers.ResolveEnabled(c, input.Carrier); err == nil {
+				input.CarrierCode = cr.Code
+			}
+		}
+		if input.CarrierCode == "" && input.Carrier == "" {
+			input.CarrierCode = strings.TrimSpace(body.DefaultCarrierCode)
+		}
+		if input.CarrierCode == "" && input.Carrier == "" {
+			input.Carrier = "其他快递"
+		}
+		if _, err := s.AppendShipment(c, o.ID, input, adminID); err != nil {
 			line.Message = err.Error()
 			res.add(line)
 			continue

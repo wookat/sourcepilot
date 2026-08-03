@@ -61,6 +61,7 @@ import {
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
 import ImportOrdersModal from '@/pages/Orders/ImportOrdersModal';
 import BatchShipModal from '@/pages/Orders/BatchShipModal';
+import CarrierSelect, { matchCarrier, useEnabledCarriers } from '@/components/CarrierSelect';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import {
   fetchOrderCostEstimateBatch,
@@ -165,6 +166,7 @@ export default function OrdersPage() {
   const [editForm] = Form.useForm();
   const [itemModal, setItemModal] = useState<{ open: boolean; row?: OrderItemRow | null }>({ open: false });
   const [itemForm] = Form.useForm();
+  const { carriers, loading: carriersLoading } = useEnabledCarriers();
   const [shipModal, setShipModal] = useState<{ open: boolean; row?: OrderShipmentRow | null }>({ open: false });
   const [shipForm] = Form.useForm();
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
@@ -878,6 +880,15 @@ export default function OrdersPage() {
             </Button>
             <Button
               size="small"
+              disabled={selectedRowKeys.length === 0}
+              onClick={() =>
+                history.push(`/orders/print?ids=${encodeURIComponent(selectedRowKeys.join(','))}`)
+              }
+            >
+              打印拣货单（{selectedRowKeys.length}）
+            </Button>
+            <Button
+              size="small"
               loading={batchDeliverLoading}
               disabled={selectedShippedIds.length === 0}
               onClick={() => void handleBatchMarkDelivered()}
@@ -1378,16 +1389,18 @@ export default function OrdersPage() {
         onOk={async () => {
           const v = await shipForm.validateFields();
           if (!detail) return;
-          if (shipModal.row) await updateOrderShipment(detail.id, shipModal.row.id, v as Record<string, unknown>);
-          else await createOrderShipment(detail.id, v as Record<string, unknown>);
+          const matched = matchCarrier(carriers, v.carrier as string);
+          const payload = { ...v, carrierCode: matched?.code } as Record<string, unknown>;
+          if (shipModal.row) await updateOrderShipment(detail.id, shipModal.row.id, payload);
+          else await createOrderShipment(detail.id, payload);
           message.success('已保存');
           setShipModal({ open: false });
           await refreshDetail();
         }}
       >
         <Form form={shipForm} layout="vertical">
-          <Form.Item name="carrier" label="承运商" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item name="carrier" label="物流商" rules={[{ required: true, message: '请选择或填写物流商' }]}>
+            <CarrierSelect carriers={carriers} loading={carriersLoading} />
           </Form.Item>
           <Form.Item name="trackingNo" label="运单号">
             <Input />

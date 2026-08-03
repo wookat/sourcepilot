@@ -10,7 +10,7 @@ describe('TradeMind API contract registry', () => {
     expect(contracts.envelope.errorCodeRule).toContain('non-zero');
   });
 
-  it('covers the core Admin product publishing and readiness endpoints', () => {
+  it('covers the core Admin product publishing, readiness and logistics endpoints', () => {
     const routes = new Set(contracts.endpoints.map(routeKey));
 
     expect(routes).toEqual(
@@ -24,8 +24,29 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/products/:id/publish-targets',
         'POST /api/v1/products/:id/platform-configs/douyin_shop/create-draft',
         'POST /api/v1/products/:id/publish',
+        'GET /api/v1/carriers',
+        'POST /api/v1/carriers',
+        'PUT /api/v1/carriers/:id',
+        'DELETE /api/v1/carriers/:id',
+        'POST /api/v1/orders/shipments/batch',
+        'GET /api/v1/orders/print/sheets',
+        'POST /api/v1/orders/:id/shipments/:shipmentId/refresh-tracking',
       ]),
     );
+  });
+
+  it('defines payload/query contracts for logistics APIs', () => {
+    const createCarrier = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/carriers');
+    const updateCarrier = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/carriers/:id');
+    const listCarriers = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/carriers');
+    const batchShipments = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/orders/shipments/batch');
+    const printSheets = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/orders/print/sheets');
+
+    expect(createCarrier?.requestBody).toEqual(['code', 'name', 'trackingUrlTemplate', 'sortOrder']);
+    expect(updateCarrier?.requestBody).toEqual(['name', 'enabled', 'trackingUrlTemplate', 'sortOrder']);
+    expect(listCarriers?.query).toEqual(['enabled', 'keyword']);
+    expect(batchShipments?.requestBody).toEqual(['items', 'defaultCarrierCode']);
+    expect(printSheets?.query).toEqual(['ids']);
   });
 
   it('defines payload/query contracts for state-changing publish APIs', () => {
@@ -39,7 +60,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(9);
+    expect(contracts.endpoints).toHaveLength(16);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

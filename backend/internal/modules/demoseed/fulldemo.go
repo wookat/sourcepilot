@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -195,6 +196,20 @@ func (s *FullDemoSeeder) guard() error {
 func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	now := time.Now().UTC()
 	count := func(table string, n int64) { res.Counts[table] += n }
+
+	// ---- carriers：预置国内常用物流商（幂等，供发货/打印演示）----
+	if err := carrier.EnsurePresets(context.Background(), tx, s.TenantID); err != nil {
+		return fmt.Errorf("demoseed: carriers: %w", err)
+	}
+	var carrierCount int64
+	if err := tx.Model(&carrier.Carrier{}).Where("tenant_id = ?", s.TenantID).Count(&carrierCount).Error; err != nil {
+		return fmt.Errorf("demoseed: carriers count: %w", err)
+	}
+	count("carriers", carrierCount)
+	var sfCarrier carrier.Carrier
+	if err := tx.First(&sfCarrier, "tenant_id = ? AND code = ?", s.TenantID, "sf").Error; err != nil {
+		return fmt.Errorf("demoseed: sf carrier: %w", err)
+	}
 
 	// ---- shops ×3（抖店 / 手工渠道 / TikTok 降级刊登演示）----
 	shops := []shop.Shop{
@@ -543,9 +558,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		count("order_item_sku_matches", 1)
 
 		if plan.withShipment {
-			sh := order.OrderShipment{OrderID: o.ID, Carrier: "顺丰速运",
-				TrackingNo: fmt.Sprintf("DEMO-TRK-SO-%d", idx+1), Status: plan.shipmentState,
-				ShippedAt: o.ShippedAt, DeliveredAt: o.DeliveredAt}
+			sh := order.OrderShipment{OrderID: o.ID, Carrier: sfCarrier.Name,
+				CarrierID: &sfCarrier.ID, CarrierCode: sfCarrier.Code,
+				TrackingNo: fmt.Sprintf("SF10000000000%d", idx+1), Status: plan.shipmentState,
+				TrackingURL: sfCarrier.TrackingURLFor(fmt.Sprintf("SF10000000000%d", idx+1)),
+				ShippedAt:   o.ShippedAt, DeliveredAt: o.DeliveredAt}
 			if err := tx.Create(&sh).Error; err != nil {
 				return fmt.Errorf("demoseed: shipment: %w", err)
 			}

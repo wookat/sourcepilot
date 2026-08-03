@@ -161,6 +161,13 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 审计保留策略：清退目标租户的业务操作日志随租户一并删除；平台侧开租/清退审计（`tenant.create` / `tenant.purge.start` / `tenant.purge.done|failed`）与 `tenant_purge_tasks` 任务记录保留在 tenant 0。
 - 回归证据：`platformtenant` 模块 `purge_api_test.go`（停用前 400、confirmName 不一致 400、tenant 0 400、不存在 404、三类非平台 persona 403 且无副作用、成功清退后逐表零残留 + tenant 0 审计保留）。前端入口仅平台管理员可见（页面级 `isPlatformAdmin` 403 兜底），且仅对已停用租户展示「清退删除」。
 
+## round91 物流商与打单发货
+
+- 新增 6 条路由登记：`GET /api/v1/carriers`（四角色 allow，租户隔离）；`POST /api/v1/carriers`、`PUT /api/v1/carriers/:id`、`DELETE /api/v1/carriers/:id`（写，readonly forbid）；`GET /api/v1/orders/print/sheets`（读，四角色 allow，订单店铺 scope 同订单详情：operator 仅授权店铺订单，越权 404）；`POST /api/v1/orders/:id/shipments/:shipmentId/refresh-tracking`（写，readonly forbid，订单店铺 scope）。
+- carriers 数据租户隔离（`tenant_id` + `ApplyTenantScope`），预置物流商按租户幂等 seed，不跨租户共享启停状态；预置不可删除只可停用。
+- 批量发货 `POST /orders/shipments/batch` 契约扩展（新增可选 `carrier`/`carrierCode` 列与 `defaultCarrierCode`），路由与角色登记不变；旧两列格式兼容。
+- 回归证据：`carrier` 模块 `service_test.go`（租户隔离、预置幂等、启停/删除口径）、`order` 模块 `carrier_shipment_test.go`（carrier 关联、运单号校验、批量新旧格式、manual 轨迹推动订单流转）；permmatrix 契约测试覆盖上述新端点。
+
 ## docs/api.md 口径差异说明
 
 - docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。

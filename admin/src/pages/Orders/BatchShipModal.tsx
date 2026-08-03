@@ -2,7 +2,8 @@ import {
   batchCreateOrderShipments,
   type BatchShipmentLineResult,
 } from '@/services/orders';
-import { Alert, Button, Input, Modal, Space, Table, Tag, Tooltip, message } from 'antd';
+import { listCarriers, type CarrierRow } from '@/services/carriers';
+import { Alert, Button, Input, Modal, Select, Space, Table, Tag, Tooltip, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { ORDER_STATUS } from '@/constants/status';
 
@@ -47,11 +48,20 @@ export default function BatchShipModal({
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<BatchShipmentLineResult[] | null>(null);
+  const [carriers, setCarriers] = useState<CarrierRow[]>([]);
+  const [carriersLoading, setCarriersLoading] = useState(false);
+  const [defaultCarrierCode, setDefaultCarrierCode] = useState<string | undefined>();
 
   useEffect(() => {
     if (!open) return;
     setText('');
     setResults(null);
+    setDefaultCarrierCode(undefined);
+    setCarriersLoading(true);
+    listCarriers({ enabled: true })
+      .then(setCarriers)
+      .catch(() => setCarriers([]))
+      .finally(() => setCarriersLoading(false));
   }, [open]);
 
   const parsed = useMemo(() => parseShipText(text), [text]);
@@ -73,6 +83,7 @@ export default function BatchShipModal({
             trackingNo: p.trackingNo as string,
             carrier: p.carrier,
           })),
+        defaultCarrierCode,
       );
       setResults(res.results || []);
       if (res.failed === 0) {
@@ -123,12 +134,26 @@ export default function BatchShipModal({
       />
       {!results && (
         <>
+          <Space style={{ marginBottom: 12, width: '100%' }} wrap>
+            <span>默认物流商（未填承运商列时使用）：</span>
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="可选，不选则按旧格式处理"
+              style={{ minWidth: 220 }}
+              loading={carriersLoading}
+              value={defaultCarrierCode}
+              onChange={setDefaultCarrierCode}
+              options={carriers.map((c) => ({ value: c.code, label: c.name }))}
+            />
+          </Space>
           <Input.TextArea
             rows={8}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={
-              '每行一条：订单号 快递单号 [承运商]\n例如：\nSO-2026-0001 SF1234567890 顺丰\nSO-2026-0002 YT9876543210'
+              '每行一条：订单号 快递单号 [物流商]\n物流商列可填名称或代码（如：顺丰 / sf），缺省时使用上方默认物流商\n例如：\nSO-2026-0001 SF1234567890123 顺丰\nSO-2026-0002 YT9876543210'
             }
           />
           {errorLines.length > 0 && (

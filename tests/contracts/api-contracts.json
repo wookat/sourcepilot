@@ -1,30 +1,149 @@
 {
   "envelope": {
-    "success": ["code", "message", "data"],
-    "optional": ["traceId"],
+    "success": [
+      "code",
+      "message",
+      "data"
+    ],
+    "optional": [
+      "traceId"
+    ],
     "errorCodeRule": "code must be non-zero for business errors"
   },
   "endpoints": [
-    { "method": "GET", "path": "/api/v1/auth/profile", "auth": true, "responseData": "AdminProfile" },
-    { "method": "GET", "path": "/api/v1/image/providers", "auth": true, "responseData": "ImageProviderList" },
-    { "method": "GET", "path": "/api/v1/products/:id", "auth": true, "responseData": "ProductDetail" },
-    { "method": "GET", "path": "/api/v1/products/:id/readiness", "auth": true, "query": ["platform", "shopId", "mode"], "responseData": "ProductReadinessResult" },
-    { "method": "GET", "path": "/api/v1/products/:id/publications", "auth": true, "responseData": "ProductPublicationList" },
-    { "method": "GET", "path": "/api/v1/product-publications/:id/douyin/sku-bindings", "auth": true, "responseData": "DouyinSkuBindingSummary" },
-    { "method": "GET", "path": "/api/v1/products/:id/publish-targets", "auth": true, "responseData": "PublishTargetsResponse" },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/profile",
+      "auth": true,
+      "responseData": "AdminProfile"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/image/providers",
+      "auth": true,
+      "responseData": "ImageProviderList"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/:id",
+      "auth": true,
+      "responseData": "ProductDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/:id/readiness",
+      "auth": true,
+      "query": [
+        "platform",
+        "shopId",
+        "mode"
+      ],
+      "responseData": "ProductReadinessResult"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/:id/publications",
+      "auth": true,
+      "responseData": "ProductPublicationList"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/product-publications/:id/douyin/sku-bindings",
+      "auth": true,
+      "responseData": "DouyinSkuBindingSummary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/:id/publish-targets",
+      "auth": true,
+      "responseData": "PublishTargetsResponse"
+    },
     {
       "method": "POST",
       "path": "/api/v1/products/:id/platform-configs/douyin_shop/create-draft",
       "auth": true,
-      "requestBody": ["shopId", "publishMode", "force"],
+      "requestBody": [
+        "shopId",
+        "publishMode",
+        "force"
+      ],
       "responseData": "ProductPublishTaskDTO"
     },
     {
       "method": "POST",
       "path": "/api/v1/products/:id/publish",
       "auth": true,
-      "requestBody": ["shopId", "options", "force"],
+      "requestBody": [
+        "shopId",
+        "options",
+        "force"
+      ],
       "responseData": "ProductPublishTaskDTO"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/carriers",
+      "auth": true,
+      "query": [
+        "enabled",
+        "keyword"
+      ],
+      "responseData": "{ items: Carrier[] }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/carriers",
+      "auth": true,
+      "requestBody": [
+        "code",
+        "name",
+        "trackingUrlTemplate",
+        "sortOrder"
+      ],
+      "responseData": "Carrier"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/carriers/:id",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "enabled",
+        "trackingUrlTemplate",
+        "sortOrder"
+      ],
+      "responseData": "Carrier"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/carriers/:id",
+      "auth": true,
+      "responseData": "{ ok: boolean }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/shipments/batch",
+      "auth": true,
+      "requestBody": [
+        "items",
+        "defaultCarrierCode"
+      ],
+      "responseData": "BatchShipmentsResult"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/orders/print/sheets",
+      "auth": true,
+      "query": [
+        "ids"
+      ],
+      "responseData": "{ items: PrintSheet[] }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/:id/shipments/:shipmentId/refresh-tracking",
+      "auth": true,
+      "responseData": "{ provider, supported, message, shipment }"
     }
   ]
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
@@ -31,6 +32,7 @@ type Service struct {
 	Shops       *shop.Service
 	Settings    *settings.Service
 	Idempotency *idempotency.Service
+	Carriers    *carrier.Service
 }
 
 // AIContext holds serializable subsets for Prompt / ai_tasks audit (minimal PII).
@@ -228,10 +230,14 @@ type OrderItemInput struct {
 	Attrs          map[string]any `json:"attrs,omitempty"`
 }
 
-// OrderShipmentInput for create/update body.
+// OrderShipmentInput for create/update body. CarrierCode links a tenant
+// carrier (resolved server-side to CarrierID + display name); Carrier keeps
+// accepting free text for legacy callers.
 type OrderShipmentInput struct {
 	ID          *uuid.UUID `json:"id"`
 	Carrier     string     `json:"carrier"`
+	CarrierID   *uuid.UUID `json:"carrierId,omitempty"`
+	CarrierCode string     `json:"carrierCode,omitempty"`
 	TrackingNo  string     `json:"trackingNo"`
 	TrackingURL string     `json:"trackingUrl,omitempty"`
 	Status      string     `json:"status"`
@@ -449,6 +455,8 @@ func (s *Service) normalizedCreate(body CreateBody) (*Order, []OrderItem, []Orde
 		}
 		shipments = append(shipments, OrderShipment{
 			Carrier:     cr,
+			CarrierID:   sh.CarrierID,
+			CarrierCode: strings.TrimSpace(sh.CarrierCode),
 			TrackingNo:  tno,
 			TrackingURL: strings.TrimSpace(sh.TrackingURL),
 			Status:      stsh,
@@ -822,6 +830,9 @@ func formatTimeRFC(t *time.Time) string {
 
 // Create order with optional nested rows.
 func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*DetailDTO, error) {
+	if err := s.resolveShipmentInputs(c, body.Shipments); err != nil {
+		return nil, err
+	}
 	o, items, shipments, err := s.normalizedCreate(body)
 	if err != nil {
 		return nil, err
@@ -1058,6 +1069,9 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 			}
 		}
 		if body.ReplaceShipments {
+			if err := s.resolveShipmentInputs(c, body.Shipments); err != nil {
+				return err
+			}
 			if _, err := normalizeAndReplaceShipmentsTx(tx, orderID, body.Shipments); err != nil {
 				return err
 			}
@@ -1142,6 +1156,8 @@ func normalizeAndReplaceShipmentsTx(tx *gorm.DB, orderID uuid.UUID, in []OrderSh
 		row := OrderShipment{
 			OrderID:     orderID,
 			Carrier:     cr,
+			CarrierID:   sh.CarrierID,
+			CarrierCode: strings.TrimSpace(sh.CarrierCode),
 			TrackingNo:  strings.TrimSpace(sh.TrackingNo),
 			TrackingURL: strings.TrimSpace(sh.TrackingURL),
 			Status:      st,
@@ -1324,6 +1340,9 @@ func (s *Service) AppendShipment(c *gin.Context, orderID uuid.UUID, body OrderSh
 	if err != nil {
 		return nil, err
 	}
+	if err := s.resolveShipmentInput(c, &body); err != nil {
+		return nil, err
+	}
 	cr := strings.TrimSpace(body.Carrier)
 	if cr == "" {
 		return nil, fmt.Errorf("carrier is required")
@@ -1338,6 +1357,8 @@ func (s *Service) AppendShipment(c *gin.Context, orderID uuid.UUID, body OrderSh
 	row := OrderShipment{
 		OrderID:     orderID,
 		Carrier:     cr,
+		CarrierID:   body.CarrierID,
+		CarrierCode: strings.TrimSpace(body.CarrierCode),
 		TrackingNo:  strings.TrimSpace(body.TrackingNo),
 		TrackingURL: strings.TrimSpace(body.TrackingURL),
 		Status:      st,
@@ -1373,8 +1394,15 @@ func (s *Service) PatchShipment(c *gin.Context, orderID, shipmentID uuid.UUID, b
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND order_id = ?", shipmentID, orderID).Error; err != nil {
 		return nil, err
 	}
+	if err := s.resolveShipmentInput(c, &body); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(body.Carrier) != "" {
 		row.Carrier = strings.TrimSpace(body.Carrier)
+	}
+	if strings.TrimSpace(body.CarrierCode) != "" {
+		row.CarrierCode = strings.TrimSpace(body.CarrierCode)
+		row.CarrierID = body.CarrierID
 	}
 	row.TrackingNo = strings.TrimSpace(body.TrackingNo)
 	row.TrackingURL = strings.TrimSpace(body.TrackingURL)
