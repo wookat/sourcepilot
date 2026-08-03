@@ -3333,7 +3333,7 @@
     "personas": {
       "admin": "allow",
       "crossTenantAdmin": "allow",
-      "operator": "allow",
+      "operator": "forbid",
       "readonly": "forbid"
     }
   },

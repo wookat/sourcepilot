@@ -140,6 +140,12 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 库存共享基础查询 `buildSKUAlertBaseTX` 支持可选 `TenantID`，`GET /inventory/alerts`、`POST /inventory/stock-settings/batch-preview|batch-update` handler 注入当前租户（此前三端点无租户过滤，batch-update 可跨租户改库存阈值）。
 - 回归证据：`operationdashboard` `TestScopeApplyTenantColumn` / `TestScopeApplyTenantViaProductAndShop`、`inventory` `TestBuildSKUAlertBaseTXTenantScope`。路由级守卫矩阵不变（本轮未新增端点）。
 
+## round83 手工建草稿限管理员（R82 双租户回归 P2 收口）
+
+- `POST /api/v1/products`（手工新建草稿）operator 由 `allow` 改为 `forbid`：新建草稿无店铺关联，按商品可见性口径（未关联店铺的草稿仅 admin 可见）operator 创建后自己永远不可见；修复前校验发生在写入后，返回 400 `record not found` 且残留孤儿行。
+- 现口径：`product.Service.Create` 在写入前做 principal 校验，非 admin 统一 403（明确文案），不落库；readonly 仍由 `ReadonlyWriteGuard` 兜底 403。
+- 回归证据：`product` 模块 `create_scope_test.go`（operator/readonly 403 且 0 残留行、admin 正常创建）。
+
 ## docs/api.md 口径差异说明
 
 - docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。
