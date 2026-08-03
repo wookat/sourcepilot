@@ -176,3 +176,29 @@ func TestAPIRetryAcceptsMatchingFailedAttemptID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, retried.Attempt.AttemptNumber)
 }
+
+func TestAllowedActionsCanRetryFollowsLatestFailureRetryable(t *testing.T) {
+	db := openOperationTaskTestDB(t)
+	svc := operationtask.NewAPIService(db)
+
+	runFailure := func(retryable bool, code string) operationtask.OperationTaskDetailResponse {
+		task, _, _, _ := createApprovedExecutionTask(t, db)
+		actorID := createAdminUser(t, db, task.TenantID, admin.RoleAdmin, admin.StatusActive)
+		port := newRecordingExecutionPort()
+		port.err = &operationtask.ExecutionDomainError{Category: operationtask.ExecutionErrorCategoryProviderRejected, Code: code, SafeMessage: "fixture failure", Retryable: retryable}
+		svc.Executor = operationtask.NewExecutionOrchestrator(db, operationtask.NewRBACAuthorizer(db), port)
+		actor := operationtask.APIActor{TenantID: task.TenantID, ActorID: actorID, Role: admin.RoleAdmin}
+		_, err := svc.Execute(context.Background(), actor, task.ID, operationtask.ExecuteRequest{ExpectedTaskRevision: task.Revision}, "req-"+code, "idem-"+code)
+		require.Error(t, err)
+		detail, err := svc.GetTask(context.Background(), actor, task.ID)
+		require.NoError(t, err)
+		require.Equal(t, operationtask.OperationTaskStatusExecutionFailed, detail.Status)
+		return *detail
+	}
+
+	nonRetryable := runFailure(false, "unsupported_adapter_mode")
+	require.False(t, nonRetryable.AllowedActions.CanRetry)
+
+	retryable := runFailure(true, "provider_timeout_retryable")
+	require.True(t, retryable.AllowedActions.CanRetry)
+}
