@@ -76,13 +76,12 @@ func markKey(exceptionType, sourceType, sourceID string) string {
 	return strings.TrimSpace(exceptionType) + "|" + strings.TrimSpace(sourceType) + "|" + strings.TrimSpace(sourceID)
 }
 
-func appendUniqueAgg(dst *[]aggRow, r aggRow) {
+func appendUniqueAgg(dst *[]aggRow, seen map[string]struct{}, r aggRow) {
 	key := r.exceptionType + "|" + r.sourceType + "|" + r.sourceID.String()
-	for _, x := range *dst {
-		if x.exceptionType+"|"+x.sourceType+"|"+x.sourceID.String() == key {
-			return
-		}
+	if _, ok := seen[key]; ok {
+		return
 	}
+	seen[key] = struct{}{}
 	*dst = append(*dst, r)
 }
 
@@ -121,59 +120,60 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 	marks := buildMarkIndex(markRows)
 
 	var rows []aggRow
+	seen := map[string]struct{}{}
 	if req.ExceptionType == "" || req.ExceptionType == TypeSKUUnmatched {
 		if xs, err := s.collectSKUUnmatched(ctx, req); err == nil {
 			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
+				appendUniqueAgg(&rows, seen, x)
 			}
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeSKUAmbiguous {
 		if xs, err := s.collectSKUAmbiguous(ctx, req); err == nil {
 			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
+				appendUniqueAgg(&rows, seen, x)
 			}
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeInsufficientStock || req.ExceptionType == TypeInventoryDeductFailed {
 		if xs, err := s.collectInventoryEffects(ctx, req, inventory.EffectTypeDeduct); err == nil {
 			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
+				appendUniqueAgg(&rows, seen, x)
 			}
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeInventoryRestoreFailed {
 		if xs, err := s.collectInventoryEffects(ctx, req, inventory.EffectTypeRestore); err == nil {
 			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
+				appendUniqueAgg(&rows, seen, x)
 			}
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeInventorySyncFailed {
 		if xs, err := s.collectInventorySyncFailed(ctx, req); err == nil {
 			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
+				appendUniqueAgg(&rows, seen, x)
 			}
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeOrderSyncPartialFailed {
 		if xs, err := s.collectOrderSyncPartialFailed(ctx, req); err == nil {
 			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
+				appendUniqueAgg(&rows, seen, x)
 			}
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeProcurementBlocked {
 		if xs, err := s.collectProcurementBlocked(ctx, req); err == nil {
 			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
+				appendUniqueAgg(&rows, seen, x)
 			}
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeNegativeMargin {
 		if xs, err := s.collectNegativeMargin(ctx, req); err == nil {
 			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
+				appendUniqueAgg(&rows, seen, x)
 			}
 		}
 	}
