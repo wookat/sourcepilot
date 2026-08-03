@@ -93,6 +93,7 @@ func mapCollectTask(row *collect.CollectTask, productTitles map[uuid.UUID]string
 		NextRetryAt: row.NextRetryAt,
 		UpdatedAt:   row.UpdatedAt,
 	})
+	errCode := collect.InferErrorCodeFromMessage(row.ErrorMessage)
 	dto := UnifiedTaskDTO{
 		ID:               row.ID.String(),
 		TaskType:         TaskTypeCollect,
@@ -102,9 +103,9 @@ func mapCollectTask(row *collect.CollectTask, productTitles map[uuid.UUID]string
 		Title:            collectTitle(row.SourceURL),
 		Status:           row.Status,
 		NormalizedStatus: norm,
-		Retryable:        norm == NormFailed,
+		Retryable:        norm == NormFailed && !collect.IsHardNonRetryableCode(errCode),
 		ErrorMessage:     truncateRunes(row.ErrorMessage, maxErrorMessageLen),
-		ErrorCode:        collect.InferErrorCodeFromMessage(row.ErrorMessage),
+		ErrorCode:        errCode,
 		RetryCount:       row.RetryCount,
 		MaxRetries:       row.MaxRetries,
 		CreatedAt:        row.CreatedAt,

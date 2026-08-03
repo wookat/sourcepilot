@@ -70,16 +70,28 @@ func normalizeCollectorErrorCode(code, message string) string {
 	return code
 }
 
-func isCollectorCodeRetryable(code string, inBatch bool, policy BatchSourcePolicy) bool {
-	code = strings.ToUpper(strings.TrimSpace(code))
-	switch code {
+// IsHardNonRetryableCode reports collector error codes that a manual retry
+// cannot fix (invalid/unsupported URL, product gone, rule missing, etc.).
+// Exported for the task center failure list.
+func IsHardNonRetryableCode(code string) bool {
+	switch strings.ToUpper(strings.TrimSpace(code)) {
 	case "INVALID_URL", "INVALID_REQUEST", "PROVIDER_NOT_FOUND", "PROVIDER_NOT_IMPLEMENTED",
 		"PROVIDER_NOT_AVAILABLE", "PRODUCT_NOT_FOUND", "ITEM_NOT_FOUND", "UNSUPPORTED_URL", "UNSUPPORTED_PINDUODUO_URL",
 		"UNSUPPORTED_TAOBAO_URL", "LOGIN_REQUIRED", "WECHAT_AUTH_REQUIRED", "APP_REDIRECT", "MAIN_IMAGES_EMPTY",
 		"ACCESS_DENIED", "TITLE_NOT_FOUND",
 		"CUSTOM_RULE_MISSING", "CUSTOM_RULE_INVALID",
 		"PARSE_FAILED_TITLE_MISSING", "PARSE_FAILED_IMAGE_MISSING":
+		return true
+	}
+	return false
+}
+
+func isCollectorCodeRetryable(code string, inBatch bool, policy BatchSourcePolicy) bool {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if IsHardNonRetryableCode(code) {
 		return false
+	}
+	switch code {
 	case "PAGE_BLOCKED_OR_VERIFY_REQUIRED", "PAGE_BLOCKED", "VERIFY_REQUIRED", "CAPTCHA":
 		if inBatch && policy.RetryOnBlocked {
 			return true
@@ -286,10 +298,14 @@ func inferCodeFromMessage(msg string) string {
 		"PARSE_FAILED",
 		"COLLECT_FAILED",
 		"PRODUCT_NOT_FOUND",
+		"OFFER_NOT_FOUND",
 		"UNSUPPORTED_URL",
 		"INVALID_URL",
 	} {
 		if strings.Contains(upper, code) {
+			if code == "OFFER_NOT_FOUND" {
+				return "PRODUCT_NOT_FOUND"
+			}
 			if code == "INVALID_URL" && (strings.Contains(upper, "NOT_A_1688_OFFER") ||
 				strings.Contains(upper, "VERIFICATION") ||
 				strings.Contains(upper, "OFFER_PATH_LOST")) {
