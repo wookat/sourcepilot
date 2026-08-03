@@ -16,6 +16,7 @@ import { COLLECT_TASK_STATUS, collectTaskEventLabel, collectTaskStatusTransition
 import {
   mapCollectorErrorCodeDetail,
   mapCollectorErrorCodeLabel,
+  resolveCollectFailureHint,
 } from '@/constants/collectErrors';
 import {
   fetchCollectTask,
@@ -162,7 +163,9 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
               <Descriptions.Item label="可自动重试">{task.retryable ? '是' : '否'}</Descriptions.Item>
             ) : null}
             {task.failureHint ? (
-              <Descriptions.Item label="排查提示">{task.failureHint}</Descriptions.Item>
+              <Descriptions.Item label="排查提示">
+                {resolveCollectFailureHint(task.failureHint, !!task.batchId)}
+              </Descriptions.Item>
             ) : null}
           </Descriptions>
 

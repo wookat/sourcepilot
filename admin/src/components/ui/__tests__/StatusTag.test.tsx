@@ -4,9 +4,11 @@ import StatusTag from '../StatusTag';
 
 describe('StatusTag', () => {
   it('renders shared collect task labels for known statuses', () => {
-    render(<StatusTag status="running" />);
-
+    const { rerender } = render(<StatusTag status="running" />);
     expect(screen.getByText('处理中')).toBeInTheDocument();
+
+    rerender(<StatusTag status="retrying" />);
+    expect(screen.getByText('等待重试').closest('.ant-tag-warning')).not.toBeNull();
   });
 
   it('maps extended shared statuses to unified labels and colors', () => {

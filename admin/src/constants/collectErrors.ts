@@ -182,6 +182,21 @@ export function mapCollectorErrorCodeDetail(code?: string | null, source?: strin
   }
 }
 
+/** 后端「同链接他处成功」批量场景排查提示（与 backend collectFailureHint 保持一致） */
+const BATCH_SAME_URL_FAILURE_HINT =
+  '该链接单独采集成功，批量失败可能由并发、访问频率或目标站点风控导致。建议降低批量并发或稍后重试。';
+
+const SINGLE_SAME_URL_FAILURE_HINT =
+  '该链接此前已采集成功，本次失败可能由访问频率或目标站点风控导致，建议稍后重试。';
+
+/** 处理建议按单条 / 批量场景收敛话术：单条任务不展示批量场景建议 */
+export function resolveCollectFailureHint(hint?: string | null, inBatch?: boolean): string {
+  const h = (hint ?? '').trim();
+  if (!h) return '';
+  if (!inBatch && h === BATCH_SAME_URL_FAILURE_HINT) return SINGLE_SAME_URL_FAILURE_HINT;
+  return h;
+}
+
 /** 将后端 / 采集服务错误转为用户可读说明（不含英文错误码） */
 export function mapCollectErrorMessage(err: unknown, source?: string | null): string {
   const raw = err instanceof Error ? err.message : String(err ?? '');
