@@ -1399,3 +1399,11 @@ Final Production Acceptance Deferred to P10
 - 双租户实测（docker compose 全栈 + seed:demo:full + 平台租户页正规开租租户 B）发现：运营仪表盘聚合数值跨租户泄露（商品/客服/刊登/库存等计数含他租户数据）；代码走查同时发现 `GET /inventory/alerts` 与 `POST /inventory/stock-settings/batch-preview|batch-update` 无租户过滤（后者可跨租户批量改库存阈值）。
 - 修复：`operationdashboard.Scope` 新增 `applyTenantColumn` / `applyTenantViaProduct` / `applyTenantViaShop`，Summary/Exceptions/Recent 全部聚合查询按可信租户限定；库存 `buildSKUAlertBaseTX` 支持可选 `TenantID`，三个库存端点 handler 注入当前租户。详见 docs/permission-matrix.md「round82」。
 - 回归：`operationdashboard` / `inventory` 新增 dry-run 租户谓词单测；`go test ./...` 全量通过。
+
+### 变更记录（2026-08-03）第 83 轮：设置中心/用户与店铺授权深度回归 + P1/P2 修复
+
+- R83 全栈回归（docker compose + seed:demo:full，#179/#180 本地叠加）：用户管理全动线、平台租户治理、设置子页、readonly/operator 口径、三视口通过；发现 P1「被删用户旧会话下次请求触发未处理 Promise 拒绝整页红屏遮罩」与 P2「店铺授权弹窗重复 key 告警」「缺少改密码入口」。
+- P1 修复：`app.tsx` 会话守卫在跳登录页兜底路径改为悬挂原请求 Promise（不再向页面抛出无人消费的 401 错误），旧会话失效体验为静默跳转登录页。
+- P2 修复：店铺授权 `Form.List` 不再向 `Form.Item` 透传 `key`（消除 React 重复 key/AntD 告警）。
+- 新增用户改密码：`POST /admin/users/:id/reset-password`（≥6 位、bcrypt、`token_version+1` 旧会话失效、操作日志 `user.password.reset`、权限矩阵已登记 admin-only）；Admin 用户管理页新增「改密码」入口；E2E `r83-users-reset-password.spec.ts` + 后端 `reset_password_test.go`。
+- docs/api.md 已同步；权限矩阵契约全量复跑通过。

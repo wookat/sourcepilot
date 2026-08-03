@@ -388,6 +388,51 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 	return s.toUserRow(c.Request.Context(), &u, true)
 }
 
+// ResetPasswordBody sets a new login password for a user.
+type ResetPasswordBody struct {
+	Password string `json:"password"`
+}
+
+// ResetPassword replaces the user's password hash and bumps token_version so
+// existing sessions are invalidated on their next request.
+func (s *Service) ResetPassword(c *gin.Context, userID uuid.UUID, body ResetPasswordBody, actorID *uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("adminuser: no db")
+	}
+	pw := strings.TrimSpace(body.Password)
+	if len(pw) < 6 {
+		return fmt.Errorf("密码至少 6 位")
+	}
+	u, err := s.findInTenant(c, userID)
+	if err != nil {
+		return err
+	}
+	hash, err := hashPassword(pw)
+	if err != nil {
+		return err
+	}
+	if err := s.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{}).
+		Where("id = ? AND tenant_id = ?", userID, u.TenantID).
+		Updates(map[string]interface{}{
+			"password_hash": hash,
+			"token_version": gorm.Expr("token_version + 1"),
+		}).Error; err != nil {
+		return err
+	}
+	adminperm.InvalidateUserPermissionCache(userID)
+	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: actorID,
+			Action:      "user.password.reset",
+			Resource:    "admin_user",
+			ResourceID:  userID.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("userId=%s", userID.String()),
+		})
+	}
+	return nil
+}
+
 // SetStorePermissions replaces store grants for a user.
 func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body SetStorePermissionsBody, actorID *uuid.UUID) (*UserRow, error) {
 	if s == nil || s.DB == nil {

@@ -76,7 +76,8 @@ async function handleUnauthorizedAndRetry(error: {
   if (!ok) ok = await requireRelogin();
   if (!ok) {
     redirectToLoginPage();
-    throw error;
+    // 整页跳登录页已接管：悬挂该请求的 Promise，避免页面代码未 catch 时触发 Unhandled Rejection 遮罩
+    return new Promise<never>(() => {});
   }
   return umiRequest(String(cfg.url || ''), {
     method: (cfg.method as string) || 'GET',
@@ -140,7 +141,7 @@ export const request: RequestConfig = {
       // 重放后仍 401（如 token_version 已失效）才兜底跳登录页；首个 401 由 responseInterceptors 处理
       if (status === 401 && error?.config?.sessionGuardRetry && !reqUrl.includes('/auth/login')) {
         redirectToLoginPage();
-        return;
+        return new Promise<never>(() => {});
       }
       throw error;
     },
