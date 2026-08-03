@@ -304,6 +304,10 @@ func (h *Handler) RetryTask(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -320,11 +324,19 @@ func (h *Handler) RecoverDouyinDraftTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	tid, _ := adminperm.TenantIDFromGin(c)
+	if _, err := h.Svc.GetDTO(c.Request.Context(), tid, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
 	if err := h.Svc.RecoverDouyinDraftStale(c.Request.Context(), id); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
-	tid, _ := adminperm.TenantIDFromGin(c)
 	out, err := h.Svc.GetDTO(c.Request.Context(), tid, id)
 	if err != nil {
 		response.OK(c, gin.H{"recovered": true})
@@ -502,6 +514,10 @@ func (h *Handler) CancelTask(c *gin.Context) {
 	}
 	out, err := h.Svc.CancelTask(c, id, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -620,7 +636,7 @@ func (h *Handler) GetPublishBatch(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetPublishBatchDetail(c.Request.Context(), id, adminUUID(c))
+	out, err := h.Svc.GetPublishBatchDetail(c, id, adminUUID(c))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -648,6 +664,10 @@ func (h *Handler) RetryFailedBatch(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailedBatchTasks(c, id, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		if errors.Is(err, ErrBatchAccessDenied) {
 			response.Fail(c, 403, response.CodeForbidden, "无权访问该批次")
 			return
@@ -670,6 +690,10 @@ func (h *Handler) CancelPendingBatch(c *gin.Context) {
 	}
 	out, err := h.Svc.CancelPendingBatchTasks(c, id, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		if errors.Is(err, ErrBatchAccessDenied) {
 			response.Fail(c, 403, response.CodeForbidden, "无权访问该批次")
 			return
