@@ -1432,3 +1432,9 @@ Final Production Acceptance Deferred to P10
 - 未知路由统一 JSON 404 envelope（`40401` + 中文口径），替换 Gin 裸文本 `404 page not found`（`api.RegisterNoRoute`）；前端未匹配路由已有统一 404 页（`admin/src/pages/404.tsx`，引导返回工作台）。
 - 平台租户列表：隐式平台租户 0 的 `createdAt` 取最早平台管理员创建时间，不再空展示；回归测试 `list_created_at_test.go`。
 - docs/production-launch-checklist.md 补「Let's Encrypt 真实域名签发注意事项」（DNS/端口/CDN 前置、staging CA 联调、速率限制、排查顺序、自动续期），仅文档不改代码。
+
+### 变更记录（2026-08-03）第 88 轮：恢复 operator 手工建草稿（带店铺归属）
+
+- `POST /api/v1/products` operator 由 forbid 改回 allow（round83 收紧的产品口径补全）：请求体新增可选 `shopId`，operator 必填且须属其授权范围（不传 400、越权 404 不泄露存在性、仅 view 授权 403 40303），校验全部发生在写入前，被拒绝零落库；创建成功在同一事务写入 `product_platform_publish_configs` 关联，草稿按既有可见性口径对创建者可见。admin 保持现口径（`shopId` 可选）；readonly 仍路由级 403。
+- 前端新建草稿弹窗增加「归属店铺」选择（operator 必填含中文引导、下拉由后端店铺 scope 只列授权店铺；admin 可选）。
+- 权限矩阵 operator=allow 已登记并复跑契约测试；回归测试 `product/create_scope_test.go` 全场景重写（含零脏数据断言）；E2E 补 operator 建草稿动线。docs/api.md、docs/permission-matrix.md 已同步。

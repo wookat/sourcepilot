@@ -8,7 +8,7 @@ import {
   SafetyCertificateOutlined,
   ShopOutlined,
 } from '@ant-design/icons';
-import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
+import { ModalForm, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { DateTimeText, EmptyState, OperationToolbar, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
@@ -159,7 +159,15 @@ export default function ProductDraftsPage() {
   }, [screens.md]);
   const [createOpen, setCreateOpen] = useState(false);
   const { readonly, role } = usePermission();
-  const canCreateDraft = role === 'admin';
+  const isAdmin = role === 'admin';
+  const canCreateDraft = isAdmin || role === 'operator';
+  const [createShops, setCreateShops] = useState<ShopListRow[]>([]);
+  useEffect(() => {
+    if (!createOpen) return;
+    queryShops({ page: 1, pageSize: 500 })
+      .then((res) => setCreateShops(Array.isArray(res.list) ? res.list : []))
+      .catch(() => setCreateShops([]));
+  }, [createOpen]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [selectedRows, setSelectedRows] = useState<ProductListRow[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
@@ -820,6 +828,7 @@ export default function ProductDraftsPage() {
               source: vals.source || 'manual',
               sourceUrl: vals.sourceUrl,
               description: vals.description,
+              shopId: vals.shopId || undefined,
             });
           } catch (e: unknown) {
             const status = (e as { response?: { status?: number } })?.response?.status;
@@ -837,6 +846,24 @@ export default function ProductDraftsPage() {
         }}
       >
         <ProFormText name="title" label="标题" rules={[{ required: true, message: '必填' }]} />
+        <ProFormSelect
+          name="shopId"
+          label="归属店铺"
+          placeholder={isAdmin ? '可选：选择草稿归属店铺' : '请选择归属店铺'}
+          rules={isAdmin ? [] : [{ required: true, message: '请选择归属店铺' }]}
+          extra={
+            isAdmin
+              ? '可选：选择后草稿会关联到该店铺。'
+              : createShops.length === 0
+                ? '当前账号没有已授权店铺，无法新建草稿。请联系管理员在「用户管理」中为你分配店铺权限。'
+                : '新建草稿必须归属你的授权店铺，创建后可在草稿列表中查看和管理。'
+          }
+          options={createShops.map((s) => ({
+            label: `${s.shopName} (${platformLabel(s.platform)})`,
+            value: s.id,
+          }))}
+          fieldProps={{ showSearch: true, optionFilterProp: 'label', allowClear: isAdmin }}
+        />
         <ProFormText name="source" label="来源" initialValue="manual" />
         <ProFormText name="sourceUrl" label="来源链接" />
         <ProFormTextArea name="description" label="描述" fieldProps={{ rows: 3 }} />

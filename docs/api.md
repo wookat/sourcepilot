@@ -99,7 +99,7 @@
 
 商品及其子资源（SKU、图片、平台配置、AI 优化/应用/撤销、图片同步）的全部写接口均有路由级只读守卫：readonly 或无 `product.write`（AI 应用/撤销为 `ai_text.apply`）权限的账号返回 403，可见性 scope 不能替代该守卫。
 
-手工新建草稿（`POST /api/v1/products`）仅 admin 可用（round83）：新草稿无店铺关联，按可见性口径仅 admin 可见，非 admin 在写入前被拒绝（403，不落库）；见 docs/permission-matrix.md「round83」。
+手工新建草稿（`POST /api/v1/products`）admin 与 operator 均可用（round88，替代 round83 的仅 admin 口径）：请求体支持可选 `shopId`（归属店铺）。operator 必须传 `shopId` 且店铺属于其授权范围（不传返回 400；不在授权范围返回 404「资源不存在」不泄露存在性；仅 view 授权返回 403），创建成功时在同一事务内写入 `product_platform_publish_configs` 店铺关联，草稿对创建者可见；所有校验发生在写入前，被拒绝的请求零落库。admin 保持现口径：`shopId` 可选，传入时同样建立店铺关联（店铺不存在返回 404）。readonly 仍为路由级 403。见 docs/permission-matrix.md「round88」。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |

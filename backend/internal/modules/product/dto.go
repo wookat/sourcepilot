@@ -18,6 +18,9 @@ type CreateBody struct {
 	Currency      string          `json:"currency"`
 	Status        string          `json:"status"`
 	RawData       json.RawMessage `json:"rawData"`
+	// ShopID binds the new draft to an authorized shop (required for
+	// store-scoped roles so the draft stays visible to its creator).
+	ShopID string `json:"shopId"`
 }
 
 // UpdateBody binds PUT /products/:id.

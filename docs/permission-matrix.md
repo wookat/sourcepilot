@@ -145,6 +145,14 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - `POST /api/v1/products`（手工新建草稿）operator 由 `allow` 改为 `forbid`：新建草稿无店铺关联，按商品可见性口径（未关联店铺的草稿仅 admin 可见）operator 创建后自己永远不可见；修复前校验发生在写入后，返回 400 `record not found` 且残留孤儿行。
 - 现口径：`product.Service.Create` 在写入前做 principal 校验，非 admin 统一 403（明确文案），不落库；readonly 仍由 `ReadonlyWriteGuard` 兜底 403。
 - 回归证据：`product` 模块 `create_scope_test.go`（operator/readonly 403 且 0 残留行、admin 正常创建）。
+- round88 已恢复 operator 手工建草稿（带店铺归属），本节口径被下文「round88」替代。
+
+## round88 恢复 operator 手工建草稿（带店铺归属）
+
+- `POST /api/v1/products` operator 由 `forbid` 改回 `allow`：operator 建草稿必须选择归属店铺（`shopId`），后端在写入前校验并在同一事务内写入 `product_platform_publish_configs` 关联，草稿按既有商品可见性口径对创建者可见，杜绝 round83 前的"创建后自己不可见"脏数据。
+- 校验口径（全部发生在写入前，被拒绝零落库）：operator 不传 `shopId` → 400（中文引导文案）；`shopId` 不在授权范围 → 404「资源不存在」（不泄露存在性，与店铺资源现口径一致）；仅 `view` 授权 → 403（店铺数据无权访问口径 40303）；店铺不存在/跨租户 → 404。admin 保持现口径：`shopId` 可选。readonly 仍由路由级守卫 403。
+- 前端：新建草稿弹窗增加「归属店铺」选择（operator 必填、下拉只列其授权店铺——由后端 `GET /api/v1/shops` 店铺 scope 保证；admin 可选、全量可选）。
+- 回归证据：`product` 模块 `create_scope_test.go`（operator 无店铺 400、越权店铺 404、view-only 403、授权店铺 200 且列表可见、readonly 403、admin 有/无店铺、未知店铺 404，均含零脏数据断言）；permmatrix 契约测试 operator=allow、readonly=forbid。
 
 ## docs/api.md 口径差异说明
 

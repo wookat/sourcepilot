@@ -329,11 +329,21 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}, nil
 }
 
-// ErrUnassignedDraftForbidden rejects manual draft creation by store-scoped
-// principals: a new draft has no shop binding, so only admins can see it.
+// ErrUnassignedDraftForbidden rejects manual draft creation by principals
+// without product write scope (defense in depth behind the route guard).
 var ErrUnassignedDraftForbidden = errors.New("当前账号仅能操作已授权店铺的商品，无法创建未关联店铺的商品草稿")
 
-// Create inserts a manual draft.
+// ErrDraftShopRequired rejects store-scoped principals that did not pick a
+// shop: an unassigned draft would be invisible to its creator.
+var ErrDraftShopRequired = errors.New("请选择商品草稿的归属店铺（仅可选择已授权店铺）")
+
+// ErrDraftShopNotOperable rejects shops the principal can see but has no
+// operate/manage grant on.
+var ErrDraftShopNotOperable = errors.New("当前账号无权访问该店铺数据")
+
+// Create inserts a manual draft. Store-scoped principals must bind the draft
+// to an authorized shop; all validation happens before any insert so a
+// rejected request leaves zero rows behind.
 func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*DetailDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
@@ -342,8 +352,39 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	if err != nil {
 		return nil, err
 	}
+	var shopID *uuid.UUID
+	if raw := strings.TrimSpace(body.ShopID); raw != "" {
+		u, err := uuid.Parse(raw)
+		if err != nil || u == uuid.Nil {
+			return nil, fmt.Errorf("invalid shopId")
+		}
+		shopID = &u
+	}
 	if !principal.IsAdmin() {
-		return nil, ErrUnassignedDraftForbidden
+		if principal.IsReadonly() {
+			return nil, ErrUnassignedDraftForbidden
+		}
+		if shopID == nil {
+			return nil, ErrDraftShopRequired
+		}
+		if !principal.CanViewStore(*shopID) {
+			return nil, gorm.ErrRecordNotFound
+		}
+		if !principal.CanOperateStore(*shopID) {
+			return nil, ErrDraftShopNotOperable
+		}
+	}
+	var draftShop *shop.Shop
+	if shopID != nil {
+		tx, _, err := adminperm.ApplyTenantScope(c, s.DB.WithContext(c.Request.Context()).Model(&shop.Shop{}))
+		if err != nil {
+			return nil, err
+		}
+		var row shop.Shop
+		if err := tx.First(&row, "id = ?", *shopID).Error; err != nil {
+			return nil, err
+		}
+		draftShop = &row
 	}
 	source := strings.TrimSpace(body.Source)
 	if source == "" {
@@ -391,7 +432,22 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 		p.OriginalTitle = p.Title
 	}
 
-	if err := s.DB.WithContext(c.Request.Context()).Create(p).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(p).Error; err != nil {
+			return err
+		}
+		if draftShop != nil {
+			cfg := &ProductPlatformPublishConfig{
+				ProductID: p.ID,
+				Platform:  strings.TrimSpace(strings.ToLower(draftShop.Platform)),
+				ShopID:    shopID,
+			}
+			if err := tx.Create(cfg).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
