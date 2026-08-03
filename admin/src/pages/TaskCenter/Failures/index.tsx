@@ -1,5 +1,5 @@
 import { ProCard, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import { DateTimeText, PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { history, useLocation } from '@umijs/max';
 import { confirmFailureTaskRetry } from '@/constants/sensitiveActions';
 import { formatDateTime } from '@/utils/formatTime';
@@ -451,9 +451,9 @@ export default function TaskCenterFailuresPage() {
       {
         title: '创建时间',
         dataIndex: 'createdAt',
-        width: 156,
+        width: 120,
         search: false,
-        render: (_, r) => formatDateTime(r.createdAt),
+        render: (_, r) => <DateTimeText value={r.createdAt} />,
       },
       {
         title: '标题',

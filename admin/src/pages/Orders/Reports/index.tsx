@@ -4,7 +4,15 @@ import { ProCard } from '@ant-design/pro-components';
 import { Alert, Button, Col, Row, Segmented, Skeleton, Space, Statistic, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState, TmPageContainer } from '@/components/ui';
-import { chartAxisXLabel, chartTokens, formatAmount, formatCount, tabularNumsStyle } from '@/constants/chartTokens';
+import {
+  chartAxisXLabel,
+  chartAxisXTickCount,
+  chartTokens,
+  formatAmount,
+  formatCount,
+  formatDateTickShort,
+  tabularNumsStyle,
+} from '@/constants/chartTokens';
 import { downloadDailyReportCsv, fetchOrderDailyStats, type DailyStatsDTO } from '@/services/orders';
 import { useWideScreen } from '@/hooks/useWideScreen';
 
@@ -45,6 +53,8 @@ export default function OrderReports() {
   const [exporting, setExporting] = useState(false);
   const wideScreen = useWideScreen();
   const chartHeight = wideScreen ? chartTokens.height : chartTokens.heightCompact;
+  const xTickCount = wideScreen ? chartAxisXTickCount.wide : chartAxisXTickCount.compact;
+  const axisX = { ...chartAxisXLabel, tickCount: xTickCount, labelFormatter: formatDateTickShort };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -128,7 +138,7 @@ export default function OrderReports() {
             </Col>
             {totals.byCurrency.map(([currency, amount]) => (
               <Col xs={12} sm={8} md={6} key={currency}>
-                <Statistic title={`销售额（${currency}）`} value={amount} precision={2} valueStyle={tabularNumsStyle} />
+                <Statistic title={`销售额（${currency}）`} value={formatAmount(amount)} valueStyle={tabularNumsStyle} />
               </Col>
             ))}
             {totals.byCurrency.length === 0 ? (
@@ -153,7 +163,7 @@ export default function OrderReports() {
             autoFit
             scale={{ color: { range: [...chartTokens.seriesColors] } }}
             axis={{
-              x: { ...chartAxisXLabel },
+              x: axisX,
               y: { labelFormatter: (v: number) => formatCount(Number(v)) },
             }}
             legend={{ color: { position: 'top' } }}
@@ -185,7 +195,7 @@ export default function OrderReports() {
             style={{ maxWidth: chartTokens.barMaxWidth }}
             scale={{ color: { range: [...chartTokens.seriesColors] } }}
             axis={{
-              x: { ...chartAxisXLabel },
+              x: axisX,
               y: { labelFormatter: (v: number) => formatCount(Number(v)) },
             }}
             legend={{ color: { position: 'top' } }}

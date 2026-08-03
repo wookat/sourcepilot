@@ -5,6 +5,8 @@ export { default as FieldHelp } from './FieldHelp';
 export { default as StatusTag } from './StatusTag';
 export { default as PlatformTag } from './PlatformTag';
 export type { PlatformTagProps } from './PlatformTag';
+export { default as DateTimeText } from './DateTimeText';
+export type { DateTimeTextProps } from './DateTimeText';
 export { default as EmptyState } from './EmptyState';
 export { default as ErrorAlert } from './ErrorAlert';
 export { default as TechnicalDetails } from './TechnicalDetails';

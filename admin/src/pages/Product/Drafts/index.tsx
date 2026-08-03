@@ -10,11 +10,10 @@ import {
 } from '@ant-design/icons';
 import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
-import { EmptyState, OperationToolbar, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { DateTimeText, EmptyState, OperationToolbar, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { IMAGE_FALLBACK } from '@/constants/imageFallback';
 import { localizeNextActionLabel } from '@/constants/productOperationLabels';
-import { formatDateTime } from '@/utils/formatTime';
 
 import {
   Alert,
@@ -385,7 +384,7 @@ export default function ProductDraftsPage() {
           <Space size={8} wrap className="product-drafts-table__meta">
             <Typography.Text type="secondary">ID {row.id}</Typography.Text>
             {row.updatedAt ? (
-              <Typography.Text type="secondary">更新 {formatDateTime(row.updatedAt)}</Typography.Text>
+              <Typography.Text type="secondary">更新 <DateTimeText value={row.updatedAt} /></Typography.Text>
             ) : null}
           </Space>
         </div>
@@ -460,11 +459,11 @@ export default function ProductDraftsPage() {
     {
       title: '创建时间',
       dataIndex: 'createdAt',
-      width: 168,
+      width: 120,
       responsive: DESKTOP_ONLY,
       search: false,
       valueType: 'dateTime',
-      render: (_, row) => formatDateTime(row.createdAt),
+      render: (_, row) => <DateTimeText value={row.createdAt} />,
     },
     {
       title: '操作',

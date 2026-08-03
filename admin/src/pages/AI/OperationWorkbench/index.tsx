@@ -7,6 +7,7 @@ import {
   CheckCircleOutlined,
 } from '@ant-design/icons';
 import {
+  DateTimeText,
   MetricCard,
   OperationToolbar,
   PlatformTag,
@@ -398,8 +399,8 @@ export default function AIOperationWorkbenchPage() {
     {
       title: '更新时间',
       dataIndex: 'updatedAt',
-      width: 168,
-      render: (_, row) => formatDateTime(row.updatedAt),
+      width: 120,
+      render: (_, row) => <DateTimeText value={row.updatedAt} />,
     },
     {
       title: '操作',

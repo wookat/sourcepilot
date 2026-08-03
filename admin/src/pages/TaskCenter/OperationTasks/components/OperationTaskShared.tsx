@@ -137,7 +137,7 @@ export function NonProductionBoundary() {
 
 export function copyableText(value?: string | null, max = 14) {
   const text = (value ?? '').trim();
-  if (!text) return '—';
+  if (!text || text === '-' || text === '—') return '—';
   const short = text.length > max ? `${text.slice(0, max)}…` : text;
   return <Typography.Text copyable={{ text }}>{short}</Typography.Text>;
 }

@@ -1,7 +1,6 @@
 import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText } from '@ant-design/pro-components';
-import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { DateTimeText, PlatformTag, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
-import { formatDateTime } from '@/utils/formatTime';
 
 import { history, useLocation } from '@umijs/max';
 import { Button, Tag, Typography, message } from 'antd';
@@ -228,7 +227,7 @@ export default function CustomerConversationsPage() {
         options: PLATFORM_OPTIONS,
         allowClear: true,
       },
-      render: (_, row) => platformLabel(row.platform),
+      render: (_, row) => <PlatformTag platform={row.platform} />,
     },
     {
       title: '店铺',
@@ -298,9 +297,9 @@ export default function CustomerConversationsPage() {
     {
       title: '更新时间',
       dataIndex: 'lastMessageAt',
-      width: 160,
+      width: 120,
       search: false,
-      render: (_, row) => formatDateTime(row.lastMessageAt || row.updatedAt),
+      render: (_, row) => <DateTimeText value={row.lastMessageAt || row.updatedAt} />,
     },
     {
       title: '操作',

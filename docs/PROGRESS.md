@@ -1351,3 +1351,12 @@ Final Production Acceptance Deferred to P10
 - 存量 backfill（`database.migrateRound72AIBatchTenant`，随迁移自动执行）：按 `created_by` → `admin_users.tenant_id` 推导；推导不出（无创建人/创建人已删）保持租户 0（legacy 单租户桶，不放大可见性）。
 - `GET /ai/batches` 列表接入 `adminperm.ApplyTenantScope`（此前无租户过滤）；`ensureBatchVisible` 改按 `tenant_id` 列校验，未 backfill 的 tenant-0 且有创建人的行回退按创建人租户（与 R71 `GetScoped` 口径一致）；详情/子资源跨租户仍统一 404。批次无店铺维度，各角色同租户口径一致。
 - 回归单测：`TestAIOperationBatchTenantColumnScope`（三角色列表过滤 + 跨租户 404 + 缺租户上下文报错 + backfill/回退口径）；docs/api.md「AI 批次租户口径（round72）」与 docs/permission-matrix.md「round72」已登记。
+
+### 变更记录（2026-08-03）第 77 轮：UX 复核 v3 Top5 展示层收口（P1×2 由并行分支处理）
+
+- 时间列短格式统一：`formatTime` 新增 `formatDateTimeShort`（MM-DD HH:mm）与共享组件 `DateTimeText`（短格式 + Tooltip 完整时间）；订单/商品草稿/运营任务/失败中心/AI 工作台/客服会话列表时间列接入并收窄列宽（详情页保留完整 `formatDateTime`）。
+- 状态映射巡检（v3 P2-2/P2-4）：运营任务中心「最新执行状态」由误用任务状态映射改为 `OperationAttemptStatusTag`（failed/succeeded 中文语义 Tag）；`copyableText` 对 `-`/`—` 占位值不再渲染复制图标；客服会话「平台」列改用 `PlatformTag`（v3 P2-3 草稿来源 collect 已在 R76 收口）。
+- 移动端首页待办收纳（v3 P2-6）：<768px 视口今日待办默认只展示前 5 条 + 「查看全部 N 项待办 / 收起」切换，缩短 375 首屏长度；宽屏行为不变。
+- 报表 x 轴抽稀（v3 P2-5）：`chartTokens` 新增 `chartAxisXTickCount`（宽屏 10 / 紧凑 6）与 `formatDateTickShort`（YYYY-MM-DD → MM-DD），经营报表双图接入，移动端不再出现 30 标签竖排墙。
+- 销售额舍入口径统一（v3 P2-1）：报表合计卡销售额由 antd Statistic `precision`（截断）改为与首页经营概览相同的 `formatAmount`（四舍五入），消除 171.40 vs 171.39 展示差；后端数据与 DTO 不变。
+- UX 复核 v3 报告归档至 `docs/ux-review/UX_REVIEW_V3_REPORT.md`（响应 v3 流程建议：走查报告入仓可追溯）。
