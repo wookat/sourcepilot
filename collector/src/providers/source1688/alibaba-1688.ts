@@ -15,7 +15,7 @@ function is1688Host(hostname: string): boolean {
   return hostname === '1688.com' || hostname.endsWith('.1688.com');
 }
 
-function isLikelyOfferPath(urlStr: string): boolean {
+export function isLikelyOfferPath(urlStr: string): boolean {
   try {
     const u = new URL(urlStr);
     if (!is1688Host(u.hostname)) return false;
@@ -155,13 +155,25 @@ type CollectOutcome =
   | { kind: 'success' | 'partial_success'; assembled: Parse1688Result }
   | { kind: 'failed'; code: string; message: string };
 
-function resolveCollectOutcome(
+export function resolveCollectOutcome(
   assembled: Parse1688Result,
   missing: Record<string, boolean>,
   blocked: boolean,
+  onOfferPath: boolean,
 ): CollectOutcome {
   if (blocked && isHardEmptyCollected(assembled)) {
     return { kind: 'failed', code: 'blocked', message: 'verification_challenge_or_offer_unreadable' };
+  }
+
+  if (!onOfferPath) {
+    if (blocked) {
+      return { kind: 'failed', code: 'blocked', message: 'verification_or_login_page_detected' };
+    }
+    return {
+      kind: 'failed',
+      code: 'offer_not_found',
+      message: 'offer_not_found:redirected_to_non_offer_page',
+    };
   }
 
   if (isPlaceholderTitle(assembled.title ?? '')) {
@@ -304,7 +316,7 @@ class Alibaba1688Provider implements CollectorProvider {
           }
         }
 
-        const outcome = resolveCollectOutcome(assembled, missing, isBlockedPage(assembled));
+        const outcome = resolveCollectOutcome(assembled, missing, isBlockedPage(assembled), onOfferPath);
 
         const debugBase = {
           sourceUrl,
@@ -332,6 +344,9 @@ class Alibaba1688Provider implements CollectorProvider {
 
           if (outcome.code === 'blocked') {
             throwBlocked(outcome.message);
+          }
+          if (outcome.code === 'offer_not_found') {
+            throw new Error(`PRODUCT_NOT_FOUND:${outcome.message}`);
           }
           throw new Error(`PARSE_FAILED:${outcome.message}`);
         }
