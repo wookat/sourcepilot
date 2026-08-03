@@ -126,6 +126,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&admin.AdminUser{},
 		&admin.UserStorePermission{},
 		&platformtenant.Tenant{},
+		&platformtenant.TenantPurgeTask{},
 		&settings.Setting{},
 		&operationlog.OperationLog{},
 		&files.FileRecord{},

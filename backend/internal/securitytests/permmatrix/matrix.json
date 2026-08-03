@@ -130,6 +130,30 @@
     "note": "平台租户启用：仅 tenant 0 admin（平台管理员）可用"
   },
   {
+    "method": "POST",
+    "path": "/api/v1/platform/tenants/:id/purge",
+    "personas": {
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "platformAdmin": "allow",
+      "readonly": "forbid"
+    },
+    "note": "平台租户清退删除：仅 tenant 0 admin（平台管理员）可用；须先停用并输入租户名确认，tenant 0 永不可清退"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/platform/tenants/:id/purge",
+    "personas": {
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "platformAdmin": "allow",
+      "readonly": "forbid"
+    },
+    "note": "平台租户清退任务状态/零残留报告：仅 tenant 0 admin（平台管理员）可查看"
+  },
+  {
     "method": "GET",
     "path": "/api/v1/admin/users",
     "personas": {

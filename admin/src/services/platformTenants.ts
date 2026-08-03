@@ -34,6 +34,36 @@ export async function renamePlatformTenant(id: number, name: string) {
   return putJSON<PlatformTenantRow, { name: string }>(`/api/v1/platform/tenants/${id}`, { name });
 }
 
+export type PurgeTaskStatus = 'pending' | 'running' | 'succeeded' | 'failed';
+
+export type PurgeReport = {
+  tables: Record<string, number>;
+  total: number;
+  verifiedAt: string;
+};
+
+export type PurgeTask = {
+  id: string;
+  tenantId: number;
+  tenantName: string;
+  status: PurgeTaskStatus;
+  error?: string;
+  report?: PurgeReport;
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+};
+
+export async function purgePlatformTenant(id: number, confirmName: string) {
+  return postJSON<PurgeTask, { confirmName: string }>(`/api/v1/platform/tenants/${id}/purge`, {
+    confirmName,
+  });
+}
+
+export async function fetchPlatformTenantPurge(id: number) {
+  return getJSON<PurgeTask>(`/api/v1/platform/tenants/${id}/purge`);
+}
+
 export async function disablePlatformTenant(id: number) {
   return postJSON<PlatformTenantRow>(`/api/v1/platform/tenants/${id}/disable`);
 }
