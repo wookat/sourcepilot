@@ -204,6 +204,47 @@ func migrateImmutableGuards(db *gorm.DB) error {
 	}
 }
 
+// WithImmutableGuardsDisabled runs fn inside tx with the immutable-record
+// database guards lifted, so trusted maintenance flows (demo data cleanup)
+// can hard-delete audit rows that are otherwise append-only. Postgres uses a
+// transaction-local replica session role; sqlite drops and re-installs the
+// guard triggers. Business code must never call this.
+func WithImmutableGuardsDisabled(tx *gorm.DB, fn func(tx *gorm.DB) error) error {
+	if tx == nil || tx.Dialector == nil {
+		return fmt.Errorf("operationtask: tx is nil")
+	}
+	switch tx.Dialector.Name() {
+	case "postgres":
+		if err := tx.Exec(`SET LOCAL session_replication_role = replica`).Error; err != nil {
+			return err
+		}
+		if err := fn(tx); err != nil {
+			return err
+		}
+		return tx.Exec(`SET LOCAL session_replication_role = DEFAULT`).Error
+	case "sqlite":
+		drops := []string{
+			`DROP TRIGGER IF EXISTS trg_approval_records_no_update`,
+			`DROP TRIGGER IF EXISTS trg_approval_records_no_delete`,
+			`DROP TRIGGER IF EXISTS trg_execution_errors_no_update`,
+			`DROP TRIGGER IF EXISTS trg_execution_errors_no_delete`,
+			`DROP TRIGGER IF EXISTS trg_operation_task_events_no_update`,
+			`DROP TRIGGER IF EXISTS trg_operation_task_events_no_delete`,
+		}
+		for _, stmt := range drops {
+			if err := tx.Exec(stmt).Error; err != nil {
+				return err
+			}
+		}
+		if err := fn(tx); err != nil {
+			return err
+		}
+		return migrateSQLiteImmutableGuards(tx)
+	default:
+		return fn(tx)
+	}
+}
+
 func migrateSQLiteImmutableGuards(db *gorm.DB) error {
 	stmts := []string{
 		`CREATE TRIGGER IF NOT EXISTS trg_approval_records_no_update BEFORE UPDATE ON approval_records BEGIN SELECT RAISE(ABORT, 'immutable_record'); END;`,
