@@ -72,7 +72,7 @@ func mapCustomerFailureEvent(row *customerchat.CustomerFailureEvent, marks markS
 		Title:               title,
 		Status:              row.Status,
 		NormalizedStatus:    norm,
-		Retryable:           true,
+		Retryable:           row.Category == customerchat.FailureCategoryReplyGenerateFailed,
 		ErrorMessage:        truncateRunes(row.ErrorMessage, maxErrorMessageLen),
 		ErrorCode:           row.Category,
 		FailureCategory:     row.Category,

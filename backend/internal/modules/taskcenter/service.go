@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -37,6 +38,7 @@ type Service struct {
 	ProductPublish *productpublish.Service
 	Inventory      *inventory.Service
 	AIProductText  *aiproducttext.Service
+	CustomerChat   *customerchat.Service
 }
 
 // ListFailureParams binds list query options.

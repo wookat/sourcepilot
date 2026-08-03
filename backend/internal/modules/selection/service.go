@@ -103,7 +103,10 @@ func (s *Service) CreateTask(c *gin.Context, body CreateTaskBody, adminID *uuid.
 	if name == "" {
 		name = fmt.Sprintf("选品任务 %s", time.Now().Format("2006-01-02 15:04"))
 	}
-	tenantID, _ := adminperm.TenantIDFromGin(c)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil || tenantID <= 0 {
+		return nil, fmt.Errorf("TENANT_CONTEXT_MISSING: selection requires positive tenant scope")
+	}
 	task := &SelectionTask{
 		TenantID:       tenantID,
 		Name:           name,
@@ -115,7 +118,7 @@ func (s *Service) CreateTask(c *gin.Context, body CreateTaskBody, adminID *uuid.
 		CreatedBy:      adminID,
 	}
 
-	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(task).Error; err != nil {
 			return err
 		}
