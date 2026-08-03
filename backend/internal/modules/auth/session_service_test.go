@@ -343,9 +343,10 @@ func TestCreateSessionBindsAccessTokenSessionID(t *testing.T) {
 	}
 }
 
-func newSessionServiceWithUser(t *testing.T) (*SessionService, *gorm.DB, uuid.UUID, *LoginSessionResult) {
+func newSessionServiceWithUser(t *testing.T) (*SessionService, *gorm.DB, uuid.UUID, string, *LoginSessionResult) {
 	t.Helper()
 	testID := uuid.NewString()
+	testPassword := "pw-" + testID
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", testID)), &gorm.Config{})
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
@@ -353,7 +354,7 @@ func newSessionServiceWithUser(t *testing.T) (*SessionService, *gorm.DB, uuid.UU
 	if err := db.AutoMigrate(&AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &admin.AdminUser{}); err != nil {
 		t.Fatal(err)
 	}
-	hash, _ := bcrypt.GenerateFromPassword([]byte("test-password-123"), bcrypt.MinCost)
+	hash, _ := bcrypt.GenerateFromPassword([]byte(testPassword), bcrypt.MinCost)
 	uid := uuid.New()
 	email := fmt.Sprintf("test-%s@example.com", testID)
 	if err := db.Create(&admin.AdminUser{
@@ -375,16 +376,16 @@ func newSessionServiceWithUser(t *testing.T) (*SessionService, *gorm.DB, uuid.UU
 		},
 	}
 	svc := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}}
-	res, err := svc.CreateSession(context.Background(), email, "test-password-123", "127.0.0.1", "test")
+	res, err := svc.CreateSession(context.Background(), email, testPassword, "127.0.0.1", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return svc, db, uid, res
+	return svc, db, uid, testPassword, res
 }
 
 // login snapshots the user's token_version onto the session row.
 func TestCreateSessionSnapshotsTokenVersion(t *testing.T) {
-	_, db, uid, res := newSessionServiceWithUser(t)
+	_, db, uid, _, res := newSessionServiceWithUser(t)
 	var u admin.AdminUser
 	if err := db.First(&u, "id = ?", uid).Error; err != nil {
 		t.Fatal(err)
@@ -402,7 +403,7 @@ func TestCreateSessionSnapshotsTokenVersion(t *testing.T) {
 // role change / tenant disable bumped it) is rejected and the session revoked;
 // refresh with the current token_version keeps working.
 func TestRotateRefreshRejectsTokenVersionMismatch(t *testing.T) {
-	svc, db, uid, res := newSessionServiceWithUser(t)
+	svc, db, uid, password, res := newSessionServiceWithUser(t)
 
 	// normal renewal unaffected before any invalidation
 	rotated, err := svc.RotateRefresh(context.Background(), res.RefreshToken, "127.0.0.1", "test")
@@ -432,7 +433,7 @@ func TestRotateRefreshRejectsTokenVersionMismatch(t *testing.T) {
 	if err := db.First(&u, "id = ?", uid).Error; err != nil {
 		t.Fatal(err)
 	}
-	res2, err := svc.CreateSession(context.Background(), u.Email, "test-password-123", "127.0.0.1", "test")
+	res2, err := svc.CreateSession(context.Background(), u.Email, password, "127.0.0.1", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,7 +444,7 @@ func TestRotateRefreshRejectsTokenVersionMismatch(t *testing.T) {
 
 // pre-migration sessions carry token_version 0 and skip the check (no forced logout on upgrade).
 func TestRotateRefreshSkipsZeroTokenVersionSession(t *testing.T) {
-	svc, db, uid, res := newSessionServiceWithUser(t)
+	svc, db, uid, _, res := newSessionServiceWithUser(t)
 	if err := db.Model(&AuthSession{}).Where("id = ?", res.SessionID).
 		UpdateColumn("token_version", 0).Error; err != nil {
 		t.Fatal(err)
