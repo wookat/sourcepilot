@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
 )
@@ -72,11 +73,12 @@ type DouyinSKUBindingSummary struct {
 }
 
 // GetDouyinSKUBindings returns current binding rows for one publication.
-func (s *Service) GetDouyinSKUBindings(ctx context.Context, publicationID uuid.UUID) (*DouyinSKUBindingSummary, error) {
+func (s *Service) GetDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID) (*DouyinSKUBindingSummary, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product publish unavailable")
 	}
-	pub, err := s.loadDouyinPublication(ctx, publicationID)
+	ctx := c.Request.Context()
+	pub, err := s.loadDouyinPublicationScoped(c, publicationID)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +98,7 @@ func (s *Service) SyncDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID,
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
-	pub, err := s.loadDouyinPublication(ctx, publicationID)
+	pub, err := s.loadDouyinPublicationScoped(c, publicationID)
 	if err != nil {
 		return nil, err
 	}
@@ -284,6 +286,27 @@ func (s *Service) loadDouyinPublication(ctx context.Context, publicationID uuid.
 		return nil, fmt.Errorf("publication is not douyin_shop")
 	}
 	return &pub, nil
+}
+
+// loadDouyinPublicationScoped loads a publication for HTTP paths after
+// verifying the parent product's tenant and the shop's store scope;
+// cross-tenant / unauthorized access returns gorm.ErrRecordNotFound so
+// handlers respond 404 without leaking existence.
+func (s *Service) loadDouyinPublicationScoped(c *gin.Context, publicationID uuid.UUID) (*ProductPublication, error) {
+	pub, err := s.loadDouyinPublication(c.Request.Context(), publicationID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureProductVisible(c, pub.ProductID); err != nil {
+		return nil, err
+	}
+	if pub.ShopID != uuid.Nil {
+		sid := pub.ShopID
+		if err := adminperm.EnsureStoreVisible(c, s.DB, &sid); err != nil {
+			return nil, err
+		}
+	}
+	return pub, nil
 }
 
 func (s *Service) ensureDouyinShopAuthorized(ctx context.Context, shopID uuid.UUID) (*shop.Shop, error) {

@@ -9,9 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	"github.com/trademind-ai/trademind/backend/internal/providers/sourceinfo"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -210,8 +214,61 @@ func (s *Service) DeleteSupplier(ctx context.Context, id uuid.UUID, operator *uu
 
 // ---------- product sources ----------
 
-// ListProductSources returns all sources of a product with SKU mappings.
-func (s *Service) ListProductSources(ctx context.Context, productID uuid.UUID) ([]ProductSource, error) {
+// ensureProductVisible verifies the parent product belongs to the request's
+// tenant; cross-tenant / unknown products return ErrNotFound so subresource
+// endpoints respond 404 without leaking existence.
+func (s *Service) ensureProductVisible(c *gin.Context, productID uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("sourcing: no db")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	var p product.Product
+	if err := repository.FindByID(c.Request.Context(), s.DB.Select("id"), &p, tid, productID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+// ensureSourceSKUVisible verifies the source SKU's parent chain
+// (source SKU -> product source -> product) belongs to the request's tenant.
+func (s *Service) ensureSourceSKUVisible(c *gin.Context, sourceSKUID uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("sourcing: no db")
+	}
+	ctx := c.Request.Context()
+	var sku ProductSourceSKU
+	if err := s.DB.WithContext(ctx).Select("id", "product_source_id").First(&sku, "id = ?", sourceSKUID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	var src ProductSource
+	if err := s.DB.WithContext(ctx).Select("id", "product_id").First(&src, "id = ?", sku.ProductSourceID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return s.ensureProductVisible(c, src.ProductID)
+}
+
+// ListProductSources returns all sources of a product with SKU mappings
+// after verifying the parent product's tenant scope.
+func (s *Service) ListProductSources(c *gin.Context, productID uuid.UUID) ([]ProductSource, error) {
+	if err := s.ensureProductVisible(c, productID); err != nil {
+		return nil, err
+	}
+	return s.listProductSources(c.Request.Context(), productID)
+}
+
+func (s *Service) listProductSources(ctx context.Context, productID uuid.UUID) ([]ProductSource, error) {
 	var items []ProductSource
 	if err := s.DB.WithContext(ctx).
 		Preload("Supplier").Preload("SKUs").
@@ -603,7 +660,14 @@ func (s *Service) DeleteSource(ctx context.Context, id uuid.UUID, operator *uuid
 }
 
 // PriceHistory returns recent price/stock snapshots for a source SKU.
-func (s *Service) PriceHistory(ctx context.Context, sourceSKUID uuid.UUID, days int) ([]SourcePriceHistory, error) {
+func (s *Service) PriceHistory(c *gin.Context, sourceSKUID uuid.UUID, days int) ([]SourcePriceHistory, error) {
+	if err := s.ensureSourceSKUVisible(c, sourceSKUID); err != nil {
+		return nil, err
+	}
+	return s.priceHistory(c.Request.Context(), sourceSKUID, days)
+}
+
+func (s *Service) priceHistory(ctx context.Context, sourceSKUID uuid.UUID, days int) ([]SourcePriceHistory, error) {
 	if days <= 0 || days > 365 {
 		days = 90
 	}
@@ -764,7 +828,7 @@ type RefreshResult struct {
 // RefreshProductSources fetches current price/stock via the sourceinfo
 // Provider (mock for now), appends price history and applies switch rules.
 func (s *Service) RefreshProductSources(ctx context.Context, productID uuid.UUID, operator *uuid.UUID) (*RefreshResult, error) {
-	sources, err := s.ListProductSources(ctx, productID)
+	sources, err := s.listProductSources(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -846,7 +910,7 @@ func (s *Service) RefreshProductSources(ctx context.Context, productID uuid.UUID
 	}
 	res.Switched = switched
 	res.Alerts = append(res.Alerts, alerts...)
-	res.Sources, err = s.ListProductSources(ctx, productID)
+	res.Sources, err = s.listProductSources(ctx, productID)
 	if err != nil {
 		return nil, err
 	}

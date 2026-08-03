@@ -12,10 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -302,6 +304,10 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	applyModeStr := applyModeTaskOnly
 	if saveField {
 		applyModeStr = applyModeSaveAIField
@@ -315,6 +321,7 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 	inJSON, _ := json.Marshal(inSum)
 
 	batch := &AIOperationBatch{
+		TenantID:      tenantID,
 		BatchNo:       batchNo,
 		OperationType: op,
 		Status:        StatusRunning,
@@ -571,6 +578,10 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 	if len(ids) == 0 {
 		return nil, fmt.Errorf("no products matched")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 
 	batchNo, err := s.nextBatchNo(ctx)
 	if err != nil {
@@ -580,6 +591,7 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 	inJSON, _ := json.Marshal(inSum)
 
 	batch := &AIOperationBatch{
+		TenantID:      tenantID,
 		BatchNo:       batchNo,
 		OperationType: op,
 		Status:        StatusRunning,
@@ -844,6 +856,10 @@ func (s *Service) ListBatches(c *gin.Context, q ListBatchesQuery) ([]AIOperation
 		ps = 100
 	}
 	tx := s.DB.WithContext(c.Request.Context()).Model(&AIOperationBatch{})
+	tx, _, err := adminperm.ApplyTenantScope(c, tx)
+	if err != nil {
+		return nil, 0, err
+	}
 	if v := strings.TrimSpace(q.OperationType); v != "" {
 		tx = tx.Where("operation_type = ?", v)
 	}
@@ -892,6 +908,45 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*AIOperationBatch,
 		_ = s.DB.WithContext(ctx).First(&b, "id = ?", id).Error
 	}
 	return &b, nil
+}
+
+// ensureBatchVisible verifies the batch belongs to the request's tenant via
+// the tenant_id column. Rows still at tenant 0 with a creator (not yet
+// backfilled) fall back to the creator admin user's tenant. Cross-tenant
+// access returns gorm.ErrRecordNotFound so endpoints respond 404 without
+// leaking existence. Legacy rows without a creator are treated as tenant 0.
+func (s *Service) ensureBatchVisible(c *gin.Context, b *AIOperationBatch) error {
+	if s == nil || s.DB == nil || b == nil {
+		return fmt.Errorf("no db")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	batchTenant := b.TenantID
+	if batchTenant == 0 && b.CreatedBy != nil {
+		var u admin.AdminUser
+		if err := s.DB.WithContext(c.Request.Context()).Select("id", "tenant_id").First(&u, "id = ?", *b.CreatedBy).Error; err != nil {
+			return err
+		}
+		batchTenant = u.TenantID
+	}
+	if batchTenant != tid {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// GetScoped returns a batch after verifying tenant visibility (HTTP paths).
+func (s *Service) GetScoped(c *gin.Context, id uuid.UUID) (*AIOperationBatch, error) {
+	b, err := s.GetByID(c.Request.Context(), id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureBatchVisible(c, b); err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 // ListBatchAITasks returns ai_tasks for a text batch.
@@ -969,7 +1024,7 @@ func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 	if !s.aiBatchEnabled(ctx) {
 		return nil, fmt.Errorf("bulk AI disabled")
 	}
-	b, err := s.GetByID(ctx, batchID)
+	b, err := s.GetScoped(c, batchID)
 	if err != nil {
 		return nil, err
 	}
@@ -1131,7 +1186,7 @@ func (s *Service) ApplyBatchResults(c *gin.Context, batchID uuid.UUID, body Appl
 	if strings.TrimSpace(body.Target) != applyTargetAIField {
 		return 0, fmt.Errorf("unsupported target")
 	}
-	b, err := s.GetByID(ctx, batchID)
+	b, err := s.GetScoped(c, batchID)
 	if err != nil {
 		return 0, err
 	}

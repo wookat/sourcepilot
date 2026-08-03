@@ -252,6 +252,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := backfillPurchaseOrderTenantIDs(db); err != nil {
 		return err
 	}
+	if err := migrateRound72AIBatchTenant(db); err != nil {
+		return err
+	}
 	return migrateP7Performance(db)
 }
 

@@ -281,16 +281,39 @@ func (s *Service) skuMappingSummaryLines(ctx context.Context, publicationID uuid
 	return out, nil
 }
 
+// ensureProductVisible verifies the parent product belongs to the request's
+// tenant; cross-tenant / unknown products return gorm.ErrRecordNotFound so
+// subresource endpoints respond 404 without leaking existence.
+func (s *Service) ensureProductVisible(c *gin.Context, productID uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("productpublish: no db")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	var p product.Product
+	return repository.FindByID(c.Request.Context(), s.DB.Select("id"), &p, tid, productID)
+}
+
 // ListPublicationsByProduct returns persisted publication rows for a draft product.
-func (s *Service) ListPublicationsByProduct(ctx context.Context, productID uuid.UUID) ([]PublicationDTO, error) {
+func (s *Service) ListPublicationsByProduct(c *gin.Context, productID uuid.UUID) ([]PublicationDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("productpublish: no db")
 	}
+	if err := s.ensureProductVisible(c, productID); err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
+	tx := s.DB.WithContext(ctx).Model(&ProductPublication{}).
+		Where("product_id = ?", productID)
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	var rows []ProductPublication
-	if err := s.DB.WithContext(ctx).
-		Where("product_id = ?", productID).
-		Order("updated_at DESC").
-		Find(&rows).Error; err != nil {
+	if err := tx.Order("updated_at DESC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]PublicationDTO, 0, len(rows))

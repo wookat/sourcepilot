@@ -115,7 +115,7 @@ func TestSaveSKUMappingsWritesPriceHistory(t *testing.T) {
 	}, nil); err != nil {
 		t.Fatal(err)
 	}
-	hist, err := svc.PriceHistory(context.Background(), rows[0].ID, 90)
+	hist, err := svc.priceHistory(context.Background(), rows[0].ID, 90)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestApplySwitchRulesOutOfStockAutoSwitch(t *testing.T) {
 	if err := svc.DB.Model(&ProductSource{}).Where("id = ?", a.ID).Update("status", SourceStatusOutOfStock).Error; err != nil {
 		t.Fatal(err)
 	}
-	sources, err := svc.ListProductSources(context.Background(), productID)
+	sources, err := svc.listProductSources(context.Background(), productID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestApplySwitchRulesLockedPrimaryNotSwitched(t *testing.T) {
 		Updates(map[string]any{"status": SourceStatusOutOfStock, "locked": true}).Error; err != nil {
 		t.Fatal(err)
 	}
-	sources, err := svc.ListProductSources(context.Background(), productID)
+	sources, err := svc.listProductSources(context.Background(), productID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +263,7 @@ func TestApplySwitchRulesPriceAlertSuggestsOnly(t *testing.T) {
 	if err := svc.DB.Model(&ProductSource{}).Where("id = ?", a.ID).Update("status", SourceStatusPriceAlert).Error; err != nil {
 		t.Fatal(err)
 	}
-	sources, err := svc.ListProductSources(context.Background(), productID)
+	sources, err := svc.listProductSources(context.Background(), productID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +292,7 @@ func TestSuggestionDedupeAdoptAndIgnore(t *testing.T) {
 	if err := svc.DB.Model(&ProductSource{}).Where("id = ?", a.ID).Update("status", SourceStatusPriceAlert).Error; err != nil {
 		t.Fatal(err)
 	}
-	sources, err := svc.ListProductSources(context.Background(), productID)
+	sources, err := svc.listProductSources(context.Background(), productID)
 	if err != nil {
 		t.Fatal(err)
 	}
