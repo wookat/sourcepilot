@@ -433,6 +433,8 @@ export type ProductCreateBody = {
   currency?: string;
   status?: string;
   rawData?: unknown;
+  /** 归属店铺：operator 必填（草稿必须归属其授权店铺才可见），admin 可选 */
+  shopId?: string;
 };
 
 export async function createProduct(body: ProductCreateBody) {

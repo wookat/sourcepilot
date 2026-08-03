@@ -1451,3 +1451,9 @@ Final Production Acceptance Deferred to P10
 - readonly 写按钮 UI 收口：失败中心（行内重试/生成告警/更多、批量重试/忽略/已处理、抽屉登录浏览器/恢复/重试/生成告警）、AI 批次（重试失败/应用结果）、AI 图片任务（新建/快捷模板/重试/保存到商品/设为主图等）、AI 文案批量复核（重试/批量应用/撤销/复核弹窗写按钮）按既有口径隐藏；E2E `round86-ux-p2.spec.ts`。
 - readonly 时间线空态：采集任务事件抽屉与运营任务审计时间线补中文空态说明。
 - AI 批次子任务失败原因可读化：`mapAiTaskErrorText`/`AiTaskErrorText`（AI 错误码中文映射 + 悬浮查看完整原始原因），应用于 AI 批次详情/子任务表与文案复核详情（失败原因列 + 弹窗失败原因块，完整原始错误可展开复制）。
+
+### 变更记录（2026-08-03）第 88 轮：恢复 operator 手工建草稿（带店铺归属）
+
+- `POST /api/v1/products` operator 由 forbid 改回 allow（round83 收紧的产品口径补全）：请求体新增可选 `shopId`，operator 必填且须属其授权范围（不传 400、越权 404 不泄露存在性、仅 view 授权 403 40303），校验全部发生在写入前，被拒绝零落库；创建成功在同一事务写入 `product_platform_publish_configs` 关联，草稿按既有可见性口径对创建者可见。admin 保持现口径（`shopId` 可选）；readonly 仍路由级 403。
+- 前端新建草稿弹窗增加「归属店铺」选择（operator 必填含中文引导、下拉由后端店铺 scope 只列授权店铺；admin 可选）。
+- 权限矩阵 operator=allow 已登记并复跑契约测试；回归测试 `product/create_scope_test.go` 全场景重写（含零脏数据断言）；E2E 补 operator 建草稿动线。docs/api.md、docs/permission-matrix.md 已同步。

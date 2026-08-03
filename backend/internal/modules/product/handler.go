@@ -192,6 +192,14 @@ func (h *Handler) Create(c *gin.Context) {
 			response.Fail(c, 403, response.CodeForbidden, err.Error())
 			return
 		}
+		if errors.Is(err, ErrDraftShopNotOperable) {
+			response.Fail(c, 403, response.CodeStorePermissionDenied, err.Error())
+			return
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "资源不存在")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
