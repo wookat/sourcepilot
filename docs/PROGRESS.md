@@ -1431,10 +1431,9 @@ Final Production Acceptance Deferred to P10
 - 未知路由统一 JSON 404 envelope（`40401` + 中文口径），替换 Gin 裸文本 `404 page not found`（`api.RegisterNoRoute`）；前端未匹配路由已有统一 404 页（`admin/src/pages/404.tsx`，引导返回工作台）。
 - 平台租户列表：隐式平台租户 0 的 `createdAt` 取最早平台管理员创建时间，不再空展示；回归测试 `list_created_at_test.go`。
 - docs/production-launch-checklist.md 补「Let's Encrypt 真实域名签发注意事项」（DNS/端口/CDN 前置、staging CA 联调、速率限制、排查顺序、自动续期），仅文档不改代码。
-||||||| parent of 676e09f6 (fix(r85): seed clean 自定义前缀（-prefix）+ collector 不可达设置页优雅降级)
 
 ### 变更记录（2026-08-03）第 85 轮：seed clean 自定义前缀 + collector 不可达设置页优雅降级（R84 P2 / R83 P3 收口）
 
 - seeddemo 自定义前缀：`cmd/seeddemo` 新增 `-prefix`（默认 `DEMO-`），仅 clean/verify 生效（seed 仍只写 DEMO-，传自定义前缀直接报错）；前缀白名单校验（字母数字加连字符、以 `-` 结尾、禁 SQL LIKE 通配符）；`FullDemoSeeder.Prefix` 贯穿 Cleanup/VerifyClean 的全部 LIKE 条件，legacy 客服会话兜底（`F8 Demo%`/`Demo %` tenant-0 孤儿）与 DEMO 设置预设 remark 清理仅在默认 DEMO- 前缀下执行，避免自定义前缀误删；production 拒绝口径不变（cmd 层 + guard 双重）。回归单测 `fulldemo_round85_test.go`：前缀校验、QA- 清理幂等零残留、DEMO-/普通数据不受影响、seed/production 守卫。
 - collector 不可达优雅降级：collector 代理传输层错误（连接拒绝/超时/DNS）由裸 502+50000 收口为 502 + 新业务码 `CodeCollectorUnreachable=50302` + 中文引导文案（`failCollectorProxy`，collector 业务拒绝仍保留原 message）；前端 `request.ts` 新增 `isCollectorUnreachableError`，设置中心采集页对 1688/拼多多/淘宝天猫登录态检测与打开采集浏览器失败识别该码，页面顶部渲染「采集服务未启动或不可达」warning Alert（含启动指引 + 重新检测按钮），不再弹裸错误 toast，采集参数表单不受影响可正常查看保存。回归：后端 `collector_unreachable_test.go`（unreachable 走 50302 引导、业务拒绝不被掩盖）、前端 request.test.ts 补 2 用例。
-- R84 报告其他杂项：仓库内未检索到 R84 报告文档（R84 两项 P2/P3 即本轮 1、2 两条），无其他待收口小杂项。
+- R84 报告其他杂项：R84 报告（第 84 轮变更记录）所列 P1/P2 已随 #182/#185 合入 main，本轮除上述两条外无其他待收口小杂项。
