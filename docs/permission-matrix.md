@@ -134,7 +134,7 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 治理语义：租户可停用/启用/改名（不提供删除）；tenant 0 不可停用/改名（handler 400）；不存在的租户 404。停用后该租户所有账号登录拒绝、已有会话下次请求失效（错误码 `AUTH_TENANT_DISABLED`），由登录 / refresh / `ValidateSessionAccess` 三处统一强制，模块级证据：`auth` 包 `tenant_state_test.go`、`platformtenant` 包 `api_test.go`。
 - 全部治理操作写操作日志（`tenant.rename` / `tenant.disable` / `tenant.enable`）。
 
-## round82 仪表盘/库存聚合租户收口（双租户实测 P1）
+## round83 仪表盘/库存聚合租户收口（双租户实测 P1）
 
 - 运营仪表盘（`/dashboard/product-operations|overview|todos|health`）聚合查询补租户过滤：`operationdashboard.Scope` 新增 `applyTenantColumn` / `applyTenantViaProduct` / `applyTenantViaShop` 助手，产品、采集、AI 任务/批次、图片任务、选品、货源、采购、订单、客服会话/建议、刊登任务/发布记录、库存同步、任务中心失败与告警等 Summary/Exceptions/Recent 查询全部按可信 `tenant_id` 限定（`TenantID` 为 nil 保持 legacy 内部调用行为）。无 `tenant_id` 列的 `ai_tasks` / `image_tasks` 经商品关联限定（口径同 taskcenter `applyTenantListFilterVia`）；`product_publications` 经店铺关联限定；任务中心 Summary 透传 `TenantID`（沿用其 tenant-0 legacy 桶口径）。
 - 库存共享基础查询 `buildSKUAlertBaseTX` 支持可选 `TenantID`，`GET /inventory/alerts`、`POST /inventory/stock-settings/batch-preview|batch-update` handler 注入当前租户（此前三端点无租户过滤，batch-update 可跨租户改库存阈值）。
