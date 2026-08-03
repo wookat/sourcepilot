@@ -129,6 +129,88 @@ func (s *FullDemoSeeder) seedDouyinPublicationSample(tx *gorm.DB, res *FullDemoR
 	return nil
 }
 
+// seedPublishBatchWithTasks creates one finished multi-product publish batch
+// plus its child tasks (success / failed-retryable / pending) so the publish
+// task page's 批次 and 子任务 tabs are non-empty out of the box. All rows carry
+// the DEMO- prefix (batch name / task title / idempotency key) for cleanup.
+func (s *FullDemoSeeder) seedPublishBatchWithTasks(tx *gorm.DB, res *FullDemoResult, now time.Time,
+	tiktokShop shop.Shop, products []product.Product) error {
+	if len(products) < 2 {
+		return fmt.Errorf("demoseed: publish batch sample needs 2 products")
+	}
+	createdAt := now.Add(-36 * time.Hour)
+	finishedAt := now.Add(-35 * time.Hour)
+	batch := productpublish.ProductPublishBatch{
+		BatchType:      productpublish.BatchTypeMultiProduct,
+		Name:           DemoPrefix + "刊登批次（TikTok 本地草稿演示）",
+		Status:         productpublish.BatchPartialSuccess,
+		ProductCount:   2,
+		TargetCount:    1,
+		TaskCount:      3,
+		ReadyCount:     2,
+		SuccessCount:   1,
+		FailedCount:    1,
+		IdempotencyKey: DemoPrefix + "publish-batch-1",
+		Summary: mustJSON(map[string]any{
+			"seedPrefix": DemoPrefix,
+			"note":       "演示批次：本地草稿能力（local_draft_only），不调用真实平台 API",
+		}),
+		FinishedAt: &finishedAt,
+	}
+	batch.CreatedAt = createdAt
+	if err := tx.Create(&batch).Error; err != nil {
+		return fmt.Errorf("demoseed: publish batch: %w", err)
+	}
+	res.Counts["product_publish_batches"]++
+
+	targetKey := "tiktok:" + tiktokShop.ID.String()
+	successFin := createdAt.Add(2 * time.Minute)
+	failedFin := createdAt.Add(3 * time.Minute)
+	tasks := []productpublish.ProductPublishTask{
+		{
+			TenantID: s.TenantID, ProductID: products[0].ID,
+			ShopID: tiktokShop.ID, TargetStoreID: tiktokShop.ID,
+			BatchID: &batch.ID, TargetKey: targetKey, Platform: tiktokShop.Platform,
+			TaskType: productpublish.TaskTypeLocalDraftCreate,
+			Status:   productpublish.TaskSuccess, PublishStatus: productpublish.StatusDraftCreated,
+			Mode: productpublish.PublishModeSaveAsPlatformDraft, PublishMode: productpublish.PublishModeSaveAsPlatformDraft,
+			Title:      products[0].Title,
+			Output:     mustJSON(map[string]any{"seedPrefix": DemoPrefix, "capability": productpublish.CapLocalDraftOnly}),
+			FinishedAt: &successFin,
+		},
+		{
+			TenantID: s.TenantID, ProductID: products[1].ID,
+			ShopID: tiktokShop.ID, TargetStoreID: tiktokShop.ID,
+			BatchID: &batch.ID, TargetKey: targetKey, Platform: tiktokShop.Platform,
+			TaskType: productpublish.TaskTypeLocalDraftCreate,
+			Status:   productpublish.TaskFailed, PublishStatus: productpublish.StatusPubFailed,
+			Mode: productpublish.PublishModeSaveAsPlatformDraft, PublishMode: productpublish.PublishModeSaveAsPlatformDraft,
+			Title:        products[1].Title,
+			Retryable:    true,
+			ErrorCode:    "DEMO_READINESS_BLOCKED",
+			ErrorMessage: DemoPrefix + " 演示失败样本：商品缺少主图，可在补齐后重试",
+			FinishedAt:   &failedFin,
+		},
+		{
+			TenantID: s.TenantID, ProductID: products[0].ID,
+			ShopID: tiktokShop.ID, TargetStoreID: tiktokShop.ID,
+			BatchID: &batch.ID, TargetKey: targetKey, Platform: tiktokShop.Platform,
+			TaskType: productpublish.TaskTypeLocalDraftCreate,
+			Status:   productpublish.TaskPending, PublishStatus: productpublish.StatusReady,
+			Mode: productpublish.PublishModeSaveAsPlatformDraft, PublishMode: productpublish.PublishModeSaveAsPlatformDraft,
+			Title: products[0].Title,
+		},
+	}
+	for i := range tasks {
+		tasks[i].CreatedAt = createdAt.Add(time.Duration(i) * time.Minute)
+		if err := tx.Create(&tasks[i]).Error; err != nil {
+			return fmt.Errorf("demoseed: publish task: %w", err)
+		}
+		res.Counts["product_publish_tasks"]++
+	}
+	return nil
+}
+
 // cleanupPublishSamples removes SKU binding rows attached to demo
 // publications plus the DEMO- settings preset. Publications themselves are
 // removed by the existing product-scoped cleanup.
@@ -139,6 +221,23 @@ func cleanupPublishSamples(tx *gorm.DB, res *FullDemoResult, like string, produc
 		}
 		res.Counts[table] += q.RowsAffected
 		return nil
+	}
+	if tx.Migrator().HasTable("product_publish_tasks") && tx.Migrator().HasTable("product_publish_batches") {
+		batchIDs := tx.Model(&productpublish.ProductPublishBatch{}).Unscoped().Select("id").
+			Where("name LIKE ? OR idempotency_key LIKE ?", like, like)
+		taskQ := tx.Unscoped().Where("title LIKE ? OR error_message LIKE ? OR batch_id IN (?)", like, like, batchIDs)
+		if len(productIDs) > 0 {
+			taskQ = tx.Unscoped().Where("title LIKE ? OR error_message LIKE ? OR batch_id IN (?) OR product_id IN ?",
+				like, like, batchIDs, productIDs)
+		}
+		if err := del("product_publish_tasks", taskQ.Delete(&productpublish.ProductPublishTask{})); err != nil {
+			return err
+		}
+		if err := del("product_publish_batches",
+			tx.Unscoped().Where("name LIKE ? OR idempotency_key LIKE ?", like, like).
+				Delete(&productpublish.ProductPublishBatch{})); err != nil {
+			return err
+		}
 	}
 	pubIDs := tx.Model(&productpublish.ProductPublication{}).Unscoped().Select("id").
 		Where("title LIKE ? OR external_product_id LIKE ?", like, like)

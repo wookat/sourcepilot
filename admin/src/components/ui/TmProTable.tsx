@@ -19,6 +19,9 @@ type TmToolBarRender<T extends Record<string, unknown>, U extends Record<string,
  */
 const FIXED_COLUMNS_MIN_WIDTH = 768;
 
+/** 未声明宽度的列在估算表格总宽时按此宽度计入 */
+const DEFAULT_COLUMN_WIDTH = 120;
+
 /** 监听表格容器宽度，容器宽度 > 768px 才启用列 fixed（惰性初始化保证首帧口径接近真实宽度） */
 function useFixedColumnsEnabled(): [React.RefObject<HTMLDivElement>, boolean] {
   const ref = useRef<HTMLDivElement>(null);
@@ -36,6 +39,50 @@ function useFixedColumnsEnabled(): [React.RefObject<HTMLDivElement>, boolean] {
     return () => observer.disconnect();
   }, []);
   return [ref, enabled];
+}
+
+function columnChildren<T, U>(col: ProColumns<T, U>): ProColumns<T, U>[] | undefined {
+  const children = (col as { children?: ProColumns<T, U>[] }).children;
+  return Array.isArray(children) ? children : undefined;
+}
+
+/** 数据列缺省 ellipsis 兜底：列宽不足时截断出省略号，而不是内容溢出被固定列盖住 */
+function withEllipsisDefaults<T, U>(columns: ProColumns<T, U>[]): ProColumns<T, U>[] {
+  return columns.map((col) => {
+    const children = columnChildren(col);
+    if (children) {
+      const next: ProColumns<T, U> = { ...col };
+      (next as { children?: ProColumns<T, U>[] }).children = withEllipsisDefaults(children);
+      return next;
+    }
+    if (col.ellipsis === undefined && col.valueType !== 'option') {
+      return { ...col, ellipsis: true };
+    }
+    return col;
+  });
+}
+
+/** 估算可见列总宽：声明了数字宽度的按声明值，未声明的按默认宽度计入 */
+function estimateColumnsWidth<T, U>(columns: ProColumns<T, U>[]): number {
+  let total = 0;
+  for (const col of columns) {
+    if (col.hideInTable) continue;
+    const children = columnChildren(col);
+    if (children) {
+      total += estimateColumnsWidth(children);
+      continue;
+    }
+    total += typeof col.width === 'number' ? col.width : DEFAULT_COLUMN_WIDTH;
+  }
+  return total;
+}
+
+function hasFixedColumn<T, U>(columns: ProColumns<T, U>[]): boolean {
+  return columns.some((col) => {
+    if (col.fixed) return true;
+    const children = columnChildren(col);
+    return children ? hasFixedColumn(children) : false;
+  });
 }
 
 function stripColumnsFixed<T, U>(columns: ProColumns<T, U>[]): ProColumns<T, U>[] {
@@ -66,6 +113,7 @@ export default function TmProTable<
   className,
   columns,
   search,
+  scroll,
   ...rest
 }: TmProTableProps<T, U>) {
   const innerRef = useRef<ActionType>();
@@ -74,9 +122,20 @@ export default function TmProTable<
   const [containerRef, fixedEnabled] = useFixedColumnsEnabled();
 
   const mergedColumns = useMemo(() => {
-    if (!columns || fixedEnabled) return columns;
-    return stripColumnsFixed(columns);
+    if (!columns) return columns;
+    const withDefaults = withEllipsisDefaults(columns);
+    return fixedEnabled ? withDefaults : stripColumnsFixed(withDefaults);
   }, [columns, fixedEnabled]);
+
+  // scroll.x 低于列宽总和时表格被压缩，固定操作列会挤压相邻数据列；
+  // 按可见列总宽兜底，宽度不足统一走横向滚动。
+  const mergedScroll = useMemo(() => {
+    const userX = scroll && typeof scroll.x === 'number' ? scroll.x : undefined;
+    if (!columns || columns.length === 0) return scroll;
+    if (userX === undefined && !hasFixedColumn(columns)) return scroll;
+    const x = Math.max(userX ?? 0, estimateColumnsWidth(columns));
+    return { ...scroll, x };
+  }, [scroll, columns]);
 
   const mergedSearch = useMemo(() => {
     if (search === false || search === undefined) return search;
@@ -127,6 +186,7 @@ export default function TmProTable<
         key={fixedEnabled ? 'tm-wide' : 'tm-narrow'}
         columns={mergedColumns}
         search={mergedSearch}
+        scroll={mergedScroll}
         className={['tm-pro-table', className].filter(Boolean).join(' ')}
         actionRef={actionRef}
         options={mergedOptions}

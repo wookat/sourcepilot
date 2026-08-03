@@ -350,6 +350,9 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	if err := s.seedDouyinPublicationSample(tx, res, now, shops[0], products[1], skus[2:4]); err != nil {
 		return err
 	}
+	if err := s.seedPublishBatchWithTasks(tx, res, now, shops[2], products[:2]); err != nil {
+		return err
+	}
 
 	// ---- sourcing alerts: one price-increase and one out-of-stock source
 	// plus a backup supplier so the open switch suggestions are adoptable
@@ -1028,6 +1031,24 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 				Where("external_sku_id LIKE ? OR bind_message LIKE ? OR publication_id IN (?)", like, like,
 					tx.Model(&productpublish.ProductPublication{}).Unscoped().Select("id").
 						Where("title LIKE ? OR external_product_id LIKE ?", like, like)).Count(&n).Error
+		}},
+		{"product_publish_batches", func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("product_publish_batches") {
+				return 0, nil
+			}
+			return n, tx.Model(&productpublish.ProductPublishBatch{}).Unscoped().
+				Where("name LIKE ? OR idempotency_key LIKE ?", like, like).Count(&n).Error
+		}},
+		{"product_publish_tasks", func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("product_publish_tasks") || !tx.Migrator().HasTable("product_publish_batches") {
+				return 0, nil
+			}
+			return n, tx.Model(&productpublish.ProductPublishTask{}).Unscoped().
+				Where("title LIKE ? OR error_message LIKE ? OR batch_id IN (?)", like, like,
+					tx.Model(&productpublish.ProductPublishBatch{}).Unscoped().Select("id").
+						Where("name LIKE ? OR idempotency_key LIKE ?", like, like)).Count(&n).Error
 		}},
 		{"settings", func() (int64, error) {
 			var n int64
