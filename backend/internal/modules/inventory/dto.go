@@ -185,6 +185,7 @@ type InventoryAlertEntry struct {
 
 // AlertsListQuery filters GET /inventory/alerts.
 type AlertsListQuery struct {
+	TenantID      *int64
 	Keyword       string
 	ProductID     *uuid.UUID
 	ProductSkuID  *uuid.UUID
@@ -286,6 +287,7 @@ type RetryInventorySyncTasksBatchBody struct {
 
 // StockSettingsBatchPreviewBody POST /inventory/stock-settings/batch-preview
 type StockSettingsBatchPreviewBody struct {
+	TenantID      *int64   `json:"-"`
 	ProductID     string   `json:"productId"`
 	ProductSkuIDs []string `json:"productSkuIds"`
 	Platform      string   `json:"platform"`

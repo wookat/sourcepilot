@@ -13,6 +13,7 @@ import (
 )
 
 type stockSettingsFilter struct {
+	TenantID      *int64
 	ProductID     *uuid.UUID
 	ProductSkuIDs []uuid.UUID
 	Platform      string
@@ -41,6 +42,7 @@ func parseUUIDPtr(s string) (*uuid.UUID, error) {
 
 func parseStockSettingsFilter(body StockSettingsBatchPreviewBody) (stockSettingsFilter, error) {
 	var f stockSettingsFilter
+	f.TenantID = body.TenantID
 	pid, err := parseUUIDPtr(body.ProductID)
 	if err != nil {
 		return f, fmt.Errorf("invalid productId")
@@ -146,6 +148,7 @@ func (s *Service) buildStockSettingsGroupedTX(ctx context.Context, f stockSettin
 		th = 0
 	}
 	base := s.buildSKUAlertBaseTX(ctx, skuAlertBaseQuery{
+		TenantID:      f.TenantID,
 		Keyword:       f.Keyword,
 		ProductID:     f.ProductID,
 		ProductSkuIDs: f.ProductSkuIDs,
