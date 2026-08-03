@@ -130,3 +130,58 @@ func TestProductionBusinessTenantTokenUnchanged(t *testing.T) {
 		t.Fatalf("expected 200 for business tenant token, got %d body=%s", w.Code, w.Body.String())
 	}
 }
+
+// A soft-deleted platform admin row must not pass the tenant-0 DB check even
+// while an already-issued token is still cryptographically valid.
+func TestProductionRejectsSoftDeletedPlatformAdmin(t *testing.T) {
+	db := openMiddlewareTestDB(t)
+	cfg := &config.Config{AppEnv: config.EnvProduction, JWTSecret: "test-secret-0123456789"}
+	uid := seedUser(t, db, 0, "active")
+	if err := db.Delete(&admin.AdminUser{Base: model.Base{ID: uid}}).Error; err != nil {
+		t.Fatal(err)
+	}
+	w := doAuthedRequest(cfg, db, mintToken(t, cfg, uid, 0))
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for soft-deleted platform admin, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func mintBoundToken(t *testing.T, cfg *config.Config, uid uuid.UUID, tenantID int64) string {
+	t.Helper()
+	ks, err := auth.BuildKeySet(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, _, err := auth.MintAccessToken(cfg, ks, auth.MintAccessInput{
+		UserID:       uid,
+		Username:     "u",
+		TenantID:     tenantID,
+		SessionID:    uuid.New(),
+		TokenVersion: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tok
+}
+
+// Under the real production default (secure_session), a session-bound token of
+// an active platform admin passes; a session-bound tenant-0 token without a
+// matching platform admin row keeps the fallback rejection.
+func TestSecureSessionProductionPlatformTenantAdmin(t *testing.T) {
+	db := openMiddlewareTestDB(t)
+	cfg := &config.Config{
+		AppEnv:    config.EnvProduction,
+		JWTSecret: "test-secret-0123456789",
+		Auth:      config.AuthConfig{SessionMode: config.AuthSessionModeSecure},
+	}
+	uid := seedUser(t, db, 0, "active")
+	w := doAuthedRequest(cfg, db, mintBoundToken(t, cfg, uid, 0))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for platform admin under secure_session, got %d body=%s", w.Code, w.Body.String())
+	}
+	w = doAuthedRequest(cfg, db, mintBoundToken(t, cfg, uuid.New(), 0))
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for unknown tenant-0 user under secure_session, got %d body=%s", w.Code, w.Body.String())
+	}
+}

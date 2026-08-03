@@ -1412,6 +1412,10 @@ Final Production Acceptance Deferred to P10
 - 回归测试：`taskcenter/customer_failure_retry_test.go`（分类 retryable 口径 + RetryFailure 识别 customer_failure）、`selection/create_tenant_gate_test.go`（tenant 0 → 400 零残留、正租户不受闸门影响）。
 - 遗留 P2 清单：无效 URL 采集失败原因英文直出（collector 1688 provider 校验错误未中文映射）、readonly 写按钮部分仅接口 403 未做 UI disabled、readonly 时间线空状态缺说明、批次详情子任务失败原因展示较弱；采集超时终态未自然观察（真实失败 ~22s 即达终态）。
 
+### 变更记录（2026-08-03）第 87 轮补充：tenant 0 DB 复核软删除口径加固（基于第 85 轮修复的增量）
+
+- tenant 0 平台管理员 DB 复核改走 GORM 软删除作用域（`Model(&admin.AdminUser{})`）：软删除的平台管理员即使持有仍在有效期内的 token 也不再通过复核；补充软删除拒绝与 `secure_session`（生产默认配置）session-bound token 放行/拒绝回归测试。R87 生产栈实测（Docker production + secure_session）：平台管理员登录/列租/开租正常，伪造 tenant 0 token 维持拒绝。
+
 ### 变更记录（2026-08-03）第 85 轮：生产部署演练复跑 + 生产 tenant 0 平台管理员 403 修复（P0）
 
 - 生产演练复跑（APP_ENV=production + docker-compose.prod.yml + Caddy 内部 CA 假域名，从零部署约 4 分钟）发现 P0：`secure_session` 生产模式下，引导平台管理员（tenant 0）任何带 token 请求被 JWT 中间件的 `ResolveRequestTenantID` 以 `PRODUCTION_TENANT_FALLBACK_FORBIDDEN` 拒绝（403），平台租户治理（开租/停用/改名）在生产完全不可用；#181 口径此前仅在 development/test 验证过。
