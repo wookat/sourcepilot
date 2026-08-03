@@ -12,9 +12,9 @@ import {
 import { history } from '@umijs/max';
 import { Alert, Button, Col, List, Result, Row, Skeleton, Space, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { COLLECT_TARGET_SHOP_HINT, PAGE_COPY, commonStatusLabel } from '@/constants/copywriting';
+import { COLLECT_TARGET_SHOP_HINT, PAGE_COPY } from '@/constants/copywriting';
 import { layoutTokens } from '@/constants/layoutTokens';
-import { EmptyState, MetricCard, OperationToolbar, SectionCard, TmPageContainer } from '@/components/ui';
+import { EmptyState, MetricCard, OperationToolbar, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
 import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
 import { PinduoduoCollectModal } from '@/pages/Collect/components/PinduoduoCollectModal';
 import { TaobaoTmallCollectModal } from '@/pages/Collect/components/TaobaoTmallCollectModal';
@@ -158,15 +158,6 @@ function isLoginSensitiveSource(source: string) {
   return src === 'pinduoduo' || src === 'pdd' || src === 'taobao_tmall' || src === 'taobao' || src === 'custom';
 }
 
-function taskStatusTagColor(status: string) {
-  const key = status.trim().toLowerCase();
-  if (key === 'success') return 'success';
-  if (key === 'failed') return 'error';
-  if (key === 'running' || key === 'retrying') return 'processing';
-  if (key === 'pending') return 'default';
-  return 'default';
-}
-
 async function openCustomCollectModal(
   setCustomModalOpen: (open: boolean) => void,
 ): Promise<void> {
@@ -235,7 +226,7 @@ function RecentTaskList({
             title={
               <Space wrap size={8}>
                 <Text strong>{task.source}</Text>
-                <Tag color={taskStatusTagColor(task.status)}>{commonStatusLabel(task.status)}</Tag>
+                <StatusTag status={task.status} />
               </Space>
             }
             description={

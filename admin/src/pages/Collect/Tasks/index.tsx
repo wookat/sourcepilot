@@ -44,6 +44,7 @@ import {
   mapCollectErrorMessage,
   mapCollectorErrorCodeDetail,
   mapCollectorErrorCodeLabel,
+  resolveCollectFailureHint,
 } from '@/constants/collectErrors';
 import {
   formatRuleDomainMismatchMessage,
@@ -346,7 +347,7 @@ export default function CollectTasksPage() {
         if (row.status !== 'failed' && row.status !== 'retrying') return '—';
         return (
           mapCollectorErrorCodeLabel(row.collectorErrorCode) ||
-          row.failureHint ||
+          resolveCollectFailureHint(row.failureHint, !!row.batchId) ||
           (row.errorMessage ? mapCollectErrorMessage(row.errorMessage, row.source) : '') ||
           '—'
         );
@@ -361,7 +362,7 @@ export default function CollectTasksPage() {
       render: (_, row) => {
         if (row.status !== 'failed' && row.status !== 'retrying') return '—';
         const hint =
-          row.failureHint ||
+          resolveCollectFailureHint(row.failureHint, !!row.batchId) ||
           mapCollectorErrorCodeDetail(row.collectorErrorCode, row.source) ||
           (row.errorMessage ? mapCollectErrorMessage(row.errorMessage, row.source) : '');
         return hint || '—';

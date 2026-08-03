@@ -1,4 +1,4 @@
-import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { ModalForm, ProFormDependency, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
@@ -78,6 +78,7 @@ function isTitleOnlyRuleJson(raw?: string): boolean {
 
 export default function CollectRulesPage() {
   const actionRef = useRef<ActionType>();
+  const editorFormRef = useRef<ProFormInstance>();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [testOpen, setTestOpen] = useState(false);
@@ -90,6 +91,12 @@ export default function CollectRulesPage() {
   const [aiModalOpen, setAiModalOpen] = useState(false);
 
   const reload = useCallback(() => actionRef.current?.reload(), []);
+
+  const applyRuleTemplate = useCallback((template: string, label: string) => {
+    editorFormRef.current?.setFieldsValue({ ruleJson: template });
+    message.success(`已将${label}填入下方「规则 JSON」，可直接修改后保存`);
+    void navigator.clipboard?.writeText(template).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!testOpen) {
@@ -256,6 +263,7 @@ export default function CollectRulesPage() {
         ruleJson: string;
       }>
         key={editingId ?? 'new'}
+        formRef={editorFormRef}
         title={editingId ? '编辑采集规则' : '手动新建采集规则'}
         open={editorOpen}
         modalProps={{
@@ -378,25 +386,15 @@ export default function CollectRulesPage() {
           <Space wrap>
             <Button
               size="small"
-              onClick={() => {
-                void navigator.clipboard.writeText(SIMPLE_CUSTOM_RULE_TEMPLATE).then(
-                  () => message.success('已复制简单模板'),
-                  () => message.warning('复制失败'),
-                );
-              }}
+              onClick={() => applyRuleTemplate(SIMPLE_CUSTOM_RULE_TEMPLATE, '简单模板')}
             >
-              复制简单模板
+              使用简单模板
             </Button>
             <Button
               size="small"
-              onClick={() => {
-                void navigator.clipboard.writeText(DEFAULT_CUSTOM_RULE_TEMPLATE).then(
-                  () => message.success('已复制高级模板'),
-                  () => message.warning('复制失败'),
-                );
-              }}
+              onClick={() => applyRuleTemplate(DEFAULT_CUSTOM_RULE_TEMPLATE, '高级模板')}
             >
-              复制高级模板
+              使用高级模板
             </Button>
           </Space>
           <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
