@@ -176,6 +176,36 @@ export function requireRelogin(): Promise<boolean> {
   return reloginInFlight;
 }
 
+/**
+ * 绕开 umi request 的原生 fetch（CSV 导出、备份下载等二进制流）专用会话守卫：
+ * 自动附带 Authorization，401 时先静默续期、失败再走统一重登引导，成功后重放一次。
+ * 用户放弃重登则整页跳登录页并悬挂 Promise（与 umi 拦截器口径一致，避免裸报错）。
+ */
+export async function fetchWithSessionGuard(url: string, init: RequestInit = {}): Promise<Response> {
+  if (!isAuthUrl(url) && shouldRefreshSoon()) {
+    await refreshAccessToken();
+  }
+  const doFetch = () => {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    return fetch(url, {
+      ...init,
+      headers: {
+        ...((init.headers as Record<string, string>) || {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  };
+  const resp = await doFetch();
+  if (resp.status !== 401 || isAuthUrl(url)) return resp;
+  let ok = await refreshAccessToken();
+  if (!ok) ok = await requireRelogin();
+  if (!ok) {
+    redirectToLoginPage();
+    return new Promise<never>(() => {});
+  }
+  return doFetch();
+}
+
 let redirectingToLogin = false;
 
 /** 用户放弃重新登录时的兜底：清凭证并整页跳登录页（并发 401 只跳一次） */

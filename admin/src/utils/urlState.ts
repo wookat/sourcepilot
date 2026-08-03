@@ -87,6 +87,8 @@ const ALLOWED_QUERY_KEYS = new Set([
   'action',
   'username',
   'resource',
+  // 经营报表（/orders/reports）
+  'days',
 ]);
 
 export const URL_SOURCE_VALUES = new Set([

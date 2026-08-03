@@ -1,5 +1,5 @@
-import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { request } from '@umijs/max';
+import { fetchWithSessionGuard } from '@/utils/sessionGuard';
 
 export type BackupJob = {
   id: string;
@@ -110,11 +110,9 @@ export async function verifyBackup(id: string) {
 
 /** 下载已通过校验的 completed 备份文件（流式；需要 backup.download 权限）。 */
 export async function downloadBackup(id: string, fallbackName?: string) {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  const res = await fetch(`/api/v1/ops/backups/${id}/download`, {
+  const res = await fetchWithSessionGuard(`/api/v1/ops/backups/${id}/download`, {
     method: 'GET',
     credentials: 'include',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) {
     let msg = `下载失败（HTTP ${res.status}）`;

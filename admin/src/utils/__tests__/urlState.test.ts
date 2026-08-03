@@ -24,6 +24,15 @@ describe('urlState helpers', () => {
     expect(appendSourceToUrl('/products/p1?source=taskcenter', 'manual')).toBe('/products/p1?source=taskcenter');
   });
 
+  it('report days is allowlisted and cleared when reset to default', () => {
+    historyMock.location.pathname = '/orders/reports';
+    historyMock.location.search = '?days=90';
+
+    writeQueryState({ days: undefined }, { replace: true });
+
+    expect(historyMock.replace).toHaveBeenCalledWith('/orders/reports');
+  });
+
   it('writes only allowlisted query keys', () => {
     historyMock.location.pathname = '/products';
     historyMock.location.search = '?page=1&keyword=old';
