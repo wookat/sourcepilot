@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/admin.fixture';
+import { expectNoRootOverflow } from '../utils/assertions';
 import { ok } from '../mocks/envelope';
 import { e2eUser } from '../mocks/auth';
 
@@ -103,6 +104,21 @@ test.describe('@round90-tenant-purge-ux 清退中状态与轮询（round90）', 
     });
     await expect(page.getByRole('row', { name: /华南运营中心/ })).toHaveCount(0);
   });
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 375, height: 812 },
+  ]) {
+    test(`it should have no root overflow at ${viewport.width}x${viewport.height}`, async ({ page, admin }) => {
+      const state = { purged: false };
+      await setupPlatformAdmin(page, state);
+      await page.setViewportSize(viewport);
+      await admin.goto('/settings/platform-tenants');
+      // 375 下名称列在表格横向滚动区内，断言行已加载即可
+      await expect(page.getByRole('row', { name: /华南运营中心/ })).toBeAttached();
+      await expectNoRootOverflow(page);
+    });
+  }
 
   test('清退任务失败时提示失败原因并恢复行操作', async ({ page, admin }) => {
     const state = { purged: false };
