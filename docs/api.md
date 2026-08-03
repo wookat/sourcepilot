@@ -10,6 +10,7 @@
 - 鉴权：管理端受保护接口使用 `Authorization: Bearer <token>`
 - 返回格式：统一 JSON 响应，核心字段为 `code`、`message`、`data`、`traceId`
 - 敏感信息：接口不得返回完整 API Key、Token、Secret、Cookie 或密码
+- 未知路由：任何未匹配的路径统一返回 JSON 404 envelope（`code=40401`，`message=接口不存在，请检查请求路径`），不再返回 Gin 裸文本 `404 page not found`
 - P7-C3 cursor 列表：Product、Order、Inventory Center、Task Center、Webhook Event、Operation Log 支持 `cursor` + `limit`，响应额外返回 `items`、`nextCursor`、`hasMore`、`limit`；旧 `page` / `pageSize` / `list` / `pagination` 兼容保留。超过深 offset 返回 `pagination_offset_too_deep`；cursor 篡改、跨租户/店铺或筛选变化分别返回 `pagination_cursor_signature_invalid`、`pagination_cursor_scope_mismatch`、`pagination_cursor_filter_mismatch`。P7-C4 隔离 Medium PostgreSQL 六类分页 runtime、Query Plan、N+1、Provider 限流、Permission Cache 失效与 Linux Race 证据已关闭；Load/Soak/Regression 仍 pending P7-V2。
 
 ## Webhook 入站（公开，无 JWT）
@@ -44,6 +45,8 @@
 | `POST` | `/api/v1/auth/login` | 管理员登录，支持邮箱或手机号。 |
 | `POST` | `/api/v1/auth/logout` | 退出登录，客户端丢弃 token。 |
 | `GET` | `/api/v1/auth/profile` | 当前管理员信息（含 `role` / `permissions` / `tenantId`，前端据此判定平台管理员可见性）。 |
+
+`secure_session` 模式下（staging/production 强制），无 session 绑定的 legacy JWT 统一返回 `401` + `AUTH_SESSION_BINDING_REQUIRED`，客户端应引导重新登录；迁移说明见 `docs/env.md`。
 
 ## 设置
 

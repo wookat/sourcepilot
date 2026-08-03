@@ -311,6 +311,8 @@ func main() {
 		securitypkg.CSRFProtection(cfg),
 	)
 
+	api.RegisterNoRoute(engine)
+
 	opLogSvc := &operationlog.Service{DB: db}
 	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc, selectionSvc := api.Register(engine, &api.Deps{
 		Config:          cfg,

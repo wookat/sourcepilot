@@ -39,6 +39,7 @@ const (
 	ErrUserDisabled             = "AUTH_USER_DISABLED"
 	ErrTenantDisabled           = "AUTH_TENANT_DISABLED"
 	ErrReauthenticationRequired = "AUTH_REAUTHENTICATION_REQUIRED"
+	ErrSessionBindingRequired   = "AUTH_SESSION_BINDING_REQUIRED"
 	ErrInvalidCredentials       = "AUTH_INVALID_CREDENTIALS"
 	ErrAccountTemporarilyLocked = "AUTH_ACCOUNT_TEMPORARILY_LOCKED"
 	ErrTooManyAttempts          = "AUTH_TOO_MANY_ATTEMPTS"

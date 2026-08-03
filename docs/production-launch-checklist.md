@@ -80,3 +80,11 @@ git checkout <上一个正常commit>
 - `BACKUP_STORAGE_BUCKET` 为空时对象存储备份会失败，上线后尽快在 `.env` 补齐并重启 backend。
 - Let's Encrypt 正式签发依赖真实 DNS + 公网 80/443，为本地演练唯一未覆盖项；异常按 production-deployment.md「常见问题」第一条排查（先切 staging CA 联调）。
 - 登录接口 body 为 `{"account": "...", "password": "..."}`（account=邮箱或手机号，不是 email 字段）。
+
+### Let's Encrypt 真实域名签发注意事项（本地无法覆盖，上线时逐项确认）
+
+1. **签发前置**：`dig +short <DOMAIN>` 必须已返回服务器公网 IP（DNS 生效有传播延迟，改完 A 记录等几分钟再部署）；云安全组与主机防火墙同时放行 TCP 80 + TCP 443（ACME HTTP-01 走 80，TLS-ALPN-01 走 443），任何 CDN/代理（如 Cloudflare 橙云）先关闭或改 DNS-only，否则验证请求到不了 Caddy。
+2. **先用 staging CA 联调**：首次上线建议先设 `ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory` 验证签发链路（staging 证书浏览器会告警属正常），成功后去掉该变量并 `docker compose -f docker-compose.prod.yml restart caddy` 换正式证书。
+3. **速率限制**：Let's Encrypt 正式环境每注册域名每周最多 50 张证书、同一组域名 5 次重复签发、每小时 5 次失败验证。反复失败会被限一小时甚至一周——所以**不要在正式 CA 上反复试错**，联调一律走 staging。
+4. **签发失败排查顺序**：`docker compose -f docker-compose.prod.yml logs caddy` 看 ACME 错误 → 确认 DNS/80/443/CDN → 确认 `ACME_EMAIL` 有效（Caddyfile 默认 `admin@example.com` 占位必须替换）→ 按 production-deployment.md「常见问题」第一条处理。
+5. **续期**：Caddy 自动在到期前约 30 天续期，无需 cron；但要保证 80/443 长期可达且 `caddy_data` 卷不被删除（`down -v` 会连证书一起删，严禁）。上线后可用 `openssl s_client -connect <DOMAIN>:443 -servername <DOMAIN> 2>/dev/null | openssl x509 -noout -dates` 记录到期时间并做外部监控。

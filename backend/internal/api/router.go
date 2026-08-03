@@ -203,6 +203,17 @@ type Deps struct {
 	Obs *observability.Observability
 }
 
+// RegisterNoRoute installs the unified JSON 404 envelope for unknown routes,
+// replacing Gin's default plain-text "404 page not found".
+func RegisterNoRoute(e *gin.Engine) {
+	if e == nil {
+		return
+	}
+	e.NoRoute(func(c *gin.Context) {
+		response.Fail(c, 404, response.CodeNotFound, "接口不存在，请检查请求路径")
+	})
+}
+
 // Register mounts routes on the engine and returns services for optional async workers.
 func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service, *webhook.Service, *files.Service, *securitymod.Service, *selection.Service) {
 	if dep == nil {
