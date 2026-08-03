@@ -154,6 +154,13 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 前端：新建草稿弹窗增加「归属店铺」选择（operator 必填、下拉只列其授权店铺——由后端 `GET /api/v1/shops` 店铺 scope 保证；admin 可选、全量可选）。
 - 回归证据：`product` 模块 `create_scope_test.go`（operator 无店铺 400、越权店铺 404、view-only 403、授权店铺 200 且列表可见、readonly 403、admin 有/无店铺、未知店铺 404，均含零脏数据断言）；permmatrix 契约测试 operator=allow、readonly=forbid。
 
+## round89 平台租户清退删除（测试租户留存收口）
+
+- 新增 `POST /api/v1/platform/tenants/:id/purge`（提交清退后台任务）与 `GET /api/v1/platform/tenants/:id/purge`（任务状态 / 逐表零残留报告），两条路由登记 `platformAdmin: allow`，矩阵四常规角色（tenant A admin/operator/readonly + tenant B admin）一律 `forbid`（统一 403，收紧优先）；POST 对 readonly 同时被 `ReadonlyWriteGuard` 兜底。
+- 安全门：仅 tenant 0 admin 可用；前置条件租户已停用（未停用 400）；请求体 `confirmName` 必须与租户名完全一致（不一致 400）；tenant 0 永不可清退（400）；前端另有二次确认弹窗。production 模式同样可用，安全门不因环境放宽。
+- 审计保留策略：清退目标租户的业务操作日志随租户一并删除；平台侧开租/清退审计（`tenant.create` / `tenant.purge.start` / `tenant.purge.done|failed`）与 `tenant_purge_tasks` 任务记录保留在 tenant 0。
+- 回归证据：`platformtenant` 模块 `purge_api_test.go`（停用前 400、confirmName 不一致 400、tenant 0 400、不存在 404、三类非平台 persona 403 且无副作用、成功清退后逐表零残留 + tenant 0 审计保留）。前端入口仅平台管理员可见（页面级 `isPlatformAdmin` 403 兜底），且仅对已停用租户展示「清退删除」。
+
 ## docs/api.md 口径差异说明
 
 - docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。

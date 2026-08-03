@@ -7,10 +7,11 @@ import {
   disablePlatformTenant,
   enablePlatformTenant,
   fetchPlatformTenants,
+  purgePlatformTenant,
   renamePlatformTenant,
   type PlatformTenantRow,
 } from '@/services/platformTenants';
-import { Button, Form, Input, Modal, Result, Space, Tag, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Result, Space, Tag, message } from 'antd';
 import { useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
@@ -23,6 +24,8 @@ export default function PlatformTenantsPage() {
   const [createForm] = Form.useForm();
   const [renameTarget, setRenameTarget] = useState<PlatformTenantRow | null>(null);
   const [renameForm] = Form.useForm();
+  const [purgeTarget, setPurgeTarget] = useState<PlatformTenantRow | null>(null);
+  const [purgeForm] = Form.useForm();
   const [modal, modalContextHolder] = Modal.useModal();
   const emptyLocale = useListEmptyLocale('platformTenants', {
     onAction: () => setCreateOpen(true),
@@ -103,6 +106,19 @@ export default function PlatformTenantsPage() {
                 }
               >
                 启用
+              </Button>
+            ) : null}
+            {row.status === 'disabled' ? (
+              <Button
+                type="link"
+                size="small"
+                danger
+                onClick={() => {
+                  purgeForm.resetFields();
+                  setPurgeTarget(row);
+                }}
+              >
+                清退删除
               </Button>
             ) : (
               <Button
@@ -225,6 +241,64 @@ export default function PlatformTenantsPage() {
         >
           <Form.Item name="name" label="租户名称" rules={[{ required: true, max: 128 }]}>
             <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="清退删除租户"
+        open={!!purgeTarget}
+        onCancel={() => setPurgeTarget(null)}
+        onOk={() => purgeForm.submit()}
+        okText="下一步"
+        okButtonProps={{ danger: true }}
+        destroyOnHidden
+      >
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="清退删除不可恢复"
+          description="将级联删除该租户全部业务数据（账号、店铺、商品、草稿、货源、订单、采购、库存、客服、选品、采集、发布、批次及业务日志）。平台侧开租/清退审计将保留。"
+        />
+        <Form
+          form={purgeForm}
+          layout="vertical"
+          onFinish={async (v: { confirmName: string }) => {
+            if (!purgeTarget) return;
+            const target = purgeTarget;
+            modal.confirm({
+              title: `确认清退租户「${target.name}」？`,
+              content: '此操作不可恢复，将后台执行级联清理并逐表校验零残留。',
+              okText: '确认清退',
+              okButtonProps: { danger: true },
+              onOk: async () => {
+                try {
+                  await purgePlatformTenant(target.id, v.confirmName);
+                  message.success('清退任务已提交，将在后台执行');
+                  setPurgeTarget(null);
+                  purgeForm.resetFields();
+                  actionRef.current?.reload();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '清退失败');
+                }
+              },
+            });
+          }}
+        >
+          <Form.Item
+            name="confirmName"
+            label={`请输入租户名称「${purgeTarget?.name ?? ''}」以确认`}
+            rules={[
+              { required: true, message: '请输入租户名称' },
+              {
+                validator: (_, value) =>
+                  !value || value === purgeTarget?.name
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('输入的名称与租户名称不一致')),
+              },
+            ]}
+          >
+            <Input placeholder={purgeTarget?.name} />
           </Form.Item>
         </Form>
       </Modal>

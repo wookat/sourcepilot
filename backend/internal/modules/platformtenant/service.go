@@ -26,6 +26,9 @@ var (
 type Service struct {
 	DB    *gorm.DB
 	OpLog *operationlog.Service
+	// PurgeSync runs purge tasks synchronously instead of in a background
+	// goroutine (tests only).
+	PurgeSync bool
 }
 
 // TenantRow is one tenant in the platform tenant list.

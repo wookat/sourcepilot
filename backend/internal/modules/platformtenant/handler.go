@@ -137,6 +137,50 @@ func (h *Handler) Enable(c *gin.Context) {
 	h.setStatus(c, StatusActive)
 }
 
+// PurgeBody confirms a tenant purge by exact tenant name.
+type PurgeBody struct {
+	ConfirmName string `json:"confirmName"`
+}
+
+// Purge POST /api/v1/platform/tenants/:id/purge
+func (h *Handler) Purge(c *gin.Context) {
+	if !h.requirePlatformAdmin(c) {
+		return
+	}
+	id, ok := tenantIDParam(c)
+	if !ok {
+		return
+	}
+	var body PurgeBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "请求参数无效")
+		return
+	}
+	dto, err := h.Svc.StartPurge(c, id, body.ConfirmName, actorUUID(c))
+	if err != nil {
+		handleTenantError(c, err)
+		return
+	}
+	response.OK(c, dto)
+}
+
+// PurgeStatus GET /api/v1/platform/tenants/:id/purge
+func (h *Handler) PurgeStatus(c *gin.Context) {
+	if !h.requirePlatformAdmin(c) {
+		return
+	}
+	id, ok := tenantIDParam(c)
+	if !ok {
+		return
+	}
+	dto, err := h.Svc.LatestPurge(c, id)
+	if err != nil {
+		handleTenantError(c, err)
+		return
+	}
+	response.OK(c, dto)
+}
+
 func (h *Handler) setStatus(c *gin.Context, status string) {
 	if !h.requirePlatformAdmin(c) {
 		return

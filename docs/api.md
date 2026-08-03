@@ -560,8 +560,10 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `PUT` | `/api/v1/platform/tenants/:id` | 租户改名。请求体 `{name}`；重名 400、租户不存在 404、平台租户（id 0）不可改名 400。写操作日志 `tenant.rename` |
 | `POST` | `/api/v1/platform/tenants/:id/disable` | 停用租户。停用后该租户所有账号登录被拒（错误码 `AUTH_TENANT_DISABLED`，中文提示「租户已被停用」），已有会话在下次请求（access 校验 / refresh 轮换）时失效；平台租户（id 0）不可停用 400、不存在 404。写操作日志 `tenant.disable` |
 | `POST` | `/api/v1/platform/tenants/:id/enable` | 启用租户，恢复该租户账号登录；不存在 404。写操作日志 `tenant.enable` |
+| `POST` | `/api/v1/platform/tenants/:id/purge` | 清退删除租户（后台任务）。请求体 `{confirmName}` 必须与租户名称完全一致；前置条件租户已停用（未停用 400）；tenant 0 永不可清退（400）；不存在 404；同租户已有进行中任务 400。提交后后台级联删除该租户全部业务数据（账号、店铺、商品/草稿、货源、订单、采购、库存、客服、选品、采集、发布、批次及该租户业务操作日志）并逐表校验零残留；平台侧开租/清退审计保留在 tenant 0（`tenant.purge.start` / `tenant.purge.done` / `tenant.purge.failed`）。返回清退任务 `{id, tenantId, tenantName, status, createdAt}` |
+| `GET` | `/api/v1/platform/tenants/:id/purge` | 查询该租户最近一次清退任务状态（`pending` / `running` / `succeeded` / `failed`）；成功时附逐表零残留报告 `report.tables`（表名 → 残留行数，全部为 0）与 `report.total`；无任务 404 |
 
-租户停用生效口径（round82）：登录（legacy / secure session）、refresh 轮换、每次带 Bearer 的请求（session 令牌走 `ValidateSessionAccess`，legacy 令牌由中间件按 claims 租户检查）都会检查用户所属租户状态，租户 `disabled` 时统一返回 401 `AUTH_TENANT_DISABLED`；tenant 0（平台租户）与无 `tenants` 行的 legacy 租户恒为 active。不提供租户删除。
+租户停用生效口径（round82）：登录（legacy / secure session）、refresh 轮换、每次带 Bearer 的请求（session 令牌走 `ValidateSessionAccess`，legacy 令牌由中间件按 claims 租户检查）都会检查用户所属租户状态，租户 `disabled` 时统一返回 401 `AUTH_TENANT_DISABLED`；tenant 0（平台租户）与无 `tenants` 行的 legacy 租户恒为 active。租户删除仅通过清退流程（round89）：先停用，再由平台管理员输入租户名确认后提交后台清退任务；清退不可恢复，业务日志随租户一并删除（保留策略：租户内业务审计随租户生命周期终止），平台侧开租/清退审计与清退任务记录（`tenant_purge_tasks`）永久保留在 tenant 0。
 
 ## AI 比价选品引擎 API
 

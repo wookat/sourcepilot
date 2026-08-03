@@ -15,4 +15,6 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	rg.PUT("/:id", h.Rename)
 	rg.POST("/:id/disable", h.Disable)
 	rg.POST("/:id/enable", h.Enable)
+	rg.POST("/:id/purge", h.Purge)
+	rg.GET("/:id/purge", h.PurgeStatus)
 }
