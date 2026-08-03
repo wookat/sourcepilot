@@ -31,6 +31,23 @@ func collectAdminUUID(c *gin.Context) *uuid.UUID {
 	return nil
 }
 
+// collectorUnreachableMessage is the user-facing hint returned when the Node
+// collector service is down or unreachable (environment issue, not a bug).
+const collectorUnreachableMessage = "采集服务未启动或不可达，请先启动采集服务（collector）后重试"
+
+// failCollectorProxy maps collector proxy errors to the response envelope:
+// transport-level failures get a stable code + Chinese guidance so the
+// frontend can render a非崩溃 guidance state; collector business rejections
+// keep their original message.
+func failCollectorProxy(c *gin.Context, err error) {
+	var unreachable *CollectorUnreachableError
+	if errors.As(err, &unreachable) {
+		response.Fail(c, http.StatusBadGateway, response.CodeCollectorUnreachable, collectorUnreachableMessage)
+		return
+	}
+	response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+}
+
 func atoiCollectQP(c *gin.Context, key string, def int) int {
 	s := strings.TrimSpace(c.Query(key))
 	if s == "" {
@@ -222,7 +239,7 @@ func (h *Handler) Get1688AuthStatus(c *gin.Context) {
 	}
 	out, err := h.Svc.Client.Get1688AuthStatus(c.Request.Context())
 	if err != nil {
-		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		failCollectorProxy(c, err)
 		return
 	}
 	response.OK(c, out)
@@ -236,7 +253,7 @@ func (h *Handler) Open1688LoginBrowser(c *gin.Context) {
 	}
 	out, err := h.Svc.Client.Open1688LoginBrowser(c.Request.Context())
 	if err != nil {
-		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		failCollectorProxy(c, err)
 		return
 	}
 	response.OK(c, out)
@@ -254,7 +271,7 @@ func (h *Handler) GetPinduoduoAuthStatus(c *gin.Context) {
 	)
 	out, err := h.Svc.Client.CheckPinduoduoLogin(c.Request.Context(), contextURL, settingsTestURL)
 	if err != nil {
-		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		failCollectorProxy(c, err)
 		return
 	}
 	response.OK(c, out)
@@ -274,7 +291,7 @@ func (h *Handler) CheckPinduoduoLogin(c *gin.Context) {
 	}
 	out, err := h.Svc.Client.CheckPinduoduoLogin(c.Request.Context(), contextURL, settingsTestURL)
 	if err != nil {
-		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		failCollectorProxy(c, err)
 		return
 	}
 	if h.Svc.OpLog != nil {
@@ -308,7 +325,7 @@ func (h *Handler) OpenPinduoduoLoginBrowser(c *gin.Context) {
 	loginURL := strings.TrimSpace(body.URL)
 	out, err := h.Svc.Client.OpenPinduoduoLoginBrowser(c.Request.Context(), loginURL)
 	if err != nil {
-		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		failCollectorProxy(c, err)
 		return
 	}
 	if h.Svc.OpLog != nil {
@@ -338,7 +355,7 @@ func (h *Handler) CheckTaobaoTmallLogin(c *gin.Context) {
 	}
 	out, err := h.Svc.Client.CheckTaobaoTmallLogin(c.Request.Context(), contextURL, settingsTestURL)
 	if err != nil {
-		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		failCollectorProxy(c, err)
 		return
 	}
 	if h.Svc.OpLog != nil {
@@ -369,7 +386,7 @@ func (h *Handler) OpenTaobaoTmallLoginBrowser(c *gin.Context) {
 	loginURL := strings.TrimSpace(body.URL)
 	out, err := h.Svc.Client.OpenTaobaoTmallLoginBrowser(c.Request.Context(), loginURL)
 	if err != nil {
-		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		failCollectorProxy(c, err)
 		return
 	}
 	if h.Svc.OpLog != nil {
