@@ -203,8 +203,12 @@ func (h *Handler) ListByProduct(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	list, err := h.Svc.ListPublicationsByProduct(c.Request.Context(), pid)
+	list, err := h.Svc.ListPublicationsByProduct(c, pid)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
@@ -394,7 +398,7 @@ func (h *Handler) GetDouyinSKUBindings(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetDouyinSKUBindings(c.Request.Context(), id)
+	out, err := h.Svc.GetDouyinSKUBindings(c, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")

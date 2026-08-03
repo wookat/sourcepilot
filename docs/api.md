@@ -228,6 +228,16 @@
 - 客服消息同步同口径：`POST /shops/:id/sync-customer-messages` 按 tenant+店铺 scope 校验店铺；`/customer/message-sync/tasks` 列表按租户过滤（带 `shopId` 时叠加店铺 scope），`tasks/:id` 与 `tasks/:id/retry` 越权 404。新建同步任务写入店铺所属 `tenant_id`。
 - 同类收口（父资源 tenant scope，越权 404）：`GET /products/:id/skus/:skuId/inventory-logs`、`GET /products/:id/publication-skus`、`GET /products/:id/ai/tasks`。
 
+### 业务子资源 scope 口径（round71）
+
+round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+店铺）归属，越权/跨租户统一 **404**（不泄露存在性），正常授权路径行为与 DTO 不变：
+
+- sourcing：`GET /products/:id/sources`、`GET /product-source-skus/:id/price-history` 先校验父商品（价格历史沿 source SKU → product source → product 链）tenant scope。
+- imagetask：`GET /image/tasks/:id/items`、`DELETE /image/tasks/:id/items/:itemId` 先校验父任务关联商品的 tenant scope（无商品关联的存量任务无租户归属，保持与任务详情一致的可见性）。
+- aioperationbatch：`GET /ai/batches/:id`、`GET /ai/batches/:id/tasks`、`POST /ai/batches/:id/retry-failed`、`POST /ai/batches/:id/apply-results` 按批次创建人所属租户校验（批次无租户列；无创建人的存量批次按租户 0 归属）。
+- productpublish：`GET /products/:id/publications` 先校验父商品 tenant，再按店铺 scope 过滤发布行；`GET /product-publications/:id/douyin/sku-bindings`（及 sync/绑定/解绑写路径）先校验发布记录父商品 tenant + 店铺 scope。
+- ordersync：`POST /shops/:id/sync-orders` 先校验店铺 tenant + 店铺 scope（与 GET/retry 一致）；新建同步任务写入店铺所属 `tenant_id`。
+
 ## Dev / Demo 种子（非 production）
 
 | 方法 | 路径 | 说明 |

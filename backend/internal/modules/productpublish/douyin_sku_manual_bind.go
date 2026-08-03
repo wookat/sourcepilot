@@ -38,7 +38,7 @@ func (s *Service) ManualBindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID
 		return nil, fmt.Errorf("%s: platform sku id required", platformdouyin.CodeDouyinPlatformSKUIDMissing)
 	}
 
-	psku, pub, err := s.loadDouyinPublicationSKU(ctx, publicationSkuID)
+	psku, pub, err := s.loadDouyinPublicationSKU(c, publicationSkuID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (s *Service) UnbindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID, bo
 		return nil, fmt.Errorf("%s: product publish unavailable", platformdouyin.CodeDouyinSKUManualUnbindFailed)
 	}
 	ctx := c.Request.Context()
-	psku, pub, err := s.loadDouyinPublicationSKU(ctx, publicationSkuID)
+	psku, pub, err := s.loadDouyinPublicationSKU(c, publicationSkuID)
 	if err != nil {
 		return nil, err
 	}
@@ -153,12 +153,12 @@ func (s *Service) UnbindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID, bo
 	return row, nil
 }
 
-func (s *Service) loadDouyinPublicationSKU(ctx context.Context, publicationSkuID uuid.UUID) (*ProductPublicationSKU, *ProductPublication, error) {
+func (s *Service) loadDouyinPublicationSKU(c *gin.Context, publicationSkuID uuid.UUID) (*ProductPublicationSKU, *ProductPublication, error) {
 	var psku ProductPublicationSKU
-	if err := s.DB.WithContext(ctx).First(&psku, "id = ?", publicationSkuID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&psku, "id = ?", publicationSkuID).Error; err != nil {
 		return nil, nil, err
 	}
-	pub, err := s.loadDouyinPublication(ctx, psku.PublicationID)
+	pub, err := s.loadDouyinPublicationScoped(c, psku.PublicationID)
 	if err != nil {
 		return nil, nil, err
 	}

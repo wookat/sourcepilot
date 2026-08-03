@@ -12,10 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -894,6 +896,46 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*AIOperationBatch,
 	return &b, nil
 }
 
+// ensureBatchVisible verifies the batch belongs to the request's tenant via
+// its creator admin user (batches have no tenant column). Cross-tenant access
+// returns gorm.ErrRecordNotFound so endpoints respond 404 without leaking
+// existence. Legacy rows without a creator are treated as tenant 0 data.
+func (s *Service) ensureBatchVisible(c *gin.Context, b *AIOperationBatch) error {
+	if s == nil || s.DB == nil || b == nil {
+		return fmt.Errorf("no db")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	if b.CreatedBy == nil {
+		if tid == 0 {
+			return nil
+		}
+		return gorm.ErrRecordNotFound
+	}
+	var u admin.AdminUser
+	if err := s.DB.WithContext(c.Request.Context()).Select("id", "tenant_id").First(&u, "id = ?", *b.CreatedBy).Error; err != nil {
+		return err
+	}
+	if u.TenantID != tid {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// GetScoped returns a batch after verifying tenant visibility (HTTP paths).
+func (s *Service) GetScoped(c *gin.Context, id uuid.UUID) (*AIOperationBatch, error) {
+	b, err := s.GetByID(c.Request.Context(), id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureBatchVisible(c, b); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
 // ListBatchAITasks returns ai_tasks for a text batch.
 func (s *Service) ListBatchAITasks(c *gin.Context, batchID uuid.UUID, page, ps int) ([]map[string]any, int64, error) {
 	if page < 1 {
@@ -969,7 +1011,7 @@ func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 	if !s.aiBatchEnabled(ctx) {
 		return nil, fmt.Errorf("bulk AI disabled")
 	}
-	b, err := s.GetByID(ctx, batchID)
+	b, err := s.GetScoped(c, batchID)
 	if err != nil {
 		return nil, err
 	}
@@ -1131,7 +1173,7 @@ func (s *Service) ApplyBatchResults(c *gin.Context, batchID uuid.UUID, body Appl
 	if strings.TrimSpace(body.Target) != applyTargetAIField {
 		return 0, fmt.Errorf("unsupported target")
 	}
-	b, err := s.GetByID(ctx, batchID)
+	b, err := s.GetScoped(c, batchID)
 	if err != nil {
 		return 0, err
 	}

@@ -139,7 +139,7 @@ func (h *Handler) Get(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	batch, err := h.Svc.GetByID(c.Request.Context(), id)
+	batch, err := h.Svc.GetScoped(c, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -176,7 +176,7 @@ func (h *Handler) Tasks(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	batch, err := h.Svc.GetByID(c.Request.Context(), id)
+	batch, err := h.Svc.GetScoped(c, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -240,6 +240,10 @@ func (h *Handler) RetryFailed(c *gin.Context) {
 	}
 	batch, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -264,6 +268,10 @@ func (h *Handler) ApplyResults(c *gin.Context) {
 	}
 	n, err := h.Svc.ApplyBatchResults(c, id, body, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

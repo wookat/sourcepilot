@@ -152,7 +152,7 @@ func (h *Handler) ListProductSources(c *gin.Context) {
 	if !ok {
 		return
 	}
-	out, err := h.Svc.ListProductSources(c.Request.Context(), pid)
+	out, err := h.Svc.ListProductSources(c, pid)
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -307,7 +307,7 @@ func (h *Handler) PriceHistory(c *gin.Context) {
 	if !ok {
 		return
 	}
-	out, err := h.Svc.PriceHistory(c.Request.Context(), id, atoiQ(c, "days", 90))
+	out, err := h.Svc.PriceHistory(c, id, atoiQ(c, "days", 90))
 	if err != nil {
 		handleSourcingError(c, err)
 		return

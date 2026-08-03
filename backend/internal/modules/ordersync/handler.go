@@ -72,6 +72,9 @@ func (h *Handler) SyncShopOrders(c *gin.Context) {
 	out, err := h.Svc.CreateShopSync(c, id, body, adminUUID(c))
 	if err != nil {
 		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
 		case errors.Is(err, platformp.ErrManualOrderSyncUnsupported):
 			response.Fail(c, 400, response.CodeBadRequest, err.Error())
 			return

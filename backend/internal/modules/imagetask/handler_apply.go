@@ -2,6 +2,7 @@ package imagetask
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -80,8 +81,12 @@ func (h *Handler) ListItems(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	items, err := h.Svc.ListTaskItems(c.Request.Context(), taskID)
+	items, err := h.Svc.ListTaskItems(c, taskID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
@@ -104,8 +109,8 @@ func (h *Handler) DeleteItem(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid itemId")
 		return
 	}
-	if err := h.Svc.DeleteTaskItem(c.Request.Context(), taskID, itemID); err != nil {
-		if err == gorm.ErrRecordNotFound {
+	if err := h.Svc.DeleteTaskItem(c, taskID, itemID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}

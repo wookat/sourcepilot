@@ -244,8 +244,15 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("ordersync: no db")
 	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, &shopID); err != nil {
+		return nil, err
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var row shop.Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, shopID); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Status) != shop.StatusActive {
@@ -271,6 +278,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	}
 
 	task := OrderSyncTask{
+		TenantID:  row.TenantID,
 		ShopID:    shopID,
 		Platform:  strings.TrimSpace(row.Platform),
 		TaskType:  TaskTypeOrderSync,

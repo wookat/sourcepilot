@@ -101,6 +101,11 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 创建口径：`POST /api/v1/operation-tasks` 新增可选 `shopId`；admin 可省略（租户级任务）；非 admin 必须绑定已授权店铺（缺失 400，未授权/跨租户店铺 404）。
 - 回归证据：`TestOperationTaskStoreScope`（本套件）+ `operationtask` 模块 `api_scope_test.go`（admin/operator/readonly/跨租户四口径、全写路径、backfill）。
 
+## round71 业务子资源 scope（R70 复扫清单收口）
+
+- sourcing 货源/价格历史、imagetask 任务明细、aioperationbatch 批次子资源、productpublish 发布记录/SKU 绑定、ordersync `POST /shops/:id/sync-orders` 统一补父资源 tenant（+店铺）scope，越权/跨租户 404，不泄露存在性；见 docs/api.md「业务子资源 scope 口径（round71）」。
+- 数据级回归证据：各模块 `subresource_scope_test.go`（三角色 + 跨租户 404 + 越权写无副作用）。路由级守卫矩阵不变（本轮未新增端点）。
+
 ## docs/api.md 口径差异说明
 
 - docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。
