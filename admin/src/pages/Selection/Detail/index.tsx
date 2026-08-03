@@ -18,12 +18,6 @@ import { extractApiErrorMessage } from '@/services/request';
 
 const POLL_MS = 4000;
 
-const DECISION_COLOR: Record<string, string> = {
-  pending: 'default',
-  approved: 'success',
-  rejected: 'error',
-};
-
 function money(v?: number, currency?: string) {
   if (v === undefined || v === null) return '-';
   return `${v.toFixed(2)} ${currency || ''}`.trim();
@@ -215,7 +209,7 @@ export default function SelectionTaskDetailPage() {
       render: (_, row) =>
         row.candidate.status === 'failed' ? (
           <Space direction="vertical" size={0}>
-            <Tag color="error">failed</Tag>
+            <StatusTag status="failed" />
             <Typography.Text
               type="danger"
               style={{ fontSize: 12, maxWidth: 140 }}
@@ -232,8 +226,7 @@ export default function SelectionTaskDetailPage() {
       title: '审核',
       width: 90,
       render: (_, row) => {
-        const d = row.evaluation?.decision || 'pending';
-        return <Tag color={DECISION_COLOR[d]}>{d}</Tag>;
+        return <StatusTag status={row.evaluation?.decision || 'pending'} />;
       },
     },
     {

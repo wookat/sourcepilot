@@ -92,6 +92,7 @@ export const PRODUCT_SOURCE_LABEL: Record<string, string> = {
   shein_temu: 'SHEIN/Temu',
   custom: '自定义链接',
   manual: '手动创建',
+  collect: '采集',
 };
 
 export function productSourceLabel(source?: string): string {

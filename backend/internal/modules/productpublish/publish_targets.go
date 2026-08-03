@@ -774,6 +774,7 @@ func (s *Service) createLocalDraftForTarget(ctx context.Context, productID uuid.
 
 	outSnap, _ := json.Marshal(snap)
 	task := ProductPublishTask{
+		TenantID:      prod.TenantID,
 		ProductID:     productID,
 		ShopID:        *sid,
 		TargetStoreID: *sid,

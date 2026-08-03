@@ -155,6 +155,7 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 	snapRaw, _ := json.Marshal(snap)
 
 	task := ProductPublishTask{
+		TenantID:        shopRow.TenantID,
 		ProductID:       productID,
 		ShopID:          sid,
 		TargetStoreID:   sid,
