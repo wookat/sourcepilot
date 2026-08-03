@@ -6,16 +6,19 @@ import {
   createPlatformTenant,
   disablePlatformTenant,
   enablePlatformTenant,
+  fetchPlatformTenantPurge,
   fetchPlatformTenants,
   purgePlatformTenant,
   renamePlatformTenant,
   type PlatformTenantRow,
 } from '@/services/platformTenants';
 import { Alert, Button, Form, Input, Modal, Result, Space, Tag, message } from 'antd';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { isPlatformAdmin } from '@/utils/permission';
+
+const PURGE_POLL_INTERVAL_MS = 3000;
 
 export default function PlatformTenantsPage() {
   const actionRef = useRef<ActionType>();
@@ -26,11 +29,38 @@ export default function PlatformTenantsPage() {
   const [renameForm] = Form.useForm();
   const [purgeTarget, setPurgeTarget] = useState<PlatformTenantRow | null>(null);
   const [purgeForm] = Form.useForm();
+  const [purgingIds, setPurgingIds] = useState<number[]>([]);
   const [modal, modalContextHolder] = Modal.useModal();
   const emptyLocale = useListEmptyLocale('platformTenants', {
     onAction: () => setCreateOpen(true),
     actionLabel: '新建租户',
   });
+
+  // 清退为后台异步任务：提交后轮询任务状态，完成前列表行显示「清退中」，避免短暂残留被误读
+  useEffect(() => {
+    if (!purgingIds.length) return undefined;
+    const timer = window.setInterval(async () => {
+      for (const id of purgingIds) {
+        try {
+          const task = await fetchPlatformTenantPurge(id);
+          if (task.status === 'succeeded') {
+            message.success(`租户「${task.tenantName}」清退完成`);
+            setPurgingIds((prev) => prev.filter((x) => x !== id));
+            actionRef.current?.reload();
+          } else if (task.status === 'failed') {
+            message.error(`租户「${task.tenantName}」清退失败：${task.error || '请稍后重试'}`);
+            setPurgingIds((prev) => prev.filter((x) => x !== id));
+            actionRef.current?.reload();
+          }
+        } catch {
+          // 任务查询失败（如租户已删除）时停止轮询并刷新列表
+          setPurgingIds((prev) => prev.filter((x) => x !== id));
+          actionRef.current?.reload();
+        }
+      }
+    }, PURGE_POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [purgingIds]);
 
   if (!isPlatformAdmin(role, user?.tenantId)) {
     return <Result status="403" title="无权限" subTitle="仅平台管理员可管理平台租户" />;
@@ -56,7 +86,13 @@ export default function PlatformTenantsPage() {
       dataIndex: 'status',
       width: 100,
       render: (_, row) =>
-        row.status === 'disabled' ? <Tag color="red">已停用</Tag> : <Tag color="green">启用中</Tag>,
+        purgingIds.includes(row.id) ? (
+          <Tag color="processing">清退中</Tag>
+        ) : row.status === 'disabled' ? (
+          <Tag color="red">已停用</Tag>
+        ) : (
+          <Tag color="green">启用中</Tag>
+        ),
     },
     { title: '账号数', dataIndex: 'adminCount', width: 100 },
     {
@@ -70,7 +106,7 @@ export default function PlatformTenantsPage() {
       key: 'actions',
       width: 180,
       render: (_, row) =>
-        row.id === 0 ? (
+        row.id === 0 || purgingIds.includes(row.id) ? (
           <span>—</span>
         ) : (
           <Space size="small">
@@ -277,6 +313,7 @@ export default function PlatformTenantsPage() {
                   message.success('清退任务已提交，将在后台执行');
                   setPurgeTarget(null);
                   purgeForm.resetFields();
+                  setPurgingIds((prev) => (prev.includes(target.id) ? prev : [...prev, target.id]));
                   actionRef.current?.reload();
                 } catch (e: unknown) {
                   message.error((e as Error)?.message || '清退失败');
