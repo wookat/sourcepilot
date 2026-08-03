@@ -158,7 +158,8 @@ export default function ProductDraftsPage() {
     if (screens.md !== undefined) setWideScreen(screens.md);
   }, [screens.md]);
   const [createOpen, setCreateOpen] = useState(false);
-  const { readonly } = usePermission();
+  const { readonly, role } = usePermission();
+  const canCreateDraft = role === 'admin';
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [selectedRows, setSelectedRows] = useState<ProductListRow[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
@@ -605,11 +606,11 @@ export default function ProductDraftsPage() {
       subTitle={PAGE_COPY.productDrafts.description}
     >
       <OperationToolbar className="product-drafts-page__toolbar">
-        {readonly ? null : (
+        {canCreateDraft ? (
           <Button icon={<PlusOutlined />} type="primary" onClick={() => setCreateOpen(true)}>
             新建草稿
           </Button>
-        )}
+        ) : null}
         {readonly ? null : (
           <Dropdown
             menu={{ items: moreActionItems, onClick: onMoreActionClick }}
@@ -823,7 +824,7 @@ export default function ProductDraftsPage() {
           } catch (e: unknown) {
             const status = (e as { response?: { status?: number } })?.response?.status;
             if (status === 403) {
-              message.error('当前账号无商品写权限，无法新建草稿');
+              message.error((e as Error)?.message || '当前账号无商品写权限，无法新建草稿');
             } else {
               message.error((e as Error)?.message || '新建草稿失败');
             }

@@ -290,9 +290,12 @@ export default function SettingsUsersPage() {
         <Modal
           title="新建用户"
           open={createOpen}
-          onCancel={() => setCreateOpen(false)}
+          onCancel={() => {
+            setCreateOpen(false);
+            createForm.resetFields();
+          }}
           onOk={() => createForm.submit()}
-          destroyOnHidden
+          forceRender
         >
           <Form
             form={createForm}
@@ -384,11 +387,11 @@ export default function SettingsUsersPage() {
             <Form.List name="items">
               {(fields, { add, remove }) => (
                 <>
-                  {fields.map(({ key, ...field }) => (
+                  {fields.map(({ key, name, ...restField }) => (
                     <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
                       <Form.Item
-                        {...field}
-                        name={[field.name, 'storeId']}
+                        {...restField}
+                        name={[name, 'storeId']}
                         rules={[{ required: true, message: '选择店铺' }]}
                       >
                         <Select
@@ -400,10 +403,10 @@ export default function SettingsUsersPage() {
                           }))}
                         />
                       </Form.Item>
-                      <Form.Item {...field} name={[field.name, 'permissionScope']} initialValue="operate">
+                      <Form.Item {...restField} name={[name, 'permissionScope']} initialValue="operate">
                         <Select style={{ width: 120 }} options={SCOPE_OPTIONS} />
                       </Form.Item>
-                      <Button type="link" onClick={() => remove(field.name)}>
+                      <Button type="link" onClick={() => remove(name)}>
                         移除
                       </Button>
                     </Space>
