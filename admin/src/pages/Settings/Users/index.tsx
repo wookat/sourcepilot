@@ -326,7 +326,7 @@ export default function SettingsUsersPage() {
           onCancel={() => setPwdUser(null)}
           onOk={() => pwdForm.submit()}
           okText="确认修改"
-          destroyOnHidden
+          forceRender
         >
           <Form
             form={pwdForm}
