@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authcookie"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
@@ -122,11 +123,8 @@ func isActivePlatformTenantUser(c *gin.Context, db *gorm.DB, uid uuid.UUID) bool
 	if db == nil || uid == uuid.Nil {
 		return false
 	}
-	var row struct {
-		TenantID int64
-		Status   string
-	}
-	if err := db.WithContext(c.Request.Context()).Table("admin_users").
+	var row admin.AdminUser
+	if err := db.WithContext(c.Request.Context()).Model(&admin.AdminUser{}).
 		Select("tenant_id", "status").Where("id = ?", uid).Take(&row).Error; err != nil {
 		return false
 	}
