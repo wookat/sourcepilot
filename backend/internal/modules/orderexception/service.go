@@ -96,6 +96,70 @@ func (s *Service) shopName(ctx context.Context, sid *uuid.UUID) string {
 	return strings.TrimSpace(row.ShopName)
 }
 
+// shopNames loads shop display names for a set of ids in one query.
+func (s *Service) shopNames(ctx context.Context, ids []uuid.UUID) map[uuid.UUID]string {
+	out := map[uuid.UUID]string{}
+	if s == nil || s.DB == nil || len(ids) == 0 {
+		return out
+	}
+	var rows []shop.Shop
+	if err := s.DB.WithContext(ctx).Select("id", "shop_name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		return out
+	}
+	for _, r := range rows {
+		out[r.ID] = strings.TrimSpace(r.ShopName)
+	}
+	return out
+}
+
+// batchOrders loads non-deleted orders by id into a map.
+func (s *Service) batchOrders(ctx context.Context, ids []uuid.UUID) map[uuid.UUID]order.Order {
+	out := map[uuid.UUID]order.Order{}
+	if len(ids) == 0 {
+		return out
+	}
+	var rows []order.Order
+	if err := s.DB.WithContext(ctx).Where("id IN ? AND deleted_at IS NULL", ids).Find(&rows).Error; err != nil {
+		return out
+	}
+	for _, o := range rows {
+		out[o.ID] = o
+	}
+	return out
+}
+
+// batchOrderItems loads order items by id into a map.
+func (s *Service) batchOrderItems(ctx context.Context, ids []uuid.UUID) map[uuid.UUID]order.OrderItem {
+	out := map[uuid.UUID]order.OrderItem{}
+	if len(ids) == 0 {
+		return out
+	}
+	var rows []order.OrderItem
+	if err := s.DB.WithContext(ctx).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		return out
+	}
+	for _, oi := range rows {
+		out[oi.ID] = oi
+	}
+	return out
+}
+
+// batchProductSKUs loads product SKUs by id into a map.
+func (s *Service) batchProductSKUs(ctx context.Context, ids []uuid.UUID) map[uuid.UUID]product.ProductSKU {
+	out := map[uuid.UUID]product.ProductSKU{}
+	if len(ids) == 0 {
+		return out
+	}
+	var rows []product.ProductSKU
+	if err := s.DB.WithContext(ctx).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		return out
+	}
+	for _, r := range rows {
+		out[r.ID] = r
+	}
+	return out
+}
+
 // ListOrderExceptions aggregates exceptions from local tables (no platform HTTP).
 func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptionsRequest) (*ListOrderExceptionsResult, error) {
 	if s == nil || s.DB == nil {
@@ -231,9 +295,16 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 	}
 	pageRows := filtered[start:end]
 
+	pageShopIDs := make([]uuid.UUID, 0, len(pageRows))
+	for _, r := range pageRows {
+		if r.shopID != nil && *r.shopID != uuid.Nil {
+			pageShopIDs = append(pageShopIDs, *r.shopID)
+		}
+	}
+	shops := s.shopNames(ctx, pageShopIDs)
 	out := make([]OrderExceptionDTO, 0, len(pageRows))
 	for _, r := range pageRows {
-		dto := exceptionToDTO(ctx, s, r)
+		dto := exceptionToDTO(ctx, s, r, shops)
 		mp := marks[markKey(r.exceptionType, r.sourceType, r.sourceID.String())]
 		dto.Handled = mp.handled
 		dto.Ignored = mp.ignored
@@ -327,7 +398,9 @@ func sortAggRows(rows []aggRow) {
 	}
 }
 
-func exceptionToDTO(ctx context.Context, s *Service, r aggRow) OrderExceptionDTO {
+// exceptionToDTO renders one aggregated row; shops (optional) is a
+// pre-fetched id → name map used to avoid per-row shop lookups.
+func exceptionToDTO(ctx context.Context, s *Service, r aggRow, shops map[uuid.UUID]string) OrderExceptionDTO {
 	d := OrderExceptionDTO{
 		ID:              r.sourceID.String(),
 		ExceptionType:   r.exceptionType,
@@ -388,7 +461,11 @@ func exceptionToDTO(ctx context.Context, s *Service, r aggRow) OrderExceptionDTO
 	}
 	if r.shopID != nil && *r.shopID != uuid.Nil {
 		d.ShopID = r.shopID.String()
-		d.ShopName = s.shopName(ctx, r.shopID)
+		if shops != nil {
+			d.ShopName = shops[*r.shopID]
+		} else {
+			d.ShopName = s.shopName(ctx, r.shopID)
+		}
 	}
 	if r.orderItemID != nil {
 		d.OrderItemID = r.orderItemID.String()
@@ -543,12 +620,18 @@ func (s *Service) collectSKUAmbiguous(ctx context.Context, req ListOrderExceptio
 	if err := tx.Find(&matches).Error; err != nil {
 		return nil, err
 	}
+	orderIDs := make([]uuid.UUID, 0, len(matches))
+	itemIDs := make([]uuid.UUID, 0, len(matches))
+	for _, m := range matches {
+		orderIDs = append(orderIDs, m.OrderID)
+		itemIDs = append(itemIDs, m.OrderItemID)
+	}
+	orders := s.batchOrders(ctx, orderIDs)
+	items := s.batchOrderItems(ctx, itemIDs)
 	out := make([]aggRow, 0, len(matches))
 	for _, m := range matches {
-		var o order.Order
-		_ = s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", m.OrderID).Error
-		var oi order.OrderItem
-		_ = s.DB.WithContext(ctx).First(&oi, "id = ?", m.OrderItemID).Error
+		o := orders[m.OrderID]
+		oi := items[m.OrderItemID]
 		extOid := ""
 		if o.ExternalOrderID != nil {
 			extOid = strings.TrimSpace(*o.ExternalOrderID)
@@ -594,10 +677,23 @@ func (s *Service) collectInventoryEffects(ctx context.Context, req ListOrderExce
 	if err := tx.Find(&effects).Error; err != nil {
 		return nil, err
 	}
+	orderIDs := make([]uuid.UUID, 0, len(effects))
+	itemIDs := make([]uuid.UUID, 0, len(effects))
+	skuIDs := make([]uuid.UUID, 0, len(effects))
+	for _, e := range effects {
+		orderIDs = append(orderIDs, e.OrderID)
+		itemIDs = append(itemIDs, e.OrderItemID)
+		if e.ProductSKUID != uuid.Nil && e.ProductSKUID != inventory.NilInventorySKUUID {
+			skuIDs = append(skuIDs, e.ProductSKUID)
+		}
+	}
+	orders := s.batchOrders(ctx, orderIDs)
+	items := s.batchOrderItems(ctx, itemIDs)
+	skus := s.batchProductSKUs(ctx, skuIDs)
 	out := make([]aggRow, 0, len(effects))
 	for _, e := range effects {
-		var o order.Order
-		if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", e.OrderID).Error; err != nil {
+		o, ok := orders[e.OrderID]
+		if !ok {
 			continue
 		}
 		if req.TenantID != nil && o.TenantID != *req.TenantID {
@@ -612,8 +708,7 @@ func (s *Service) collectInventoryEffects(ctx context.Context, req ListOrderExce
 				continue
 			}
 		}
-		var oi order.OrderItem
-		_ = s.DB.WithContext(ctx).First(&oi, "id = ?", e.OrderItemID).Error
+		oi := items[e.OrderItemID]
 		extOid := ""
 		if o.ExternalOrderID != nil {
 			extOid = strings.TrimSpace(*o.ExternalOrderID)
@@ -654,8 +749,7 @@ func (s *Service) collectInventoryEffects(ctx context.Context, req ListOrderExce
 		if e.ProductSKUID != uuid.Nil && e.ProductSKUID != inventory.NilInventorySKUUID {
 			psku = e.ProductSKUID.String()
 			ar.productSkuID = psku
-			var loc product.ProductSKU
-			if err := s.DB.WithContext(ctx).First(&loc, "id = ?", e.ProductSKUID).Error; err == nil {
+			if loc, ok := skus[e.ProductSKUID]; ok {
 				ar.localSkuCode = strings.TrimSpace(loc.SKUCode)
 				ar.productID = loc.ProductID.String()
 			}
@@ -704,6 +798,26 @@ func (s *Service) collectInventorySyncFailed(ctx context.Context, req ListOrderE
 	if err := tx.Find(&tasks).Error; err != nil {
 		return nil, err
 	}
+	skuIDs := make([]uuid.UUID, 0, len(tasks))
+	for _, t := range tasks {
+		if t.ProductSKUID != nil {
+			skuIDs = append(skuIDs, *t.ProductSKUID)
+		}
+	}
+	skus := s.batchProductSKUs(ctx, skuIDs)
+	productIDs := make([]uuid.UUID, 0, len(skus))
+	for _, loc := range skus {
+		productIDs = append(productIDs, loc.ProductID)
+	}
+	titles := map[uuid.UUID]string{}
+	if len(productIDs) > 0 {
+		var prods []product.Product
+		if err := s.DB.WithContext(ctx).Select("id", "title").Where("id IN ? AND deleted_at IS NULL", productIDs).Find(&prods).Error; err == nil {
+			for _, pr := range prods {
+				titles[pr.ID] = strings.TrimSpace(pr.Title)
+			}
+		}
+	}
 	out := make([]aggRow, 0, len(tasks))
 	for _, t := range tasks {
 		pid := t.ProductID.String()
@@ -714,13 +828,9 @@ func (s *Service) collectInventorySyncFailed(ctx context.Context, req ListOrderE
 		ptitle := ""
 		lcode := ""
 		if t.ProductSKUID != nil {
-			var loc product.ProductSKU
-			if err := s.DB.WithContext(ctx).First(&loc, "id = ?", *t.ProductSKUID).Error; err == nil {
+			if loc, ok := skus[*t.ProductSKUID]; ok {
 				lcode = strings.TrimSpace(loc.SKUCode)
-				var pr product.Product
-				if err := s.DB.WithContext(ctx).First(&pr, "id = ? AND deleted_at IS NULL", loc.ProductID).Error; err == nil {
-					ptitle = strings.TrimSpace(pr.Title)
-				}
+				ptitle = titles[loc.ProductID]
 			}
 		}
 		out = append(out, aggRow{
@@ -952,7 +1062,7 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		if !scope.shopAllowed(r.shopID) {
 			return nil, gorm.ErrRecordNotFound
 		}
-		d := exceptionToDTO(ctx, s, r)
+		d := exceptionToDTO(ctx, s, r, nil)
 		applyMarkDTO(&d, marks)
 		return &d, nil
 	case SourceOrderItem:
@@ -967,7 +1077,7 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		if !scope.shopAllowed(r.shopID) {
 			return nil, gorm.ErrRecordNotFound
 		}
-		d := exceptionToDTO(ctx, s, r)
+		d := exceptionToDTO(ctx, s, r, nil)
 		applyMarkDTO(&d, marks)
 		return &d, nil
 	case SourceOrderInventoryEffect:
@@ -982,7 +1092,7 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		}
 		for _, r := range xs {
 			if r.sourceID == e.ID && scope.shopAllowed(r.shopID) {
-				d := exceptionToDTO(ctx, s, r)
+				d := exceptionToDTO(ctx, s, r, nil)
 				applyMarkDTO(&d, marks)
 				return &d, nil
 			}
@@ -1003,7 +1113,7 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		}
 		for _, r := range xs {
 			if r.sourceID == t.ID && scope.shopAllowed(r.shopID) {
-				d := exceptionToDTO(ctx, s, r)
+				d := exceptionToDTO(ctx, s, r, nil)
 				applyMarkDTO(&d, marks)
 				return &d, nil
 			}
@@ -1016,7 +1126,7 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		}
 		for _, r := range xs {
 			if r.sourceID == sid && scope.shopAllowed(r.shopID) {
-				d := exceptionToDTO(ctx, s, r)
+				d := exceptionToDTO(ctx, s, r, nil)
 				applyMarkDTO(&d, marks)
 				return &d, nil
 			}
