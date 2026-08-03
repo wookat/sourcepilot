@@ -440,6 +440,7 @@ export const COMMON_STATUS_LABEL: Record<string, string> = {
   suggested: '待处理建议',
   draft_preparing: '草稿准备中',
   pending_review: '待复核',
+  scored: '已评分',
   approved: '已批准',
   rejected: '已拒绝',
   execution_queued: '等待执行',

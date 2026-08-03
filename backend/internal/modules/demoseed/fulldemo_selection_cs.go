@@ -167,6 +167,7 @@ type customerConversationPlan struct {
 	customerName string
 	status       string
 	language     string
+	manualShop   bool // attach to the operator/readonly-granted manual DEMO shop
 	messages     []struct{ role, source, content string }
 	suggestion   *struct {
 		status         string
@@ -189,7 +190,7 @@ func demoCustomerConversationPlans() []customerConversationPlan {
 				rejectReason   string
 			}{status: customerchat.SuggestionGenerated,
 				suggestedReply: "DEMO- Hi Alice! Your order has been packed and will ship within 24 hours."}},
-		{customerName: "DEMO-买家 Bob", status: customerchat.StatusReplied, language: "en",
+		{customerName: "DEMO-买家 Bob", status: customerchat.StatusReplied, language: "en", manualShop: true,
 			messages: []struct{ role, source, content string }{
 				{customerchat.RoleCustomer, customerchat.SourceImported, "DEMO- Is the thermos dishwasher safe?"},
 				{customerchat.RoleAgent, customerchat.SourceManual, "DEMO- Yes, the lid is dishwasher safe; hand-wash the body is recommended."},
@@ -202,7 +203,7 @@ func demoCustomerConversationPlans() []customerConversationPlan {
 			}{status: customerchat.SuggestionAccepted,
 				suggestedReply: "DEMO- Yes, it is dishwasher safe.",
 				editedReply:    "DEMO- Yes, the lid is dishwasher safe; hand-wash the body is recommended."}},
-		{customerName: "DEMO-买家 Carol", status: customerchat.StatusClosed, language: "zh",
+		{customerName: "DEMO-买家 Carol", status: customerchat.StatusClosed, language: "zh", manualShop: true,
 			messages: []struct{ role, source, content string }{
 				{customerchat.RoleCustomer, customerchat.SourceImported, "DEMO- 请问收纳盒有黑色吗？"},
 				{customerchat.RoleAgent, customerchat.SourceManual, "DEMO- 有的，黑色现货，下单当天发货。"},
@@ -225,12 +226,20 @@ func demoCustomerConversationPlans() []customerConversationPlan {
 func (s *FullDemoSeeder) seedCustomerService(tx *gorm.DB, res *FullDemoResult, now time.Time, shops []shop.Shop) error {
 	count := func(table string, n int64) { res.Counts[table] += n }
 	demoShop := shops[0]
+	manualShop := demoShop
+	if len(shops) > 1 {
+		manualShop = shops[1]
+	}
 
 	for ci, plan := range demoCustomerConversationPlans() {
+		convShop := demoShop
+		if plan.manualShop {
+			convShop = manualShop
+		}
 		base := now.Add(-time.Duration(6-ci) * time.Hour)
 		last := base.Add(time.Duration(len(plan.messages)) * 5 * time.Minute)
 		conv := customerchat.CustomerConversation{TenantID: s.TenantID,
-			Platform: demoShop.Platform, ShopID: &demoShop.ID,
+			Platform: convShop.Platform, ShopID: &convShop.ID,
 			CustomerName: plan.customerName, CustomerLanguage: plan.language,
 			Status: plan.status, LastMessageAt: &last}
 		if err := tx.Create(&conv).Error; err != nil {

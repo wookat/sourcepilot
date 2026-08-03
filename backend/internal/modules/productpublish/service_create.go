@@ -191,6 +191,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	}
 
 	task := ProductPublishTask{
+		TenantID:        prod.TenantID,
 		ProductID:       prod.ID,
 		ShopID:          sid,
 		TargetStoreID:   sid,
