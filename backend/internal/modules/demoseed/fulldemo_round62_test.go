@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
@@ -45,6 +46,8 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&sourcing.ProductSource{},
 		&sourcing.ProductSourceSKU{},
 		&sourcing.SourcePriceHistory{},
+		&sourcing.SourceSwitchEvent{},
+		&productpublish.ProductPublication{},
 		&order.Order{},
 		&order.OrderItem{},
 		&order.OrderItemSKUMatch{},

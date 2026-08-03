@@ -1,4 +1,5 @@
 import { TmPageContainer } from '@/components/ui';
+import { formatDateTime } from '@/utils/formatTime';
 import {
   fetchProductDetail,
   fetchProducts,
@@ -351,7 +352,7 @@ export default function ProductSourcesPage() {
                   width: 110,
                   render: (v: number) => (v > 0 ? <Tag color="orange">{v}</Tag> : '-'),
                 },
-                { title: '最近检查', dataIndex: 'lastCheckedAt', width: 180, render: (v) => v || '-' },
+                { title: '最近检查', dataIndex: 'lastCheckedAt', width: 180, render: (v) => formatDateTime(v, '-') },
                 {
                   title: '操作',
                   width: 110,
@@ -507,7 +508,7 @@ export default function ProductSourcesPage() {
             pagination={false}
             scroll={{ x: 900 }}
             columns={[
-              { title: '时间', dataIndex: 'createdAt', width: 180 },
+              { title: '时间', dataIndex: 'createdAt', width: 180, render: (v) => formatDateTime(v, '-') },
               {
                 title: '原因',
                 dataIndex: 'reason',
@@ -763,7 +764,7 @@ export default function ProductSourcesPage() {
           dataSource={historyRows}
           pagination={{ pageSize: 10 }}
           columns={[
-            { title: '时间', dataIndex: 'capturedAt', width: 200 },
+            { title: '时间', dataIndex: 'capturedAt', width: 200, render: (v) => formatDateTime(v, '-') },
             { title: '价格(CNY)', dataIndex: 'price', width: 120 },
             { title: '库存', dataIndex: 'stock', width: 100, render: (v) => v ?? '-' },
             {
