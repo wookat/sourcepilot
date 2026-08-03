@@ -1321,3 +1321,11 @@ Final Production Acceptance Deferred to P10
 - P2-3：订单异常工作台严重程度列改用既有 `SEV_LABEL` 中文映射（筛选枚举与技术详情不变）。
 - P2-5：`AppMessageBridge` 扩展 patch antd 静态 `Modal.*` 到 App context（消除静态方法 context warning）；订单列表/详情的明细与物流 Modal 由 `destroyOnHidden` 改 `forceRender`（打开前 `resetFields/setFieldsValue` 不再触发 useForm 未连接 warning，openXxxModal 每次打开仍重置字段）。
 - ENV-1：Docker 镜像已内置 postgresql-client-16；`docs/docker-deployment.md` 补宿主机部署 pg_dump 主版本 ≥16 要求与自检说明；backup service 执行前 `exec.LookPath` 预检，缺失时给出友好错误（含 POSTGRES_PG_DUMP_PATH 提示），备份校验口径不变。
+
+### 变更记录（2026-08-03）第 70 轮：客服会话子资源鉴权收口（R69 QA）
+
+- 修复 R69：AI 客服越权/跨租户会话的子接口（`GET /customer/conversations/:id/messages`、`GET /customer/conversations/:id/ai-suggestions` 等）此前返回 200 空数据。现全部会话子资源读写路径（messages 读写、ai-suggestions 读写、mark-replied、ai/generate-reply、send-platform-message、reply-suggestions/ai-suggestions 建议操作）先按父会话 tenant+店铺 scope 校验（`customerchat` 新增共享 `findScopedConversation` / `findScopedSuggestion`），越权/跨租户统一 404，不泄露存在性；正常授权路径与 DTO 不变。
+- 客服消息同步同口径：`POST /shops/:id/sync-customer-messages` 校验店铺 tenant+店铺 scope；`customer/message-sync/tasks` 列表按租户过滤（带 shopId 时叠加店铺 scope），`tasks/:id`、`tasks/:id/retry` 越权 404；新建同步任务写入店铺 `tenant_id`（此前恒为 0）。
+- 全站复扫收口同类缺口：`GET /products/:id/skus/:skuId/inventory-logs`、`GET /products/:id/publication-skus`（inventory）、`GET /products/:id/ai/tasks`（product）补父商品 tenant scope，越权 404。
+- 回归单测：customerchat 子资源三角色（同租户 admin / 跨租户 admin / operator 店铺授权与否）+ 越权写无副作用；customersync 任务 scope；inventory / product 跨租户 404。
+- 复扫发现、本轮未收口（越权目前仍可按裸 ID 读，需后续按同口径收口）：`GET /products/:id/sources`、`GET /product-source-skus/:id/price-history`（sourcing）、`GET /image/tasks/:id/items`（imagetask）、`GET /ai-operation-batches/:id/tasks`（aioperationbatch）、`GET /products/:id/publications`、`GET /product-publications/:id/douyin/sku-bindings`（productpublish）；`ordersync` 的 `POST /shops/:id/sync-orders` 未做店铺 scope（GET/retry 已有 tenant scope）。

@@ -99,11 +99,30 @@ func (s *Service) GetDTO(ctx context.Context, tenantID int64, id uuid.UUID, skuU
 	return s.taskToDTO(ctx, &t, hint, title), nil
 }
 
+// ensureProductVisible verifies the parent product belongs to the request's
+// tenant; cross-tenant / unknown products return gorm.ErrRecordNotFound so
+// subresource endpoints respond 404 without leaking existence.
+func (s *Service) ensureProductVisible(c *gin.Context, productID uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("inventory: no db")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	var p product.Product
+	return repository.FindByID(c.Request.Context(), s.DB.Select("id"), &p, tid, productID)
+}
+
 // ListPublicationSkus lists listing SKU rows mapped to one product draft.
-func (s *Service) ListPublicationSkus(ctx context.Context, productID uuid.UUID, productSkuFilter *uuid.UUID) ([]PublicationSkuListingRow, error) {
+func (s *Service) ListPublicationSkus(c *gin.Context, productID uuid.UUID, productSkuFilter *uuid.UUID) ([]PublicationSkuListingRow, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
+	if err := s.ensureProductVisible(c, productID); err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
 	type rowLite struct {
 		ID                uuid.UUID  `gorm:"column:id"`
 		PublicationID     uuid.UUID  `gorm:"column:publication_id"`
@@ -163,10 +182,14 @@ func (s *Service) ListPublicationSkus(ctx context.Context, productID uuid.UUID, 
 }
 
 // ListSKUChangeLogs pages ledger rows for one SKU snapshot line.
-func (s *Service) ListSKUChangeLogs(ctx context.Context, productID uuid.UUID, skuID uuid.UUID, page, ps int) (*PaginatedLogs, error) {
+func (s *Service) ListSKUChangeLogs(c *gin.Context, productID uuid.UUID, skuID uuid.UUID, page, ps int) (*PaginatedLogs, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
+	if err := s.ensureProductVisible(c, productID); err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
 	if page < 1 {
 		page = 1
 	}

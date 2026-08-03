@@ -221,6 +221,13 @@
 
 客服 AI 回复建议见 **`POST /api/v1/customer/conversations/:id/ai/generate-reply`**（非 legacy `/ai/chat`）。
 
+### 客服会话子资源 scope 口径（round70）
+
+- 会话全部子资源读写路径（`/customer/conversations/:id/messages` 读写、`/customer/conversations/:id/ai-suggestions` 读写、`mark-replied`、`ai/generate-reply`、`send-platform-message`，以及 `reply-suggestions/:id` 与 `ai-suggestions/:id` 的建议操作）先按父会话的 **tenant + 店铺 scope** 校验归属，与会话详情接口口径一致（同订单/采购/运营任务）。
+- 越权/跨租户一律 **404**（不泄露存在性），不再返回 200 空数据；正常授权路径行为与 DTO 不变。
+- 客服消息同步同口径：`POST /shops/:id/sync-customer-messages` 按 tenant+店铺 scope 校验店铺；`/customer/message-sync/tasks` 列表按租户过滤（带 `shopId` 时叠加店铺 scope），`tasks/:id` 与 `tasks/:id/retry` 越权 404。新建同步任务写入店铺所属 `tenant_id`。
+- 同类收口（父资源 tenant scope，越权 404）：`GET /products/:id/skus/:skuId/inventory-logs`、`GET /products/:id/publication-skus`、`GET /products/:id/ai/tasks`。
+
 ## Dev / Demo 种子（非 production）
 
 | 方法 | 路径 | 说明 |

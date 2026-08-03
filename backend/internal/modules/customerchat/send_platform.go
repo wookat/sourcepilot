@@ -118,10 +118,11 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		return nil, fmt.Errorf("clientMessageId is required")
 	}
 
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	convPtr, err := s.findScopedConversation(c, conversationID)
+	if err != nil {
 		return nil, err
 	}
+	conv := *convPtr
 	if conv.ShopID == nil {
 		return nil, fmt.Errorf("conversation has no shop")
 	}

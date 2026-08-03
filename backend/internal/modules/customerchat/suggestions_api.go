@@ -53,8 +53,8 @@ func (s *Service) ListSuggestions(c *gin.Context, conversationID uuid.UUID) ([]S
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	conv, err := s.findScopedConversation(c, conversationID)
+	if err != nil {
 		return nil, err
 	}
 	var rows []CustomerReplySuggestion
@@ -65,7 +65,7 @@ func (s *Service) ListSuggestions(c *gin.Context, conversationID uuid.UUID) ([]S
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	ctxBase := s.buildContextSummary(c, &conv, "")
+	ctxBase := s.buildContextSummary(c, conv, "")
 	out := make([]SuggestionDTO, 0, len(rows))
 	for i := range rows {
 		d := suggestionToDTO(&rows[i], ctxBase)
@@ -86,10 +86,11 @@ func (s *Service) RejectSuggestion(c *gin.Context, id uuid.UUID, body RejectSugg
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
 	}
-	var row CustomerReplySuggestion
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	rowPtr, err := s.findScopedSuggestion(c, id)
+	if err != nil {
 		return err
 	}
+	row := *rowPtr
 	if row.Status == SuggestionAccepted {
 		return fmt.Errorf("accepted suggestion cannot be rejected")
 	}
