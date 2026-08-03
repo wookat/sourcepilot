@@ -10,8 +10,8 @@ import (
 
 func TestDemoOperationTaskPlansFollowStateMachine(t *testing.T) {
 	plans := demoOperationTaskPlans()
-	if len(plans) != 6 {
-		t.Fatalf("expected 6 operation task plans, got %d", len(plans))
+	if len(plans) != 7 {
+		t.Fatalf("expected 7 operation task plans, got %d", len(plans))
 	}
 	seenStatus := map[string]bool{}
 	seenRetryable := map[bool]bool{}

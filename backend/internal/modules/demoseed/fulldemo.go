@@ -18,6 +18,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"gorm.io/gorm"
@@ -168,12 +169,14 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	now := time.Now().UTC()
 	count := func(table string, n int64) { res.Counts[table] += n }
 
-	// ---- shops ×2 ----
+	// ---- shops ×3（抖店 / 手工渠道 / TikTok 降级刊登演示）----
 	shops := []shop.Shop{
 		{TenantID: s.TenantID, Platform: "douyin_shop", ShopName: "DEMO-抖店旗舰店", ShopCode: "DEMO-SHOP-1",
 			Status: "active", AuthStatus: "authorized", Region: "CN", Currency: "CNY", Remark: "DEMO- 演示店铺（种子数据）"},
 		{TenantID: s.TenantID, Platform: "manual", ShopName: "DEMO-手工渠道店", ShopCode: "DEMO-SHOP-2",
 			Status: "active", AuthStatus: "authorized", Currency: "CNY", Remark: "DEMO- 演示店铺（种子数据）"},
+		{TenantID: s.TenantID, Platform: "tiktok", ShopName: "DEMO-TikTok 演示店", ShopCode: "DEMO-SHOP-3",
+			Status: "active", AuthStatus: "authorized", Region: "SG", Currency: "USD", Remark: "DEMO- 演示店铺（种子数据）"},
 	}
 	for i := range shops {
 		if err := tx.Create(&shops[i]).Error; err != nil {
@@ -336,6 +339,16 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 			return fmt.Errorf("demoseed: product publication: %w", err)
 		}
 		count("product_publications", 1)
+	}
+
+	// ---- publish-link samples: degraded TikTok publish capability preset
+	// (local_draft_only) plus one bound douyin publication with SKU binding
+	// rows so publications / sku-bindings views are non-empty. ----
+	if err := s.seedPublishCapabilityPreset(tx, res); err != nil {
+		return err
+	}
+	if err := s.seedDouyinPublicationSample(tx, res, now, shops[0], products[1], skus[2:4]); err != nil {
+		return err
 	}
 
 	// ---- sourcing alerts: one price-increase and one out-of-stock source
@@ -883,15 +896,18 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 		if err != nil {
 			return err
 		}
+		if err := cleanupPublishSamples(tx, res, like, productIDs); err != nil {
+			return err
+		}
 		if len(productIDs) > 0 {
 			if err := del("source_switch_events", tx.Unscoped().Where("product_id IN ?", productIDs).Delete(&sourcing.SourceSwitchEvent{})); err != nil {
 				return err
 			}
-			if err := del("product_publications", tx.Unscoped().Where("product_id IN ? OR title LIKE ?", productIDs, like).Delete(&productpublish.ProductPublication{})); err != nil {
+			if err := del("product_publications", tx.Unscoped().Where("product_id IN ? OR title LIKE ? OR external_product_id LIKE ?", productIDs, like, like).Delete(&productpublish.ProductPublication{})); err != nil {
 				return err
 			}
 		} else {
-			if err := del("product_publications", tx.Unscoped().Where("title LIKE ?", like).Delete(&productpublish.ProductPublication{})); err != nil {
+			if err := del("product_publications", tx.Unscoped().Where("title LIKE ? OR external_product_id LIKE ?", like, like).Delete(&productpublish.ProductPublication{})); err != nil {
 				return err
 			}
 		}
@@ -1004,7 +1020,21 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		}},
 		{"product_publications", func() (int64, error) {
 			var n int64
-			return n, tx.Model(&productpublish.ProductPublication{}).Unscoped().Where("title LIKE ?", like).Count(&n).Error
+			return n, tx.Model(&productpublish.ProductPublication{}).Unscoped().Where("title LIKE ? OR external_product_id LIKE ?", like, like).Count(&n).Error
+		}},
+		{"product_publication_skus", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&productpublish.ProductPublicationSKU{}).Unscoped().
+				Where("external_sku_id LIKE ? OR bind_message LIKE ? OR publication_id IN (?)", like, like,
+					tx.Model(&productpublish.ProductPublication{}).Unscoped().Select("id").
+						Where("title LIKE ? OR external_product_id LIKE ?", like, like)).Count(&n).Error
+		}},
+		{"settings", func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("settings") {
+				return 0, nil
+			}
+			return n, tx.Model(&settings.Setting{}).Where("remark = ?", demoSettingRemark).Count(&n).Error
 		}},
 		{"source_switch_events", func() (int64, error) {
 			var n int64
