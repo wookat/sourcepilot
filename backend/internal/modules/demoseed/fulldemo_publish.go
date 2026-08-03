@@ -1,0 +1,175 @@
+package demoseed
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"gorm.io/gorm"
+)
+
+// demoSettingRemark marks seeded settings rows so cleanup targets demo
+// presets only and never touches operator-managed configuration.
+const demoSettingRemark = DemoPrefix + "演示配置（种子数据）"
+
+// demoTikTokPublishPreset lists the platform_tiktok required fields with
+// obviously-fake DEMO values. The preset only unlocks the degraded
+// local_draft_only publish capability (no platform API is ever called on
+// that path), so no real credential is fabricated.
+func demoTikTokPublishPreset() []settings.Setting {
+	rows := []struct {
+		key, value, valueType string
+	}{
+		{"app_key", "DEMO-tiktok-app-key", "string"},
+		{"app_secret", "DEMO-not-a-real-secret", "string"},
+		{"auth_base_url", "https://auth.tiktok-shops.com", "string"},
+		{"api_base_url", "https://open-api.tiktokglobalshop.com", "string"},
+		{"redirect_uri", "https://demo.trademind.local/api/v1/stores/tiktok/callback", "string"},
+		{"api_version", "202309", "string"},
+		{"timeout_sec", "30", "number"},
+	}
+	out := make([]settings.Setting, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, settings.Setting{
+			TenantID:  0,
+			GroupKey:  "platform_tiktok",
+			ItemKey:   r.key,
+			ItemValue: r.value,
+			ValueType: r.valueType,
+			Remark:    demoSettingRemark,
+		})
+	}
+	return out
+}
+
+// seedPublishCapabilityPreset inserts the platform_tiktok app config preset
+// so the TikTok publish target resolves to the degraded local_draft_only
+// capability out of the box. Real configuration is never modified: the
+// preset is skipped entirely when the group already has any row.
+func (s *FullDemoSeeder) seedPublishCapabilityPreset(tx *gorm.DB, res *FullDemoResult) error {
+	if !tx.Migrator().HasTable("settings") {
+		return nil
+	}
+	var n int64
+	if err := tx.Model(&settings.Setting{}).
+		Where("tenant_id = 0 AND group_key = ?", "platform_tiktok").Count(&n).Error; err != nil {
+		return fmt.Errorf("demoseed: count platform_tiktok settings: %w", err)
+	}
+	if n > 0 {
+		return nil
+	}
+	for _, row := range demoTikTokPublishPreset() {
+		row := row
+		if err := tx.Create(&row).Error; err != nil {
+			return fmt.Errorf("demoseed: platform_tiktok preset: %w", err)
+		}
+		res.Counts["settings"]++
+	}
+	return nil
+}
+
+// seedDouyinPublicationSample creates one already-published douyin
+// publication (bound external listing) with SKU binding rows covering the
+// bound + unmatched states, so the publication detail / SKU binding views
+// are non-empty out of the box.
+func (s *FullDemoSeeder) seedDouyinPublicationSample(tx *gorm.DB, res *FullDemoResult, now time.Time,
+	douyinShop shop.Shop, prod product.Product, skus []product.ProductSKU) error {
+	if len(skus) < 2 {
+		return fmt.Errorf("demoseed: douyin publication sample needs 2 skus")
+	}
+	publishedAt := now.Add(-72 * time.Hour)
+	syncedAt := now.Add(-2 * time.Hour)
+	pub := productpublish.ProductPublication{
+		ProductID:          prod.ID,
+		ShopID:             douyinShop.ID,
+		Platform:           douyinShop.Platform,
+		ExternalProductID:  "DEMO-DY-3502001",
+		Status:             productpublish.StatusPublishedRecord,
+		PublishStatus:      productpublish.StatusSuccess,
+		Title:              prod.Title,
+		Currency:           "CNY",
+		ExternalURL:        "https://haohuo.jinritemai.com/views/product/detail?id=DEMO-DY-3502001",
+		PublishedAt:        &publishedAt,
+		LastSyncedAt:       &syncedAt,
+		SkuBindingSyncedAt: &syncedAt,
+		RawData: mustJSON(map[string]any{
+			"seedPrefix": DemoPrefix,
+			"platformSkus": []map[string]any{
+				{"platformSkuId": "DEMO-DY-SKU-1", "specName": "默认规格-1", "priceYuan": derefOr(skus[0].Price, 29.9), "stock": derefOrInt(skus[0].Stock, 50)},
+				{"platformSkuId": "DEMO-DY-SKU-2", "specName": "默认规格-2", "priceYuan": derefOr(skus[1].Price, 32.9), "stock": derefOrInt(skus[1].Stock, 45)},
+			},
+		}),
+	}
+	if err := tx.Create(&pub).Error; err != nil {
+		return fmt.Errorf("demoseed: douyin publication: %w", err)
+	}
+	res.Counts["product_publications"]++
+
+	bindRows := []productpublish.ProductPublicationSKU{
+		{PublicationID: pub.ID, ProductSKUID: &skus[0].ID, ExternalSKUID: "DEMO-DY-SKU-1",
+			SKUCode: skus[0].SKUCode, Price: skus[0].Price, Stock: skus[0].Stock,
+			BindStatus: productpublish.BindStatusBound, BindConfidence: 100,
+			BindMessage: "DEMO- 种子数据：SKU 编码精确匹配", LastSyncedAt: &syncedAt},
+		{PublicationID: pub.ID, ProductSKUID: &skus[1].ID,
+			SKUCode: skus[1].SKUCode, Price: skus[1].Price, Stock: skus[1].Stock,
+			BindStatus: productpublish.BindStatusUnmatched, BindConfidence: 0,
+			BindMessage: "DEMO- 演示：平台无对应规格，可手动绑定", LastSyncedAt: &syncedAt},
+	}
+	for i := range bindRows {
+		if err := tx.Create(&bindRows[i]).Error; err != nil {
+			return fmt.Errorf("demoseed: publication sku: %w", err)
+		}
+		res.Counts["product_publication_skus"]++
+	}
+	return nil
+}
+
+// cleanupPublishSamples removes SKU binding rows attached to demo
+// publications plus the DEMO- settings preset. Publications themselves are
+// removed by the existing product-scoped cleanup.
+func cleanupPublishSamples(tx *gorm.DB, res *FullDemoResult, like string, productIDs []uuid.UUID) error {
+	del := func(table string, q *gorm.DB) error {
+		if q.Error != nil {
+			return fmt.Errorf("demoseed cleanup %s: %w", table, q.Error)
+		}
+		res.Counts[table] += q.RowsAffected
+		return nil
+	}
+	pubIDs := tx.Model(&productpublish.ProductPublication{}).Unscoped().Select("id").
+		Where("title LIKE ? OR external_product_id LIKE ?", like, like)
+	if len(productIDs) > 0 {
+		pubIDs = tx.Model(&productpublish.ProductPublication{}).Unscoped().Select("id").
+			Where("title LIKE ? OR external_product_id LIKE ? OR product_id IN ?", like, like, productIDs)
+	}
+	if err := del("product_publication_skus",
+		tx.Unscoped().Where("external_sku_id LIKE ? OR publication_id IN (?)", like, pubIDs).
+			Delete(&productpublish.ProductPublicationSKU{})); err != nil {
+		return err
+	}
+	if tx.Migrator().HasTable("settings") {
+		if err := del("settings",
+			tx.Where("remark = ?", demoSettingRemark).Delete(&settings.Setting{})); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func derefOr(v *float64, def float64) float64 {
+	if v == nil {
+		return def
+	}
+	return *v
+}
+
+func derefOrInt(v *int, def int) int {
+	if v == nil {
+		return def
+	}
+	return *v
+}
