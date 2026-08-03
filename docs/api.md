@@ -173,8 +173,8 @@
 | `GET` | `/api/v1/product-publish/targets` | 全局可刊登平台与店铺（批量向导） |
 | `POST` | `/api/v1/product-publish/batch-targets/check` | 多商品 × 多目标矩阵预检查；body 含 `productIds[]`、`targets[]`、`commonConfig`、`overrides` |
 | `POST` | `/api/v1/product-publish/batch-targets/create-drafts` | 多商品批量创建刊登草稿；`onlyReady`、`includeWarnings` |
-| `GET` | `/api/v1/product-publish/batches` | 多商品刊登批次列表 |
-| `GET` | `/api/v1/product-publish/batches/:id` | 批次详情与子任务（仅创建者可访问，历史无 `createdBy` 批次兼容） |
+| `GET` | `/api/v1/product-publish/batches` | 多商品刊登批次列表（按当前租户过滤） |
+| `GET` | `/api/v1/product-publish/batches/:id` | 批次详情与子任务（先校验租户归属，跨租户 404；同租户仅创建者可访问，历史无 `createdBy` 批次兼容） |
 | `POST` | `/api/v1/product-publish/batches/:id/retry-failed` | 只重试失败子任务 |
 | `POST` | `/api/v1/product-publish/batches/:id/cancel-pending` | 只取消 pending 子任务 |
 
@@ -242,6 +242,12 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 
 - `ai_operation_batches` 新增 `tenant_id` 列；创建批次写入当前租户，存量按 `created_by` 所属租户 backfill（推导不出保持租户 0，不放大可见性）。
 - `GET /api/v1/ai/batches` 列表按当前租户过滤；`GET /ai/batches/:id`、`GET /ai/batches/:id/tasks`、`POST /ai/batches/:id/retry-failed`、`POST /ai/batches/:id/apply-results` 按 `tenant_id` 列校验（未 backfill 的 tenant-0 行回退按创建人租户），跨租户统一 **404**，不泄露存在性；正常授权路径行为与 DTO 不变（`tenant_id` 不出现在响应中）。
+
+### 刊登批次租户口径与越权 404 统一（round81）
+
+- `product_publish_batches` 新增 `tenant_id` 列（默认 0，索引 `idx_publish_batches_tenant_created`）；创建批次（单商品 `create-drafts` 与多商品 `batch-targets/create-drafts`）写入当前租户，存量按 `created_by` 所属租户 backfill（`migrateRound81PublishBatchTenant`，推导不出保持租户 0，不放大可见性），口径与 round72 `ai_operation_batches` 一致。
+- `GET /product-publish/batches` 列表按 `ApplyTenantScope` 过滤；`GET /batches/:id`、`POST /batches/:id/retry-failed`、`POST /batches/:id/cancel-pending` 及 `retryFailedOnly` 重试回放按 `tenant_id` 列校验（未 backfill 的 tenant-0 行回退按创建人租户），跨租户统一 **404**；DTO 不变（`tenant_id` 不出现在响应中）。
+- 发布任务越权口径统一：`POST /product-publish/tasks/:id/retry|cancel|recover` 与批次 `retry-failed`/`cancel-pending` 对跨租户/不存在对象由 400 改为 **404**（不泄露存在性）；`recover` 增加租户归属前置校验。同租户业务校验错误仍为 400，同租户非创建者仍为 403。
 
 ## Dev / Demo 种子（非 production）
 

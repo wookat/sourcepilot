@@ -113,6 +113,13 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 存量 backfill（`migrateRound72AIBatchTenant`，随迁移自动执行）：按 `created_by` → `admin_users.tenant_id` 推导；推导不出（无创建人/创建人已删）保持租户 0（legacy 单租户桶，不放大可见性）。未 backfill 的 tenant-0 且有创建人的行，`ensureBatchVisible` 回退按创建人租户校验（与 round71 口径一致）。
 - 回归证据：`aioperationbatch` 模块 `TestAIOperationBatchTenantColumnScope`（三角色列表过滤 + 跨租户 404 + backfill/回退口径）与既有 `TestAIOperationBatchScopedByTenant`。路由级守卫矩阵不变（本轮未新增端点）。
 
+## round81 刊登批次租户建模 + 发布任务越权 404 统一（R80 遗留 P2）
+
+- `product_publish_batches` 新增 `tenant_id` 列（默认 0，索引 `idx_publish_batches_tenant_created`）；创建批次（单商品 `publish-targets/create-drafts` 与多商品 `batch-targets/create-drafts`）写入当前租户。存量按 `created_by` → `admin_users.tenant_id` backfill（`migrateRound81PublishBatchTenant`，随迁移自动执行；推导不出保持租户 0，不放大可见性），口径与 round72 `ai_operation_batches` 一致。
+- `GET /product-publish/batches` 列表按 `ApplyTenantScope` 过滤（此前无租户过滤）；`GET /batches/:id`、`POST /batches/:id/retry-failed`、`POST /batches/:id/cancel-pending` 及 `retryFailedOnly` 重试回放按 `tenant_id` 列校验（未 backfill 的 tenant-0 行回退按创建人租户），跨租户统一 **404**。DTO 不变（`tenant_id` 不出现在响应中）。同租户创建者隔离（403）口径不变。
+- 发布任务越权口径统一：`POST /product-publish/tasks/:id/retry`、`/cancel`、`/recover` 此前对跨租户/不存在对象返回 400（带错误文案），与 `GET /tasks/:id` 的 404 混用；现统一 **404**（不泄露存在性）。`recover` 增加租户归属前置校验（此前内部按裸 id 加载任务）。同租户业务校验错误（如状态不允许重试）仍为 400。
+- 回归证据：`productpublish` 模块 `TestPublishBatchScopedByTenant`（批次创建落租户 + 详情/重试/取消跨租户 404 + 列表过滤）、`TestFailedTargetsFromBatchScopedByTenant`（重试回放跨租户 404）、`TestPublishMutationEndpointsCrossTenant404`（handler 层 6 端点跨租户 404 状态码）。路由级守卫矩阵不变（本轮未新增端点）。
+
 ## docs/api.md 口径差异说明
 
 - docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。

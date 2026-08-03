@@ -33,6 +33,7 @@ ALTER TABLE product_publish_batches ALTER COLUMN product_id DROP NOT NULL;
 | `ix_publish_tasks_batch_id` | product_publish_tasks | batch_id | 批次详情子任务 |
 | `ix_publish_tasks_target_key` | product_publish_tasks | target_key | 目标维度查询 |
 | `ix_publish_tasks_batch_status` | product_publish_tasks | batch_id, status | retry-failed / cancel-pending |
+| `idx_publish_batches_tenant_created` | product_publish_batches | tenant_id, created_at | 租户维度批次列表（round81，随 `migrate_round81.go` 创建；`tenant_id` 列由 AutoMigrate 添加并按 `created_by` 所属租户 backfill） |
 
 ### 3. 幂等键部分唯一索引
 

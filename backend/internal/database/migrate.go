@@ -258,6 +258,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateRound76PublishTaskTenant(db); err != nil {
 		return err
 	}
+	if err := migrateRound81PublishBatchTenant(db); err != nil {
+		return err
+	}
 	return migrateP7Performance(db)
 }
 

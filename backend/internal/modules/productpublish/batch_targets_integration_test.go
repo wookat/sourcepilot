@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
@@ -38,6 +39,7 @@ func newBatchIntegrationDB(t *testing.T) *gorm.DB {
 	sqlDB.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	if err := db.AutoMigrate(
+		&admin.AdminUser{},
 		&product.Product{},
 		&product.ProductImage{},
 		&product.ProductSKU{},
@@ -457,6 +459,7 @@ func TestBatchAccessDeniedForOtherAdmin(t *testing.T) {
 	batchID := uuid.New()
 	batch := ProductPublishBatch{
 		HardDeleteBase: model.HardDeleteBase{ID: batchID, CreatedAt: time.Now().UTC()},
+		TenantID:       7,
 		BatchType:      BatchTypeMultiProduct,
 		Status:         BatchSuccess,
 		CreatedBy:      &owner,
@@ -464,7 +467,7 @@ func TestBatchAccessDeniedForOtherAdmin(t *testing.T) {
 	if err := db.Create(&batch).Error; err != nil {
 		t.Fatal(err)
 	}
-	_, err := svc.GetPublishBatchDetail(context.Background(), batchID, &other)
+	_, err := svc.GetPublishBatchDetail(testGinContextTenant(7), batchID, &other)
 	if err != ErrBatchAccessDenied {
 		t.Fatalf("expected ErrBatchAccessDenied, got %v", err)
 	}

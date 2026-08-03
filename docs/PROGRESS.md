@@ -1369,3 +1369,10 @@ Final Production Acceptance Deferred to P10
 - Go 工具链升到 1.25.12（`backend/go.mod`、`go.work`）：govulncheck 由 27 条标准库符号命中降为 0。
 - 前端构建链 `pnpm.overrides` 补 `vite ^4.5.14`、`postcss ^8.5.18`（同大版本补丁，dependabot major 封禁范围外）；vitest / umi 系高危均为构建期依赖且补丁需跨大版本，按封禁保留并列入清单。
 - 回归单测：sourcing `TestSourcingWritesScopedByTenant`、imagetask `TestImageTaskDetailAndApplyScopedByTenant`、productpublish `TestPublishTargetsScopedByTenant` / `TestCancelTaskScopedByTenant`；权限矩阵契约全量复跑通过（新增路由无漏登记）。
+
+### 变更记录（2026-08-03）第 81 轮：安全审计遗留 P2 收口（刊登批次租户建模 + 越权 404 统一 + 前端 401 竞态）
+
+- `product_publish_batches` 补租户建模（口径同 round72 `ai_operation_batches`）：`tenant_id` 列 + `idx_publish_batches_tenant_created` 索引 + 按 `created_by` backfill（`migrateRound81PublishBatchTenant`，推导不出保持租户 0）；创建（单/多商品 create-drafts）写入当前租户；列表 `ApplyTenantScope` 过滤，详情/retry-failed/cancel-pending/`retryFailedOnly` 回放按 `tenant_id` 校验（tenant-0 行回退按创建人租户），跨租户 404，DTO 不变。
+- 发布任务越权口径统一：tasks `:id/retry|cancel|recover*` 与批次 retry/cancel 对跨租户/不存在对象由 400 统一为 404（不泄露存在性）；`recover` 增加租户归属前置校验；同租户业务校验 400、同租户非创建者 403 口径不变。
+- 前端 401 竞态收口：`sessionGuard` 的 `requireRelogin` single-flight 扩展到「弹窗未注册」窗口（硬刷新首屏并发 401 等待 `SessionExpiredModal` 注册后共享同一次重登引导，超时兜底 false）；`redirectToLoginPage` 并发去重只跳转一次。
+- 回归：后端 `TestPublishBatchScopedByTenant` / `TestFailedTargetsFromBatchScopedByTenant` / `TestPublishMutationEndpointsCrossTenant404`；前端 sessionGuard 新增硬刷新并发 401 用例；docs/api.md、permission-matrix.md「round81」、PUBLISH_BATCH_MIGRATION.md 已登记。Docker 双租户实测（PostgreSQL）：批次详情/重试/取消与任务 retry/cancel/recover 跨租户全部 404，列表互不可见。
