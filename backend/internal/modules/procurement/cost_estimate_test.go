@@ -2,7 +2,9 @@ package procurement
 
 import (
 	"context"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -158,5 +160,129 @@ func TestEstimateOrderCostCNYOrderDefaultsRateOne(t *testing.T) {
 	}
 	if out.GrossProfit == nil || *out.GrossProfit != 20.3 {
 		t.Fatalf("expected gross profit 20.3, got %+v", out.GrossProfit)
+	}
+}
+
+// TestEstimateOrderCostBatchMatchesSingle asserts the batched estimator
+// returns exactly what per-order EstimateOrderCost returns across pricing
+// paths: current price, price-history fallback, missing mapping/source/SKU.
+func TestEstimateOrderCostBatchMatchesSingle(t *testing.T) {
+	f := setupFixture(t)
+	f.svc.Settings = mapSettings{"exchangeRate": "0.14"}
+	db := f.svc.DB
+
+	// Order 2: mapping without current price, latest history price wins.
+	sup := sourcing.Supplier{Platform: "1688", Name: "supplier-b", Status: "active"}
+	if err := db.Create(&sup).Error; err != nil {
+		t.Fatal(err)
+	}
+	productB := uuid.New()
+	skuB := uuid.New()
+	srcB := sourcing.ProductSource{
+		ProductID: productB, SupplierID: sup.ID, IsPrimary: true, Priority: 10,
+		Status: sourcing.SourceStatusActive, SourceOfferID: "222",
+	}
+	if err := db.Create(&srcB).Error; err != nil {
+		t.Fatal(err)
+	}
+	mapB := sourcing.ProductSourceSKU{
+		ProductSourceID: srcB.ID, LocalSKUID: skuB, ExternalSKUID: "ext-2",
+		Currency: "CNY", Status: "active",
+	}
+	if err := db.Create(&mapB).Error; err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-48 * time.Hour)
+	recent := time.Now().Add(-1 * time.Hour)
+	for _, h := range []sourcing.SourcePriceHistory{
+		{SourceSKUID: mapB.ID, Price: 5.5, CapturedAt: old, CaptureSource: "manual"},
+		{SourceSKUID: mapB.ID, Price: 7.7, CapturedAt: recent, CaptureSource: "manual"},
+	} {
+		if err := db.Create(&h).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	o2 := order.Order{Platform: "tiktok", OrderNo: "SO-2", Status: "paid", Currency: "USD", TotalAmount: 40}
+	if err := db.Create(&o2).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&order.OrderItem{
+		OrderID: o2.ID, ProductID: &productB, ProductSKUID: &skuB,
+		SKUName: "blue / M", Quantity: 2,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// Order 3: one unmatched line + one line whose product has no source.
+	productC := uuid.New()
+	skuC := uuid.New()
+	o3 := order.Order{Platform: "shopee", OrderNo: "SO-3", Status: "paid", Currency: "CNY", TotalAmount: 15}
+	if err := db.Create(&o3).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&order.OrderItem{OrderID: o3.ID, SKUName: "unmatched", Quantity: 1}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&order.OrderItem{
+		OrderID: o3.ID, ProductID: &productC, ProductSKUID: &skuC,
+		SKUName: "no source", Quantity: 4,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	ids := []uuid.UUID{f.orderID, o2.ID, o3.ID}
+	batch, err := f.svc.EstimateOrderCostBatch(context.Background(), ids)
+	if err != nil {
+		t.Fatalf("batch estimate: %v", err)
+	}
+	if len(batch) != 3 {
+		t.Fatalf("expected 3 summaries, got %d", len(batch))
+	}
+	for _, id := range ids {
+		single, err := f.svc.EstimateOrderCost(context.Background(), id)
+		if err != nil {
+			t.Fatalf("single estimate %s: %v", id, err)
+		}
+		want := CostEstimateSummary{
+			OrderID:          single.OrderID,
+			Currency:         single.Currency,
+			TotalAmount:      single.TotalAmount,
+			EstimatedCostCNY: single.EstimatedCostCNY,
+			ExchangeRate:     single.ExchangeRate,
+			EstimatedCost:    single.EstimatedCost,
+			GrossProfit:      single.GrossProfit,
+			MarginPercent:    single.MarginPercent,
+			MissingLines:     single.MissingLines,
+		}
+		got, ok := batch[id.String()]
+		if !ok {
+			t.Fatalf("batch missing order %s", id)
+		}
+		if !reflect.DeepEqual(derefSummary(got), derefSummary(want)) {
+			t.Fatalf("batch/single mismatch for %s:\n got %+v\nwant %+v", id, derefSummary(got), derefSummary(want))
+		}
+	}
+	// Sanity: order 2 priced from the most recent history capture (7.7 × 2).
+	if batch[o2.ID.String()].EstimatedCostCNY != 15.4 {
+		t.Fatalf("expected history price 15.4, got %v", batch[o2.ID.String()].EstimatedCostCNY)
+	}
+	if batch[o3.ID.String()].MissingLines != 2 {
+		t.Fatalf("expected 2 missing lines, got %+v", batch[o3.ID.String()])
+	}
+}
+
+// derefSummary flattens pointer fields for value comparison.
+func derefSummary(s CostEstimateSummary) map[string]any {
+	deref := func(p *float64) any {
+		if p == nil {
+			return nil
+		}
+		return *p
+	}
+	return map[string]any{
+		"orderId": s.OrderID, "currency": s.Currency, "totalAmount": s.TotalAmount,
+		"estimatedCostCny": s.EstimatedCostCNY, "exchangeRate": deref(s.ExchangeRate),
+		"estimatedCost": deref(s.EstimatedCost), "grossProfit": deref(s.GrossProfit),
+		"marginPercent": deref(s.MarginPercent), "missingLines": s.MissingLines,
 	}
 }
