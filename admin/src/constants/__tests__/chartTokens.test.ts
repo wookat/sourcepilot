@@ -6,6 +6,7 @@ import {
   formatAmount,
   formatCount,
   formatDateTickShort,
+  makeCategoryLabelFilter,
 } from '../chartTokens';
 import { themeTokens } from '../layoutTokens';
 
@@ -65,6 +66,25 @@ describe('x 轴刻度抽稀（R77）', () => {
     expect(chartAxisXTickCount.compact).toBeGreaterThanOrEqual(6);
     expect(chartAxisXTickCount.wide).toBeLessThanOrEqual(10);
     expect(chartAxisXTickCount.compact).toBeLessThanOrEqual(chartAxisXTickCount.wide);
+  });
+
+  it('makeCategoryLabelFilter：宽屏 30/90 天保留 8–12 个标签且含首末点', () => {
+    for (const n of [30, 90]) {
+      const filter = makeCategoryLabelFilter(n, chartAxisXTickCount.wide);
+      const kept = Array.from({ length: n }, (_, i) => i).filter((i) => filter(undefined, i));
+      expect(kept.length).toBeGreaterThanOrEqual(8);
+      expect(kept.length).toBeLessThanOrEqual(12);
+      expect(kept[0]).toBe(0);
+      expect(kept[kept.length - 1]).toBe(n - 1);
+    }
+  });
+
+  it('makeCategoryLabelFilter：紧凑档 90 天标签数不超过 8，点数少于档位时全保留', () => {
+    const compact = makeCategoryLabelFilter(90, chartAxisXTickCount.compact);
+    const kept = Array.from({ length: 90 }, (_, i) => i).filter((i) => compact(undefined, i));
+    expect(kept.length).toBeLessThanOrEqual(chartAxisXTickCount.compact + 2);
+    const few = makeCategoryLabelFilter(5, chartAxisXTickCount.wide);
+    expect(Array.from({ length: 5 }, (_, i) => i).every((i) => few(undefined, i))).toBe(true);
   });
 
   it('formatDateTickShort：YYYY-MM-DD → MM-DD，其余原样', () => {

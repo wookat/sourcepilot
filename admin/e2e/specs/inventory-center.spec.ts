@@ -88,8 +88,10 @@ test.describe('@inventory 手工调整库存', () => {
     await routeInventoryCenterData(page);
     await admin.goto('/inventory/alerts');
     await page.getByRole('button', { name: '调整库存' }).first().click();
-    await expect(page.getByRole('dialog').getByText(/调整库存/)).toBeVisible();
-    await page.getByRole('dialog').getByRole('button', { name: /取.?消/ }).click();
+    const dialog = page.getByRole('dialog').filter({ hasText: '调整库存' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: /取.?消/ }).click();
+    await expect(dialog).toBeHidden();
     await admin.writeGuard.expectRequestCount('adjust-stock', 0);
   });
 
@@ -111,9 +113,12 @@ test.describe('@inventory 手工调整库存', () => {
     const sensitiveConfirm = page.getByRole('dialog').filter({ hasText: '人工修正库存' });
     await expect(sensitiveConfirm).toBeVisible();
     const confirmBtn = sensitiveConfirm.getByRole('button', { name: /确\s*定|确认|OK/ }).last();
-    await confirmBtn.click();
-    await confirmBtn.click({ force: true }).catch(() => undefined);
+    // 双击在提交处理完成前连发两次点击，确定防重复提交仍只产生一次写请求
+    await confirmBtn.dblclick();
+    await expect(sensitiveConfirm).toBeHidden();
+    await expect(dialog).toBeHidden();
     await admin.writeGuard.expectRequestCount('adjust-stock', 1);
+    expect(admin.writeGuard.calls('adjust-stock')).toHaveLength(1);
   });
 });
 
