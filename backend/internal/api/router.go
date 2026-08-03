@@ -776,6 +776,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		ProductPublish: productPublishSvc,
 		Inventory:      inventorySvc,
 		AIProductText:  aiProductTextSvc,
+		CustomerChat:   customerChatSvc,
 	}
 	tcH := &taskcenter.Handler{Svc: tcSvc}
 	taskcenter.Register(authed, tcH)

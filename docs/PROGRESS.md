@@ -1403,6 +1403,15 @@ Final Production Acceptance Deferred to P10
 - React console warning 清理（R82 报告 5 条）：Settings/Users 店铺权限弹窗 `Form.List` 行内 `{...field}` 展开重复传 `key`（4 条 duplicate key warning）改为解构 `{ key, name, ...restField }`；「新建用户」弹窗 `destroyOnHidden` 导致 `useForm` 未连接 warning，改为 `forceRender` + 取消时 `resetFields`。
 - 回归：`product/create_scope_test.go`（operator/readonly 403 + 0 残留行、admin 正常创建）；权限矩阵契约复跑；go fmt/vet/build/test、pnpm test:frontend/build:admin/test:contracts；Docker 实测两条动线（operator 建草稿 403 无残留、bootstrap 账号落 tenant 0 可开租）。
 
+### 变更记录（2026-08-03）第 84 轮：AI 工作台/失败中心/采集链路季度回归 + P1 修复
+
+- R84 季度回归（docker compose 全栈 + seed:demo:full，#182/#183 本地叠加；租户 B 正规开租补测）：AI 优化草稿降级提示、AI 批量任务/批次/子任务、失败中心筛选与 canRetry、选品全链路、客服建议人工确认动线、采集创建/失败终态/R72 假草稿/R73 规则模板直填、三角色 scope、375/1440 视口、硬指标（console error/panic/5xx/42703=0）通过。
+- P1 修复：失败中心客服失败（`customer_failure`）此前统一任务读取与重试均不识别该类型（重试恒 400 unknown task type）。`taskcenter` 补 `unifiedOne`/`RetryFailure`/`sourceTableForType` 分支，重试 = 对原会话重新生成 AI 建议（人工确认后才可发送，无自动外发）；`Retryable` 口径收紧为仅 `customer_reply_generate_failed` 可重试，发送失败/权限/未授权类不再显示可重试。
+- P1 修复：选品任务创建此前对 tenant 0（平台管理员上下文）静默落库，业务 worker 拒绝 tenant<=0 导致任务永远 pending。现创建入口校验租户，非正租户返回 400 `TENANT_CONTEXT_MISSING` 且不落悬挂任务（与采集入口既有闸门口径一致）。
+- P2 修复：`confirmSensitiveAction` 的 `onOk` 统一 catch 错误并 `message.error` 弹出中文提示（重试等确认类操作失败不再静默）。
+- 回归测试：`taskcenter/customer_failure_retry_test.go`（分类 retryable 口径 + RetryFailure 识别 customer_failure）、`selection/create_tenant_gate_test.go`（tenant 0 → 400 零残留、正租户不受闸门影响）。
+- 遗留 P2 清单：无效 URL 采集失败原因英文直出（collector 1688 provider 校验错误未中文映射）、readonly 写按钮部分仅接口 403 未做 UI disabled、readonly 时间线空状态缺说明、批次详情子任务失败原因展示较弱；采集超时终态未自然观察（真实失败 ~22s 即达终态）。
+
 ### 变更记录（2026-08-03）第 84 轮：设置中心/用户与店铺授权深度回归 + P1/P2 修复
 
 - R83 全栈回归（docker compose + seed:demo:full，#179/#180 本地叠加）：用户管理全动线、平台租户治理、设置子页、readonly/operator 口径、三视口通过；发现 P1「被删用户旧会话下次请求触发未处理 Promise 拒绝整页红屏遮罩」与 P2「店铺授权弹窗重复 key 告警」「缺少改密码入口」。

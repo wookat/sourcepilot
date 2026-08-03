@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -97,6 +98,12 @@ func (s *Service) unifiedOne(ctx context.Context, taskType string, id uuid.UUID,
 		}
 		titles := s.batchProductTitles(ctx, []uuid.UUID{row.ProductID})
 		return mapAIProductTextItem(&row, titles, ms, now), nil
+	case TaskTypeCustomerFailure:
+		var row customerchat.CustomerFailureEvent
+		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+			return zero, err
+		}
+		return mapCustomerFailureEvent(&row, ms, now), nil
 	default:
 		return zero, fmt.Errorf("unknown task type")
 	}
@@ -326,6 +333,15 @@ func (s *Service) RetryFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID)
 			return fmt.Errorf("该子项当前不可重试，请在复核页处理冲突或质量提醒")
 		}
 		_, execErr = s.AIProductText.RegenerateItem(c, id, admin)
+	case TaskTypeCustomerFailure:
+		if s.CustomerChat == nil {
+			return fmt.Errorf("customer chat unavailable")
+		}
+		convID, perr := uuid.Parse(base.RelatedResourceID)
+		if perr != nil {
+			return fmt.Errorf("customer failure has no conversation")
+		}
+		_, execErr = s.CustomerChat.GenerateReply(c, convID, customerchat.GenerateReplyBody{}, admin)
 	default:
 		return fmt.Errorf("unsupported task type for retry")
 	}
@@ -405,6 +421,8 @@ func sourceTableForType(taskType string) string {
 		return SourceTableProductPublishTasks
 	case TaskTypeInventorySync:
 		return SourceTableInventorySyncTasks
+	case TaskTypeCustomerFailure:
+		return SourceTableCustomerFailureEvents
 	default:
 		return "unknown"
 	}

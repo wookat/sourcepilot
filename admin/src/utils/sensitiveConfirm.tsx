@@ -1,4 +1,4 @@
-import { Modal } from 'antd';
+import { Modal, message } from 'antd';
 import type { ModalFuncProps } from 'antd/es/modal/interface';
 
 export type SensitiveConfirmOptions = {
@@ -29,7 +29,13 @@ export function confirmSensitiveAction(opts: SensitiveConfirmOptions) {
     content: <div style={{ whiteSpace: 'pre-wrap' }}>{lines.join('\n')}</div>,
     okText: '确认执行',
     cancelText: '取消',
-    onOk: opts.onOk,
+    onOk: async () => {
+      try {
+        await opts.onOk();
+      } catch (e) {
+        message.error((e as Error)?.message || '操作失败');
+      }
+    },
   };
   Modal.confirm(modalOpts);
 }
