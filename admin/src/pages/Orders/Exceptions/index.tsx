@@ -627,6 +627,7 @@ export default function OrderExceptionsPage() {
             <a
               onClick={() => {
                 Modal.info({
+                  okText: '知道了',
                   title: '异常详情',
                   width: 640,
                   content: exceptionDetailContent(r),
