@@ -1445,6 +1445,13 @@ Final Production Acceptance Deferred to P10
 - collector 不可达优雅降级：collector 代理传输层错误（连接拒绝/超时/DNS）由裸 502+50000 收口为 502 + 新业务码 `CodeCollectorUnreachable=50302` + 中文引导文案（`failCollectorProxy`，collector 业务拒绝仍保留原 message）；前端 `request.ts` 新增 `isCollectorUnreachableError`，设置中心采集页对 1688/拼多多/淘宝天猫登录态检测与打开采集浏览器失败识别该码，页面顶部渲染「采集服务未启动或不可达」warning Alert（含启动指引 + 重新检测按钮），不再弹裸错误 toast，采集参数表单不受影响可正常查看保存。回归：后端 `collector_unreachable_test.go`（unreachable 走 50302 引导、业务拒绝不被掩盖）、前端 request.test.ts 补 2 用例。
 - R84 报告其他杂项：R84 报告（第 84 轮变更记录）所列 P1/P2 已随 #182/#185 合入 main，本轮除上述两条外无其他待收口小杂项。
 
+### 变更记录（2026-08-03）第 86 轮：R85 AI/采集季度复查 P2 UX 收口
+
+- 采集失败原因中文化：`collectErrors.ts` 新增 `UNSUPPORTED_URL` 标签/建议映射，并识别 collector 原始英文消息 `url is not supported by source "1688"` 与 `INVALID_URL:*`（不改错误码契约）；补单测。
+- readonly 写按钮 UI 收口：失败中心（行内重试/生成告警/更多、批量重试/忽略/已处理、抽屉登录浏览器/恢复/重试/生成告警）、AI 批次（重试失败/应用结果）、AI 图片任务（新建/快捷模板/重试/保存到商品/设为主图等）、AI 文案批量复核（重试/批量应用/撤销/复核弹窗写按钮）按既有口径隐藏；E2E `round86-ux-p2.spec.ts`。
+- readonly 时间线空态：采集任务事件抽屉与运营任务审计时间线补中文空态说明。
+- AI 批次子任务失败原因可读化：`mapAiTaskErrorText`/`AiTaskErrorText`（AI 错误码中文映射 + 悬浮查看完整原始原因），应用于 AI 批次详情/子任务表与文案复核详情（失败原因列 + 弹窗失败原因块，完整原始错误可展开复制）。
+
 ### 变更记录（2026-08-03）第 88 轮：恢复 operator 手工建草稿（带店铺归属）
 
 - `POST /api/v1/products` operator 由 forbid 改回 allow（round83 收紧的产品口径补全）：请求体新增可选 `shopId`，operator 必填且须属其授权范围（不传 400、越权 404 不泄露存在性、仅 view 授权 403 40303），校验全部发生在写入前，被拒绝零落库；创建成功在同一事务写入 `product_platform_publish_configs` 关联，草稿按既有可见性口径对创建者可见。admin 保持现口径（`shopId` 可选）；readonly 仍路由级 403。

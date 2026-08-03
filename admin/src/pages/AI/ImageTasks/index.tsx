@@ -35,6 +35,7 @@ import type {
 } from '@/services/imageTasks';
 import { displayNameForProvider } from '@/constants/imageProviders';
 import { useImageProviders } from '@/hooks/useImageProviders';
+import { usePermission } from '@/hooks/usePermission';
 import {
   applyImageTaskResult,
   getImageTask,
@@ -679,6 +680,7 @@ function ManualTranslateEditor({
 export default function ImageTasksPage() {
   const location = useLocation();
   const { caps } = useImageProviders();
+  const { readonly } = usePermission();
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
   const statusFromUrl = useMemo(() => {
@@ -883,7 +885,7 @@ export default function ImageTasksPage() {
         <Button key="detail" type="link" onClick={() => void openDetail(row.id)}>
           查看详情
         </Button>,
-        row.status === 'failed' ? (
+        !readonly && row.status === 'failed' ? (
           <Button
             key="retry"
             type="link"
@@ -906,6 +908,7 @@ export default function ImageTasksPage() {
 
   return (
     <TmPageContainer title={PAGE_COPY.aiImageTasks.title} subTitle={PAGE_COPY.aiImageTasks.description}>
+      {readonly ? null : (
       <Card size="small" style={{ marginBottom: 16 }} title="快捷模板">
         <Space wrap>
           {IMAGE_TASK_TEMPLATES.map((tpl) => (
@@ -924,6 +927,7 @@ export default function ImageTasksPage() {
           所有 AI 结果图会自动上传到「设置 → 存储设置」当前启用的存储位置，不会直接使用第三方临时链接。
         </Typography.Paragraph>
       </Card>
+      )}
       <ProTable<ImageTaskListRow>
         rowKey="id"
         actionRef={actionRef}
@@ -952,18 +956,22 @@ export default function ImageTasksPage() {
           };
         }}
         headerTitle={false}
-        toolBarRender={() => [
-          <Button
-            key="create"
-            type="primary"
-            onClick={() => {
-              setCreatePrefill({});
-              setCreateOpen(true);
-            }}
-          >
-            新建任务
-          </Button>,
-        ]}
+        toolBarRender={() =>
+          readonly
+            ? []
+            : [
+                <Button
+                  key="create"
+                  type="primary"
+                  onClick={() => {
+                    setCreatePrefill({});
+                    setCreateOpen(true);
+                  }}
+                >
+                  新建任务
+                </Button>,
+              ]
+        }
       />
 
       <CreateImageTaskModal
@@ -985,12 +993,13 @@ export default function ImageTasksPage() {
         destroyOnHidden
         footer={
           <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
-            {detail?.taskType === 'translate_image_text' ? (
+            {!readonly && detail?.taskType === 'translate_image_text' ? (
               <Button icon={<EditOutlined />} onClick={() => void openManualEditor()}>
                 人工编辑译图
               </Button>
             ) : null}
-            {detail?.taskType === 'translate_image_text' &&
+            {!readonly &&
+            detail?.taskType === 'translate_image_text' &&
             (detail.status === 'failed' ||
               detail.status === 'success_with_warnings' ||
               detail.status === 'low_quality' ||
@@ -1115,7 +1124,7 @@ export default function ImageTasksPage() {
                 </Button>
               </>
             ) : null}
-            {detail?.status === 'failed' ? (
+            {!readonly && detail?.status === 'failed' ? (
               <Button
                 type="primary"
                 onClick={async () => {
@@ -1160,7 +1169,7 @@ export default function ImageTasksPage() {
               </Button>
               </>
             ) : null}
-            {detail && isImageTaskUsableForProduct(detail.status) && detail.productId && (detail.resultUrl || detail.resultFileId) ? (
+            {!readonly && detail && isImageTaskUsableForProduct(detail.status) && detail.productId && (detail.resultUrl || detail.resultFileId) ? (
               <>
                 <Popconfirm
                   title="确认保存到商品图片？"
@@ -1312,7 +1321,7 @@ export default function ImageTasksPage() {
                               <TaskJsonBlock title="评分数据" value={item.scoreJson} maxHeight={120} last />
                             </TechnicalDetails>
                           ) : null}
-                          {detail.productId && item.status === 'success' && item.outputImageUrl ? (
+                          {!readonly && detail.productId && item.status === 'success' && item.outputImageUrl ? (
                             <Space wrap style={{ marginTop: 8 }}>
                               <Button
                                 size="small"

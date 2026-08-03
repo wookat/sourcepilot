@@ -61,6 +61,7 @@ import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
 import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { appendSourceToUrl } from '@/utils/urlState';
+import { usePermission } from '@/hooks/usePermission';
 
 const FAILURE_QUERY_KEYS = [
   'page',
@@ -160,6 +161,7 @@ function detailLinkLabel(detailUrl?: string | null): string {
 
 export default function TaskCenterFailuresPage() {
   const emptyLocale = useListEmptyLocale('taskFailures');
+  const { readonly } = usePermission();
   const location = useLocation();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof FAILURE_QUERY_KEYS)[number], string | undefined>>(
@@ -522,9 +524,11 @@ export default function TaskCenterFailuresPage() {
             <Button size="small" type="link" onClick={() => void openDetail(r)}>
               详情
             </Button>
-            <Button size="small" type="link" onClick={() => void doGenerateAlert(r)}>
-              生成告警
-            </Button>
+            {!readonly && (
+              <Button size="small" type="link" onClick={() => void doGenerateAlert(r)}>
+                生成告警
+              </Button>
+            )}
             <Button
               size="small"
               type="link"
@@ -538,14 +542,17 @@ export default function TaskCenterFailuresPage() {
                 {detailLinkLabel(r.detailUrl)}
               </Button>
             ) : null}
-            <Button
-              size="small"
-              type="link"
-              disabled={!r.retryable}
-              onClick={() => confirmRetry(r)}
-            >
-              重试
-            </Button>
+            {!readonly && (
+              <Button
+                size="small"
+                type="link"
+                disabled={!r.retryable}
+                onClick={() => confirmRetry(r)}
+              >
+                重试
+              </Button>
+            )}
+            {!readonly && (
             <Dropdown
               menu={{
                 items: [
@@ -572,11 +579,12 @@ export default function TaskCenterFailuresPage() {
                 更多
               </Button>
             </Dropdown>
+            )}
           </Space>
         ),
       },
     ],
-    [failureCatOpts, keywordFieldProps],
+    [failureCatOpts, keywordFieldProps, readonly],
   );
 
   async function doGenerateAlert(row: UnifiedTaskDTO) {
@@ -727,6 +735,10 @@ export default function TaskCenterFailuresPage() {
                 <Col xs={24} lg={14}>
                   <Space wrap align="center">
                     <Typography.Text type="secondary">批量操作</Typography.Text>
+                    {readonly ? (
+                      <Typography.Text type="secondary">只读账号不可执行批量写操作</Typography.Text>
+                    ) : (
+                    <>
                     <Button
                       disabled={!batchRows.length}
                       type="primary"
@@ -787,6 +799,8 @@ export default function TaskCenterFailuresPage() {
                     <Typography.Text type="secondary">
                       已选 {sel.length} 条{sel.length > 50 ? '（批量操作仅前 50 条）' : ''}
                     </Typography.Text>
+                    </>
+                    )}
                   </Space>
                 </Col>
                 <Col xs={24} lg={10}>
@@ -1067,7 +1081,7 @@ export default function TaskCenterFailuresPage() {
               <Typography.Paragraph type="secondary">关联：{detail.relatedResourceTitle}</Typography.Paragraph>
             ) : null}
             <Space wrap>
-              {isTbLoginFailure(detail) ? (
+              {!readonly && isTbLoginFailure(detail) ? (
                 <Button
                   type="primary"
                   loading={tbLoginOpening}
@@ -1091,7 +1105,7 @@ export default function TaskCenterFailuresPage() {
                   打开淘宝/天猫采集浏览器
                 </Button>
               ) : null}
-              {isPddLoginFailure(detail) ? (
+              {!readonly && isPddLoginFailure(detail) ? (
                 <Button
                   type="primary"
                   loading={pddLoginOpening}
@@ -1115,7 +1129,7 @@ export default function TaskCenterFailuresPage() {
                   打开拼多多采集浏览器登录
                 </Button>
               ) : null}
-              {canRecoverDouyinDraft(detail) ? (
+              {!readonly && canRecoverDouyinDraft(detail) ? (
                 <Button
                   type="primary"
                   loading={recovering}
@@ -1144,7 +1158,7 @@ export default function TaskCenterFailuresPage() {
                   尝试恢复
                 </Button>
               ) : null}
-              {detail.retryable ? (
+              {!readonly && detail.retryable ? (
                 <Button
                   onClick={() => {
                     confirmFailureTaskRetry(1, async () => {
@@ -1171,7 +1185,7 @@ export default function TaskCenterFailuresPage() {
                   打开原始失败页面
                 </Button>
               ) : null}
-              {detail.taskType ? (
+              {!readonly && detail.taskType ? (
                 <Button
                   onClick={() => {
                     Modal.confirm({
