@@ -3,6 +3,7 @@ package product
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -328,10 +329,21 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}, nil
 }
 
+// ErrUnassignedDraftForbidden rejects manual draft creation by store-scoped
+// principals: a new draft has no shop binding, so only admins can see it.
+var ErrUnassignedDraftForbidden = errors.New("当前账号仅能操作已授权店铺的商品，无法创建未关联店铺的商品草稿")
+
 // Create inserts a manual draft.
 func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*DetailDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
+	}
+	principal, err := adminperm.LoadPrincipal(c, s.DB)
+	if err != nil {
+		return nil, err
+	}
+	if !principal.IsAdmin() {
+		return nil, ErrUnassignedDraftForbidden
 	}
 	source := strings.TrimSpace(body.Source)
 	if source == "" {
