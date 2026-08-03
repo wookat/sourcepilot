@@ -1,5 +1,5 @@
-import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { responseErrorMessage } from '@/utils/httpErrorCopy';
+import { fetchWithSessionGuard } from '@/utils/sessionGuard';
 import { getJSON, getWithParams, postJSON, putJSON } from './request';
 
 export type PurchaseOrderItem = {
@@ -226,10 +226,7 @@ export async function batchFillPurchaseLogistics(
 }
 
 export async function downloadPurchaseOrderCsv(id: string) {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  const resp = await fetch(`/api/v1/procurement/orders/${id}/export.csv`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
+  const resp = await fetchWithSessionGuard(`/api/v1/procurement/orders/${id}/export.csv`);
   if (!resp.ok) {
     throw new Error(await responseErrorMessage(resp));
   }
@@ -245,12 +242,8 @@ export async function downloadPurchaseOrderCsv(id: string) {
 }
 
 export async function downloadPurchaseOrdersBatchCsv(ids: string[]) {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  const resp = await fetch(
+  const resp = await fetchWithSessionGuard(
     `/api/v1/procurement/purchase-lists/export.csv?ids=${encodeURIComponent(ids.join(','))}`,
-    {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    },
   );
   if (!resp.ok) {
     throw new Error(await responseErrorMessage(resp));

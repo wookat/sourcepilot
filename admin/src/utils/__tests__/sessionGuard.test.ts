@@ -7,6 +7,7 @@ import {
 } from '@/constants/auth';
 import {
   canAttemptRefresh,
+  fetchWithSessionGuard,
   clearSessionCredentials,
   isAuthUrl,
   resetRefreshFailureCooldown,
@@ -209,6 +210,65 @@ describe('sessionGuard', () => {
     it('用户放弃重登时返回 false', async () => {
       registerReloginHandler(() => Promise.resolve(false));
       await expect(requireRelogin()).resolves.toBe(false);
+    });
+  });
+
+  describe('fetchWithSessionGuard', () => {
+    it('自动附带 Authorization，非 401 直接返回响应', async () => {
+      localStorage.setItem(AUTH_TOKEN_KEY, 't1');
+      const fetchMock = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue({ status: 200, ok: true } as Response);
+      const resp = await fetchWithSessionGuard('/api/v1/orders/stats/daily/export.csv?days=7');
+      expect(resp.status).toBe(200);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer t1');
+    });
+
+    it('401 时先静默续期再重放一次（带新 token）', async () => {
+      saveSessionCredentials({ token: 'old', expiresAt: 9999999999, refreshToken: 'rt-old' });
+      const fetchMock = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce({ status: 401, ok: false } as Response)
+        .mockResolvedValueOnce(okRefreshResponse())
+        .mockResolvedValueOnce({ status: 200, ok: true } as Response);
+      const resp = await fetchWithSessionGuard('/api/v1/ops/backups/b1/download');
+      expect(resp.status).toBe(200);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      const retryHeaders = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
+      expect(retryHeaders.Authorization).toBe('Bearer new-token');
+    });
+
+    it('续期失败时走统一重登引导，重登成功后重放', async () => {
+      saveSessionCredentials({ token: 'old', expiresAt: 9999999999, refreshToken: 'rt-old' });
+      const handler = vi.fn(() => {
+        saveSessionCredentials({ token: 'relogin-token', expiresAt: 9999999999 });
+        return Promise.resolve(true);
+      });
+      registerReloginHandler(handler);
+      const fetchMock = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce({ status: 401, ok: false } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          json: async () => ({ code: 401, message: 'refresh revoked' }),
+        } as Response)
+        .mockResolvedValueOnce({ status: 200, ok: true } as Response);
+      const resp = await fetchWithSessionGuard('/api/v1/procurement/orders/p1/export.csv');
+      expect(resp.status).toBe(200);
+      expect(handler).toHaveBeenCalledTimes(1);
+      const retryHeaders = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
+      expect(retryHeaders.Authorization).toBe('Bearer relogin-token');
+    });
+
+    it('auth 链路 URL 的 401 不触发重登引导', async () => {
+      const handler = vi.fn(() => Promise.resolve(true));
+      registerReloginHandler(handler);
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue({ status: 401, ok: false } as Response);
+      const resp = await fetchWithSessionGuard('/api/v1/auth/refresh');
+      expect(resp.status).toBe(401);
+      expect(handler).not.toHaveBeenCalled();
     });
   });
 });

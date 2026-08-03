@@ -1,6 +1,6 @@
 import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
-import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { responseErrorMessage } from '@/utils/httpErrorCopy';
+import { fetchWithSessionGuard } from '@/utils/sessionGuard';
 import type { OrderInventoryEffectRow, PaginatedInventory } from '@/services/inventory';
 
 export type OrderShipmentRow = {
@@ -163,12 +163,8 @@ export async function importOrders(payload: {
 }
 
 export async function downloadOrdersShippingCsv(ids: string[]) {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  const resp = await fetch(
+  const resp = await fetchWithSessionGuard(
     `/api/v1/orders/shipping-list/export.csv?ids=${encodeURIComponent(ids.join(','))}`,
-    {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    },
   );
   if (!resp.ok) {
     throw new Error(await responseErrorMessage(resp));
@@ -226,12 +222,9 @@ export async function fetchOrderDailyStats(days = 30): Promise<DailyStatsDTO> {
 }
 
 export async function downloadDailyReportCsv(days: number) {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  const resp = await fetch(`/api/v1/orders/stats/daily/export.csv?days=${days}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
+  const resp = await fetchWithSessionGuard(`/api/v1/orders/stats/daily/export.csv?days=${days}`);
   if (!resp.ok) {
-    throw new Error(`export failed: ${resp.status}`);
+    throw new Error(await responseErrorMessage(resp));
   }
   const blob = await resp.blob();
   const url = URL.createObjectURL(blob);

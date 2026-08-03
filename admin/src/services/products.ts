@@ -1,5 +1,6 @@
 import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from './request';
-import { AUTH_TOKEN_KEY } from '@/constants/auth';
+import { responseErrorMessage } from '@/utils/httpErrorCopy';
+import { fetchWithSessionGuard } from '@/utils/sessionGuard';
 
 export type ProductListRow = {
   id: string;
@@ -50,15 +51,11 @@ export async function fetchProducts(params: {
 }
 
 export async function downloadDraftListingCsv(ids: string[]) {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  const resp = await fetch(
+  const resp = await fetchWithSessionGuard(
     `/api/v1/products/listing-list/export.csv?ids=${encodeURIComponent(ids.join(','))}`,
-    {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    },
   );
   if (!resp.ok) {
-    throw new Error(`export failed: ${resp.status}`);
+    throw new Error(await responseErrorMessage(resp));
   }
   const blob = await resp.blob();
   const url = URL.createObjectURL(blob);

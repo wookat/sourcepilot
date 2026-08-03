@@ -2,6 +2,8 @@ import { DownloadOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { Alert, Button, Col, Row, Segmented, Skeleton, Space, Statistic, Typography, message } from 'antd';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from '@umijs/max';
+import { mergeQueryState } from '@/utils/urlState';
 import { EmptyState, TmPageContainer } from '@/components/ui';
 import {
   chartAxisXLabel,
@@ -25,6 +27,14 @@ const DAY_OPTIONS = [
   { label: '近 30 天', value: 30 },
   { label: '近 90 天', value: 90 },
 ];
+
+const DEFAULT_DAYS = 30;
+
+/** URL `?days=` 归一化：仅接受 7/30/90，非法值回落默认，刷新/分享链接保持所选天数 */
+export function normalizeReportDays(raw: string | null): number {
+  const n = Number(raw);
+  return DAY_OPTIONS.some((o) => o.value === n) ? n : DEFAULT_DAYS;
+}
 
 type CountPoint = { date: string; type: string; value: number };
 type AmountPoint = { date: string; currency: string; amount: number };
@@ -50,7 +60,11 @@ function toAmountPoints(res: DailyStatsDTO): AmountPoint[] {
 
 /** 经营报表：近 N 天按日订单趋势（口径与首页经营概览 stats/sales 一致），支持导出 CSV */
 export default function OrderReports() {
-  const [days, setDays] = useState(30);
+  const [searchParams] = useSearchParams();
+  const days = normalizeReportDays(searchParams.get('days'));
+  const setDays = useCallback((next: number) => {
+    mergeQueryState({ days: next === DEFAULT_DAYS ? undefined : next }, { replace: true });
+  }, []);
   const [data, setData] = useState<DailyStatsDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
