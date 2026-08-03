@@ -188,6 +188,10 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	out, err := h.Svc.Create(c, body, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, ErrUnassignedDraftForbidden) {
+			response.Fail(c, 403, response.CodeForbidden, err.Error())
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

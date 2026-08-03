@@ -1384,3 +1384,10 @@ Final Production Acceptance Deferred to P10
 - 发布任务越权口径统一：tasks `:id/retry|cancel|recover*` 与批次 retry/cancel 对跨租户/不存在对象由 400 统一为 404（不泄露存在性）；`recover` 增加租户归属前置校验；同租户业务校验 400、同租户非创建者 403 口径不变。
 - 前端 401 竞态收口：`sessionGuard` 的 `requireRelogin` single-flight 扩展到「弹窗未注册」窗口（硬刷新首屏并发 401 等待 `SessionExpiredModal` 注册后共享同一次重登引导，超时兜底 false）；`redirectToLoginPage` 并发去重只跳转一次。
 - 回归：后端 `TestPublishBatchScopedByTenant` / `TestFailedTargetsFromBatchScopedByTenant` / `TestPublishMutationEndpointsCrossTenant404`；前端 sessionGuard 新增硬刷新并发 401 用例；docs/api.md、permission-matrix.md「round81」、PUBLISH_BATCH_MIGRATION.md 已登记。Docker 双租户实测（PostgreSQL）：批次详情/重试/取消与任务 retry/cancel/recover 跨租户全部 404，列表互不可见。
+
+### 变更记录（2026-08-03）第 83 轮：草稿创建脏数据收口 + 引导管理员租户口径 + React warning 清理（R82 遗留 P2）
+
+- P2 修复：`POST /api/v1/products` 手工新建草稿此前对 operator 先落库后做可见性校验，校验失败返回 400 但残留孤儿行。现 `product.Service.Create` 在写入前做 principal 校验：新草稿无店铺关联，仅 admin 可见/可建，非 admin 统一 403 且不落库；权限矩阵 operator 由 allow 改 forbid（见 docs/permission-matrix.md「round83」）。前端草稿列表「新建草稿」按钮改为仅 admin 显示。
+- 引导管理员租户口径：设计意图确认为「引导账号 = tenant 0 平台管理员」（平台租户治理入口）。代码默认本就是 0，本轮把 `.env.example` / `.env.docker.example` 的 `ADMIN_BOOTSTRAP_TENANT_ID` 由 1 收口为 0，并在 docs/env.md 说明（显式 >0 配置仍兼容遗留单租户部署；仅 admin_users 为空首次创建生效，不迁移存量）。
+- React console warning 清理（R82 报告 5 条）：Settings/Users 店铺权限弹窗 `Form.List` 行内 `{...field}` 展开重复传 `key`（4 条 duplicate key warning）改为解构 `{ key, name, ...restField }`；「新建用户」弹窗 `destroyOnHidden` 导致 `useForm` 未连接 warning，改为 `forceRender` + 取消时 `resetFields`。
+- 回归：`product/create_scope_test.go`（operator/readonly 403 + 0 残留行、admin 正常创建）；权限矩阵契约复跑；go fmt/vet/build/test、pnpm test:frontend/build:admin/test:contracts；Docker 实测两条动线（operator 建草稿 403 无残留、bootstrap 账号落 tenant 0 可开租）。
