@@ -265,7 +265,9 @@ export default function AiBatchesPage() {
                     {
                       title: '失败原因',
                       dataIndex: 'errorMessage',
-                      render: (v) => <AiTaskErrorText raw={v as string} />,
+                      render: (_, row) => (
+                        <AiTaskErrorText raw={(row as { errorMessage?: string }).errorMessage} />
+                      ),
                     },
                   ]}
                 />
@@ -339,24 +341,28 @@ export default function AiBatchesPage() {
             tasksKind === 'image_tasks'
               ? [
                   { title: '任务编号', dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
-                  { title: '类型', dataIndex: 'taskType', width: 140, render: (v) => taskTypeLabel(v as string) },
-                  { title: '状态', dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
+                  { title: '类型', dataIndex: 'taskType', width: 140, render: (_, row) => taskTypeLabel((row as { taskType?: string }).taskType ?? '') },
+                  { title: '状态', dataIndex: 'status', width: 96, render: (_, row) => commonStatusLabel((row as { status?: string }).status ?? '') },
                   { title: '商品', dataIndex: 'productId', ellipsis: true },
                   {
                     title: '失败原因',
                     dataIndex: 'errorMessage',
-                    render: (v) => <AiTaskErrorText raw={v as string} />,
+                    render: (_, row) => (
+                      <AiTaskErrorText raw={(row as { errorMessage?: string }).errorMessage} />
+                    ),
                   },
                 ]
               : [
                   { title: '任务编号', dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
                   { title: '类型', dataIndex: 'taskType', width: 140 },
-                  { title: '状态', dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
+                  { title: '状态', dataIndex: 'status', width: 96, render: (_, row) => commonStatusLabel((row as { status?: string }).status ?? '') },
                   { title: '商品', dataIndex: 'productId', ellipsis: true },
                   {
                     title: '失败原因',
                     dataIndex: 'errorMessage',
-                    render: (v) => <AiTaskErrorText raw={v as string} />,
+                    render: (_, row) => (
+                      <AiTaskErrorText raw={(row as { errorMessage?: string }).errorMessage} />
+                    ),
                   },
                 ]
           }

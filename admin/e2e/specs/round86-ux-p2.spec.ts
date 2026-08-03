@@ -71,6 +71,27 @@ async function routeAiBatches(page: Page) {
       body: JSON.stringify(ok({ list: [aiBatchRow], pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } })),
     });
   });
+  await page.route('**/api/v1/ai/batches/e2e-ai-batch-1/tasks?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        ok({
+          kind: 'ai_tasks',
+          list: [
+            {
+              id: 'e2e-ai-task-1',
+              taskType: 'title_optimize',
+              status: 'failed',
+              productId: 'e2e-product-1',
+              errorMessage: 'AI_INVALID_KEY: 401 unauthorized from upstream',
+            },
+          ],
+          pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+        }),
+      ),
+    });
+  });
 }
 
 test.describe('R86 P2 readonly 写入口 UI 收口', () => {
@@ -105,6 +126,16 @@ test.describe('R86 P2 readonly 写入口 UI 收口', () => {
     await expect(page.getByText('应用结果', { exact: true })).toHaveCount(0);
     await expect(page.getByText('详情', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('子任务', { exact: true }).first()).toBeVisible();
+  });
+
+  test('AI 批次子任务抽屉：失败原因中文化且不崩溃', async ({ page, admin }) => {
+    await routeAiBatches(page);
+    await admin.goto('/ai/batches');
+    await expect(page.getByText('B-e2e-1')).toBeVisible();
+    await page.getByText('子任务', { exact: true }).first().click();
+    await expect(page.getByText('title_optimize')).toBeVisible();
+    await expect(page.getByText('API Key 无效或未授权', { exact: false }).first()).toBeVisible();
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
   test('AI 图片任务 readonly 隐藏新建任务与快捷模板', async ({ page, admin }) => {
