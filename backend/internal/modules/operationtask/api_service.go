@@ -563,9 +563,21 @@ func (s *APIService) allowedActions(ctx context.Context, actor APIActor, task Op
 	actions.CanApprove = canReview && task.Status == OperationTaskStatusPendingReview
 	actions.CanReject = actions.CanApprove
 	actions.CanExecute = canExecute && sm.CanExecute(task.Status)
-	actions.CanRetry = canRetry && task.Status == OperationTaskStatusExecutionFailed
+	actions.CanRetry = canRetry && task.Status == OperationTaskStatusExecutionFailed && s.latestFailureRetryable(ctx, task)
 	actions.CanCancel = canEdit && sm.CanTransition(task.Status, OperationTaskStatusCancelled)
 	return actions
+}
+
+func (s *APIService) latestFailureRetryable(ctx context.Context, task OperationTask) bool {
+	attempt, err := latestAttempt(s.DB, ctx, task.TenantID, task.ID)
+	if err != nil || attempt.Status != ExecutionAttemptStatusFailed {
+		return false
+	}
+	latestErr, err := latestExecutionErrorTx(s.DB.WithContext(ctx), task.TenantID, attempt.ID)
+	if err != nil {
+		return false
+	}
+	return latestErr.Retryable
 }
 
 func (s *APIService) executionResponse(ctx context.Context, tenantID int64, out *ExecutionOutput) *ExecutionResponse {
