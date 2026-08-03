@@ -49,6 +49,22 @@ func (h *Handler) Apply(c *gin.Context) {
 		}
 		itemID = &u
 	}
+	if err := h.Svc.EnsureTaskVisible(c, taskID); err != nil {
+		if notFound(err) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	if err := h.Svc.EnsureProductVisible(c, pid); err != nil {
+		if notFound(err) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
 	row, err := h.Svc.ApplyTaskResultHTTP(c, pid, taskID, itemID, body.ApplyMode, body.SetBest, adminUUID(c))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {

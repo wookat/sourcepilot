@@ -1360,3 +1360,12 @@ Final Production Acceptance Deferred to P10
 - 报表 x 轴抽稀（v3 P2-5）：`chartTokens` 新增 `chartAxisXTickCount`（宽屏 10 / 紧凑 6）与 `formatDateTickShort`（YYYY-MM-DD → MM-DD），经营报表双图接入，移动端不再出现 30 标签竖排墙。
 - 销售额舍入口径统一（v3 P2-1）：报表合计卡销售额由 antd Statistic `precision`（截断）改为与首页经营概览相同的 `formatAmount`（四舍五入），消除 171.40 vs 171.39 展示差；后端数据与 DTO 不变。
 - UX 复核 v3 报告归档至 `docs/ux-review/UX_REVIEW_V3_REPORT.md`（响应 v3 流程建议：走查报告入仓可追溯）。
+
+### 变更记录（2026-08-03）第 78 轮：安全审计复跑（R73）跨租户越权收口 + Go 补丁工具链
+
+- sourcing 写/列路径改按请求租户收口（`scope.go`：supplier/source/sourceSKU/switchEvent/product 可见性校验；service 方法改收 `*gin.Context`）：跨租户 supplier 改删、source 改删/设主/刷新、SKU 映射保存删除、切换建议采纳/忽略统一 404；`GET /suppliers`、`/product-source-alerts`、`/product-sources/orphans`、`/source-switch-events` 补租户过滤（此前返回全量）；新建 supplier/source/SKU/价格历史写入 `tenant_id`。
+- imagetask 详情/写路径按关联商品租户收口（`scope.go`：`EnsureTaskVisible` / `EnsureProductVisible` / `EnsureTaskItemVisible`）：`GET /image/tasks/:id`、`/ai/image/tasks/:id`、`translate-edit-state`、`retry`、`manual-render`、`apply`、item `save-to-product` / `set-as-main`、任务创建与图片评分的商品参数统一跨租户 404；全局任务列表按本租户商品过滤（无商品关联的存量任务保持可见）。
+- productpublish：`loadProductForPublish` / `loadProductsForBatch` 补 `tenant_id`，`publish-targets` / `check` / 批量检查与建草稿跨租户统一 404（此前 200 泄露发布可行性与店铺清单）；发布目标店铺清单与目标校验按租户过滤（跨租户店铺一律 blocked 且不回显店铺名）；`CancelTask` 由裸 ID 查询改租户内查询（此前可取消他租户 pending/running 发布任务）。
+- Go 工具链升到 1.25.12（`backend/go.mod`、`go.work`）：govulncheck 由 27 条标准库符号命中降为 0。
+- 前端构建链 `pnpm.overrides` 补 `vite ^4.5.14`、`postcss ^8.5.18`（同大版本补丁，dependabot major 封禁范围外）；vitest / umi 系高危均为构建期依赖且补丁需跨大版本，按封禁保留并列入清单。
+- 回归单测：sourcing `TestSourcingWritesScopedByTenant`、imagetask `TestImageTaskDetailAndApplyScopedByTenant`、productpublish `TestPublishTargetsScopedByTenant` / `TestCancelTaskScopedByTenant`；权限矩阵契约全量复跑通过（新增路由无漏登记）。

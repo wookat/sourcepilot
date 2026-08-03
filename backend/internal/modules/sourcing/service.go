@@ -76,15 +76,20 @@ type SupplierList struct {
 	PageSize int        `json:"pageSize"`
 }
 
-// ListSuppliers returns suppliers with pagination.
-func (s *Service) ListSuppliers(ctx context.Context, q SupplierListQuery) (*SupplierList, error) {
+// ListSuppliers returns the request tenant's suppliers with pagination.
+func (s *Service) ListSuppliers(c *gin.Context, q SupplierListQuery) (*SupplierList, error) {
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
 	if q.Page < 1 {
 		q.Page = 1
 	}
 	if q.PageSize < 1 || q.PageSize > 200 {
 		q.PageSize = 20
 	}
-	tx := s.DB.WithContext(ctx).Model(&Supplier{})
+	tx := s.DB.WithContext(ctx).Model(&Supplier{}).Where("tenant_id = ?", tid)
 	if kw := strings.TrimSpace(q.Keyword); kw != "" {
 		like := "%" + kw + "%"
 		tx = tx.Where("name ILIKE ? OR external_id ILIKE ?", like, like)
@@ -119,13 +124,19 @@ type SupplierBody struct {
 	Status     string          `json:"status"`
 }
 
-// CreateSupplier inserts a supplier.
-func (s *Service) CreateSupplier(ctx context.Context, body SupplierBody, operator *uuid.UUID) (*Supplier, error) {
+// CreateSupplier inserts a supplier owned by the request tenant.
+func (s *Service) CreateSupplier(c *gin.Context, body SupplierBody, operator *uuid.UUID) (*Supplier, error) {
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
 	name := strings.TrimSpace(body.Name)
 	if name == "" {
 		return nil, fmt.Errorf("%w: name required", ErrBadRequest)
 	}
 	sup := Supplier{
+		TenantID:   tid,
 		Platform:   defaultStr(strings.TrimSpace(body.Platform), "1688"),
 		ExternalID: strings.TrimSpace(body.ExternalID),
 		Name:       name,
@@ -139,7 +150,7 @@ func (s *Service) CreateSupplier(ctx context.Context, body SupplierBody, operato
 	if sup.ExternalID != "" {
 		var dup int64
 		if err := s.DB.WithContext(ctx).Model(&Supplier{}).
-			Where("platform = ? AND external_id = ?", sup.Platform, sup.ExternalID).
+			Where("tenant_id = ? AND platform = ? AND external_id = ?", tid, sup.Platform, sup.ExternalID).
 			Count(&dup).Error; err != nil {
 			return nil, err
 		}
@@ -154,8 +165,12 @@ func (s *Service) CreateSupplier(ctx context.Context, body SupplierBody, operato
 	return &sup, nil
 }
 
-// UpdateSupplier patches mutable supplier fields.
-func (s *Service) UpdateSupplier(ctx context.Context, id uuid.UUID, body SupplierBody, operator *uuid.UUID) (*Supplier, error) {
+// UpdateSupplier patches mutable supplier fields within the request tenant.
+func (s *Service) UpdateSupplier(c *gin.Context, id uuid.UUID, body SupplierBody, operator *uuid.UUID) (*Supplier, error) {
+	if err := s.ensureSupplierVisible(c, id); err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
 	var sup Supplier
 	if err := s.DB.WithContext(ctx).First(&sup, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -191,8 +206,12 @@ func (s *Service) UpdateSupplier(ctx context.Context, id uuid.UUID, body Supplie
 	return &sup, nil
 }
 
-// DeleteSupplier soft-deletes a supplier without active sources.
-func (s *Service) DeleteSupplier(ctx context.Context, id uuid.UUID, operator *uuid.UUID) error {
+// DeleteSupplier soft-deletes a supplier of the request tenant without active sources.
+func (s *Service) DeleteSupplier(c *gin.Context, id uuid.UUID, operator *uuid.UUID) error {
+	if err := s.ensureSupplierVisible(c, id); err != nil {
+		return err
+	}
+	ctx := c.Request.Context()
 	var cnt int64
 	if err := s.DB.WithContext(ctx).Model(&ProductSource{}).
 		Where("supplier_id = ?", id).Count(&cnt).Error; err != nil {
@@ -297,7 +316,18 @@ type BindSourceBody struct {
 
 // BindSource creates a product source, auto-creating the supplier when only
 // a name/external id is given. The first source of a product becomes primary.
-func (s *Service) BindSource(ctx context.Context, productID uuid.UUID, body BindSourceBody, operator *uuid.UUID) (*ProductSource, error) {
+func (s *Service) BindSource(c *gin.Context, productID uuid.UUID, body BindSourceBody, operator *uuid.UUID) (*ProductSource, error) {
+	if err := s.ensureProductVisible(c, productID); err != nil {
+		return nil, err
+	}
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	return s.bindSource(c.Request.Context(), tid, productID, body, operator)
+}
+
+func (s *Service) bindSource(ctx context.Context, tenantID int64, productID uuid.UUID, body BindSourceBody, operator *uuid.UUID) (*ProductSource, error) {
 	offerID := strings.TrimSpace(body.SourceOffer)
 	if offerID == "" {
 		offerID = extractOfferID(body.SourceURL)
@@ -310,7 +340,7 @@ func (s *Service) BindSource(ctx context.Context, productID uuid.UUID, body Bind
 			if err != nil {
 				return fmt.Errorf("%w: invalid supplierId", ErrBadRequest)
 			}
-			if err := tx.First(&sup, "id = ?", u).Error; err != nil {
+			if err := tx.Where("tenant_id = ?", tenantID).First(&sup, "id = ?", u).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return fmt.Errorf("%w: supplier", ErrNotFound)
 				}
@@ -323,15 +353,15 @@ func (s *Service) BindSource(ctx context.Context, productID uuid.UUID, body Bind
 			}
 			platform := defaultStr(strings.TrimSpace(body.Platform), "1688")
 			ext := strings.TrimSpace(body.ExternalID)
-			q := tx.Where("platform = ? AND name = ?", platform, name)
+			q := tx.Where("tenant_id = ? AND platform = ? AND name = ?", tenantID, platform, name)
 			if ext != "" {
-				q = tx.Where("platform = ? AND external_id = ?", platform, ext)
+				q = tx.Where("tenant_id = ? AND platform = ? AND external_id = ?", tenantID, platform, ext)
 			}
 			if err := q.First(&sup).Error; err != nil {
 				if !errors.Is(err, gorm.ErrRecordNotFound) {
 					return err
 				}
-				sup = Supplier{Platform: platform, ExternalID: ext, Name: name, Rating: body.Rating, Status: SupplierStatusActive}
+				sup = Supplier{TenantID: tenantID, Platform: platform, ExternalID: ext, Name: name, Rating: body.Rating, Status: SupplierStatusActive}
 				if err := tx.Create(&sup).Error; err != nil {
 					return err
 				}
@@ -357,6 +387,7 @@ func (s *Service) BindSource(ctx context.Context, productID uuid.UUID, body Bind
 			priority = *body.Priority
 		}
 		ps := ProductSource{
+			TenantID:      tenantID,
 			ProductID:     productID,
 			SupplierID:    sup.ID,
 			SourceURL:     strings.TrimSpace(body.SourceURL),
@@ -398,8 +429,12 @@ type UpdateSourceBody struct {
 	SourceURL    *string `json:"sourceUrl"`
 }
 
-// UpdateSource patches a product source.
-func (s *Service) UpdateSource(ctx context.Context, id uuid.UUID, body UpdateSourceBody, operator *uuid.UUID) (*ProductSource, error) {
+// UpdateSource patches a product source of the request tenant.
+func (s *Service) UpdateSource(c *gin.Context, id uuid.UUID, body UpdateSourceBody, operator *uuid.UUID) (*ProductSource, error) {
+	if err := s.ensureSourceVisible(c, id); err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
 	var ps ProductSource
 	if err := s.DB.WithContext(ctx).First(&ps, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -441,8 +476,16 @@ func (s *Service) UpdateSource(ctx context.Context, id uuid.UUID, body UpdateSou
 	return &ps, nil
 }
 
-// SetPrimary manually switches the primary source (mode=manual switch event).
-func (s *Service) SetPrimary(ctx context.Context, id uuid.UUID, operator *uuid.UUID) (*ProductSource, error) {
+// SetPrimary manually switches the primary source of the request tenant
+// (mode=manual switch event).
+func (s *Service) SetPrimary(c *gin.Context, id uuid.UUID, operator *uuid.UUID) (*ProductSource, error) {
+	if err := s.ensureSourceVisible(c, id); err != nil {
+		return nil, err
+	}
+	return s.setPrimary(c.Request.Context(), id, operator)
+}
+
+func (s *Service) setPrimary(ctx context.Context, id uuid.UUID, operator *uuid.UUID) (*ProductSource, error) {
 	var target ProductSource
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.First(&target, "id = ?", id).Error; err != nil {
@@ -473,6 +516,7 @@ func (s *Service) SetPrimary(ctx context.Context, id uuid.UUID, operator *uuid.U
 			return err
 		}
 		ev := SourceSwitchEvent{
+			TenantID:     target.TenantID,
 			ProductID:    target.ProductID,
 			FromSourceID: fromID,
 			ToSourceID:   target.ID,
@@ -501,7 +545,11 @@ type SKUMappingBody struct {
 
 // SaveSKUMappings upserts SKU mappings for one product source. Manual price
 // input writes a price-history row with capture_source=manual.
-func (s *Service) SaveSKUMappings(ctx context.Context, sourceID uuid.UUID, rows []SKUMappingBody, operator *uuid.UUID) ([]ProductSourceSKU, error) {
+func (s *Service) SaveSKUMappings(c *gin.Context, sourceID uuid.UUID, rows []SKUMappingBody, operator *uuid.UUID) ([]ProductSourceSKU, error) {
+	if err := s.ensureSourceVisible(c, sourceID); err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
 	var ps ProductSource
 	if err := s.DB.WithContext(ctx).First(&ps, "id = ?", sourceID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -524,7 +572,7 @@ func (s *Service) SaveSKUMappings(ctx context.Context, sourceID uuid.UUID, rows 
 				return err
 			}
 			if isNew {
-				m = ProductSourceSKU{ProductSourceID: sourceID, LocalSKUID: localID, Currency: "CNY", Status: "active"}
+				m = ProductSourceSKU{TenantID: ps.TenantID, ProductSourceID: sourceID, LocalSKUID: localID, Currency: "CNY", Status: "active"}
 			} else if m.DeletedAt.Valid {
 				// unique index (tenant_id, product_source_id, local_sku_id) covers
 				// soft-deleted rows too, so revive the row instead of inserting.
@@ -547,6 +595,7 @@ func (s *Service) SaveSKUMappings(ctx context.Context, sourceID uuid.UUID, rows 
 			}
 			if priceChanged && r.CurrentPrice != nil {
 				h := SourcePriceHistory{
+					TenantID:      ps.TenantID,
 					SourceSKUID:   m.ID,
 					Price:         *r.CurrentPrice,
 					Stock:         m.CurrentStock,
@@ -568,8 +617,13 @@ func (s *Service) SaveSKUMappings(ctx context.Context, sourceID uuid.UUID, rows 
 	return out, nil
 }
 
-// DeleteSKUMapping soft-deletes one local↔external SKU mapping row.
-func (s *Service) DeleteSKUMapping(ctx context.Context, id uuid.UUID, operator *uuid.UUID) error {
+// DeleteSKUMapping soft-deletes one local↔external SKU mapping row of the
+// request tenant.
+func (s *Service) DeleteSKUMapping(c *gin.Context, id uuid.UUID, operator *uuid.UUID) error {
+	if err := s.ensureSourceSKUVisible(c, id); err != nil {
+		return err
+	}
+	ctx := c.Request.Context()
 	res := s.DB.WithContext(ctx).Delete(&ProductSourceSKU{}, "id = ?", id)
 	if res.Error != nil {
 		return res.Error
@@ -596,9 +650,13 @@ type OrphanSourceRow struct {
 
 // ListOrphanSources returns sources whose product row is soft-deleted or
 // missing entirely; these block supplier deletion until unbound.
-func (s *Service) ListOrphanSources(ctx context.Context) ([]OrphanSourceRow, error) {
+func (s *Service) ListOrphanSources(c *gin.Context) ([]OrphanSourceRow, error) {
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	var rows []OrphanSourceRow
-	err := s.DB.WithContext(ctx).Raw(`
+	err = s.DB.WithContext(c.Request.Context()).Raw(`
 		SELECT ps.id AS source_id,
 		       ps.product_id,
 		       COALESCE(NULLIF(TRIM(pall.title), ''), pall.original_title, '') AS product_title,
@@ -616,10 +674,11 @@ func (s *Service) ListOrphanSources(ctx context.Context) ([]OrphanSourceRow, err
 		LEFT JOIN products pall ON pall.id = ps.product_id
 		LEFT JOIN suppliers sup ON sup.id = ps.supplier_id AND sup.deleted_at IS NULL
 		WHERE ps.deleted_at IS NULL
+		  AND ps.tenant_id = ?
 		  AND p.id IS NULL
 		ORDER BY ps.created_at DESC
 		LIMIT 500
-	`).Scan(&rows).Error
+	`, tid).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
@@ -629,7 +688,11 @@ func (s *Service) ListOrphanSources(ctx context.Context) ([]OrphanSourceRow, err
 // DeleteSource soft-deletes (unbinds) an orphan product source together with
 // its SKU mappings. Only sources whose product is already deleted may be
 // removed here; live products manage their sources from the product page.
-func (s *Service) DeleteSource(ctx context.Context, id uuid.UUID, operator *uuid.UUID) error {
+func (s *Service) DeleteSource(c *gin.Context, id uuid.UUID, operator *uuid.UUID) error {
+	if err := s.ensureSourceVisible(c, id); err != nil {
+		return err
+	}
+	ctx := c.Request.Context()
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var src ProductSource
 		if err := tx.First(&src, "id = ?", id).Error; err != nil {
@@ -682,15 +745,20 @@ func (s *Service) priceHistory(ctx context.Context, sourceSKUID uuid.UUID, days 
 	return items, nil
 }
 
-// ListSwitchEvents returns switch audit rows, optionally by product.
-func (s *Service) ListSwitchEvents(ctx context.Context, productID *uuid.UUID, page, pageSize int) (map[string]any, error) {
+// ListSwitchEvents returns the request tenant's switch audit rows, optionally
+// by product.
+func (s *Service) ListSwitchEvents(c *gin.Context, productID *uuid.UUID, page, pageSize int) (map[string]any, error) {
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 200 {
 		pageSize = 20
 	}
-	tx := s.DB.WithContext(ctx).Model(&SourceSwitchEvent{})
+	tx := s.DB.WithContext(c.Request.Context()).Model(&SourceSwitchEvent{}).Where("tenant_id = ?", tid)
 	if productID != nil {
 		tx = tx.Where("product_id = ?", *productID)
 	}
@@ -707,7 +775,11 @@ func (s *Service) ListSwitchEvents(ctx context.Context, productID *uuid.UUID, pa
 
 // AdoptSwitchSuggestion switches the primary source to the suggested backup
 // and marks the suggestion adopted.
-func (s *Service) AdoptSwitchSuggestion(ctx context.Context, id uuid.UUID, operator *uuid.UUID) (*ProductSource, error) {
+func (s *Service) AdoptSwitchSuggestion(c *gin.Context, id uuid.UUID, operator *uuid.UUID) (*ProductSource, error) {
+	if err := s.ensureSwitchEventVisible(c, id); err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
 	var ev SourceSwitchEvent
 	if err := s.DB.WithContext(ctx).First(&ev, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -718,7 +790,7 @@ func (s *Service) AdoptSwitchSuggestion(ctx context.Context, id uuid.UUID, opera
 	if ev.Mode != SwitchModeSuggested || ev.Status != SuggestionOpen {
 		return nil, fmt.Errorf("%w: suggestion is not open", ErrConflict)
 	}
-	out, err := s.SetPrimary(ctx, ev.ToSourceID, operator)
+	out, err := s.setPrimary(ctx, ev.ToSourceID, operator)
 	if err != nil {
 		return nil, err
 	}
@@ -730,8 +802,12 @@ func (s *Service) AdoptSwitchSuggestion(ctx context.Context, id uuid.UUID, opera
 	return out, nil
 }
 
-// IgnoreSwitchSuggestion marks an open suggestion ignored.
-func (s *Service) IgnoreSwitchSuggestion(ctx context.Context, id uuid.UUID, operator *uuid.UUID) error {
+// IgnoreSwitchSuggestion marks an open suggestion of the request tenant ignored.
+func (s *Service) IgnoreSwitchSuggestion(c *gin.Context, id uuid.UUID, operator *uuid.UUID) error {
+	if err := s.ensureSwitchEventVisible(c, id); err != nil {
+		return err
+	}
+	ctx := c.Request.Context()
 	res := s.DB.WithContext(ctx).Model(&SourceSwitchEvent{}).
 		Where("id = ? AND mode = ? AND status = ?", id, SwitchModeSuggested, SuggestionOpen).
 		Updates(map[string]any{"status": SuggestionIgnored, "operator": operator})
@@ -759,9 +835,13 @@ type SourceAlertRow struct {
 
 // ListSourceAlerts returns sources currently in price_alert / out_of_stock,
 // newest-checked first, with per-product open suggestion counts.
-func (s *Service) ListSourceAlerts(ctx context.Context) ([]SourceAlertRow, error) {
+func (s *Service) ListSourceAlerts(c *gin.Context) ([]SourceAlertRow, error) {
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	var rows []SourceAlertRow
-	err := s.DB.WithContext(ctx).Raw(`
+	err = s.DB.WithContext(c.Request.Context()).Raw(`
 		SELECT ps.id AS source_id,
 		       ps.product_id,
 		       COALESCE(NULLIF(TRIM(p.title), ''), p.original_title) AS product_title,
@@ -778,10 +858,11 @@ func (s *Service) ListSourceAlerts(ctx context.Context) ([]SourceAlertRow, error
 		JOIN products p ON p.id = ps.product_id AND p.deleted_at IS NULL
 		LEFT JOIN suppliers sup ON sup.id = ps.supplier_id AND sup.deleted_at IS NULL
 		WHERE ps.deleted_at IS NULL
+		  AND ps.tenant_id = ?
 		  AND ps.status IN (?, ?)
 		ORDER BY ps.last_checked_at DESC NULLS LAST
 		LIMIT 200
-	`, SwitchModeSuggested, SuggestionOpen, SourceStatusPriceAlert, SourceStatusOutOfStock).
+	`, SwitchModeSuggested, SuggestionOpen, tid, SourceStatusPriceAlert, SourceStatusOutOfStock).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -827,7 +908,14 @@ type RefreshResult struct {
 
 // RefreshProductSources fetches current price/stock via the sourceinfo
 // Provider (mock for now), appends price history and applies switch rules.
-func (s *Service) RefreshProductSources(ctx context.Context, productID uuid.UUID, operator *uuid.UUID) (*RefreshResult, error) {
+func (s *Service) RefreshProductSources(c *gin.Context, productID uuid.UUID, operator *uuid.UUID) (*RefreshResult, error) {
+	if err := s.ensureProductVisible(c, productID); err != nil {
+		return nil, err
+	}
+	return s.refreshProductSources(c.Request.Context(), productID, operator)
+}
+
+func (s *Service) refreshProductSources(ctx context.Context, productID uuid.UUID, operator *uuid.UUID) (*RefreshResult, error) {
 	sources, err := s.listProductSources(ctx, productID)
 	if err != nil {
 		return nil, err
@@ -877,7 +965,7 @@ func (s *Service) RefreshProductSources(ctx context.Context, productID uuid.UUID
 				Updates(map[string]any{"current_price": price, "current_stock": stock}).Error; err != nil {
 				return nil, err
 			}
-			h := SourcePriceHistory{SourceSKUID: m.ID, Price: price, Stock: &stock, CapturedAt: now, CaptureSource: CaptureSourceCrawl}
+			h := SourcePriceHistory{TenantID: m.TenantID, SourceSKUID: m.ID, Price: price, Stock: &stock, CapturedAt: now, CaptureSource: CaptureSourceCrawl}
 			if err := s.DB.WithContext(ctx).Create(&h).Error; err != nil {
 				return nil, err
 			}

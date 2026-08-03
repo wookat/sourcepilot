@@ -1,7 +1,6 @@
 package sourcing
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -32,7 +31,6 @@ func newOrphanTestService(t *testing.T) *Service {
 
 func TestOrphanSourceDetectionAndUnbind(t *testing.T) {
 	svc := newOrphanTestService(t)
-	ctx := context.Background()
 
 	liveProduct := product.Product{Title: "live product", Status: "draft"}
 	deadProduct := product.Product{Title: "dead product", Status: "draft"}
@@ -54,7 +52,7 @@ func TestOrphanSourceDetectionAndUnbind(t *testing.T) {
 	}
 
 	// no orphans while both products live
-	rows, err := svc.ListOrphanSources(ctx)
+	rows, err := svc.ListOrphanSources(testCtx(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +61,7 @@ func TestOrphanSourceDetectionAndUnbind(t *testing.T) {
 	}
 
 	// non-orphan source cannot be unbound
-	if err := svc.DeleteSource(ctx, liveSrc.ID, nil); !errors.Is(err, ErrConflict) {
+	if err := svc.DeleteSource(testCtx(0), liveSrc.ID, nil); !errors.Is(err, ErrConflict) {
 		t.Fatalf("expected conflict for live product source, got %v", err)
 	}
 
@@ -71,7 +69,7 @@ func TestOrphanSourceDetectionAndUnbind(t *testing.T) {
 	if err := svc.DB.Delete(&product.Product{}, "id = ?", deadProduct.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	rows, err = svc.ListOrphanSources(ctx)
+	rows, err = svc.ListOrphanSources(testCtx(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,12 +81,12 @@ func TestOrphanSourceDetectionAndUnbind(t *testing.T) {
 	}
 
 	// supplier deletion blocked while the orphan source exists
-	if err := svc.DeleteSupplier(ctx, deadSrc.SupplierID, nil); !errors.Is(err, ErrConflict) {
+	if err := svc.DeleteSupplier(testCtx(0), deadSrc.SupplierID, nil); !errors.Is(err, ErrConflict) {
 		t.Fatalf("expected supplier delete conflict, got %v", err)
 	}
 
 	// unbind the orphan → source + mappings soft-deleted
-	if err := svc.DeleteSource(ctx, deadSrc.ID, nil); err != nil {
+	if err := svc.DeleteSource(testCtx(0), deadSrc.ID, nil); err != nil {
 		t.Fatalf("unbind orphan: %v", err)
 	}
 	var srcCnt, mapCnt int64
@@ -111,12 +109,12 @@ func TestOrphanSourceDetectionAndUnbind(t *testing.T) {
 	}
 
 	// supplier is now deletable
-	if err := svc.DeleteSupplier(ctx, deadSrc.SupplierID, nil); err != nil {
+	if err := svc.DeleteSupplier(testCtx(0), deadSrc.SupplierID, nil); err != nil {
 		t.Fatalf("supplier delete after unbind: %v", err)
 	}
 
 	// unknown source id → not found
-	if err := svc.DeleteSource(ctx, uuid.New(), nil); !errors.Is(err, ErrNotFound) {
+	if err := svc.DeleteSource(testCtx(0), uuid.New(), nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected not found, got %v", err)
 	}
 }

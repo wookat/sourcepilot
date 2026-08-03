@@ -74,3 +74,77 @@ func TestImageTaskItemsScopedByTenant(t *testing.T) {
 		t.Fatalf("legacy task without product: %v", err)
 	}
 }
+
+// Regression (R73): task detail / list / apply / item-save endpoints were
+// tenant-unscoped; the task and target product must both be answered with 404
+// for cross-tenant IDs, and the global list must not include foreign tasks.
+func TestImageTaskDetailAndApplyScopedByTenant(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "detail.db")
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Skipf("sqlite unavailable: %v", err)
+	}
+	if err := db.AutoMigrate(&product.Product{}, &product.ProductImage{}, &ImageTask{}, &ImageTaskItem{}); err != nil {
+		t.Fatal(err)
+	}
+
+	prod := &product.Product{TenantID: 1, Source: "manual", Title: "p1", Status: "draft"}
+	if err := db.Create(prod).Error; err != nil {
+		t.Fatal(err)
+	}
+	pid := prod.ID
+	task := &ImageTask{TaskType: "remove_background", Provider: "local", Status: "success", ProductID: &pid}
+	if err := db.Create(task).Error; err != nil {
+		t.Fatal(err)
+	}
+	item := &ImageTaskItem{TaskID: task.ID, Status: "success", OutputImageURL: "https://example.com/x.png"}
+	if err := db.Create(item).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	svc := &Service{DB: db}
+	ginCtx := func(tid int64) *gin.Context {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest("GET", "/", nil)
+		c.Set(ctxkey.TenantID, tid)
+		return c
+	}
+
+	// 同租户可见，跨租户 404
+	if err := svc.EnsureTaskVisible(ginCtx(1), task.ID); err != nil {
+		t.Fatalf("same-tenant task visible: %v", err)
+	}
+	if err := svc.EnsureTaskVisible(ginCtx(2), task.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("cross-tenant task: want ErrRecordNotFound, got %v", err)
+	}
+	if err := svc.EnsureProductVisible(ginCtx(2), prod.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("cross-tenant product: want ErrRecordNotFound, got %v", err)
+	}
+	if err := svc.EnsureTaskItemVisible(ginCtx(2), item.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("cross-tenant item: want ErrRecordNotFound, got %v", err)
+	}
+	if err := svc.EnsureTaskItemVisible(ginCtx(1), item.ID); err != nil {
+		t.Fatalf("same-tenant item visible: %v", err)
+	}
+
+	// 全局任务列表按租户过滤；无商品关联的存量任务保持可见
+	legacy := &ImageTask{TaskType: "remove_background", Provider: "local", Status: "success"}
+	if err := db.Create(legacy).Error; err != nil {
+		t.Fatal(err)
+	}
+	res, err := svc.List(ginCtx(2), ListQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 1 || len(res.Items) != 1 || res.Items[0].ID != legacy.ID {
+		t.Fatalf("cross-tenant list must only include legacy task, got total=%d", res.Total)
+	}
+	res, err = svc.List(ginCtx(1), ListQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 2 {
+		t.Fatalf("owner list: want 2 tasks, got %d", res.Total)
+	}
+}

@@ -134,8 +134,12 @@ func (h *Handler) ListPublishTargets(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.ListPublishTargets(c.Request.Context(), pid)
+	out, err := h.Svc.ListPublishTargets(c, pid)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
@@ -157,7 +161,7 @@ func (h *Handler) CheckPublishTargets(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.CheckPublishTargets(c.Request.Context(), pid, body)
+	out, err := h.Svc.CheckPublishTargets(c, pid, body)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -509,7 +513,7 @@ func (h *Handler) ListGlobalPublishTargets(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
 		return
 	}
-	out, err := h.Svc.ListPublishTargets(c.Request.Context(), uuid.Nil)
+	out, err := h.Svc.ListPublishTargets(c, uuid.Nil)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -527,7 +531,7 @@ func (h *Handler) CheckBatchTargets(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.CheckBatchTargets(c.Request.Context(), body)
+	out, err := h.Svc.CheckBatchTargets(c, body)
 	if err != nil {
 		if pe, ok := err.(*PublishConfigInvalidError); ok {
 			response.JSON(c, 400, response.CodePublishConfigInvalid, pe.Message, gin.H{

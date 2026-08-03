@@ -5,9 +5,11 @@
   "packageManager": "pnpm@9.15.4",
   "pnpm": {
     "overrides": {
+      "postcss": "^8.5.18",
       "rc-resize-observer": "1.4.3",
       "react": "18.2.0",
-      "react-dom": "18.2.0"
+      "react-dom": "18.2.0",
+      "vite": "^4.5.14"
     }
   },
   "scripts": {
