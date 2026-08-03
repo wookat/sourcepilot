@@ -129,8 +129,12 @@ func (h *Handler) ListSKULogs(c *gin.Context) {
 	}
 	page := atoiQ(c, "page", 1)
 	ps := atoiQ(c, "pageSize", 20)
-	res, err := h.Svc.ListSKUChangeLogs(c.Request.Context(), pid, sid, page, ps)
+	res, err := h.Svc.ListSKUChangeLogs(c, pid, sid, page, ps)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
@@ -162,8 +166,12 @@ func (h *Handler) ListPublicationSkuRows(c *gin.Context) {
 			filter = &u
 		}
 	}
-	rows, err := h.Svc.ListPublicationSkus(c.Request.Context(), pid, filter)
+	rows, err := h.Svc.ListPublicationSkus(c, pid, filter)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}

@@ -385,7 +385,10 @@ func convToDTO(r *CustomerConversation, sum *order.ConversationOrderSummary, sho
 	return dto
 }
 
-func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDetailDTO, error) {
+// findScopedConversation loads a conversation restricted to the request's
+// tenant and store scope. Out-of-scope or cross-tenant conversations return
+// gorm.ErrRecordNotFound so callers respond 404 without leaking existence.
+func (s *Service) findScopedConversation(c *gin.Context, id uuid.UUID) (*CustomerConversation, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
@@ -400,6 +403,31 @@ func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDe
 	if err := adminperm.EnsureStoreVisible(c, s.DB, row.ShopID); err != nil {
 		return nil, err
 	}
+	return &row, nil
+}
+
+// findScopedSuggestion loads a suggestion whose parent conversation is within
+// the request's tenant + store scope; otherwise gorm.ErrRecordNotFound.
+func (s *Service) findScopedSuggestion(c *gin.Context, id uuid.UUID) (*CustomerReplySuggestion, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("customerchat: no db")
+	}
+	var row CustomerReplySuggestion
+	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	if _, err := s.findScopedConversation(c, row.ConversationID); err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDetailDTO, error) {
+	rowPtr, err := s.findScopedConversation(c, id)
+	if err != nil {
+		return nil, err
+	}
+	row := *rowPtr
 	var sum *order.ConversationOrderSummary
 	if row.OrderID != nil && s.Orders != nil {
 		got, err := s.Orders.ConversationSummary(c, *row.OrderID)
@@ -447,10 +475,11 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	var row CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	rowPtr, err := s.findScopedConversation(c, id)
+	if err != nil {
 		return nil, err
 	}
+	row := *rowPtr
 	prevStatus := row.Status
 	prevOrderIDStr := uuidToStrPtr(row.OrderID)
 	if body.CustomerName != nil {
@@ -598,8 +627,8 @@ func (s *Service) DeleteConversation(c *gin.Context, id uuid.UUID, adminID *uuid
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
 	}
-	var row CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	row, err := s.findScopedConversation(c, id)
+	if err != nil {
 		return err
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Delete(&CustomerConversation{}, "id = ?", id).Error; err != nil {
@@ -641,7 +670,7 @@ func (s *Service) ListMessages(c *gin.Context, conversationID uuid.UUID) ([]Cust
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	if err := s.DB.WithContext(c.Request.Context()).First(&CustomerConversation{}, "id = ?", conversationID).Error; err != nil {
+	if _, err := s.findScopedConversation(c, conversationID); err != nil {
 		return nil, err
 	}
 	var rows []CustomerMessage
@@ -658,10 +687,11 @@ func (s *Service) CreateMessage(c *gin.Context, conversationID uuid.UUID, body C
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	convPtr, err := s.findScopedConversation(c, conversationID)
+	if err != nil {
 		return nil, err
 	}
+	conv := *convPtr
 	if !validRole(body.Role) {
 		return nil, fmt.Errorf("invalid role")
 	}
@@ -733,10 +763,11 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 	if reply == "" {
 		return nil, fmt.Errorf("reply is required")
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	convPtr, err := s.findScopedConversation(c, conversationID)
+	if err != nil {
 		return nil, err
 	}
+	conv := *convPtr
 	now := time.Now().UTC()
 	msg := &CustomerMessage{
 		ConversationID: conversationID,
@@ -784,10 +815,11 @@ func (s *Service) UpdateSuggestion(c *gin.Context, id uuid.UUID, body UpdateSugg
 	if text == "" {
 		return fmt.Errorf("editedReply is required")
 	}
-	var row CustomerReplySuggestion
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	rowPtr, err := s.findScopedSuggestion(c, id)
+	if err != nil {
 		return err
 	}
+	row := *rowPtr
 	row.EditedReply = text
 	row.Status = SuggestionEdited
 	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
@@ -819,14 +851,16 @@ func (s *Service) AcceptSuggestion(c *gin.Context, id uuid.UUID, body AcceptSugg
 	if final == "" {
 		return fmt.Errorf("finalReply is required")
 	}
-	var su CustomerReplySuggestion
-	if err := s.DB.WithContext(c.Request.Context()).First(&su, "id = ?", id).Error; err != nil {
+	suPtr, err := s.findScopedSuggestion(c, id)
+	if err != nil {
 		return err
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", su.ConversationID).Error; err != nil {
+	su := *suPtr
+	convPtr, err := s.findScopedConversation(c, su.ConversationID)
+	if err != nil {
 		return err
 	}
+	conv := *convPtr
 	now := time.Now().UTC()
 	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		msg := &CustomerMessage{
@@ -868,8 +902,8 @@ func (s *Service) DiscardSuggestion(c *gin.Context, id uuid.UUID, adminID *uuid.
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
 	}
-	var row CustomerReplySuggestion
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	row, err := s.findScopedSuggestion(c, id)
+	if err != nil {
 		return err
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Model(&CustomerReplySuggestion{}).Where("id = ?", id).Update("status", SuggestionDiscarded).Error; err != nil {

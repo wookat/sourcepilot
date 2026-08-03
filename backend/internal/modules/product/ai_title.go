@@ -13,7 +13,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/aimodelparse"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -364,8 +366,12 @@ func (s *Service) ListRecentAITasks(c *gin.Context, productID uuid.UUID, limit i
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&p, "id = ?", productID).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB.Select("id"), &p, tid, productID); err != nil {
 		return nil, err
 	}
 	if s.AITasks == nil {

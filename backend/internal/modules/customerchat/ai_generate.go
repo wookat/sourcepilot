@@ -189,10 +189,11 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 		return nil, fmt.Errorf("customerchat: ai not configured")
 	}
 
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	convPtr, err := s.findScopedConversation(c, conversationID)
+	if err != nil {
 		return nil, err
 	}
+	conv := *convPtr
 
 	var msgs []CustomerMessage
 	if err := s.DB.WithContext(c.Request.Context()).

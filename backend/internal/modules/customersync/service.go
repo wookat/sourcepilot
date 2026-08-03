@@ -15,6 +15,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -201,8 +203,15 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncCust
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customersync: no db")
 	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, &shopID); err != nil {
+		return nil, err
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var row shop.Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, shopID); err != nil {
 		return nil, err
 	}
 	prov := platformp.Get(strings.TrimSpace(row.Platform))
@@ -226,6 +235,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncCust
 	}
 
 	task := CustomerMessageSyncTask{
+		TenantID:  row.TenantID,
 		ShopID:    shopID,
 		Platform:  strings.TrimSpace(row.Platform),
 		TaskType:  TaskTypeCustomerMessageSync,
@@ -267,7 +277,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncCust
 		}
 	}
 
-	out, err := s.GetDTO(c.Request.Context(), task.ID)
+	out, err := s.GetDTO(c, task.ID)
 	return &out, err
 }
 
@@ -476,19 +486,26 @@ func (s *Service) shopNameLookup(ctx context.Context, shopID uuid.UUID) string {
 	return sh.ShopName
 }
 
-// GetDTO loads one task.
-func (s *Service) GetDTO(ctx context.Context, id uuid.UUID) (TaskDTO, error) {
+// GetDTO loads one task within the request's tenant + store scope.
+func (s *Service) GetDTO(c *gin.Context, id uuid.UUID) (TaskDTO, error) {
 	var zero TaskDTO
-	var t CustomerMessageSyncTask
-	if err := s.DB.WithContext(ctx).First(&t, "id = ?", id).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return zero, err
 	}
-	name := s.shopNameLookup(ctx, t.ShopID)
-	return s.taskToDTO(ctx, &t, name), nil
+	var t CustomerMessageSyncTask
+	if err := repository.FindByID(c.Request.Context(), s.DB, &t, tid, id); err != nil {
+		return zero, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, &t.ShopID); err != nil {
+		return zero, err
+	}
+	name := s.shopNameLookup(c.Request.Context(), t.ShopID)
+	return s.taskToDTO(c.Request.Context(), &t, name), nil
 }
 
-// List paginates tasks.
-func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
+// List paginates tasks with tenant scope.
+func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customersync: no db")
 	}
@@ -504,9 +521,20 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 		ps = 100
 	}
 
+	ctx := c.Request.Context()
 	tx := s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if q.ShopID != nil && *q.ShopID != uuid.Nil {
 		tx = tx.Where("shop_id = ?", *q.ShopID)
+		if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+			return nil, err
+		} else {
+			tx = scoped
+		}
 	}
 	if v := strings.TrimSpace(q.Platform); v != "" {
 		tx = tx.Where("platform = ?", v)
@@ -550,8 +578,15 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customersync: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var task CustomerMessageSyncTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", taskID).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, &task.ShopID); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(task.Status) != StatusFailed {
@@ -604,6 +639,6 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		}
 	}
 
-	out, err := s.GetDTO(c.Request.Context(), taskID)
+	out, err := s.GetDTO(c, taskID)
 	return &out, err
 }

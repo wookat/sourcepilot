@@ -224,6 +224,10 @@ func (h *Handler) ListMessages(c *gin.Context) {
 	}
 	rows, err := h.Svc.ListMessages(c, cid)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
