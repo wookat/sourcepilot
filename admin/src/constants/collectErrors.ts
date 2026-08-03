@@ -211,6 +211,9 @@ export function mapCollectErrorMessage(err: unknown, source?: string | null): st
   ) {
     return raw.includes('请使用') ? raw : '该链接已有专用采集器，请使用对应专用采集器。';
   }
+  if (upper.includes('TENANT_CONTEXT_MISSING')) {
+    return '当前账号处于平台管理员（租户 0）视角，无法直接发起采集任务。请切换到具体业务租户后重试。';
+  }
   if (upper.includes('NOT_A_PINDUODUO')) {
     return mapCollectorErrorCodeDetail('INVALID_URL', 'pinduoduo');
   }

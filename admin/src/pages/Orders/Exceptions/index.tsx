@@ -276,6 +276,8 @@ export default function OrderExceptionsPage() {
     if (!openRows.length) return;
     let remark = '';
     Modal.confirm({
+      okText: '确定',
+      cancelText: '取消',
       title: `批量标记已处理（${openRows.length} 条）`,
       content: (
         <Input.TextArea
@@ -302,6 +304,8 @@ export default function OrderExceptionsPage() {
   const batchIgnore = useCallback(() => {
     if (!openRows.length) return;
     Modal.confirm({
+      okText: '确定',
+      cancelText: '取消',
       title: `批量忽略（${openRows.length} 条，仅影响工作台视图）`,
       onOk: () =>
         runBatchMark(
@@ -315,6 +319,8 @@ export default function OrderExceptionsPage() {
   const batchUnmark = useCallback(() => {
     if (!markedRows.length) return;
     Modal.confirm({
+      okText: '确定',
+      cancelText: '取消',
       title: `批量取消标记（${markedRows.length} 条，回到待处理列表）`,
       onOk: () =>
         runBatchMark(
@@ -634,6 +640,8 @@ export default function OrderExceptionsPage() {
               onClick={() => {
                 let remark = '';
                 Modal.confirm({
+                  okText: '确定',
+                  cancelText: '取消',
                   title: '标记已处理',
                   content: (
                     <Input.TextArea
@@ -667,6 +675,8 @@ export default function OrderExceptionsPage() {
             <a
               onClick={() => {
                 Modal.confirm({
+                  okText: '确定',
+                  cancelText: '取消',
                   title: '忽略该异常（工作台视图）',
                   onOk: async () => {
                     try {
