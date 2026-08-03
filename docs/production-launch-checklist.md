@@ -32,6 +32,7 @@ cp .env.prod.example .env && chmod 600 .env
 #   PAGINATION_CURSOR_SIGNING_KEY=$(openssl rand -hex 32)
 #   POSTGRES_PASSWORD=DB_PASSWORD=$(openssl rand -hex 24)   # 两者一致
 #   ADMIN_BOOTSTRAP_EMAIL / ADMIN_BOOTSTRAP_PASSWORD（≥12 位强密码）
+#   ADMIN_BOOTSTRAP_TENANT_ID=0（默认；引导账号即平台管理员，登录后在「设置 → 平台租户」开租）
 #   STORAGE_PROVIDER=s3|cos|oss|r2|minio（禁止 local）
 #   CORS_ALLOWED_ORIGINS=https://<DOMAIN>（与 ADMIN_PUBLIC_URL 一致）
 
@@ -57,6 +58,9 @@ sudo mkdir -p /var/backups && crontab -l 2>/dev/null | { cat; echo '0 3 * * * cd
 | 9 | 错误不泄露堆栈 | 构造 400/404 请求 | 统一 envelope（code/message/traceId），无堆栈 |
 | 10 | 手工备份 | `POST /api/v1/ops/backups`（或等 crontab） | status=completed；备份文件落盘/入桶 |
 | 11 | 系统设置密钥 | 管理端配置 AI/对象存储密钥 | 加密入库、脱敏展示 |
+| 12 | 平台租户开租 | 引导账号登录 →「设置 → 平台租户」新建租户 | 创建成功；新租户初始管理员可用邮箱+密码登录 |
+| 13 | 会话治理 | `POST /auth/refresh`（cookie）→ `POST /auth/logout` → 再 refresh/带旧 token 访问 | 续期成功；登出后 `AUTH_REFRESH_TOKEN_REVOKED` / `AUTH_SESSION_REVOKED` |
+| 14 | 备份校验/下载 | `POST /ops/backups/{backupId}/verify`、`GET .../download` | checksum/pg_restore_list/manifest/encryption 全 passed；下载文件 SHA-256 与 checksum 一致 |
 
 ## 四、回滚方案
 
@@ -72,9 +76,10 @@ git checkout <上一个正常commit>
 - 若新版本已做不兼容迁移：先 `stop backend`，用 `pg_restore --clean --if-exists` 恢复最近备份，再启动旧版本（详见 production-deployment.md「备份与恢复」）。
 - **严禁** `down -v`（删库删证书）。
 
-## 五、演练结论与已知注意点（2026-08-02 本地演练）
+## 五、演练结论与已知注意点（2026-08-02 首演；2026-08-03 复跑）
 
-- 从零（`cp .env.prod.example` 起）到 6 服务全 healthy + HTTPS 登录成功，实测 < 15 分钟（含镜像构建），30 分钟目标有充分余量。
+- 从零（`cp .env.prod.example` 起）到 6 服务全 healthy + HTTPS 登录成功，实测 < 15 分钟（含镜像构建；2026-08-03 复跑约 4 分钟），30 分钟目标有充分余量。
+- 引导管理员口径为 tenant 0 平台管理员（`ADMIN_BOOTSTRAP_TENANT_ID=0`），业务租户一律经「设置 → 平台租户」创建；仅遗留单租户部署才显式设 >0。
 - `BACKUP_SCHEDULE` 仅是配置元数据，后端**没有内置定时器**：每日自动备份靠宿主机 crontab（上文第 4 步），勿以为配了变量就有自动备份。
 - 后端镜像已内置 postgresql-client-16（`pg_dump`/`pg_restore`/`psql`），`/api/v1/ops/backups` 手工备份可用（演练中发现缺失并已修复）。
 - `BACKUP_STORAGE_BUCKET` 为空时对象存储备份会失败，上线后尽快在 `.env` 补齐并重启 backend。

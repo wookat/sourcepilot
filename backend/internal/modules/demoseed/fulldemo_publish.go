@@ -215,7 +215,7 @@ func (s *FullDemoSeeder) seedPublishBatchWithTasks(tx *gorm.DB, res *FullDemoRes
 // cleanupPublishSamples removes SKU binding rows attached to demo
 // publications plus the DEMO- settings preset. Publications themselves are
 // removed by the existing product-scoped cleanup.
-func cleanupPublishSamples(tx *gorm.DB, res *FullDemoResult, like string, productIDs []uuid.UUID) error {
+func cleanupPublishSamples(tx *gorm.DB, res *FullDemoResult, like string, productIDs []uuid.UUID, includeDemoSettings bool) error {
 	del := func(table string, q *gorm.DB) error {
 		if q.Error != nil {
 			return fmt.Errorf("demoseed cleanup %s: %w", table, q.Error)
@@ -251,7 +251,7 @@ func cleanupPublishSamples(tx *gorm.DB, res *FullDemoResult, like string, produc
 			Delete(&productpublish.ProductPublicationSKU{})); err != nil {
 		return err
 	}
-	if tx.Migrator().HasTable("settings") {
+	if includeDemoSettings && tx.Migrator().HasTable("settings") {
 		if err := del("settings",
 			tx.Where("remark = ?", demoSettingRemark).Delete(&settings.Setting{})); err != nil {
 			return err

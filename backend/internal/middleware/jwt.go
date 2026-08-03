@@ -85,9 +85,18 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 		if cfg != nil {
 			resolved, src, err := cfg.ResolveRequestTenantID(claims.TenantID)
 			if err != nil && IsProductionLike(cfg, claims.TenantID) {
-				response.Fail(c, 403, response.CodeForbidden, err.Error())
-				c.Abort()
-				return
+				// Tenant 0 is the platform tenant: its active admins operate
+				// platform governance APIs and must not be treated as a
+				// legacy tenant fallback. Business tenant scoping still
+				// rejects tenant 0 via RequireTenantID.
+				if claims.TenantID == 0 && isActivePlatformTenantUser(c, db, uid) {
+					err = nil
+					authSource = security.AuthSourcePlatformTenant
+				} else {
+					response.Fail(c, 403, response.CodeForbidden, err.Error())
+					c.Abort()
+					return
+				}
 			}
 			if resolved > 0 {
 				tenantID = resolved
@@ -105,6 +114,23 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 		security.SetGin(c, tc)
 		c.Next()
 	}
+}
+
+// isActivePlatformTenantUser reports whether uid is an active admin_users row
+// that belongs to the platform tenant (tenant 0).
+func isActivePlatformTenantUser(c *gin.Context, db *gorm.DB, uid uuid.UUID) bool {
+	if db == nil || uid == uuid.Nil {
+		return false
+	}
+	var row struct {
+		TenantID int64
+		Status   string
+	}
+	if err := db.WithContext(c.Request.Context()).Table("admin_users").
+		Select("tenant_id", "status").Where("id = ?", uid).Take(&row).Error; err != nil {
+		return false
+	}
+	return row.TenantID == 0 && strings.EqualFold(strings.TrimSpace(row.Status), "active")
 }
 
 func IsProductionLike(cfg *config.Config, rawTenant int64) bool {

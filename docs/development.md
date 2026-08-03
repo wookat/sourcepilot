@@ -66,11 +66,15 @@ pnpm dev:reset
 
 ```bash
 pnpm seed:demo:full          # 种子（幂等：先清理旧 DEMO- 数据再重建）
-pnpm seed:demo:full:clean    # 一键清理，只删 DEMO- 前缀数据（含测试期在 UI 上基于 DEMO- 供应商/订单创建的采购单）
+pnpm seed:demo:full:clean    # 一键清理，默认只删 DEMO- 前缀数据（含测试期在 UI 上基于 DEMO- 供应商/订单创建的采购单）
 pnpm seed:demo:full:verify   # 复核清理后零残留（有残留退出码非 0）
 
+# 清理/复核自定义前缀的测试数据（如 QA-；默认仍只清 DEMO-，seed 不支持自定义前缀）：
+pnpm seed:demo:full:clean -- -prefix QA-
+pnpm seed:demo:full:verify -- -prefix QA-
+
 # 等价直跑（backend 目录）：
-go run ./cmd/seeddemo -mode seed|clean|verify [-tenant N]
+go run ./cmd/seeddemo -mode seed|clean|verify [-tenant N] [-prefix QA-]
 ```
 
 `-tenant` 缺省为自动：取最早创建的管理员（bootstrap admin）的 `tenant_id`，保证种子数据登录后即可见；也可显式指定租户。
