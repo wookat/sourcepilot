@@ -93,6 +93,10 @@ export const PAGE_COPY = {
     title: '用户与权限',
     description: '管理员可管理后台账号、角色与店铺授权。',
   },
+  platformTenants: {
+    title: '平台租户',
+    description: '平台管理员可查看全部租户，并创建新租户及其初始管理员账号。',
+  },
 } as const;
 
 /** 商品相关 */
@@ -351,6 +355,11 @@ export const LIST_EMPTY_COPY = {
     title: '暂无用户',
     description: '管理员可在此创建后台账号并分配角色与店铺权限。',
     action: '创建用户',
+  },
+  platformTenants: {
+    title: '暂无租户',
+    description: '平台管理员可在此创建新租户，并为其配置初始管理员账号。',
+    action: '新建租户',
   },
   operationLogs: {
     title: '暂无操作日志',

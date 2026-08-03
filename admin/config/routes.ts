@@ -570,6 +570,11 @@ export default [
         name: '用户与权限',
         component: './Settings/Users',
       },
+      {
+        path: '/settings/platform-tenants',
+        name: '平台租户',
+        component: './Settings/PlatformTenants',
+      },
     ],
   },
   {
