@@ -46,8 +46,16 @@ docker compose -f docker-compose.full.yml up -d --build
 | `ADMIN_BOOTSTRAP_PASSWORD` | 空 / 示例密码 | backend | 是 | 初始管理员密码，生产必须强密码。 |
 | `ADMIN_BOOTSTRAP_TENANT_ID` | `0`（代码与示例文件一致） | backend | 否 | 初始管理员的租户 ID。默认 `0` = 平台租户：引导账号即平台管理员，负责平台租户治理（开租/停用/改名），业务租户通过「平台租户管理」创建。选品（selection）等按租户隔离的 worker 模块要求业务租户（>0）账号发起；如需把引导账号放入某个业务租户（遗留单租户部署），显式设置 >0 的值。仅在 admin_users 为空首次创建时生效，不迁移存量数据。 |
 | `JWT_SECRET` | `change-me-in-production` | backend | 是 | JWT 签名密钥。 |
-| `JWT_EXPIRE_HOURS` | `168` | backend | 否 | JWT 有效期小时数。 |
+| `JWT_EXPIRE_HOURS` | `168` | backend | 否 | JWT 有效期小时数（仅 `legacy_local_storage` 模式生效）。 |
+| `AUTH_SESSION_MODE` | dev 默认 `legacy_local_storage`；staging/production 强制 `secure_session` | backend | 否 | 会话模式。`secure_session`：refresh token 走 HttpOnly Cookie，access token 必须带 session 绑定；`legacy_local_storage`：仅限开发/遗留本地部署。 |
 | `UPLOAD_MAX_MB` | `10` | backend | 否 | 单文件上传大小上限。 |
+
+### secure_session 模式的 legacy token 收紧与迁移
+
+`secure_session` 模式下（staging/production 默认且强制），后端不再接受无 session 绑定的 legacy JWT（登录接口旧版签发、claims 中无 `session_id` 的 token），统一返回 `401` + `AUTH_SESSION_BINDING_REQUIRED`。
+
+- **现网升级路径**：从旧版本（或从 `legacy_local_storage` 切到 `secure_session`）升级后，存量 legacy token 首次请求即被 401 拒绝，前端会话守卫会弹出「登录已过期」引导重新登录；重新登录后即获得 session 绑定 token，无需额外迁移操作。
+- **开发/遗留部署**：`APP_ENV=development` 下默认 `legacy_local_storage`，legacy token 行为不变；显式设 `AUTH_SESSION_MODE=secure_session` 时与生产同口径。
 
 ## 可观测性与 OTLP
 

@@ -72,12 +72,22 @@ func (s *Service) List(c *gin.Context) ([]TenantRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	out = append(out, TenantRow{
+	platformRow := TenantRow{
 		ID:         PlatformTenantID,
 		Name:       "平台租户（默认）",
 		Status:     StatusActive,
 		AdminCount: platformCount,
-	})
+	}
+	// 平台租户 0 是隐式租户，无 tenants 表行；用最早的平台管理员创建时间作为创建时间。
+	var firstAdmin admin.AdminUser
+	if err := tx.Where("tenant_id = ?", PlatformTenantID).Order("created_at ASC").
+		Select("created_at").Limit(1).Find(&firstAdmin).Error; err != nil {
+		return nil, err
+	}
+	if !firstAdmin.CreatedAt.IsZero() {
+		platformRow.CreatedAt = firstAdmin.CreatedAt.UTC().Format(time.RFC3339)
+	}
+	out = append(out, platformRow)
 	for i := range rows {
 		cnt, err := userCountByTenant(tx, rows[i].ID)
 		if err != nil {

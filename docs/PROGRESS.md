@@ -1425,3 +1425,10 @@ Final Production Acceptance Deferred to P10
 - 删除用户（`DELETE /admin/users/:id`）同步吊销该用户全部 `auth_sessions`/refresh token（`user_deleted`），旧会话立即不可 refresh 续期；回归测试 `TestDeleteUserRevokesUserSessions`。
 - `/auth/refresh` 增加 `token_version` 校验兜底：`auth_sessions` 新增 `token_version` 列（登录时快照），refresh 时与 `admin_users.token_version` 比对，不匹配即 401 并吊销会话（`token_version_mismatch`），口径与访问令牌 `ValidateSessionAccess` 一致；存量会话（列值 0）跳过校验不强制下线；正常续期与 secure_session 模式不受影响。回归测试见 `session_service_test.go`。
 - 失效类操作统一口径梳理（删用户/改密码/改角色/改状态/店铺授权变更/租户停用）：均已递增 `token_version` 或直接校验，refresh 与访问令牌双链路兜底；详见 docs/P4_AUTH_SESSION_SECURITY.md「失效类操作统一口径」。
+
+### 变更记录（2026-08-03）第 87 轮：R86 生产演练 P2 收口（legacy token 收紧 + 统一 404 + 租户列表 createdAt + LE 签发注意事项）
+
+- `secure_session` 模式（staging/production 强制）不再接受无 session 绑定的 legacy JWT，统一 401 + `AUTH_SESSION_BINDING_REQUIRED`，前端会话守卫引导重新登录；`legacy_local_storage`（开发/遗留部署）行为不变，迁移说明见 docs/env.md。回归测试 `jwt_session_binding_test.go`。
+- 未知路由统一 JSON 404 envelope（`40401` + 中文口径），替换 Gin 裸文本 `404 page not found`（`api.RegisterNoRoute`）；前端未匹配路由已有统一 404 页（`admin/src/pages/404.tsx`，引导返回工作台）。
+- 平台租户列表：隐式平台租户 0 的 `createdAt` 取最早平台管理员创建时间，不再空展示；回归测试 `list_created_at_test.go`。
+- docs/production-launch-checklist.md 补「Let's Encrypt 真实域名签发注意事项」（DNS/端口/CDN 前置、staging CA 联调、速率限制、排查顺序、自动续期），仅文档不改代码。
