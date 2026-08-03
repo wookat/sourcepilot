@@ -540,7 +540,7 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `PATCH` | `/api/v1/admin/users/:id` | 修改显示名 / 角色 / 状态；不能禁用自己、不能自我降级 |
 | `PUT` | `/api/v1/admin/users/:id/store-permissions` | 整体替换店铺授权（admin 角色无需分配） |
 | `POST` | `/api/v1/admin/users/:id/reset-password` | 重置用户登录密码（`{"password"}`，至少 6 位）；递增 `token_version` 并吊销该用户全部 secure 会话/refresh token，旧会话下次请求即失效且不可续期；写操作日志 `user.password.reset` |
-| `DELETE` | `/api/v1/admin/users/:id` | 软删除用户（`deleted_at`，数据保留）；同时撤销全部店铺授权并递增 `token_version` 使会话失效；不能删除当前登录账号（400）；路由级只读守卫 403 |
+| `DELETE` | `/api/v1/admin/users/:id` | 软删除用户（`deleted_at`，数据保留）；同时撤销全部店铺授权、递增 `token_version` 并吊销该用户全部 secure 会话/refresh token（旧会话立即不可续期）；不能删除当前登录账号（400）；路由级只读守卫 403 |
 
 ### 平台租户管理（仅平台管理员）
 

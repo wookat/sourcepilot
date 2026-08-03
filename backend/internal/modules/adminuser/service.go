@@ -526,6 +526,10 @@ func (s *Service) Delete(c *gin.Context, userID uuid.UUID, actorID *uuid.UUID) e
 	if err != nil {
 		return err
 	}
+	// 同步吊销全部 secure_session 会话与 refresh token，使旧会话立即不可续期
+	if s.Sessions != nil {
+		_, _ = s.Sessions.RevokeAllUserSessions(c.Request.Context(), userID, "user_deleted")
+	}
 	adminperm.InvalidateUserPermissionCache(userID)
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{

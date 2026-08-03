@@ -122,6 +122,7 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 		IPHash:           authutil.HashIP(ip),
 		UserAgentSummary: authutil.SummarizeUserAgent(userAgent),
 		LastActivityAt:   now,
+		TokenVersion:     u.TokenVersion,
 	}
 	// 先分配会话 ID，保证访问令牌 session_id 声明与落库会话一致（会话吊销依赖该绑定）
 	id.Ensure(&session.ID)
@@ -211,6 +212,7 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 	now := time.Now().UTC()
 
 	var result *RefreshResult
+	staleVersionSession := uuid.Nil
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row AuthRefreshToken
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -258,6 +260,12 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 		if tenantDisabled(ctx, tx, u.TenantID) {
 			_ = s.revokeSessionTx(tx, sess.ID, "tenant_disabled")
 			return errors.New(ErrTenantDisabled)
+		}
+		// 与访问令牌 ValidateSessionAccess 同口径：token_version 不匹配的会话拒绝续期，
+		// 使删用户/改密码/改角色/租户停用等失效类操作不依赖逐处吊销也能兜底
+		if sess.TokenVersion > 0 && u.TokenVersion > 0 && sess.TokenVersion != u.TokenVersion {
+			staleVersionSession = sess.ID
+			return errors.New(ErrSessionRevoked)
 		}
 
 		newRaw, err := authutil.NewOpaqueToken(32)
@@ -319,6 +327,12 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 		return nil
 	})
 	if err != nil {
+		// 回滚后再持久化吊销，避免失效会话反复尝试续期
+		if staleVersionSession != uuid.Nil {
+			_ = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+				return s.revokeSessionTx(tx, staleVersionSession, "token_version_mismatch")
+			})
+		}
 		reason := classifyAuthReason(err)
 		s.ObserveAuth("refresh", "failure", reason, "refresh_token")
 		if err.Error() == ErrRefreshTokenReused {

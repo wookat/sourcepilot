@@ -343,6 +343,120 @@ func TestCreateSessionBindsAccessTokenSessionID(t *testing.T) {
 	}
 }
 
+func newSessionServiceWithUser(t *testing.T) (*SessionService, *gorm.DB, uuid.UUID, *LoginSessionResult) {
+	t.Helper()
+	testID := uuid.NewString()
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", testID)), &gorm.Config{})
+	if err != nil {
+		t.Skipf("sqlite unavailable: %v", err)
+	}
+	if err := db.AutoMigrate(&AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &admin.AdminUser{}); err != nil {
+		t.Fatal(err)
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte("test-password-123"), bcrypt.MinCost)
+	uid := uuid.New()
+	email := fmt.Sprintf("test-%s@example.com", testID)
+	if err := db.Create(&admin.AdminUser{
+		Base:         model.Base{ID: uid},
+		Username:     "testuser-" + testID,
+		Email:        email,
+		PasswordHash: string(hash),
+		Role:         "admin",
+		Status:       "active",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{
+		JWTSecret: "test-jwt-secret-with-enough-length-32",
+		Auth: config.AuthConfig{
+			SessionMode:           config.AuthSessionModeSecure,
+			AccessTokenTTLMinutes: 15,
+			RefreshTokenTTLDays:   7,
+		},
+	}
+	svc := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}}
+	res, err := svc.CreateSession(context.Background(), email, "test-password-123", "127.0.0.1", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, db, uid, res
+}
+
+// login snapshots the user's token_version onto the session row.
+func TestCreateSessionSnapshotsTokenVersion(t *testing.T) {
+	_, db, uid, res := newSessionServiceWithUser(t)
+	var u admin.AdminUser
+	if err := db.First(&u, "id = ?", uid).Error; err != nil {
+		t.Fatal(err)
+	}
+	var sess AuthSession
+	if err := db.First(&sess, "id = ?", res.SessionID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if sess.TokenVersion != u.TokenVersion || sess.TokenVersion < 1 {
+		t.Fatalf("session token_version = %d, want user token_version %d (>=1)", sess.TokenVersion, u.TokenVersion)
+	}
+}
+
+// refresh with a stale token_version (e.g. after delete user / password reset /
+// role change / tenant disable bumped it) is rejected and the session revoked;
+// refresh with the current token_version keeps working.
+func TestRotateRefreshRejectsTokenVersionMismatch(t *testing.T) {
+	svc, db, uid, res := newSessionServiceWithUser(t)
+
+	// normal renewal unaffected before any invalidation
+	rotated, err := svc.RotateRefresh(context.Background(), res.RefreshToken, "127.0.0.1", "test")
+	if err != nil {
+		t.Fatalf("normal refresh must succeed: %v", err)
+	}
+
+	// invalidation-style operation bumps token_version without revoking sessions
+	if err := db.Model(&admin.AdminUser{}).Where("id = ?", uid).
+		UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := svc.RotateRefresh(context.Background(), rotated.RefreshToken, "127.0.0.1", "test"); err == nil || err.Error() != ErrSessionRevoked {
+		t.Fatalf("stale token_version refresh: err = %v, want %q", err, ErrSessionRevoked)
+	}
+	var sess AuthSession
+	if err := db.First(&sess, "id = ?", res.SessionID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if sess.Status != SessionStatusRevoked || sess.RevokeReason != "token_version_mismatch" {
+		t.Fatalf("session should be revoked with token_version_mismatch, got status=%s reason=%s", sess.Status, sess.RevokeReason)
+	}
+
+	// re-login after invalidation renews normally with the new version
+	var u admin.AdminUser
+	if err := db.First(&u, "id = ?", uid).Error; err != nil {
+		t.Fatal(err)
+	}
+	res2, err := svc.CreateSession(context.Background(), u.Email, "test-password-123", "127.0.0.1", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RotateRefresh(context.Background(), res2.RefreshToken, "127.0.0.1", "test"); err != nil {
+		t.Fatalf("refresh after re-login must succeed: %v", err)
+	}
+}
+
+// pre-migration sessions carry token_version 0 and skip the check (no forced logout on upgrade).
+func TestRotateRefreshSkipsZeroTokenVersionSession(t *testing.T) {
+	svc, db, uid, res := newSessionServiceWithUser(t)
+	if err := db.Model(&AuthSession{}).Where("id = ?", res.SessionID).
+		UpdateColumn("token_version", 0).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&admin.AdminUser{}).Where("id = ?", uid).
+		UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RotateRefresh(context.Background(), res.RefreshToken, "127.0.0.1", "test"); err != nil {
+		t.Fatalf("legacy session (token_version=0) refresh must still succeed: %v", err)
+	}
+}
+
 func TestRefreshLegacyModePrefersBodyOverStaleCookie(t *testing.T) {
 	testID := uuid.NewString()
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", testID)), &gorm.Config{})

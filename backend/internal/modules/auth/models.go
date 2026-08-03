@@ -27,10 +27,13 @@ const (
 
 // AuthSession is a server-side admin session bound to refresh token families.
 type AuthSession struct {
-	ID               uuid.UUID  `gorm:"type:char(36);primaryKey" json:"id"`
-	TenantID         int64      `gorm:"not null;default:0;index" json:"tenantId"`
-	UserID           uuid.UUID  `gorm:"type:char(36);not null;index" json:"userId"`
-	Status           string     `gorm:"size:32;not null;default:'active';index" json:"status"`
+	ID       uuid.UUID `gorm:"type:char(36);primaryKey" json:"id"`
+	TenantID int64     `gorm:"not null;default:0;index" json:"tenantId"`
+	UserID   uuid.UUID `gorm:"type:char(36);not null;index" json:"userId"`
+	Status   string    `gorm:"size:32;not null;default:'active';index" json:"status"`
+	// TokenVersion snapshots admin_users.token_version at login; refresh rejects
+	// sessions whose snapshot no longer matches (0 = pre-migration session, skipped).
+	TokenVersion     int        `gorm:"not null;default:0" json:"-"`
 	DeviceSummary    string     `gorm:"size:128" json:"deviceSummary,omitempty"`
 	BrowserSummary   string     `gorm:"size:128" json:"browserSummary,omitempty"`
 	IPHash           string     `gorm:"size:64;index" json:"-"`
