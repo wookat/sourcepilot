@@ -3,6 +3,7 @@ package demoseed
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -27,6 +28,18 @@ import (
 // DemoPrefix marks every seeded row so cleanup can target demo data only.
 const DemoPrefix = "DEMO-"
 
+// cleanPrefixPattern constrains custom cleanup prefixes to a safe shape:
+// alphanumeric segments ending with "-", no SQL LIKE wildcards (% _).
+var cleanPrefixPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{0,30}-$`)
+
+// ValidateCleanPrefix checks a custom cleanup/verify prefix (e.g. "QA-").
+func ValidateCleanPrefix(prefix string) error {
+	if !cleanPrefixPattern.MatchString(prefix) {
+		return fmt.Errorf("demoseed: invalid prefix %q (want 2-32 chars of [A-Za-z0-9-] ending with %q, e.g. %q)", prefix, "-", "QA-")
+	}
+	return nil
+}
+
 // FullDemoSeeder seeds a coherent cross-module demo dataset for one tenant.
 // Seed is idempotent: it always removes previously seeded DEMO- data first,
 // then inserts a fresh, internally consistent dataset.
@@ -34,6 +47,17 @@ type FullDemoSeeder struct {
 	DB       *gorm.DB
 	TenantID int64
 	AppEnv   string
+	// Prefix optionally overrides the row prefix targeted by Cleanup and
+	// VerifyClean (default DemoPrefix). Seed always writes DemoPrefix rows.
+	Prefix string
+}
+
+// cleanPrefix returns the prefix targeted by Cleanup/VerifyClean.
+func (s *FullDemoSeeder) cleanPrefix() string {
+	if p := strings.TrimSpace(s.Prefix); p != "" {
+		return p
+	}
+	return DemoPrefix
 }
 
 // FullDemoResult reports per-table row counts for seed / cleanup / verify.
@@ -137,6 +161,9 @@ func validateSalesChain(plan salesOrderPlan) error {
 func (s *FullDemoSeeder) Seed(ctx context.Context) (*FullDemoResult, error) {
 	if err := s.guard(); err != nil {
 		return nil, err
+	}
+	if s.cleanPrefix() != DemoPrefix {
+		return nil, fmt.Errorf("demoseed: seed only supports the %s prefix", DemoPrefix)
 	}
 	if _, err := s.Cleanup(ctx); err != nil {
 		return nil, err
@@ -805,11 +832,16 @@ func collectDemoProductIDs(tx *gorm.DB, like string) ([]uuid.UUID, error) {
 	return out, nil
 }
 
-// Cleanup hard-deletes all DEMO- prefixed rows and their children.
+// Cleanup hard-deletes all rows carrying the target prefix (default DEMO-)
+// and their children.
 func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 	if err := s.guard(); err != nil {
 		return nil, err
 	}
+	if err := ValidateCleanPrefix(s.cleanPrefix()); err != nil {
+		return nil, err
+	}
+	defaultPrefix := s.cleanPrefix() == DemoPrefix
 	res := &FullDemoResult{Action: "cleanup", Counts: map[string]int64{}}
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		del := func(table string, q *gorm.DB) error {
@@ -820,7 +852,7 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			res.Counts[table] += r.RowsAffected
 			return nil
 		}
-		like := DemoPrefix + "%"
+		like := s.cleanPrefix() + "%"
 
 		var orderIDs []uuid.UUID
 		if err := tx.Model(&order.Order{}).Unscoped().Where("order_no LIKE ?", like).Pluck("id", &orderIDs).Error; err != nil {
@@ -899,7 +931,7 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 		if err != nil {
 			return err
 		}
-		if err := cleanupPublishSamples(tx, res, like, productIDs); err != nil {
+		if err := cleanupPublishSamples(tx, res, like, productIDs, defaultPrefix); err != nil {
 			return err
 		}
 		if len(productIDs) > 0 {
@@ -962,13 +994,17 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			return err
 		}
 
-		// demo customer conversations: DEMO- seeded rows on any tenant, plus
-		// tenant-0 orphans created by older demo seeds/scripts before
-		// conversations stamped tenant_id. Remove them with children.
+		// demo customer conversations: prefixed rows on any tenant, plus (for
+		// the default DEMO- prefix only) tenant-0 orphans created by older demo
+		// seeds/scripts before conversations stamped tenant_id.
 		var convIDs []uuid.UUID
-		if err := tx.Model(&customerchat.CustomerConversation{}).Unscoped().
-			Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %").
-			Pluck("id", &convIDs).Error; err != nil {
+		convQ := tx.Model(&customerchat.CustomerConversation{}).Unscoped().
+			Where("customer_name LIKE ?", like)
+		if defaultPrefix {
+			convQ = tx.Model(&customerchat.CustomerConversation{}).Unscoped().
+				Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %")
+		}
+		if err := convQ.Pluck("id", &convIDs).Error; err != nil {
 			return err
 		}
 		if len(convIDs) > 0 {
@@ -997,14 +1033,19 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 	return res, nil
 }
 
-// VerifyClean counts residual DEMO- rows per table (all should be zero after cleanup).
+// VerifyClean counts residual rows carrying the target prefix per table (all
+// should be zero after cleanup).
 func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, error) {
 	if err := s.guard(); err != nil {
 		return nil, err
 	}
+	if err := ValidateCleanPrefix(s.cleanPrefix()); err != nil {
+		return nil, err
+	}
+	defaultPrefix := s.cleanPrefix() == DemoPrefix
 	res := &FullDemoResult{Action: "verify", Counts: map[string]int64{}}
 	tx := s.DB.WithContext(ctx)
-	like := DemoPrefix + "%"
+	like := s.cleanPrefix() + "%"
 	checks := []struct {
 		table string
 		count func() (int64, error)
@@ -1052,7 +1093,7 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		}},
 		{"settings", func() (int64, error) {
 			var n int64
-			if !tx.Migrator().HasTable("settings") {
+			if !defaultPrefix || !tx.Migrator().HasTable("settings") {
 				return 0, nil
 			}
 			return n, tx.Model(&settings.Setting{}).Where("remark = ?", demoSettingRemark).Count(&n).Error
@@ -1095,9 +1136,13 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		}},
 		{"customer_conversations", func() (int64, error) {
 			var n int64
-			return n, tx.Model(&customerchat.CustomerConversation{}).Unscoped().
-				Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %").
-				Count(&n).Error
+			q := tx.Model(&customerchat.CustomerConversation{}).Unscoped().
+				Where("customer_name LIKE ?", like)
+			if defaultPrefix {
+				q = tx.Model(&customerchat.CustomerConversation{}).Unscoped().
+					Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %")
+			}
+			return n, q.Count(&n).Error
 		}},
 		{"customer_messages", func() (int64, error) {
 			var n int64

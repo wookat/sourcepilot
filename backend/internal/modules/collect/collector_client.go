@@ -33,6 +33,27 @@ func NewCollectorClient(baseURL string, timeout time.Duration) *CollectorClient 
 	}
 }
 
+// CollectorUnreachableError wraps transport-level failures reaching the
+// collector (connection refused, DNS failure, timeout): the service is not
+// running or not reachable, as opposed to a business rejection.
+type CollectorUnreachableError struct {
+	Err error
+}
+
+func (e *CollectorUnreachableError) Error() string {
+	if e == nil || e.Err == nil {
+		return "collector unreachable"
+	}
+	return fmt.Sprintf("collector request: %v", e.Err)
+}
+
+func (e *CollectorUnreachableError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 // CollectorRejectedError is returned when collector responds with ok=false (e.g. HTTP 422).
 type CollectorRejectedError struct {
 	Code         string
@@ -114,7 +135,7 @@ func (c *CollectorClient) AnalyzePage(ctx context.Context, rawURL string, option
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("collector request: %w", err)
+		return nil, &CollectorUnreachableError{Err: err}
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
@@ -165,7 +186,7 @@ func (c *CollectorClient) CustomRuleTest(ctx context.Context, rawURL string, opt
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("collector request: %w", err)
+		return nil, &CollectorUnreachableError{Err: err}
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
@@ -230,7 +251,7 @@ func (c *CollectorClient) OpenBrowserProfileLogin(ctx context.Context, profileKe
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("collector request: %w", err)
+		return "", &CollectorUnreachableError{Err: err}
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
@@ -277,7 +298,7 @@ func (c *CollectorClient) CheckBrowserProfileAccess(ctx context.Context, profile
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("collector request: %w", err)
+		return nil, &CollectorUnreachableError{Err: err}
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
@@ -345,7 +366,7 @@ func (c *CollectorClient) CollectWithTimeout(ctx context.Context, source, rawURL
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("collector request: %w", err)
+		return nil, &CollectorUnreachableError{Err: err}
 	}
 	defer resp.Body.Close()
 
@@ -495,7 +516,7 @@ func (c *CollectorClient) decodeDataEnvelope(parent context.Context, method, pat
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("collector request: %w", err)
+		return nil, &CollectorUnreachableError{Err: err}
 	}
 	defer resp.Body.Close()
 
@@ -556,7 +577,7 @@ func (c *CollectorClient) decodeDataEnvelopeWithBody(
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("collector request: %w", err)
+		return nil, &CollectorUnreachableError{Err: err}
 	}
 	defer resp.Body.Close()
 

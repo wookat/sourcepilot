@@ -301,6 +301,8 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 
 `status` 取值：`ok`（已登录）、`not_logged_in`（需要登录）、`wechat_auth_required`（微信扫码）、`app_redirect`（App 引导页）、`verification_required`（需验证）、`homepage_only`（仅首页可访问，无法确认登录）、`unknown`（暂时无法确认）。
 
+collector 代理端点（登录态检测 / 打开采集浏览器）在采集服务未启动或不可达（连接拒绝、超时、DNS 失败）时统一返回 HTTP **502**、业务码 **50302**（`CodeCollectorUnreachable`）与中文引导 message（「采集服务未启动或不可达…」）；collector 自身返回的业务错误仍为 502 + 50000 并保留原 message。前端设置中心采集页据 50302 渲染引导态而非报错。
+
 拼多多 `check-login` 返回扩展字段（无 Cookie/HTML）：`profileKey`（`pinduoduo`）、`checkedUrl`、`finalUrl`、`accessStatus`、`urlType`（`wholesale_detail` | `goods_detail` | `homepage` | `app_redirect` | `unknown`）、`checkMode`、`evidence`（`hasProductTitle` / `hasPrice` / `hasMainImage` 等）。**仅当打开商品详情页且识别到标题/价格/主图之一，且无登录/微信/App 引导时** 才返回 `ok`；**pifa 首页可访问不判已登录**。
 
 `POST open-login-browser` 与 `check-login` 使用同一 **`pinduoduo` Profile**（与 1688、custom 隔离）。采集浏览器登录窗口 **1280×900**。

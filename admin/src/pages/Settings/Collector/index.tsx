@@ -38,6 +38,7 @@ import {
   type ProviderTaobaoTmallAuthStatus,
 } from '@/services/collectAuth';
 import { CollectorTaobaoTmallSection } from '@/pages/Settings/Collector/TaobaoTmallSection';
+import { isCollectorUnreachableError } from '@/services/request';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import {
   COLLECT_SETTINGS_PROVIDER_OPTIONS,
@@ -759,6 +760,7 @@ export default function CollectorSettingsPage() {
   const [tbAuthChecking, setTbAuthChecking] = useState(false);
   const [tbAuthLoaded, setTbAuthLoaded] = useState(false);
   const [tbLoginOpening, setTbLoginOpening] = useState(false);
+  const [collectorDown, setCollectorDown] = useState(false);
 
   const providerKey = useMemo(
     () => resolveCollectSettingsProvider(new URLSearchParams(location.search || '').get('provider')),
@@ -779,9 +781,14 @@ export default function CollectorSettingsPage() {
     try {
       const data = await fetch1688AuthStatus();
       setAuthStatus(data);
+      setCollectorDown(false);
     } catch (e: unknown) {
       setAuthStatus(null);
-      message.error((e as Error)?.message || '1688 登录态检测失败');
+      if (isCollectorUnreachableError(e)) {
+        setCollectorDown(true);
+      } else {
+        message.error((e as Error)?.message || '1688 登录态检测失败');
+      }
     } finally {
       setAuthChecking(false);
       setAuthLoaded(true);
@@ -800,9 +807,14 @@ export default function CollectorSettingsPage() {
     try {
       const data = await checkPinduoduoLogin({ testUrl: testUrl || undefined });
       setPddAuthStatus(data);
+      setCollectorDown(false);
     } catch (e: unknown) {
       setPddAuthStatus(null);
-      message.error((e as Error)?.message || '拼多多登录态检测失败');
+      if (isCollectorUnreachableError(e)) {
+        setCollectorDown(true);
+      } else {
+        message.error((e as Error)?.message || '拼多多登录态检测失败');
+      }
     } finally {
       setPddAuthChecking(false);
       setPddAuthLoaded(true);
@@ -815,9 +827,14 @@ export default function CollectorSettingsPage() {
     try {
       const data = await checkTaobaoTmallLogin({ testUrl: testUrl || undefined });
       setTbAuthStatus(data);
+      setCollectorDown(false);
     } catch (e: unknown) {
       setTbAuthStatus(null);
-      message.error((e as Error)?.message || '淘宝/天猫登录态检测失败');
+      if (isCollectorUnreachableError(e)) {
+        setCollectorDown(true);
+      } else {
+        message.error((e as Error)?.message || '淘宝/天猫登录态检测失败');
+      }
     } finally {
       setTbAuthChecking(false);
       setTbAuthLoaded(true);
@@ -951,6 +968,16 @@ export default function CollectorSettingsPage() {
     history.replace(`/settings/collector?provider=${encodeURIComponent(key)}`);
   };
 
+  const recheckCollector = useCallback(() => {
+    if (providerKey === 'pinduoduo') {
+      void loadPddAuthStatus();
+    } else if (providerKey === 'taobao_tmall') {
+      void loadTbAuthStatus();
+    } else {
+      void loadAuthStatus();
+    }
+  }, [providerKey, loadAuthStatus, loadPddAuthStatus, loadTbAuthStatus]);
+
   const handleOpenLoginBrowser = async () => {
     setLoginOpening(true);
     try {
@@ -958,7 +985,11 @@ export default function CollectorSettingsPage() {
       message.success(result.message || '已打开采集浏览器');
       await loadAuthStatus();
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '打开采集浏览器失败');
+      if (isCollectorUnreachableError(e)) {
+        setCollectorDown(true);
+      } else {
+        message.error((e as Error)?.message || '打开采集浏览器失败');
+      }
     } finally {
       setLoginOpening(false);
     }
@@ -973,7 +1004,11 @@ export default function CollectorSettingsPage() {
       message.success(result.message || '已打开拼多多采集浏览器');
       await loadPddAuthStatus();
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '打开拼多多采集浏览器失败');
+      if (isCollectorUnreachableError(e)) {
+        setCollectorDown(true);
+      } else {
+        message.error((e as Error)?.message || '打开拼多多采集浏览器失败');
+      }
     } finally {
       setPddLoginOpening(false);
     }
@@ -987,7 +1022,11 @@ export default function CollectorSettingsPage() {
       message.success(result.message || '已打开淘宝/天猫采集浏览器');
       await loadTbAuthStatus();
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '打开采集浏览器失败');
+      if (isCollectorUnreachableError(e)) {
+        setCollectorDown(true);
+      } else {
+        message.error((e as Error)?.message || '打开采集浏览器失败');
+      }
     } finally {
       setTbLoginOpening(false);
     }
@@ -1108,6 +1147,20 @@ export default function CollectorSettingsPage() {
   return (
     <TmPageContainer title="采集设置" subTitle={PAGE_COPY.collectorSettings.description}>
       <div className="tm-collector-settings">
+        {collectorDown ? (
+          <Alert
+            type="warning"
+            showIcon
+            className="tm-collector-settings__offline"
+            message="采集服务未启动或不可达"
+            description="登录态检测与采集浏览器依赖采集服务（collector）。请确认采集服务已启动（Docker 部署：启动 collector 容器；本地开发：pnpm dev:collector），启动后点击重新检测。页面内的采集参数仍可正常查看与保存。"
+            action={
+              <Button size="small" onClick={recheckCollector}>
+                重新检测
+              </Button>
+            }
+          />
+        ) : null}
         <ProCard variant="outlined" className="tm-collector-settings__selector" title="采集器类型">
           <CollectorProviderSelector
             activeKey={providerKey}
