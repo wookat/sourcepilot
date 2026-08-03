@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
@@ -320,6 +321,116 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 			}
 			count("source_price_history", 1)
 		}
+	}
+
+	// ---- product publications: link every demo product to the granted
+	// manual DEMO shop (DEMO-SHOP-2, same grant as the operator/readonly
+	// demo accounts) so scoped roles see non-empty product lists out of
+	// the box. Titles carry the DEMO- prefix for cleanup targeting. ----
+	for i := range products {
+		pub := productpublish.ProductPublication{ProductID: products[i].ID, ShopID: shops[1].ID,
+			Platform: shops[1].Platform, Status: productpublish.StatusDraft,
+			PublishStatus: productpublish.StatusDraftCreated,
+			Title:         products[i].Title, Currency: "CNY"}
+		if err := tx.Create(&pub).Error; err != nil {
+			return fmt.Errorf("demoseed: product publication: %w", err)
+		}
+		count("product_publications", 1)
+	}
+
+	// ---- sourcing alerts: one price-increase and one out-of-stock source
+	// plus a backup supplier so the open switch suggestions are adoptable
+	// (adopt switches primary to the backup) or ignorable. ----
+	backupRating := 4.5
+	backupSupplier := sourcing.Supplier{TenantID: s.TenantID, Platform: "1688", ExternalID: "DEMO-SUP-2",
+		Name: "DEMO-广州备选供应链公司", Rating: &backupRating, Status: sourcing.SupplierStatusActive,
+		Remark: "DEMO- 演示备选供应商（种子数据）"}
+	if err := tx.Create(&backupSupplier).Error; err != nil {
+		return fmt.Errorf("demoseed: backup supplier: %w", err)
+	}
+	count("suppliers", 1)
+
+	lastChecked := now.Add(-time.Hour)
+	alertPlans := []struct {
+		productIdx int
+		status     string
+		reason     string
+	}{
+		{productIdx: 0, status: sourcing.SourceStatusPriceAlert, reason: sourcing.SwitchReasonPriceIncrease},
+		{productIdx: 1, status: sourcing.SourceStatusOutOfStock, reason: sourcing.SwitchReasonOutOfStock},
+	}
+	for k, ap := range alertPlans {
+		prod := products[ap.productIdx]
+		var primary sourcing.ProductSource
+		if err := tx.Where("product_id = ? AND supplier_id = ?", prod.ID, supplier.ID).First(&primary).Error; err != nil {
+			return fmt.Errorf("demoseed: alert primary source: %w", err)
+		}
+		if err := tx.Model(&sourcing.ProductSource{}).Where("id = ?", primary.ID).
+			Updates(map[string]any{"status": ap.status, "last_checked_at": lastChecked}).Error; err != nil {
+			return fmt.Errorf("demoseed: alert source status: %w", err)
+		}
+		if ap.status == sourcing.SourceStatusPriceAlert {
+			// a fresher, higher price point so the history modal shows the jump
+			var ssku sourcing.ProductSourceSKU
+			if err := tx.Where("product_source_id = ?", primary.ID).First(&ssku).Error; err != nil {
+				return fmt.Errorf("demoseed: alert source sku: %w", err)
+			}
+			raised := 0.0
+			if ssku.CurrentPrice != nil {
+				raised = *ssku.CurrentPrice * 1.3
+			}
+			stk := 300
+			hist := sourcing.SourcePriceHistory{TenantID: s.TenantID, SourceSKUID: ssku.ID, Price: raised,
+				Stock: &stk, CapturedAt: lastChecked, CaptureSource: sourcing.CaptureSourceCrawl}
+			if err := tx.Create(&hist).Error; err != nil {
+				return fmt.Errorf("demoseed: alert price history: %w", err)
+			}
+			count("source_price_history", 1)
+			if err := tx.Model(&sourcing.ProductSourceSKU{}).Where("id = ?", ssku.ID).
+				Update("current_price", raised).Error; err != nil {
+				return fmt.Errorf("demoseed: alert sku price: %w", err)
+			}
+		} else {
+			if err := tx.Model(&sourcing.ProductSourceSKU{}).Where("product_source_id = ?", primary.ID).
+				Update("current_stock", 0).Error; err != nil {
+				return fmt.Errorf("demoseed: alert sku stock: %w", err)
+			}
+		}
+
+		backup := sourcing.ProductSource{TenantID: s.TenantID, ProductID: prod.ID, SupplierID: backupSupplier.ID,
+			SourceURL:     fmt.Sprintf("https://detail.1688.com/offer/DEMO-820%03d.html", k+1),
+			SourceOfferID: fmt.Sprintf("DEMO-BAK-OFFER-%d", k+1),
+			Priority:      2, IsPrimary: false, Status: sourcing.SourceStatusActive,
+			MOQ: &moq, LeadTimeDays: &lead, LastCheckedAt: &lastChecked}
+		if err := tx.Create(&backup).Error; err != nil {
+			return fmt.Errorf("demoseed: backup source: %w", err)
+		}
+		count("product_sources", 1)
+		localSKU := skus[ap.productIdx*2]
+		bakPrice := *localSKU.CostPrice * 0.95
+		bakStock := 800
+		bakSKU := sourcing.ProductSourceSKU{TenantID: s.TenantID, ProductSourceID: backup.ID, LocalSKUID: localSKU.ID,
+			ExternalSKUID: fmt.Sprintf("DEMO-BAK-EXT-SKU-%d", k+1),
+			CurrentPrice:  &bakPrice, Currency: "CNY", CurrentStock: &bakStock, Status: "active"}
+		if err := tx.Create(&bakSKU).Error; err != nil {
+			return fmt.Errorf("demoseed: backup source sku: %w", err)
+		}
+		count("product_source_skus", 1)
+		hist := sourcing.SourcePriceHistory{TenantID: s.TenantID, SourceSKUID: bakSKU.ID, Price: bakPrice,
+			Stock: &bakStock, CapturedAt: lastChecked, CaptureSource: sourcing.CaptureSourceManual}
+		if err := tx.Create(&hist).Error; err != nil {
+			return fmt.Errorf("demoseed: backup price history: %w", err)
+		}
+		count("source_price_history", 1)
+
+		suggestion := sourcing.SourceSwitchEvent{TenantID: s.TenantID, ProductID: prod.ID,
+			FromSourceID: &primary.ID, ToSourceID: backup.ID, Reason: ap.reason,
+			Detail: mustJSON(map[string]any{"seedPrefix": DemoPrefix}),
+			Mode:   sourcing.SwitchModeSuggested, Status: sourcing.SuggestionOpen}
+		if err := tx.Create(&suggestion).Error; err != nil {
+			return fmt.Errorf("demoseed: switch suggestion: %w", err)
+		}
+		count("source_switch_events", 1)
 	}
 
 	// ---- sales orders across all statuses ----
@@ -773,6 +884,18 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			return err
 		}
 		if len(productIDs) > 0 {
+			if err := del("source_switch_events", tx.Unscoped().Where("product_id IN ?", productIDs).Delete(&sourcing.SourceSwitchEvent{})); err != nil {
+				return err
+			}
+			if err := del("product_publications", tx.Unscoped().Where("product_id IN ? OR title LIKE ?", productIDs, like).Delete(&productpublish.ProductPublication{})); err != nil {
+				return err
+			}
+		} else {
+			if err := del("product_publications", tx.Unscoped().Where("title LIKE ?", like).Delete(&productpublish.ProductPublication{})); err != nil {
+				return err
+			}
+		}
+		if len(productIDs) > 0 {
 			if err := del("inventory_change_logs", tx.Unscoped().Where("product_id IN ?", productIDs).Delete(&inventory.InventoryChangeLog{})); err != nil {
 				return err
 			}
@@ -878,6 +1001,16 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		{"product_skus", func() (int64, error) {
 			var n int64
 			return n, tx.Model(&product.ProductSKU{}).Unscoped().Where("sku_code LIKE ?", like).Count(&n).Error
+		}},
+		{"product_publications", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&productpublish.ProductPublication{}).Unscoped().Where("title LIKE ?", like).Count(&n).Error
+		}},
+		{"source_switch_events", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&sourcing.SourceSwitchEvent{}).Unscoped().
+				Where("product_id IN (?)", tx.Model(&product.Product{}).Unscoped().
+					Select("id").Where("title LIKE ?", like)).Count(&n).Error
 		}},
 		{"suppliers", func() (int64, error) {
 			var n int64
