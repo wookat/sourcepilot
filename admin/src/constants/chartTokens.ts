@@ -26,6 +26,15 @@ export const chartAxisXLabel = { labelAutoRotate: true, labelAutoHide: true } as
 /** x 轴日期刻度目标数量：宽屏/紧凑两档，密集日期抽稀不成标签墙 */
 export const chartAxisXTickCount = { wide: 10, compact: 6 } as const;
 
+/**
+ * 分类轴标签抽稀过滤器：G2 分类轴的 tickCount 仅为建议值，密集日期轴需用
+ * labelFilter 强制按步长抽稀，保证标签数不超过目标档位（末点标签始终保留）。
+ */
+export function makeCategoryLabelFilter(pointCount: number, targetCount: number) {
+  const step = Math.max(1, Math.ceil(pointCount / Math.max(1, targetCount)));
+  return (_datum: unknown, index: number) => index % step === 0 || index === pointCount - 1;
+}
+
 /** 日期刻度短标签：YYYY-MM-DD → MM-DD，其余原样返回 */
 export function formatDateTickShort(value: unknown): string {
   const text = String(value ?? '');

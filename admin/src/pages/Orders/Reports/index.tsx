@@ -11,6 +11,7 @@ import {
   formatAmount,
   formatCount,
   formatDateTickShort,
+  makeCategoryLabelFilter,
   tabularNumsStyle,
 } from '@/constants/chartTokens';
 import { downloadDailyReportCsv, fetchOrderDailyStats, type DailyStatsDTO } from '@/services/orders';
@@ -54,7 +55,6 @@ export default function OrderReports() {
   const wideScreen = useWideScreen();
   const chartHeight = wideScreen ? chartTokens.height : chartTokens.heightCompact;
   const xTickCount = wideScreen ? chartAxisXTickCount.wide : chartAxisXTickCount.compact;
-  const axisX = { ...chartAxisXLabel, tickCount: xTickCount, labelFormatter: formatDateTickShort };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -95,6 +95,20 @@ export default function OrderReports() {
   const hasData = totals.orders > 0;
   const countPoints = useMemo(() => (data ? toCountPoints(data) : []), [data]);
   const amountPoints = useMemo(() => (data ? toAmountPoints(data) : []), [data]);
+  const makeAxisX = useCallback(
+    (dateCount: number) => ({
+      ...chartAxisXLabel,
+      tickCount: xTickCount,
+      labelFilter: makeCategoryLabelFilter(dateCount, xTickCount),
+      labelFormatter: formatDateTickShort,
+    }),
+    [xTickCount],
+  );
+  const countAxisX = useMemo(() => makeAxisX(items.length), [makeAxisX, items.length]);
+  const amountAxisX = useMemo(
+    () => makeAxisX(new Set(amountPoints.map((p) => p.date)).size),
+    [makeAxisX, amountPoints],
+  );
 
   return (
     <TmPageContainer
@@ -163,7 +177,7 @@ export default function OrderReports() {
             autoFit
             scale={{ color: { range: [...chartTokens.seriesColors] } }}
             axis={{
-              x: axisX,
+              x: countAxisX,
               y: { labelFormatter: (v: number) => formatCount(Number(v)) },
             }}
             legend={{ color: { position: 'top' } }}
@@ -195,7 +209,7 @@ export default function OrderReports() {
             style={{ maxWidth: chartTokens.barMaxWidth }}
             scale={{ color: { range: [...chartTokens.seriesColors] } }}
             axis={{
-              x: axisX,
+              x: amountAxisX,
               y: { labelFormatter: (v: number) => formatCount(Number(v)) },
             }}
             legend={{ color: { position: 'top' } }}
