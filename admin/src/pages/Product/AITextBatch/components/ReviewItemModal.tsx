@@ -1,5 +1,6 @@
 import TechnicalDetails from '@/components/ui/TechnicalDetails';
 import type { AIProductTextItemRow } from '@/services/aiProductText';
+import { mapAiTaskErrorText } from '@/utils/aiFailureNotice';
 import { Link } from '@umijs/max';
 import { Alert, Button, Input, Modal, Space, Typography, message } from 'antd';
 import { useEffect, useState } from 'react';
@@ -12,6 +13,8 @@ type Props = {
   onApply: (text: string) => Promise<void>;
   onRegenerate: () => Promise<void>;
   onReject: () => Promise<void>;
+  /** 只读账号仅可查看对比，不展示写操作按钮 */
+  readonly?: boolean;
 };
 
 export default function ReviewItemModal({
@@ -22,6 +25,7 @@ export default function ReviewItemModal({
   onApply,
   onRegenerate,
   onReject,
+  readonly,
 }: Props) {
   const [applyText, setApplyText] = useState('');
 
@@ -44,19 +48,23 @@ export default function ReviewItemModal({
       footer={
         <Space wrap>
           <Button onClick={onClose}>关闭</Button>
-          <Button danger disabled={!canApply || loading} onClick={() => void onReject()}>
-            放弃该建议
-          </Button>
-          <Button disabled={loading} onClick={() => void onRegenerate()}>
-            重新生成
-          </Button>
-          <Button
-            type="primary"
-            disabled={!canApply || loading || !applyText.trim()}
-            onClick={() => void onApply(applyText)}
-          >
-            应用
-          </Button>
+          {readonly ? null : (
+            <>
+              <Button danger disabled={!canApply || loading} onClick={() => void onReject()}>
+                放弃该建议
+              </Button>
+              <Button disabled={loading} onClick={() => void onRegenerate()}>
+                重新生成
+              </Button>
+              <Button
+                type="primary"
+                disabled={!canApply || loading || !applyText.trim()}
+                onClick={() => void onApply(applyText)}
+              >
+                应用
+              </Button>
+            </>
+          )}
         </Space>
       }
     >
@@ -108,6 +116,29 @@ export default function ReviewItemModal({
                 <li key={w.code}>{w.message}</li>
               ))}
             </ul>
+          }
+        />
+      ) : null}
+
+      {item.status === 'failed' && item.errorMessage ? (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginTop: 12 }}
+          message="失败原因"
+          description={
+            <>
+              <Typography.Paragraph style={{ marginBottom: 4 }}>
+                {mapAiTaskErrorText(item.errorMessage)}
+              </Typography.Paragraph>
+              {mapAiTaskErrorText(item.errorMessage) !== item.errorMessage.trim() ? (
+                <TechnicalDetails label="完整原始错误">
+                  <Typography.Text code copyable={{ text: item.errorMessage }}>
+                    {item.errorMessage}
+                  </Typography.Text>
+                </TechnicalDetails>
+              ) : null}
+            </>
           }
         />
       ) : null}

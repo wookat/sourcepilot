@@ -1402,7 +1402,6 @@ Final Production Acceptance Deferred to P10
 - 引导管理员租户口径：设计意图确认为「引导账号 = tenant 0 平台管理员」（平台租户治理入口）。代码默认本就是 0，本轮把 `.env.example` / `.env.docker.example` 的 `ADMIN_BOOTSTRAP_TENANT_ID` 由 1 收口为 0，并在 docs/env.md 说明（显式 >0 配置仍兼容遗留单租户部署；仅 admin_users 为空首次创建生效，不迁移存量）。
 - React console warning 清理（R82 报告 5 条）：Settings/Users 店铺权限弹窗 `Form.List` 行内 `{...field}` 展开重复传 `key`（4 条 duplicate key warning）改为解构 `{ key, name, ...restField }`；「新建用户」弹窗 `destroyOnHidden` 导致 `useForm` 未连接 warning，改为 `forceRender` + 取消时 `resetFields`。
 - 回归：`product/create_scope_test.go`（operator/readonly 403 + 0 残留行、admin 正常创建）；权限矩阵契约复跑；go fmt/vet/build/test、pnpm test:frontend/build:admin/test:contracts；Docker 实测两条动线（operator 建草稿 403 无残留、bootstrap 账号落 tenant 0 可开租）。
-
 ### 变更记录（2026-08-03）第 84 轮：AI 工作台/失败中心/采集链路季度回归 + P1 修复
 
 - R84 季度回归（docker compose 全栈 + seed:demo:full，#182/#183 本地叠加；租户 B 正规开租补测）：AI 优化草稿降级提示、AI 批量任务/批次/子任务、失败中心筛选与 canRetry、选品全链路、客服建议人工确认动线、采集创建/失败终态/R72 假草稿/R73 规则模板直填、三角色 scope、375/1440 视口、硬指标（console error/panic/5xx/42703=0）通过。
@@ -1411,6 +1410,13 @@ Final Production Acceptance Deferred to P10
 - P2 修复：`confirmSensitiveAction` 的 `onOk` 统一 catch 错误并 `message.error` 弹出中文提示（重试等确认类操作失败不再静默）。
 - 回归测试：`taskcenter/customer_failure_retry_test.go`（分类 retryable 口径 + RetryFailure 识别 customer_failure）、`selection/create_tenant_gate_test.go`（tenant 0 → 400 零残留、正租户不受闸门影响）。
 - 遗留 P2 清单：无效 URL 采集失败原因英文直出（collector 1688 provider 校验错误未中文映射）、readonly 写按钮部分仅接口 403 未做 UI disabled、readonly 时间线空状态缺说明、批次详情子任务失败原因展示较弱；采集超时终态未自然观察（真实失败 ~22s 即达终态）。
+
+### 变更记录（2026-08-03）第 85 轮：生产部署演练复跑 + 生产 tenant 0 平台管理员 403 修复（P0）
+
+- 生产演练复跑（APP_ENV=production + docker-compose.prod.yml + Caddy 内部 CA 假域名，从零部署约 4 分钟）发现 P0：`secure_session` 生产模式下，引导平台管理员（tenant 0）任何带 token 请求被 JWT 中间件的 `ResolveRequestTenantID` 以 `PRODUCTION_TENANT_FALLBACK_FORBIDDEN` 拒绝（403），平台租户治理（开租/停用/改名）在生产完全不可用；#181 口径此前仅在 development/test 验证过。
+- 修复：`middleware.BearerAuthWithDB` 对 tenant 0 claim 增加 DB 复核（`admin_users` 行属 tenant 0 且 active 才放行，authSource 标记 `platform_tenant_token`）；未知/停用账号维持 403，业务租户（>0）路径不变，业务侧 `RequireTenantID` 仍拒绝 tenant 0。回归单测 `middleware/jwt_platform_tenant_test.go`。
+- 文档收口：`.env.prod.example` `ADMIN_BOOTSTRAP_TENANT_ID` 由 1 改为 0（与 .env.example/.env.docker.example、docs/env.md 口径一致）；production-launch-checklist 增补开租/会话治理/备份校验下载验证项与 2026-08-03 复跑结论。
+- 演练验证通过：开租→新租户登录、secure_session 续期/登出失效、备份创建→verify（checksum/pg_restore_list/manifest/encryption 全 passed）→下载 SHA-256 一致、生产禁 restore、日志无敏感信息、登录页 FCP≈330ms、懒加载 chunk 全部 200。
 
 ### 变更记录（2026-08-03）第 84 轮：设置中心/用户与店铺授权深度回归 + P1/P2 修复
 
@@ -1432,3 +1438,16 @@ Final Production Acceptance Deferred to P10
 - 未知路由统一 JSON 404 envelope（`40401` + 中文口径），替换 Gin 裸文本 `404 page not found`（`api.RegisterNoRoute`）；前端未匹配路由已有统一 404 页（`admin/src/pages/404.tsx`，引导返回工作台）。
 - 平台租户列表：隐式平台租户 0 的 `createdAt` 取最早平台管理员创建时间，不再空展示；回归测试 `list_created_at_test.go`。
 - docs/production-launch-checklist.md 补「Let's Encrypt 真实域名签发注意事项」（DNS/端口/CDN 前置、staging CA 联调、速率限制、排查顺序、自动续期），仅文档不改代码。
+
+### 变更记录（2026-08-03）第 85 轮：seed clean 自定义前缀 + collector 不可达设置页优雅降级（R84 P2 / R83 P3 收口）
+
+- seeddemo 自定义前缀：`cmd/seeddemo` 新增 `-prefix`（默认 `DEMO-`），仅 clean/verify 生效（seed 仍只写 DEMO-，传自定义前缀直接报错）；前缀白名单校验（字母数字加连字符、以 `-` 结尾、禁 SQL LIKE 通配符）；`FullDemoSeeder.Prefix` 贯穿 Cleanup/VerifyClean 的全部 LIKE 条件，legacy 客服会话兜底（`F8 Demo%`/`Demo %` tenant-0 孤儿）与 DEMO 设置预设 remark 清理仅在默认 DEMO- 前缀下执行，避免自定义前缀误删；production 拒绝口径不变（cmd 层 + guard 双重）。回归单测 `fulldemo_round85_test.go`：前缀校验、QA- 清理幂等零残留、DEMO-/普通数据不受影响、seed/production 守卫。
+- collector 不可达优雅降级：collector 代理传输层错误（连接拒绝/超时/DNS）由裸 502+50000 收口为 502 + 新业务码 `CodeCollectorUnreachable=50302` + 中文引导文案（`failCollectorProxy`，collector 业务拒绝仍保留原 message）；前端 `request.ts` 新增 `isCollectorUnreachableError`，设置中心采集页对 1688/拼多多/淘宝天猫登录态检测与打开采集浏览器失败识别该码，页面顶部渲染「采集服务未启动或不可达」warning Alert（含启动指引 + 重新检测按钮），不再弹裸错误 toast，采集参数表单不受影响可正常查看保存。回归：后端 `collector_unreachable_test.go`（unreachable 走 50302 引导、业务拒绝不被掩盖）、前端 request.test.ts 补 2 用例。
+- R84 报告其他杂项：R84 报告（第 84 轮变更记录）所列 P1/P2 已随 #182/#185 合入 main，本轮除上述两条外无其他待收口小杂项。
+
+### 变更记录（2026-08-03）第 86 轮：R85 AI/采集季度复查 P2 UX 收口
+
+- 采集失败原因中文化：`collectErrors.ts` 新增 `UNSUPPORTED_URL` 标签/建议映射，并识别 collector 原始英文消息 `url is not supported by source "1688"` 与 `INVALID_URL:*`（不改错误码契约）；补单测。
+- readonly 写按钮 UI 收口：失败中心（行内重试/生成告警/更多、批量重试/忽略/已处理、抽屉登录浏览器/恢复/重试/生成告警）、AI 批次（重试失败/应用结果）、AI 图片任务（新建/快捷模板/重试/保存到商品/设为主图等）、AI 文案批量复核（重试/批量应用/撤销/复核弹窗写按钮）按既有口径隐藏；E2E `round86-ux-p2.spec.ts`。
+- readonly 时间线空态：采集任务事件抽屉与运营任务审计时间线补中文空态说明。
+- AI 批次子任务失败原因可读化：`mapAiTaskErrorText`/`AiTaskErrorText`（AI 错误码中文映射 + 悬浮查看完整原始原因），应用于 AI 批次详情/子任务表与文案复核详情（失败原因列 + 弹窗失败原因块，完整原始错误可展开复制）。

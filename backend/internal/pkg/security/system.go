@@ -13,6 +13,8 @@ const (
 	AuthSourceWorker      = "worker"
 	AuthSourceSystem      = "system"
 	AuthSourceDevFallback = "dev_tenant_fallback"
+	// AuthSourcePlatformTenant marks a verified platform-tenant (tenant 0) admin token.
+	AuthSourcePlatformTenant = "platform_tenant_token"
 )
 
 // SystemContext identifies privileged internal operations (not a tenant impersonation).

@@ -18,4 +18,7 @@ const (
 	CodeInternalError                 = 50000
 	// CodeServiceUnavailable indicates dependency unavailable (e.g. Redis queue).
 	CodeServiceUnavailable = 50301
+	// CodeCollectorUnreachable indicates the collector service is not running
+	// or cannot be reached (environment issue, not a business error).
+	CodeCollectorUnreachable = 50302
 )

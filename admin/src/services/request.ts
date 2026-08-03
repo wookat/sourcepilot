@@ -16,6 +16,9 @@ function withOptions(options?: RequestOptions) {
   return options?.headers ? { headers: options.headers } : {};
 }
 
+/** 与后端 response.CodeCollectorUnreachable 对齐：采集服务未启动/不可达（环境项） */
+export const CODE_COLLECTOR_UNREACHABLE = 50302;
+
 export class ApiRequestError extends Error {
   code: number;
   traceId?: string;
@@ -48,6 +51,11 @@ export function extractApiErrorMessage(e: unknown, fallback: string): string {
   const raw = (ax?.message ?? '').trim();
   if (raw && !/request failed|network error|timeout/i.test(raw)) return raw;
   return fallback;
+}
+
+/** 判断错误是否为「采集服务未启动/不可达」的环境性错误（后端代理 502 + 稳定 code） */
+export function isCollectorUnreachableError(e: unknown): boolean {
+  return e instanceof ApiRequestError && e.code === CODE_COLLECTOR_UNREACHABLE;
 }
 
 function unwrap<T>(res: ApiResponse<T>): T {

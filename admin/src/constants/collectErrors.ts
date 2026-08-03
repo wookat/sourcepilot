@@ -69,6 +69,8 @@ export function mapCollectorErrorCodeLabel(code?: string | null): string {
       return '采集失败';
     case 'INVALID_URL':
       return '链接无效';
+    case 'UNSUPPORTED_URL':
+      return '链接类型暂不支持';
     case 'UNSUPPORTED_PINDUODUO_URL':
       return '链接类型暂未支持';
     case 'UNSUPPORTED_TAOBAO_URL':
@@ -152,7 +154,19 @@ export function mapCollectorErrorCodeDetail(code?: string | null, source?: strin
     case 'PRODUCT_NOT_FOUND':
       return '商品不存在、已下架或链接无效。';
     case 'INVALID_URL':
-      return isPdd ? '请输入拼多多商品详情页链接。' : '请输入有效的商品详情页链接。';
+      return src === '1688'
+        ? '当前链接不是 1688 商品详情页，请复制 detail.1688.com 商品详情页链接后重试。'
+        : isPdd
+          ? '请输入拼多多商品详情页链接。'
+          : '请输入有效的商品详情页链接。';
+    case 'UNSUPPORTED_URL':
+      return src === '1688'
+        ? '当前链接不是 1688 商品详情页，请复制 detail.1688.com 商品详情页链接后重试。'
+        : isPdd
+          ? '请输入拼多多商品详情页链接。'
+          : isTb
+            ? '当前链接不是标准淘宝/天猫商品详情页，请复制商品详情页链接后重试。'
+            : '当前链接不受所选采集来源支持，请更换为对应平台的商品详情页链接。';
     case 'UNSUPPORTED_PINDUODUO_URL':
       return isPdd
         ? '请使用拼多多批发商品详情链接（pifa.pinduoduo.com/goods/detail/?gid=）。移动端商品页、批发首页等链接暂不支持直接采集。'
@@ -249,6 +263,13 @@ export function mapCollectErrorMessage(err: unknown, source?: string | null): st
   }
   if (upper.includes('UNSUPPORTED_TAOBAO_URL')) {
     return mapCollectorErrorCodeDetail('UNSUPPORTED_TAOBAO_URL', source);
+  }
+  if (upper.includes('UNSUPPORTED_URL') || /url is not supported by source/i.test(raw)) {
+    const fromRaw = /source "([^"]+)"/i.exec(raw)?.[1];
+    return mapCollectorErrorCodeDetail('UNSUPPORTED_URL', source || fromRaw);
+  }
+  if (upper.includes('INVALID_URL')) {
+    return mapCollectorErrorCodeDetail('INVALID_URL', source);
   }
   if (upper.includes('TITLE_NOT_FOUND')) {
     return mapCollectorErrorCodeDetail('TITLE_NOT_FOUND', source);

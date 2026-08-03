@@ -19,6 +19,8 @@ import {
   type AIProductTextItemRow,
 } from '@/services/aiProductText';
 import { formatDateTime } from '@/utils/formatTime';
+import { AiTaskErrorText } from '@/utils/aiFailureNotice';
+import { usePermission } from '@/hooks/usePermission';
 import { Link, history, useParams } from '@umijs/max';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { normalizeSource } from '@/utils/urlState';
@@ -52,6 +54,7 @@ export default function AITextBatchDetailPage() {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [reviewItem, setReviewItem] = useState<AIProductTextItemRow | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const { readonly } = usePermission();
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -164,6 +167,8 @@ export default function AITextBatchDetailPage() {
               >
                 {navSource === 'ai_workbench' ? '返回 AI 工作台' : '返回批次列表'}
               </Button>
+              {readonly ? null : (
+              <>
               <Button
                 loading={acting}
                 disabled={detail.failedCount === 0}
@@ -211,6 +216,8 @@ export default function AITextBatchDetailPage() {
               >
                 批量撤销本批次应用
               </Button>
+              </>
+              )}
             </Space>
           </Card>
 
@@ -242,7 +249,7 @@ export default function AITextBatchDetailPage() {
             onRow={(row) => ({
               style: row.id === focusItemId ? { background: '#fffbe6' } : undefined,
             })}
-            rowSelection={{
+            rowSelection={readonly ? undefined : {
               selectedRowKeys: selectedKeys,
               onChange: (keys) => setSelectedKeys(keys as string[]),
               getCheckboxProps: (row) => ({
@@ -281,6 +288,17 @@ export default function AITextBatchDetailPage() {
                 width: 180,
               },
               {
+                title: '失败原因',
+                dataIndex: 'errorMessage',
+                width: 180,
+                render: (_, row) =>
+                  row.status === 'failed' || row.status === 'conflict' ? (
+                    <AiTaskErrorText raw={row.errorMessage} />
+                  ) : (
+                    '—'
+                  ),
+              },
+              {
                 title: '质量提醒',
                 dataIndex: 'qualityWarnings',
                 width: 140,
@@ -299,7 +317,7 @@ export default function AITextBatchDetailPage() {
                     <Button type="link" size="small" onClick={() => openReview(row)}>
                       查看对比
                     </Button>
-                    {(row.status === 'pending_review' || row.status === 'success') && (
+                    {!readonly && (row.status === 'pending_review' || row.status === 'success') && (
                       <Button type="link" size="small" onClick={() => openReview(row)}>
                         应用
                       </Button>
@@ -324,6 +342,7 @@ export default function AITextBatchDetailPage() {
         open={reviewOpen}
         item={reviewItem}
         loading={acting}
+        readonly={readonly}
         onClose={closeReview}
         onApply={async (text) => {
           if (!reviewItem) return;
