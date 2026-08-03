@@ -583,6 +583,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- 运营任务中心：DEMO- 任务全生命周期（建议/待审/驳回/成功/失败）----
+	if err := s.seedOperationTasks(tx, res, now, shops, products); err != nil {
+		return err
+	}
+
 	// ---- exception workbench handled mark（演示处理动作留痕）----
 	mark := orderexception.OrderExceptionMark{
 		ExceptionType: orderexception.TypeInventorySyncFailed,
@@ -808,6 +813,9 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 		if err := cleanupSelection(tx, res, like); err != nil {
 			return err
 		}
+		if err := cleanupOperationTasks(tx, res, like); err != nil {
+			return err
+		}
 		if err := cleanupCustomerSyncTasks(tx, res, like); err != nil {
 			return err
 		}
@@ -944,6 +952,7 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 					Select("id").Where("title LIKE ?", like)).Count(&n).Error
 		}},
 	}
+	checks = append(checks, operationTaskVerifyChecks(tx, like)...)
 	for _, c := range checks {
 		n, err := c.count()
 		if err != nil {
