@@ -16,8 +16,10 @@ import (
 )
 
 var (
-	ErrDuplicateTenantName = errors.New("租户名称已存在")
-	ErrDuplicateAdminEmail = errors.New("管理员邮箱已被使用")
+	ErrDuplicateTenantName    = errors.New("租户名称已存在")
+	ErrDuplicateAdminEmail    = errors.New("管理员邮箱已被使用")
+	ErrTenantNotFound         = errors.New("租户不存在")
+	ErrPlatformTenantReadOnly = errors.New("平台租户不可停用或改名")
 )
 
 // Service manages platform tenants.
@@ -30,6 +32,7 @@ type Service struct {
 type TenantRow struct {
 	ID         int64  `json:"id"`
 	Name       string `json:"name"`
+	Status     string `json:"status"`
 	AdminCount int64  `json:"adminCount"`
 	CreatedAt  string `json:"createdAt"`
 }
@@ -72,6 +75,7 @@ func (s *Service) List(c *gin.Context) ([]TenantRow, error) {
 	out = append(out, TenantRow{
 		ID:         PlatformTenantID,
 		Name:       "平台租户（默认）",
+		Status:     StatusActive,
 		AdminCount: platformCount,
 	})
 	for i := range rows {
@@ -82,6 +86,7 @@ func (s *Service) List(c *gin.Context) ([]TenantRow, error) {
 		out = append(out, TenantRow{
 			ID:         rows[i].ID,
 			Name:       rows[i].Name,
+			Status:     normalizeStatus(rows[i].Status),
 			AdminCount: cnt,
 			CreatedAt:  rows[i].CreatedAt.UTC().Format(time.RFC3339),
 		})
@@ -157,10 +162,121 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 		Tenant: TenantRow{
 			ID:         t.ID,
 			Name:       t.Name,
+			Status:     normalizeStatus(t.Status),
 			AdminCount: 1,
 			CreatedAt:  t.CreatedAt.UTC().Format(time.RFC3339),
 		},
 		AdminID:    u.ID.String(),
 		AdminEmail: email,
+	}, nil
+}
+
+func normalizeStatus(s string) string {
+	if strings.EqualFold(strings.TrimSpace(s), StatusDisabled) {
+		return StatusDisabled
+	}
+	return StatusActive
+}
+
+func (s *Service) writeOpLog(c *gin.Context, actorID *uuid.UUID, action string, tenantID int64, message string) {
+	if s.OpLog == nil {
+		return
+	}
+	_ = s.OpLog.Write(c, operationlog.WriteOpts{
+		AdminUserID: actorID,
+		Action:      action,
+		Resource:    "tenant",
+		ResourceID:  fmt.Sprintf("%d", tenantID),
+		Status:      "success",
+		Message:     message,
+	})
+}
+
+func (s *Service) findTenant(c *gin.Context, id int64) (*Tenant, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("platformtenant: no db")
+	}
+	if id == PlatformTenantID {
+		return nil, ErrPlatformTenantReadOnly
+	}
+	var t Tenant
+	if err := s.DB.WithContext(c.Request.Context()).First(&t, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrTenantNotFound
+		}
+		return nil, err
+	}
+	return &t, nil
+}
+
+// Rename changes a tenant's display name. The platform tenant cannot be renamed.
+func (s *Service) Rename(c *gin.Context, id int64, newName string, actorID *uuid.UUID) (*TenantRow, error) {
+	name := strings.TrimSpace(newName)
+	if name == "" || len(name) > 128 {
+		return nil, fmt.Errorf("租户名称必填（不超过 128 字符）")
+	}
+	t, err := s.findTenant(c, id)
+	if err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
+	var cnt int64
+	if err := s.DB.WithContext(ctx).Model(&Tenant{}).
+		Where("LOWER(name) = ? AND id <> ?", strings.ToLower(name), t.ID).Count(&cnt).Error; err != nil {
+		return nil, err
+	}
+	if cnt > 0 {
+		return nil, ErrDuplicateTenantName
+	}
+	oldName := t.Name
+	if err := s.DB.WithContext(ctx).Model(t).Update("name", name).Error; err != nil {
+		return nil, err
+	}
+	s.writeOpLog(c, actorID, "tenant.rename", t.ID, fmt.Sprintf("tenantId=%d oldName=%s newName=%s", t.ID, oldName, name))
+	cntUsers, err := userCountByTenant(s.DB.WithContext(ctx), t.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &TenantRow{
+		ID:         t.ID,
+		Name:       name,
+		Status:     normalizeStatus(t.Status),
+		AdminCount: cntUsers,
+		CreatedAt:  t.CreatedAt.UTC().Format(time.RFC3339),
+	}, nil
+}
+
+// SetStatus enables or disables a tenant. Disabling rejects every login of
+// the tenant's accounts and invalidates existing sessions on their next
+// request. The platform tenant (tenant 0) cannot be disabled.
+func (s *Service) SetStatus(c *gin.Context, id int64, status string, actorID *uuid.UUID) (*TenantRow, error) {
+	if status != StatusActive && status != StatusDisabled {
+		return nil, fmt.Errorf("无效的租户状态")
+	}
+	t, err := s.findTenant(c, id)
+	if err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
+	if normalizeStatus(t.Status) != status {
+		if err := s.DB.WithContext(ctx).Model(t).Update("status", status).Error; err != nil {
+			return nil, err
+		}
+	}
+	action := "tenant.enable"
+	if status == StatusDisabled {
+		action = "tenant.disable"
+	}
+	s.writeOpLog(c, actorID, action, t.ID, fmt.Sprintf("tenantId=%d name=%s status=%s", t.ID, t.Name, status))
+	cntUsers, err := userCountByTenant(s.DB.WithContext(ctx), t.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &TenantRow{
+		ID:         t.ID,
+		Name:       t.Name,
+		Status:     status,
+		AdminCount: cntUsers,
+		CreatedAt:  t.CreatedAt.UTC().Format(time.RFC3339),
 	}, nil
 }

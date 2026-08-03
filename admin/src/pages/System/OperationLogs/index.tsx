@@ -157,12 +157,14 @@ export default function OperationLogsPage() {
     {
       title: '路径',
       dataIndex: 'path',
+      width: 220,
       ellipsis: true,
       search: false,
     },
     {
       title: '说明',
       dataIndex: 'message',
+      width: 240,
       ellipsis: true,
       search: false,
     },

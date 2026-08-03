@@ -2,6 +2,7 @@ package platformtenant
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -80,4 +81,74 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 	response.OK(c, res)
+}
+
+func tenantIDParam(c *gin.Context) (int64, bool) {
+	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || id < 0 {
+		response.Fail(c, 400, response.CodeBadRequest, "租户编号无效")
+		return 0, false
+	}
+	return id, true
+}
+
+func handleTenantError(c *gin.Context, err error) {
+	if errors.Is(err, ErrTenantNotFound) {
+		response.Fail(c, 404, response.CodeNotFound, err.Error())
+		return
+	}
+	response.Fail(c, 400, response.CodeBadRequest, err.Error())
+}
+
+// RenameBody renames a tenant.
+type RenameBody struct {
+	Name string `json:"name"`
+}
+
+// Rename PUT /api/v1/platform/tenants/:id
+func (h *Handler) Rename(c *gin.Context) {
+	if !h.requirePlatformAdmin(c) {
+		return
+	}
+	id, ok := tenantIDParam(c)
+	if !ok {
+		return
+	}
+	var body RenameBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "请求参数无效")
+		return
+	}
+	row, err := h.Svc.Rename(c, id, body.Name, actorUUID(c))
+	if err != nil {
+		handleTenantError(c, err)
+		return
+	}
+	response.OK(c, row)
+}
+
+// Disable POST /api/v1/platform/tenants/:id/disable
+func (h *Handler) Disable(c *gin.Context) {
+	h.setStatus(c, StatusDisabled)
+}
+
+// Enable POST /api/v1/platform/tenants/:id/enable
+func (h *Handler) Enable(c *gin.Context) {
+	h.setStatus(c, StatusActive)
+}
+
+func (h *Handler) setStatus(c *gin.Context, status string) {
+	if !h.requirePlatformAdmin(c) {
+		return
+	}
+	id, ok := tenantIDParam(c)
+	if !ok {
+		return
+	}
+	row, err := h.Svc.SetStatus(c, id, status, actorUUID(c))
+	if err != nil {
+		handleTenantError(c, err)
+		return
+	}
+	response.OK(c, row)
 }

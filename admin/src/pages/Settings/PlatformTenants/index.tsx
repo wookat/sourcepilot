@@ -4,10 +4,13 @@ import { PAGE_COPY } from '@/constants/copywriting';
 import { formatDateTime } from '@/utils/formatTime';
 import {
   createPlatformTenant,
+  disablePlatformTenant,
+  enablePlatformTenant,
   fetchPlatformTenants,
+  renamePlatformTenant,
   type PlatformTenantRow,
 } from '@/services/platformTenants';
-import { Button, Form, Input, Modal, Result, Tag, message } from 'antd';
+import { Button, Form, Input, Modal, Result, Space, Tag, message } from 'antd';
 import { useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
@@ -18,6 +21,9 @@ export default function PlatformTenantsPage() {
   const { user, role } = usePermission();
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm] = Form.useForm();
+  const [renameTarget, setRenameTarget] = useState<PlatformTenantRow | null>(null);
+  const [renameForm] = Form.useForm();
+  const [modal, modalContextHolder] = Modal.useModal();
   const emptyLocale = useListEmptyLocale('platformTenants', {
     onAction: () => setCreateOpen(true),
     actionLabel: '新建租户',
@@ -42,12 +48,90 @@ export default function PlatformTenantsPage() {
           row.name
         ),
     },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      render: (_, row) =>
+        row.status === 'disabled' ? <Tag color="red">已停用</Tag> : <Tag color="green">启用中</Tag>,
+    },
     { title: '账号数', dataIndex: 'adminCount', width: 100 },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 180,
       render: (_, row) => (row.createdAt ? formatDateTime(row.createdAt) : '—'),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 180,
+      render: (_, row) =>
+        row.id === 0 ? (
+          <span>—</span>
+        ) : (
+          <Space size="small">
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
+                renameForm.setFieldsValue({ name: row.name });
+                setRenameTarget(row);
+              }}
+            >
+              改名
+            </Button>
+            {row.status === 'disabled' ? (
+              <Button
+                type="link"
+                size="small"
+                onClick={() =>
+                  modal.confirm({
+                    title: `启用租户「${row.name}」？`,
+                    content: '启用后该租户下的账号可正常登录。',
+                    okText: '启用',
+                    onOk: async () => {
+                      try {
+                        await enablePlatformTenant(row.id);
+                        message.success('租户已启用');
+                        actionRef.current?.reload();
+                      } catch (e: unknown) {
+                        message.error((e as Error)?.message || '启用失败');
+                      }
+                    },
+                  })
+                }
+              >
+                启用
+              </Button>
+            ) : (
+              <Button
+                type="link"
+                size="small"
+                danger
+                onClick={() =>
+                  modal.confirm({
+                    title: `停用租户「${row.name}」？`,
+                    content: '停用后该租户所有账号将无法登录，已登录会话将在下次请求时失效。',
+                    okText: '停用',
+                    okButtonProps: { danger: true },
+                    onOk: async () => {
+                      try {
+                        await disablePlatformTenant(row.id);
+                        message.success('租户已停用');
+                        actionRef.current?.reload();
+                      } catch (e: unknown) {
+                        message.error((e as Error)?.message || '停用失败');
+                      }
+                    },
+                  })
+                }
+              >
+                停用
+              </Button>
+            )}
+          </Space>
+        ),
     },
   ];
 
@@ -115,6 +199,36 @@ export default function PlatformTenantsPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <Modal
+        title="租户改名"
+        open={!!renameTarget}
+        onCancel={() => setRenameTarget(null)}
+        onOk={() => renameForm.submit()}
+        destroyOnHidden
+      >
+        <Form
+          form={renameForm}
+          layout="vertical"
+          onFinish={async (v: { name: string }) => {
+            if (!renameTarget) return;
+            try {
+              await renamePlatformTenant(renameTarget.id, v.name);
+              message.success('租户已改名');
+              setRenameTarget(null);
+              renameForm.resetFields();
+              actionRef.current?.reload();
+            } catch (e: unknown) {
+              message.error((e as Error)?.message || '改名失败');
+            }
+          }}
+        >
+          <Form.Item name="name" label="租户名称" rules={[{ required: true, max: 128 }]}>
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+      {modalContextHolder}
     </TmPageContainer>
   );
 }

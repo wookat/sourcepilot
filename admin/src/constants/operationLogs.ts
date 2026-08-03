@@ -1,6 +1,7 @@
 /** 操作日志 · 资源类型中文映射（与后端 operationlog Resource 一致） */
 export const OPERATION_LOG_RESOURCE_LABEL: Record<string, string> = {
   auth: '认证',
+  tenant: '租户',
   settings: '系统设置',
   product: '商品',
   product_sku: '商品规格',
@@ -38,6 +39,10 @@ export const OPERATION_LOG_RESOURCE_LABEL: Record<string, string> = {
 /** 操作日志 · 操作动作中文映射（与后端 operationlog Action 一致） */
 export const OPERATION_LOG_ACTION_LABEL: Record<string, string> = {
   login: '登录',
+  'tenant.create': '创建租户',
+  'tenant.rename': '租户改名',
+  'tenant.disable': '停用租户',
+  'tenant.enable': '启用租户',
   logout: '登出',
   register: '注册',
   email_code: '发送邮箱验证码',
