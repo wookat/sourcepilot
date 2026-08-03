@@ -61,6 +61,7 @@ func (s *Service) productTimeScope(ctx context.Context, q Query) *gorm.DB {
 	if soft, _ := s.schemaFlags(ctx); soft {
 		tx = tx.Where("products.deleted_at IS NULL")
 	}
+	tx = q.Scope.applyTenantColumn(tx, "products.tenant_id")
 	tx = s.applyProductScope(tx, q)
 	return q.Scope.applyProductScope(tx)
 }

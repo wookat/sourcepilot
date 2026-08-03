@@ -120,6 +120,12 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 平台管理员正向路径与非平台角色 403、越权无副作用由 `platformtenant` 模块 `api_test.go` 覆盖（tenant0 admin 开租成功、初始管理员落新租户 admin、tenant1 admin / tenant0 operator / tenant0 readonly 403）。
 - 开租写操作日志 `tenant.create`（不含密码）；`/auth/register` 行为不变（不提供自助开租）。
 
+## round82 仪表盘/库存聚合租户收口（双租户实测 P1）
+
+- 运营仪表盘（`/dashboard/product-operations|overview|todos|health`）聚合查询补租户过滤：`operationdashboard.Scope` 新增 `applyTenantColumn` / `applyTenantViaProduct` / `applyTenantViaShop` 助手，产品、采集、AI 任务/批次、图片任务、选品、货源、采购、订单、客服会话/建议、刊登任务/发布记录、库存同步、任务中心失败与告警等 Summary/Exceptions/Recent 查询全部按可信 `tenant_id` 限定（`TenantID` 为 nil 保持 legacy 内部调用行为）。无 `tenant_id` 列的 `ai_tasks` / `image_tasks` 经商品关联限定（口径同 taskcenter `applyTenantListFilterVia`）；`product_publications` 经店铺关联限定；任务中心 Summary 透传 `TenantID`（沿用其 tenant-0 legacy 桶口径）。
+- 库存共享基础查询 `buildSKUAlertBaseTX` 支持可选 `TenantID`，`GET /inventory/alerts`、`POST /inventory/stock-settings/batch-preview|batch-update` handler 注入当前租户（此前三端点无租户过滤，batch-update 可跨租户改库存阈值）。
+- 回归证据：`operationdashboard` `TestScopeApplyTenantColumn` / `TestScopeApplyTenantViaProductAndShop`、`inventory` `TestBuildSKUAlertBaseTXTenantScope`。路由级守卫矩阵不变（本轮未新增端点）。
+
 ## docs/api.md 口径差异说明
 
 - docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。

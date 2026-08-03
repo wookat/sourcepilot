@@ -1377,3 +1377,9 @@ Final Production Acceptance Deferred to P10
 - Go 工具链升到 1.25.12（`backend/go.mod`、`go.work`）：govulncheck 由 27 条标准库符号命中降为 0。
 - 前端构建链 `pnpm.overrides` 补 `vite ^4.5.14`、`postcss ^8.5.18`（同大版本补丁，dependabot major 封禁范围外）；vitest / umi 系高危均为构建期依赖且补丁需跨大版本，按封禁保留并列入清单。
 - 回归单测：sourcing `TestSourcingWritesScopedByTenant`、imagetask `TestImageTaskDetailAndApplyScopedByTenant`、productpublish `TestPublishTargetsScopedByTenant` / `TestCancelTaskScopedByTenant`；权限矩阵契约全量复跑通过（新增路由无漏登记）。
+
+### 变更记录（2026-08-03）第 82 轮：双租户全链路隔离实测 + 仪表盘/库存聚合租户收口（P1）
+
+- 双租户实测（docker compose 全栈 + seed:demo:full + 平台租户页正规开租租户 B）发现：运营仪表盘聚合数值跨租户泄露（商品/客服/刊登/库存等计数含他租户数据）；代码走查同时发现 `GET /inventory/alerts` 与 `POST /inventory/stock-settings/batch-preview|batch-update` 无租户过滤（后者可跨租户批量改库存阈值）。
+- 修复：`operationdashboard.Scope` 新增 `applyTenantColumn` / `applyTenantViaProduct` / `applyTenantViaShop`，Summary/Exceptions/Recent 全部聚合查询按可信租户限定；库存 `buildSKUAlertBaseTX` 支持可选 `TenantID`，三个库存端点 handler 注入当前租户。详见 docs/permission-matrix.md「round82」。
+- 回归：`operationdashboard` / `inventory` 新增 dry-run 租户谓词单测；`go test ./...` 全量通过。
