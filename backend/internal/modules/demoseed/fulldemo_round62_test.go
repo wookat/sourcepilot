@@ -48,6 +48,8 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&sourcing.ProductSourceSKU{},
 		&sourcing.SourcePriceHistory{},
 		&sourcing.SourceSwitchEvent{},
+		&productpublish.ProductPublishBatch{},
+		&productpublish.ProductPublishTask{},
 		&productpublish.ProductPublication{},
 		&productpublish.ProductPublicationSKU{},
 		&settings.Setting{},
