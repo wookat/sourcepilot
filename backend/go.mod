@@ -11,7 +11,7 @@ require (
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
 	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
 	github.com/aws/aws-sdk-go-v2 v1.43.2
-	github.com/aws/aws-sdk-go-v2/config v1.32.17
+	github.com/aws/aws-sdk-go-v2/config v1.32.33
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.32
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.2
