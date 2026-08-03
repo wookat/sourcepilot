@@ -63,7 +63,8 @@ export default function ProductPublishTasksPage() {
   const taskIdFromUrl = urlState.id;
   const statusFromUrl = urlState.status;
   const batchIdFromUrl = urlState.batchId;
-  const emptyLocale = useListEmptyLocale('publishBatches', { permissionScoped: true });
+  const taskEmptyLocale = useListEmptyLocale('publishTaskRecords', { permissionScoped: true });
+  const batchEmptyLocale = useListEmptyLocale('publishBatches', { permissionScoped: true });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<ProductPublishTaskDTO | null>(null);
 
@@ -363,26 +364,28 @@ export default function ProductPublishTasksPage() {
                   },
                 }}
                 headerTitle="刊登记录"
-                locale={emptyLocale}
+                locale={taskEmptyLocale}
                 request={async (params) => {
                   const qp = buildListQuery(params, params.current ?? tablePage, params.pageSize ?? tablePageSize);
-                  setUrlState(
-                    {
-                      page: Number(qp.page) > 1 ? qp.page : undefined,
-                      pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
-                      shopId: qp.shopId,
-                      productId: qp.productId,
-                      platform: qp.platform,
-                      status: qp.status,
-                      start: qp.start,
-                      end: qp.end,
-                      tab: 'tasks',
-                      source: urlState.source,
-                      drawer: urlState.drawer,
-                      id: urlState.id,
-                    },
-                    { replace: true },
-                  );
+                  if (activeTab === 'tasks') {
+                    setUrlState(
+                      {
+                        page: Number(qp.page) > 1 ? qp.page : undefined,
+                        pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+                        shopId: qp.shopId,
+                        productId: qp.productId,
+                        platform: qp.platform,
+                        status: qp.status,
+                        start: qp.start,
+                        end: qp.end,
+                        tab: 'tasks',
+                        source: urlState.source,
+                        drawer: urlState.drawer,
+                        id: urlState.id,
+                      },
+                      { replace: true },
+                    );
+                  }
                   const res = await queryProductPublishTasks(qp);
                   return { data: res.list, total: res.pagination.total, success: true };
                 }}
@@ -407,26 +410,26 @@ export default function ProductPublishTasksPage() {
                     setBatchPage(page);
                     setBatchPageSize(pageSize);
                     setUrlState({
-                      tab: undefined,
                       page: page > 1 ? page : undefined,
                       pageSize: pageSize !== 20 ? pageSize : undefined,
                     });
                   },
                 }}
                 headerTitle="批量刊登批次"
-                locale={emptyLocale}
+                locale={batchEmptyLocale}
                 request={async (params) => {
                   const page = params.current ?? batchPage;
                   const pageSize = params.pageSize ?? batchPageSize;
-                  setUrlState(
-                    {
-                      tab: undefined,
-                      page: page > 1 ? page : undefined,
-                      pageSize: pageSize !== 20 ? pageSize : undefined,
-                      source: urlState.source,
-                    },
-                    { replace: true },
-                  );
+                  if (activeTab === 'batches') {
+                    setUrlState(
+                      {
+                        page: page > 1 ? page : undefined,
+                        pageSize: pageSize !== 20 ? pageSize : undefined,
+                        source: urlState.source,
+                      },
+                      { replace: true },
+                    );
+                  }
                   const res = await queryPublishBatches({ page, pageSize });
                   return { data: res.list, total: res.pagination.total, success: true };
                 }}

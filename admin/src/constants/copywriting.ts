@@ -262,6 +262,12 @@ export const LIST_EMPTY_COPY = {
     action: '前往商品草稿',
     actionPath: '/product/drafts',
   },
+  publishTaskRecords: {
+    title: '暂无刊登任务',
+    description: '刊登批次执行后，会在此展示每个商品的刊登子任务。',
+    action: '前往商品草稿',
+    actionPath: '/product/drafts',
+  },
   orderList: {
     title: '暂无订单数据',
     description: '可以先配置店铺授权并手动同步订单；演示环境也可以运行 Demo 数据脚本生成样本。',
