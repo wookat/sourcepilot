@@ -56,7 +56,7 @@ sudo mkdir -p /var/backups && crontab -l 2>/dev/null | { cat; echo '0 3 * * * cd
 | 7 | 内部端口未暴露 | `curl https://<DOMAIN>/metrics`、`ss -tlnp` | /metrics 返回 SPA 页（非指标）；宿主机仅 80/443 监听 |
 | 8 | 生产危险操作禁用 | `POST /api/v1/ops/restores`（带 token） | `RESTORE_APP_ENV_FORBIDDEN`（恢复演练在生产被拒） |
 | 9 | 错误不泄露堆栈 | 构造 400/404 请求 | 统一 envelope（code/message/traceId），无堆栈 |
-| 10 | 手工备份 | `POST /api/v1/ops/backups`（或等 crontab） | status=completed；备份文件落盘/入桶 |
+| 10 | 手工备份 | `POST /api/v1/ops/backups`（或等 crontab） | status=completed；加密产物落在 backend 容器 `/tmp/trademind-p6-backups/`（暂不入桶，见下方说明） |
 | 11 | 系统设置密钥 | 管理端配置 AI/对象存储密钥 | 加密入库、脱敏展示 |
 | 12 | 平台租户开租 | 引导账号登录 →「设置 → 平台租户」新建租户 | 创建成功；新租户初始管理员可用邮箱+密码登录 |
 | 13 | 会话治理 | `POST /auth/refresh`（cookie）→ `POST /auth/logout` → 再 refresh/带旧 token 访问 | 续期成功；登出后 `AUTH_REFRESH_TOKEN_REVOKED` / `AUTH_SESSION_REVOKED` |
@@ -82,7 +82,7 @@ git checkout <上一个正常commit>
 - 引导管理员口径为 tenant 0 平台管理员（`ADMIN_BOOTSTRAP_TENANT_ID=0`），业务租户一律经「设置 → 平台租户」创建；仅遗留单租户部署才显式设 >0。
 - `BACKUP_SCHEDULE` 仅是配置元数据，后端**没有内置定时器**：每日自动备份靠宿主机 crontab（上文第 4 步），勿以为配了变量就有自动备份。
 - 后端镜像已内置 postgresql-client-16（`pg_dump`/`pg_restore`/`psql`），`/api/v1/ops/backups` 手工备份可用（演练中发现缺失并已修复）。
-- `BACKUP_STORAGE_BUCKET` 为空时对象存储备份会失败，上线后尽快在 `.env` 补齐并重启 backend。
+- 对象存储上传**尚未实现**：`BACKUP_MODE=object_storage` 只做配置校验，`/api/v1/ops/backups` 的产物仍落在 backend 容器 `/tmp`（容器重建即丢，download 也会失效），记录中的 `storageProvider` 仅反映配置而非实际存储位置。生产的权威备份是宿主机 crontab pg_dump（上文第 4 步），必须配置；`BACKUP_STORAGE_BUCKET` 为空当前不会导致备份失败。
 - Let's Encrypt 正式签发依赖真实 DNS + 公网 80/443，为本地演练唯一未覆盖项；异常按 production-deployment.md「常见问题」第一条排查（先切 staging CA 联调）。
 - 登录接口 body 为 `{"account": "...", "password": "..."}`（account=邮箱或手机号，不是 email 字段）。
 
