@@ -1,6 +1,6 @@
 module github.com/trademind-ai/trademind/backend
 
-go 1.25.0
+go 1.25.12
 
 exclude google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
 

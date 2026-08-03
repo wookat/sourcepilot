@@ -69,7 +69,7 @@ func (h *Handler) ListSuppliers(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "sourcing unavailable")
 		return
 	}
-	res, err := h.Svc.ListSuppliers(c.Request.Context(), SupplierListQuery{
+	res, err := h.Svc.ListSuppliers(c, SupplierListQuery{
 		Page:     atoiQ(c, "page", 1),
 		PageSize: atoiQ(c, "pageSize", 20),
 		Keyword:  c.Query("keyword"),
@@ -94,7 +94,7 @@ func (h *Handler) CreateSupplier(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
-	out, err := h.Svc.CreateSupplier(c.Request.Context(), body, adminUUID(c))
+	out, err := h.Svc.CreateSupplier(c, body, adminUUID(c))
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -117,7 +117,7 @@ func (h *Handler) UpdateSupplier(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
-	out, err := h.Svc.UpdateSupplier(c.Request.Context(), id, body, adminUUID(c))
+	out, err := h.Svc.UpdateSupplier(c, id, body, adminUUID(c))
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -135,7 +135,7 @@ func (h *Handler) DeleteSupplier(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.Svc.DeleteSupplier(c.Request.Context(), id, adminUUID(c)); err != nil {
+	if err := h.Svc.DeleteSupplier(c, id, adminUUID(c)); err != nil {
 		handleSourcingError(c, err)
 		return
 	}
@@ -175,7 +175,7 @@ func (h *Handler) BindSource(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
-	out, err := h.Svc.BindSource(c.Request.Context(), pid, body, adminUUID(c))
+	out, err := h.Svc.BindSource(c, pid, body, adminUUID(c))
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -198,7 +198,7 @@ func (h *Handler) UpdateSource(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
-	out, err := h.Svc.UpdateSource(c.Request.Context(), id, body, adminUUID(c))
+	out, err := h.Svc.UpdateSource(c, id, body, adminUUID(c))
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -216,7 +216,7 @@ func (h *Handler) SetPrimary(c *gin.Context) {
 	if !ok {
 		return
 	}
-	out, err := h.Svc.SetPrimary(c.Request.Context(), id, adminUUID(c))
+	out, err := h.Svc.SetPrimary(c, id, adminUUID(c))
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -230,7 +230,7 @@ func (h *Handler) ListOrphanSources(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "sourcing unavailable")
 		return
 	}
-	out, err := h.Svc.ListOrphanSources(c.Request.Context())
+	out, err := h.Svc.ListOrphanSources(c)
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -248,7 +248,7 @@ func (h *Handler) DeleteSource(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.Svc.DeleteSource(c.Request.Context(), id, adminUUID(c)); err != nil {
+	if err := h.Svc.DeleteSource(c, id, adminUUID(c)); err != nil {
 		handleSourcingError(c, err)
 		return
 	}
@@ -272,7 +272,7 @@ func (h *Handler) SaveSKUMappings(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body: mappings required")
 		return
 	}
-	out, err := h.Svc.SaveSKUMappings(c.Request.Context(), id, body.Mappings, adminUUID(c))
+	out, err := h.Svc.SaveSKUMappings(c, id, body.Mappings, adminUUID(c))
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -290,7 +290,7 @@ func (h *Handler) DeleteSKUMapping(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.Svc.DeleteSKUMapping(c.Request.Context(), id, adminUUID(c)); err != nil {
+	if err := h.Svc.DeleteSKUMapping(c, id, adminUUID(c)); err != nil {
 		handleSourcingError(c, err)
 		return
 	}
@@ -325,7 +325,7 @@ func (h *Handler) Refresh(c *gin.Context) {
 	if !ok {
 		return
 	}
-	out, err := h.Svc.RefreshProductSources(c.Request.Context(), pid, adminUUID(c))
+	out, err := h.Svc.RefreshProductSources(c, pid, adminUUID(c))
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -343,7 +343,7 @@ func (h *Handler) AdoptSwitchSuggestion(c *gin.Context) {
 	if !ok {
 		return
 	}
-	out, err := h.Svc.AdoptSwitchSuggestion(c.Request.Context(), id, adminUUID(c))
+	out, err := h.Svc.AdoptSwitchSuggestion(c, id, adminUUID(c))
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -361,7 +361,7 @@ func (h *Handler) IgnoreSwitchSuggestion(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.Svc.IgnoreSwitchSuggestion(c.Request.Context(), id, adminUUID(c)); err != nil {
+	if err := h.Svc.IgnoreSwitchSuggestion(c, id, adminUUID(c)); err != nil {
 		handleSourcingError(c, err)
 		return
 	}
@@ -374,7 +374,7 @@ func (h *Handler) ListSourceAlerts(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "sourcing unavailable")
 		return
 	}
-	out, err := h.Svc.ListSourceAlerts(c.Request.Context())
+	out, err := h.Svc.ListSourceAlerts(c)
 	if err != nil {
 		handleSourcingError(c, err)
 		return
@@ -397,7 +397,7 @@ func (h *Handler) ListSwitchEvents(c *gin.Context) {
 		}
 		pid = &u
 	}
-	out, err := h.Svc.ListSwitchEvents(c.Request.Context(), pid, atoiQ(c, "page", 1), atoiQ(c, "pageSize", 20))
+	out, err := h.Svc.ListSwitchEvents(c, pid, atoiQ(c, "page", 1), atoiQ(c, "pageSize", 20))
 	if err != nil {
 		handleSourcingError(c, err)
 		return

@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
-	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/datatypes"
@@ -92,9 +91,12 @@ func (h *Handler) Create(c *gin.Context) {
 			response.Fail(c, 400, response.CodeBadRequest, "invalid productId")
 			return
 		}
-		var n int64
-		if err := h.Svc.DB.WithContext(c.Request.Context()).Model(&product.Product{}).Where("id = ?", pid).Count(&n).Error; err != nil || n == 0 {
-			response.Fail(c, 400, response.CodeBadRequest, "product not found")
+		if err := h.Svc.EnsureProductVisible(c, pid); err != nil {
+			if notFound(err) {
+				response.Fail(c, 400, response.CodeBadRequest, "product not found")
+				return
+			}
+			response.HandleError(c, err)
 			return
 		}
 		productID = &pid
@@ -317,6 +319,14 @@ func (h *Handler) Get(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if err := h.Svc.EnsureTaskVisible(c, id); err != nil {
+		if notFound(err) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
 	row, err := h.Svc.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -338,6 +348,14 @@ func (h *Handler) Retry(c *gin.Context) {
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if err := h.Svc.EnsureTaskVisible(c, id); err != nil {
+		if notFound(err) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
 		return
 	}
 	if err := h.Svc.RetryEnqueue(c, id); err != nil {

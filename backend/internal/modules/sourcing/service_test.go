@@ -3,11 +3,15 @@ package sourcing
 import (
 	"context"
 	"fmt"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/providers/sourceinfo"
 	"gorm.io/gorm"
 )
@@ -19,7 +23,7 @@ func openTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
 	}
-	if err := db.AutoMigrate(&Supplier{}, &ProductSource{}, &ProductSourceSKU{}, &SourcePriceHistory{}, &SourceSwitchEvent{}); err != nil {
+	if err := db.AutoMigrate(&Supplier{}, &ProductSource{}, &ProductSourceSKU{}, &SourcePriceHistory{}, &SourceSwitchEvent{}, &product.Product{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db
@@ -29,9 +33,30 @@ func newTestService(t *testing.T) *Service {
 	return &Service{DB: openTestDB(t), Provider: &sourceinfo.Mock{}}
 }
 
+// testCtx builds a request context for the given tenant, mirroring the
+// tenant id the auth middleware puts on real requests.
+func testCtx(tenantID int64) *gin.Context {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("GET", "/", nil)
+	c.Set(ctxkey.TenantID, tenantID)
+	return c
+}
+
+// mustProduct creates a tenant-scoped product to hang sources off, so service
+// calls run through the same tenant guards as production requests.
+func mustProduct(t *testing.T, svc *Service, tenantID int64) uuid.UUID {
+	t.Helper()
+	p := &product.Product{TenantID: tenantID, Source: "manual", Title: "p", Status: "draft"}
+	if err := svc.DB.Create(p).Error; err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	return p.ID
+}
+
 func mustBind(t *testing.T, svc *Service, productID uuid.UUID, name, offer string, priority int) *ProductSource {
 	t.Helper()
-	src, err := svc.BindSource(context.Background(), productID, BindSourceBody{
+	src, err := svc.BindSource(testCtx(0), productID, BindSourceBody{
 		SupplierName: name,
 		SourceURL:    "https://detail.1688.com/offer/" + offer + ".html",
 		Priority:     &priority,
@@ -44,7 +69,7 @@ func mustBind(t *testing.T, svc *Service, productID uuid.UUID, name, offer strin
 
 func TestBindSourceFirstBecomesPrimaryAndDuplicateRejected(t *testing.T) {
 	svc := newTestService(t)
-	productID := uuid.New()
+	productID := mustProduct(t, svc, 0)
 	first := mustBind(t, svc, productID, "supplier-a", "111", 10)
 	if !first.IsPrimary {
 		t.Fatalf("first source should be primary")
@@ -55,7 +80,7 @@ func TestBindSourceFirstBecomesPrimaryAndDuplicateRejected(t *testing.T) {
 	}
 	// same supplier + offer again → conflict
 	p := 30
-	_, err := svc.BindSource(context.Background(), productID, BindSourceBody{
+	_, err := svc.BindSource(testCtx(0), productID, BindSourceBody{
 		SupplierName: "supplier-a",
 		SourceURL:    "https://detail.1688.com/offer/111.html",
 		Priority:     &p,
@@ -67,11 +92,11 @@ func TestBindSourceFirstBecomesPrimaryAndDuplicateRejected(t *testing.T) {
 
 func TestSetPrimaryWritesSwitchEvent(t *testing.T) {
 	svc := newTestService(t)
-	productID := uuid.New()
+	productID := mustProduct(t, svc, 0)
 	a := mustBind(t, svc, productID, "supplier-a", "111", 10)
 	b := mustBind(t, svc, productID, "supplier-b", "222", 20)
 
-	out, err := svc.SetPrimary(context.Background(), b.ID, nil)
+	out, err := svc.SetPrimary(testCtx(0), b.ID, nil)
 	if err != nil {
 		t.Fatalf("set primary: %v", err)
 	}
@@ -96,11 +121,11 @@ func TestSetPrimaryWritesSwitchEvent(t *testing.T) {
 
 func TestSaveSKUMappingsWritesPriceHistory(t *testing.T) {
 	svc := newTestService(t)
-	productID := uuid.New()
+	productID := mustProduct(t, svc, 0)
 	src := mustBind(t, svc, productID, "supplier-a", "111", 10)
 	localSKU := uuid.New()
 	price := 12.5
-	rows, err := svc.SaveSKUMappings(context.Background(), src.ID, []SKUMappingBody{
+	rows, err := svc.SaveSKUMappings(testCtx(0), src.ID, []SKUMappingBody{
 		{LocalSKUID: localSKU.String(), ExternalSKUID: "ext-1", CurrentPrice: &price},
 	}, nil)
 	if err != nil {
@@ -110,7 +135,7 @@ func TestSaveSKUMappingsWritesPriceHistory(t *testing.T) {
 		t.Fatalf("unexpected mapping: %+v", rows)
 	}
 	// same price again should not append another history row
-	if _, err := svc.SaveSKUMappings(context.Background(), src.ID, []SKUMappingBody{
+	if _, err := svc.SaveSKUMappings(testCtx(0), src.ID, []SKUMappingBody{
 		{LocalSKUID: localSKU.String(), ExternalSKUID: "ext-1", CurrentPrice: &price},
 	}, nil); err != nil {
 		t.Fatal(err)
@@ -126,17 +151,17 @@ func TestSaveSKUMappingsWritesPriceHistory(t *testing.T) {
 
 func TestDeleteSKUMapping(t *testing.T) {
 	svc := newTestService(t)
-	productID := uuid.New()
+	productID := mustProduct(t, svc, 0)
 	src := mustBind(t, svc, productID, "supplier-a", "111", 10)
 	localSKU := uuid.New()
 	price := 9.9
-	rows, err := svc.SaveSKUMappings(context.Background(), src.ID, []SKUMappingBody{
+	rows, err := svc.SaveSKUMappings(testCtx(0), src.ID, []SKUMappingBody{
 		{LocalSKUID: localSKU.String(), ExternalSKUID: "ext-1", CurrentPrice: &price},
 	}, nil)
 	if err != nil {
 		t.Fatalf("save mappings: %v", err)
 	}
-	if err := svc.DeleteSKUMapping(context.Background(), rows[0].ID, nil); err != nil {
+	if err := svc.DeleteSKUMapping(testCtx(0), rows[0].ID, nil); err != nil {
 		t.Fatalf("delete mapping: %v", err)
 	}
 	var cnt int64
@@ -153,28 +178,28 @@ func TestDeleteSKUMapping(t *testing.T) {
 	if raw != 1 {
 		t.Fatalf("soft delete expected, row missing entirely")
 	}
-	if err := svc.DeleteSKUMapping(context.Background(), rows[0].ID, nil); err == nil {
+	if err := svc.DeleteSKUMapping(testCtx(0), rows[0].ID, nil); err == nil {
 		t.Fatalf("second delete should return not found")
 	}
 }
 
 func TestSaveSKUMappingsRevivesSoftDeletedRow(t *testing.T) {
 	svc := newTestService(t)
-	productID := uuid.New()
+	productID := mustProduct(t, svc, 0)
 	src := mustBind(t, svc, productID, "supplier-a", "111", 10)
 	localSKU := uuid.New()
 	price := 9.9
-	rows, err := svc.SaveSKUMappings(context.Background(), src.ID, []SKUMappingBody{
+	rows, err := svc.SaveSKUMappings(testCtx(0), src.ID, []SKUMappingBody{
 		{LocalSKUID: localSKU.String(), ExternalSKUID: "ext-1", CurrentPrice: &price},
 	}, nil)
 	if err != nil {
 		t.Fatalf("save mappings: %v", err)
 	}
-	if err := svc.DeleteSKUMapping(context.Background(), rows[0].ID, nil); err != nil {
+	if err := svc.DeleteSKUMapping(testCtx(0), rows[0].ID, nil); err != nil {
 		t.Fatalf("delete mapping: %v", err)
 	}
 	price2 := 12.5
-	revived, err := svc.SaveSKUMappings(context.Background(), src.ID, []SKUMappingBody{
+	revived, err := svc.SaveSKUMappings(testCtx(0), src.ID, []SKUMappingBody{
 		{LocalSKUID: localSKU.String(), ExternalSKUID: "ext-2", CurrentPrice: &price2},
 	}, nil)
 	if err != nil {
@@ -194,7 +219,7 @@ func TestSaveSKUMappingsRevivesSoftDeletedRow(t *testing.T) {
 
 func TestApplySwitchRulesOutOfStockAutoSwitch(t *testing.T) {
 	svc := newTestService(t)
-	productID := uuid.New()
+	productID := mustProduct(t, svc, 0)
 	a := mustBind(t, svc, productID, "supplier-a", "111", 10)
 	b := mustBind(t, svc, productID, "supplier-b", "222", 20)
 
@@ -223,7 +248,7 @@ func TestApplySwitchRulesOutOfStockAutoSwitch(t *testing.T) {
 
 func TestApplySwitchRulesLockedPrimaryNotSwitched(t *testing.T) {
 	svc := newTestService(t)
-	productID := uuid.New()
+	productID := mustProduct(t, svc, 0)
 	a := mustBind(t, svc, productID, "supplier-a", "111", 10)
 	mustBind(t, svc, productID, "supplier-b", "222", 20)
 
@@ -256,7 +281,7 @@ func TestApplySwitchRulesLockedPrimaryNotSwitched(t *testing.T) {
 
 func TestApplySwitchRulesPriceAlertSuggestsOnly(t *testing.T) {
 	svc := newTestService(t)
-	productID := uuid.New()
+	productID := mustProduct(t, svc, 0)
 	a := mustBind(t, svc, productID, "supplier-a", "111", 10)
 	b := mustBind(t, svc, productID, "supplier-b", "222", 20)
 
@@ -285,7 +310,7 @@ func TestApplySwitchRulesPriceAlertSuggestsOnly(t *testing.T) {
 
 func TestSuggestionDedupeAdoptAndIgnore(t *testing.T) {
 	svc := newTestService(t)
-	productID := uuid.New()
+	productID := mustProduct(t, svc, 0)
 	a := mustBind(t, svc, productID, "supplier-a", "111", 10)
 	b := mustBind(t, svc, productID, "supplier-b", "222", 20)
 
@@ -309,13 +334,13 @@ func TestSuggestionDedupeAdoptAndIgnore(t *testing.T) {
 		t.Fatalf("expected one open suggestion, got %+v", evs)
 	}
 
-	if err := svc.IgnoreSwitchSuggestion(context.Background(), evs[0].ID, nil); err != nil {
+	if err := svc.IgnoreSwitchSuggestion(testCtx(0), evs[0].ID, nil); err != nil {
 		t.Fatalf("ignore: %v", err)
 	}
-	if err := svc.IgnoreSwitchSuggestion(context.Background(), evs[0].ID, nil); err == nil {
+	if err := svc.IgnoreSwitchSuggestion(testCtx(0), evs[0].ID, nil); err == nil {
 		t.Fatalf("second ignore should fail (not open)")
 	}
-	if _, err := svc.AdoptSwitchSuggestion(context.Background(), evs[0].ID, nil); err == nil {
+	if _, err := svc.AdoptSwitchSuggestion(testCtx(0), evs[0].ID, nil); err == nil {
 		t.Fatalf("adopt ignored suggestion should fail")
 	}
 
@@ -327,7 +352,7 @@ func TestSuggestionDedupeAdoptAndIgnore(t *testing.T) {
 	if err := svc.DB.Where("product_id = ? AND status = ?", productID, SuggestionOpen).First(&open).Error; err != nil {
 		t.Fatal(err)
 	}
-	out, err := svc.AdoptSwitchSuggestion(context.Background(), open.ID, nil)
+	out, err := svc.AdoptSwitchSuggestion(testCtx(0), open.ID, nil)
 	if err != nil {
 		t.Fatalf("adopt: %v", err)
 	}

@@ -48,6 +48,9 @@ func (h *Handler) SaveItemToProduct(c *gin.Context) {
 	if mode == "" {
 		mode = "ai_generated"
 	}
+	if err := h.guardItemAndProduct(c, itemID, pid); err != nil {
+		return
+	}
 	row, err := h.Svc.ApplyItemByID(c.Request.Context(), itemID, pid, mode, body.SetBest, adminUUID(c))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -92,6 +95,9 @@ func (h *Handler) SetItemAsMain(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid productId")
 		return
 	}
+	if err := h.guardItemAndProduct(c, itemID, pid); err != nil {
+		return
+	}
 	row, err := h.Svc.SetItemAsMain(c.Request.Context(), itemID, pid, adminUUID(c))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -134,6 +140,14 @@ func (h *Handler) ScoreImage(c *gin.Context) {
 			response.Fail(c, 400, response.CodeBadRequest, "invalid productId")
 			return
 		}
+		if err := h.Svc.EnsureProductVisible(c, pid); err != nil {
+			if notFound(err) {
+				response.Fail(c, 404, response.CodeNotFound, "not found")
+				return
+			}
+			response.HandleError(c, err)
+			return
+		}
 		req.ProductID = &pid
 	}
 	if raw := strings.TrimSpace(body.SourceImageID); raw != "" {
@@ -173,9 +187,12 @@ func (h *Handler) SelectBestMainForProduct(c *gin.Context) {
 	if mode == "" {
 		mode = "recommend"
 	}
-	var n int64
-	if err := h.Svc.DB.WithContext(c.Request.Context()).Table("products").Where("id = ?", pid).Count(&n).Error; err != nil || n == 0 {
-		response.Fail(c, 404, response.CodeNotFound, "product not found")
+	if err := h.Svc.EnsureProductVisible(c, pid); err != nil {
+		if notFound(err) {
+			response.Fail(c, 404, response.CodeNotFound, "product not found")
+			return
+		}
+		response.HandleError(c, err)
 		return
 	}
 	row, err := h.Svc.CreateSelectBestMainTask(c.Request.Context(), pid, mode, adminUUID(c))
@@ -206,4 +223,24 @@ func (h *Handler) SelectBestMainForProduct(c *gin.Context) {
 		})
 	}
 	response.OK(c, fresh)
+}
+
+// guardItemAndProduct verifies both the task item and the target product belong
+// to the request's tenant, writing the 404/500 response when they do not.
+func (h *Handler) guardItemAndProduct(c *gin.Context, itemID, productID uuid.UUID) error {
+	for _, err := range []error{
+		h.Svc.EnsureTaskItemVisible(c, itemID),
+		h.Svc.EnsureProductVisible(c, productID),
+	} {
+		if err == nil {
+			continue
+		}
+		if notFound(err) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return err
+		}
+		response.HandleError(c, err)
+		return err
+	}
+	return nil
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 // ListQuery binds query params for global image task listing.
@@ -48,7 +49,16 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		ps = 100
 	}
 
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+
+	// Tasks belong to a tenant through their product; tasks without a product
+	// linkage have no tenant column and stay visible (same convention as the
+	// item subresources).
 	tx := s.DB.WithContext(c.Request.Context()).Model(&ImageTask{}).
+		Where("product_id IS NULL OR product_id IN (SELECT id FROM products WHERE tenant_id = ? AND deleted_at IS NULL)", tid).
 		Select("id", "task_type", "provider", "status", "product_id", "source_image_id", "source_image_url",
 			"batch_id", "batch_no", "result_file_id", "result_url", "error_message", "retry_count", "max_retries", "next_retry_at", "retry_enqueued_at",
 			"created_by", "started_at", "finished_at", "created_at", "updated_at")

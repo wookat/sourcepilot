@@ -162,9 +162,9 @@ func (s *Service) validateBatchTargets(targets []PublishTargetRef) error {
 	return nil
 }
 
-func (s *Service) loadProductsForBatch(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*product.Product, error) {
+func (s *Service) loadProductsForBatch(ctx context.Context, tenantID int64, ids []uuid.UUID) (map[uuid.UUID]*product.Product, error) {
 	var rows []product.Product
-	if err := s.DB.WithContext(ctx).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id IN ? AND tenant_id = ?", ids, tenantID).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	m := make(map[uuid.UUID]*product.Product, len(rows))
@@ -187,10 +187,15 @@ func (s *Service) loadProductsForBatch(ctx context.Context, ids []uuid.UUID) (ma
 }
 
 // CheckBatchTargets runs independent checks for each product × target (no side effects).
-func (s *Service) CheckBatchTargets(ctx context.Context, req BatchTargetsCheckRequest) (*BatchTargetsCheckResponse, error) {
+func (s *Service) CheckBatchTargets(c *gin.Context, req BatchTargetsCheckRequest) (*BatchTargetsCheckResponse, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product publish unavailable")
 	}
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
 	productIDs, err := s.parseBatchProductIDs(req.ProductIDs)
 	if err != nil {
 		return nil, err
@@ -201,7 +206,7 @@ func (s *Service) CheckBatchTargets(ctx context.Context, req BatchTargetsCheckRe
 	if err := s.validateBatchTaskCount(len(productIDs), len(req.Targets)); err != nil {
 		return nil, err
 	}
-	products, err := s.loadProductsForBatch(ctx, productIDs)
+	products, err := s.loadProductsForBatch(ctx, tid, productIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +219,7 @@ func (s *Service) CheckBatchTargets(ctx context.Context, req BatchTargetsCheckRe
 	for _, pid := range productIDs {
 		prod := products[pid]
 		for _, t := range req.Targets {
-			chk := s.checkOnePublishTarget(ctx, pid, t)
+			chk := s.checkOnePublishTarget(ctx, tid, pid, t)
 			item := BatchTargetCheckItem{
 				ProductID:     pid.String(),
 				ProductTitle:  strings.TrimSpace(prod.Title),
@@ -276,6 +281,10 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	productIDs, err := s.parseBatchProductIDs(req.ProductIDs)
 	if err != nil {
 		return nil, err
@@ -289,7 +298,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	if !req.IncludeWarnings && !req.OnlyReady {
 		req.IncludeWarnings = true
 	}
-	products, err := s.loadProductsForBatch(ctx, productIDs)
+	products, err := s.loadProductsForBatch(ctx, tid, productIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +327,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 		}
 	}
 
-	checkRes, err := s.CheckBatchTargets(ctx, BatchTargetsCheckRequest{
+	checkRes, err := s.CheckBatchTargets(c, BatchTargetsCheckRequest{
 		ProductIDs:   req.ProductIDs,
 		Targets:      req.Targets,
 		CommonConfig: req.CommonConfig,
@@ -735,6 +744,10 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	var batch ProductPublishBatch
 	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
 		return nil, err
@@ -771,7 +784,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 
 		sid := ft.ShopID
 		t := PublishTargetRef{Platform: ft.Platform, ShopID: ptrString(sid.String())}
-		chk := s.checkOnePublishTarget(ctx, ft.ProductID, t)
+		chk := s.checkOnePublishTarget(ctx, tid, ft.ProductID, t)
 		base := BatchTargetTaskResult{
 			ProductID:     ft.ProductID.String(),
 			TargetKey:     ft.TargetKey,

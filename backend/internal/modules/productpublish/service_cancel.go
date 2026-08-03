@@ -10,6 +10,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 )
 
 // CancelTask marks a pending/running publish task as cancelled.
@@ -17,8 +18,12 @@ func (s *Service) CancelTask(c *gin.Context, taskID uuid.UUID, adminID *uuid.UUI
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("productpublish: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var task ProductPublishTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", taskID).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
 		return nil, err
 	}
 	st := strings.TrimSpace(task.Status)
@@ -57,10 +62,6 @@ func (s *Service) CancelTask(c *gin.Context, taskID uuid.UUID, adminID *uuid.UUI
 			Status:      "success",
 			Message:     fmt.Sprintf("taskId=%s platform=%s", taskID, task.Platform),
 		})
-	}
-	tid, err := adminperm.TenantIDFromGin(c)
-	if err != nil {
-		return nil, err
 	}
 	out, err := s.GetDTO(c.Request.Context(), tid, taskID)
 	return &out, err

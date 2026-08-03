@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 )
 
 // Round76 regression: batch-created publish sub-tasks must carry the owning
@@ -20,8 +21,12 @@ func TestBatchLocalDraftTaskCarriesProductTenant(t *testing.T) {
 		Update("tenant_id", tenantID).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := db.Model(&shop.Shop{}).Where("id = ?", sid).
+		Update("tenant_id", tenantID).Error; err != nil {
+		t.Fatal(err)
+	}
 	adminID := uuid.New()
-	c := testGinContext()
+	c := testGinContextTenant(tenantID)
 	req := batchCreateReq(pid, sid, map[string]any{"priceRule": "fixed"})
 	if _, err := svc.CreateBatchTargetDrafts(c, req, &adminID); err != nil {
 		t.Fatal(err)

@@ -148,11 +148,16 @@ func publishTargetKey(platform string, shopID *uuid.UUID) string {
 }
 
 // ListPublishTargets returns platforms/shops available for publishing one product.
-func (s *Service) ListPublishTargets(ctx context.Context, productID uuid.UUID) (*PublishTargetsResponse, error) {
+func (s *Service) ListPublishTargets(c *gin.Context, productID uuid.UUID) (*PublishTargetsResponse, error) {
 	if s == nil || s.DB == nil || s.Shops == nil {
 		return nil, fmt.Errorf("product publish unavailable")
 	}
-	if _, err := s.loadProductForPublish(ctx, productID); err != nil {
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
+	if _, err := s.loadProductForPublish(ctx, tid, productID); err != nil {
 		return nil, err
 	}
 
@@ -162,7 +167,7 @@ func (s *Service) ListPublishTargets(ctx context.Context, productID uuid.UUID) (
 	})
 
 	var shops []shop.Shop
-	_ = s.DB.WithContext(ctx).Where("status <> ?", shop.StatusDisabled).Order("platform ASC, shop_name ASC").Find(&shops).Error
+	_ = s.DB.WithContext(ctx).Where("tenant_id = ? AND status <> ?", tid, shop.StatusDisabled).Order("platform ASC, shop_name ASC").Find(&shops).Error
 	shopsByPlat := map[string][]shop.Shop{}
 	for _, sh := range shops {
 		plat := strings.TrimSpace(strings.ToLower(sh.Platform))
@@ -285,21 +290,26 @@ func partnerConfigLooksComplete(m map[string]string, sch platformp.PlatformAppCo
 }
 
 // CheckPublishTargets runs independent readiness checks per target (no side effects).
-func (s *Service) CheckPublishTargets(ctx context.Context, productID uuid.UUID, req PublishTargetsCheckRequest) (*PublishTargetsCheckResponse, error) {
+func (s *Service) CheckPublishTargets(c *gin.Context, productID uuid.UUID, req PublishTargetsCheckRequest) (*PublishTargetsCheckResponse, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	if len(req.Targets) == 0 {
 		return nil, fmt.Errorf("targets required")
 	}
-	if _, err := s.loadProductForPublish(ctx, productID); err != nil {
+	tid, err := s.tenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
+	if _, err := s.loadProductForPublish(ctx, tid, productID); err != nil {
 		return nil, err
 	}
 
 	targets := make([]PublishTargetCheckResult, 0, len(req.Targets))
 	var readyN, warnN, blockedN int
 	for _, t := range req.Targets {
-		res := s.checkOnePublishTarget(ctx, productID, t)
+		res := s.checkOnePublishTarget(ctx, tid, productID, t)
 		targets = append(targets, res)
 		switch res.Status {
 		case statusReady:
@@ -327,7 +337,7 @@ const (
 	statusBlocked = "blocked"
 )
 
-func (s *Service) checkOnePublishTarget(ctx context.Context, productID uuid.UUID, t PublishTargetRef) PublishTargetCheckResult {
+func (s *Service) checkOnePublishTarget(ctx context.Context, tenantID int64, productID uuid.UUID, t PublishTargetRef) PublishTargetCheckResult {
 	plat := strings.TrimSpace(strings.ToLower(t.Platform))
 	var sid *uuid.UUID
 	shopName := ""
@@ -335,6 +345,12 @@ func (s *Service) checkOnePublishTarget(ctx context.Context, productID uuid.UUID
 	if t.ShopID != nil && strings.TrimSpace(*t.ShopID) != "" {
 		if u, err := uuid.Parse(strings.TrimSpace(*t.ShopID)); err == nil {
 			sid = &u
+			if !s.shopBelongsToTenant(ctx, tenantID, u) {
+				// foreign / unknown shop: never disclose which of the two it is
+				return blockedTargetResult(plat, sid, "", capability, []PublishTargetIssue{
+					issueFromCode("SHOP_NOT_FOUND", "error", "店铺不存在", "请选择本租户下已授权的店铺。"),
+				})
+			}
 			if s.Shops != nil {
 				if row, _, err := s.Shops.PlainAuthForProviderCtx(ctx, u); err == nil && row != nil {
 					shopName = strings.TrimSpace(row.ShopName)
@@ -499,12 +515,12 @@ func shopIDString(sid *uuid.UUID) string {
 	return sid.String()
 }
 
-func (s *Service) loadProductForPublish(ctx context.Context, productID uuid.UUID) (*product.Product, error) {
+func (s *Service) loadProductForPublish(ctx context.Context, tenantID int64, productID uuid.UUID) (*product.Product, error) {
 	if productID == uuid.Nil {
 		return &product.Product{}, nil
 	}
 	var prod product.Product
-	if err := s.DB.WithContext(ctx).First(&prod, "id = ?", productID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&prod, "id = ? AND tenant_id = ?", productID, tenantID).Error; err != nil {
 		return nil, err
 	}
 	if prod.DeletedAt.Valid {
@@ -534,7 +550,7 @@ func (s *Service) CreateDraftsForTargets(c *gin.Context, productID uuid.UUID, re
 		return nil, fmt.Errorf("targets required")
 	}
 
-	checkRes, err := s.CheckPublishTargets(ctx, productID, PublishTargetsCheckRequest{Targets: targets})
+	checkRes, err := s.CheckPublishTargets(c, productID, PublishTargetsCheckRequest{Targets: targets})
 	if err != nil {
 		return nil, err
 	}

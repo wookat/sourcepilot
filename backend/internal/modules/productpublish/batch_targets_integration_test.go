@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -60,10 +61,17 @@ func newBatchTestService(db *gorm.DB) *Service {
 }
 
 func testGinContext() *gin.Context {
+	return testGinContextTenant(0)
+}
+
+// testGinContextTenant mirrors the tenant the auth middleware installs on real
+// requests, which publish targets now validate against.
+func testGinContextTenant(tenantID int64) *gin.Context {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/test", nil)
+	c.Set(ctxkey.TenantID, tenantID)
 	return c
 }
 
