@@ -1412,6 +1412,13 @@ Final Production Acceptance Deferred to P10
 - 回归测试：`taskcenter/customer_failure_retry_test.go`（分类 retryable 口径 + RetryFailure 识别 customer_failure）、`selection/create_tenant_gate_test.go`（tenant 0 → 400 零残留、正租户不受闸门影响）。
 - 遗留 P2 清单：无效 URL 采集失败原因英文直出（collector 1688 provider 校验错误未中文映射）、readonly 写按钮部分仅接口 403 未做 UI disabled、readonly 时间线空状态缺说明、批次详情子任务失败原因展示较弱；采集超时终态未自然观察（真实失败 ~22s 即达终态）。
 
+### 变更记录（2026-08-03）第 85 轮：生产部署演练复跑 + 生产 tenant 0 平台管理员 403 修复（P0）
+
+- 生产演练复跑（APP_ENV=production + docker-compose.prod.yml + Caddy 内部 CA 假域名，从零部署约 4 分钟）发现 P0：`secure_session` 生产模式下，引导平台管理员（tenant 0）任何带 token 请求被 JWT 中间件的 `ResolveRequestTenantID` 以 `PRODUCTION_TENANT_FALLBACK_FORBIDDEN` 拒绝（403），平台租户治理（开租/停用/改名）在生产完全不可用；#181 口径此前仅在 development/test 验证过。
+- 修复：`middleware.BearerAuthWithDB` 对 tenant 0 claim 增加 DB 复核（`admin_users` 行属 tenant 0 且 active 才放行，authSource 标记 `platform_tenant_token`）；未知/停用账号维持 403，业务租户（>0）路径不变，业务侧 `RequireTenantID` 仍拒绝 tenant 0。回归单测 `middleware/jwt_platform_tenant_test.go`。
+- 文档收口：`.env.prod.example` `ADMIN_BOOTSTRAP_TENANT_ID` 由 1 改为 0（与 .env.example/.env.docker.example、docs/env.md 口径一致）；production-launch-checklist 增补开租/会话治理/备份校验下载验证项与 2026-08-03 复跑结论。
+- 演练验证通过：开租→新租户登录、secure_session 续期/登出失效、备份创建→verify（checksum/pg_restore_list/manifest/encryption 全 passed）→下载 SHA-256 一致、生产禁 restore、日志无敏感信息、登录页 FCP≈330ms、懒加载 chunk 全部 200。
+
 ### 变更记录（2026-08-03）第 84 轮：设置中心/用户与店铺授权深度回归 + P1/P2 修复
 
 - R83 全栈回归（docker compose + seed:demo:full，#179/#180 本地叠加）：用户管理全动线、平台租户治理、设置子页、readonly/operator 口径、三视口通过；发现 P1「被删用户旧会话下次请求触发未处理 Promise 拒绝整页红屏遮罩」与 P2「店铺授权弹窗重复 key 告警」「缺少改密码入口」。
