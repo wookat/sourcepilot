@@ -1432,6 +1432,14 @@ Final Production Acceptance Deferred to P10
 - `/auth/refresh` 增加 `token_version` 校验兜底：`auth_sessions` 新增 `token_version` 列（登录时快照），refresh 时与 `admin_users.token_version` 比对，不匹配即 401 并吊销会话（`token_version_mismatch`），口径与访问令牌 `ValidateSessionAccess` 一致；存量会话（列值 0）跳过校验不强制下线；正常续期与 secure_session 模式不受影响。回归测试见 `session_service_test.go`。
 - 失效类操作统一口径梳理（删用户/改密码/改角色/改状态/店铺授权变更/租户停用）：均已递增 `token_version` 或直接校验，refresh 与访问令牌双链路兜底；详见 docs/P4_AUTH_SESSION_SECURITY.md「失效类操作统一口径」。
 
+### 变更记录（2026-08-03）第 89 轮：平台租户清退删除（测试租户留存收口）
+
+- 新增平台租户清退能力：`POST /platform/tenants/:id/purge`（提交后台清退任务）+ `GET /platform/tenants/:id/purge`（任务状态/报告）。仅 tenant 0 平台管理员可用；前置条件已停用；tenant 0 永不可清退；请求体 `confirmName` 必须与租户名完全一致；同租户进行中任务去重。
+- 后台任务（`tenant_purge_tasks` 表，pending/running/succeeded/failed）在单事务内级联清理：先按父对象 ID 删除无 `tenant_id` 的关联子表（SKU/图片/订单项/客服消息/发布明细等），再经 information_schema 动态发现全部带 `tenant_id` 的表做 FK 感知（savepoint 重试）清扫，最后硬删 `tenants` 行；清理期间经 `operationtask.WithImmutableGuardsDisabled` 临时提升（Postgres replica session role）以删除 append-only 审计行。
+- 清退后逐表计数校验零残留并将报告（`tables`/`total`/`verifiedAt`）持久化到任务行；残留非零任务判失败。业务操作日志随租户删除；平台侧审计（`tenant.purge.start|done|failed`）与任务记录保留在 tenant 0。
+- 前端平台租户页对已停用租户展示「清退删除」入口，双重安全门（输入租户名 + 二次确认弹窗）；权限矩阵登记两条新路由（platformAdmin allow、四常规角色 forbid）；docs/api.md、docs/permission-matrix.md 已同步。
+- 验证：模块回归 `purge_api_test.go` 全绿；Docker + PostgreSQL 实测开租→seeddemo 造数→停用→清退→86 表零残留，tenant 0/未停用/错误名称 400、不存在 404、tenant B admin 与 tenant0 operator/readonly 403。
+
 ### 变更记录（2026-08-03）第 87 轮：R86 生产演练 P2 收口（legacy token 收紧 + 统一 404 + 租户列表 createdAt + LE 签发注意事项）
 
 - `secure_session` 模式（staging/production 强制）不再接受无 session 绑定的 legacy JWT，统一 401 + `AUTH_SESSION_BINDING_REQUIRED`，前端会话守卫引导重新登录；`legacy_local_storage`（开发/遗留部署）行为不变，迁移说明见 docs/env.md。回归测试 `jwt_session_binding_test.go`。

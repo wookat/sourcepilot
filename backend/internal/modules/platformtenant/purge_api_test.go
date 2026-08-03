@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/platformtenant"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -38,6 +39,11 @@ func openPurgeTestDB(t *testing.T) *gorm.DB {
 		&product.ProductSKU{},
 		&shop.Shop{},
 	); err != nil {
+		t.Fatal(err)
+	}
+	// Purge lifts the immutable-record guards via operationtask; its sqlite
+	// path re-creates the guard triggers, so those tables must exist.
+	if err := operationtask.Migrate(db); err != nil {
 		t.Fatal(err)
 	}
 	return db

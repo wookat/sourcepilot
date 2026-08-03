@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/logger"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"gorm.io/gorm"
 )
 
@@ -411,49 +412,14 @@ func (s *Service) purgeTenantData(ctx context.Context, tenantID int64) (*PurgeRe
 	}
 	db := s.DB.WithContext(ctx)
 	var childIDs *tenantChildIDs
-	err := db.Transaction(func(tx *gorm.DB) error {
-		var err error
-		childIDs, err = collectTenantChildIDs(tx, tenantID)
-		if err != nil {
-			return fmt.Errorf("collect child ids: %w", err)
-		}
-		for _, st := range childSteps(childIDs) {
-			table := childStepTable(st.table)
-			if !tx.Migrator().HasTable(table) {
-				continue
-			}
-			for _, chunk := range chunks(st.keys) {
-				sql := fmt.Sprintf("DELETE FROM %s WHERE %s", quoteIdent(tx, table), st.where)
-				if err := tx.Exec(sql, chunk).Error; err != nil {
-					return fmt.Errorf("purge %s: %w", st.table, err)
-				}
-			}
-		}
-		tables, err := tenantColumnTables(tx)
-		if err != nil {
-			return fmt.Errorf("list tenant tables: %w", err)
-		}
-		// Sweep with FK-aware retries: tables blocked by a foreign key are
-		// retried after their referencing tables have been emptied.
-		pending := tables
-		for len(pending) > 0 {
-			var next []string
-			var lastErr error
-			for _, table := range pending {
-				if err := tx.Exec(fmt.Sprintf("DELETE FROM %s WHERE tenant_id = ?", quoteIdent(tx, table)), tenantID).Error; err != nil {
-					next = append(next, table)
-					lastErr = fmt.Errorf("purge %s: %w", table, err)
-				}
-			}
-			if len(next) == len(pending) {
-				return lastErr
-			}
-			pending = next
-		}
-		if err := tx.Exec("DELETE FROM tenants WHERE id = ?", tenantID).Error; err != nil {
-			return fmt.Errorf("purge tenants: %w", err)
-		}
-		return nil
+	err := db.Transaction(func(outerTx *gorm.DB) error {
+		// Immutable audit guards (approval_records / execution_errors /
+		// operation_task_events; on Postgres the replica session role also
+		// covers the p9 audit triggers) must be lifted for this trusted
+		// maintenance flow, same as demoseed cleanup.
+		return operationtask.WithImmutableGuardsDisabled(outerTx, func(tx *gorm.DB) error {
+			return s.purgeTenantTx(tx, tenantID, &childIDs)
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -466,6 +432,56 @@ func (s *Service) purgeTenantData(ctx context.Context, tenantID int64) (*PurgeRe
 		return report, fmt.Errorf("清退后仍有 %d 行残留数据", report.Total)
 	}
 	return report, nil
+}
+
+func (s *Service) purgeTenantTx(tx *gorm.DB, tenantID int64, childIDsOut **tenantChildIDs) error {
+	childIDs, err := collectTenantChildIDs(tx, tenantID)
+	if err != nil {
+		return fmt.Errorf("collect child ids: %w", err)
+	}
+	*childIDsOut = childIDs
+	for _, st := range childSteps(childIDs) {
+		table := childStepTable(st.table)
+		if !tx.Migrator().HasTable(table) {
+			continue
+		}
+		for _, chunk := range chunks(st.keys) {
+			sql := fmt.Sprintf("DELETE FROM %s WHERE %s", quoteIdent(tx, table), st.where)
+			if err := tx.Exec(sql, chunk).Error; err != nil {
+				return fmt.Errorf("purge %s: %w", st.table, err)
+			}
+		}
+	}
+	tables, err := tenantColumnTables(tx)
+	if err != nil {
+		return fmt.Errorf("list tenant tables: %w", err)
+	}
+	// Sweep with FK-aware retries: tables blocked by a foreign key are
+	// retried after their referencing tables have been emptied. Each
+	// DELETE runs in a savepoint so a FK failure does not abort the
+	// enclosing transaction (Postgres 25P02).
+	pending := tables
+	for len(pending) > 0 {
+		var next []string
+		var lastErr error
+		for _, table := range pending {
+			delErr := tx.Transaction(func(sp *gorm.DB) error {
+				return sp.Exec(fmt.Sprintf("DELETE FROM %s WHERE tenant_id = ?", quoteIdent(sp, table)), tenantID).Error
+			})
+			if delErr != nil {
+				next = append(next, table)
+				lastErr = fmt.Errorf("purge %s: %w", table, delErr)
+			}
+		}
+		if len(next) == len(pending) {
+			return lastErr
+		}
+		pending = next
+	}
+	if err := tx.Exec("DELETE FROM tenants WHERE id = ?", tenantID).Error; err != nil {
+		return fmt.Errorf("purge tenants: %w", err)
+	}
+	return nil
 }
 
 // verifyTenantPurged counts residual rows per table after a purge. All
