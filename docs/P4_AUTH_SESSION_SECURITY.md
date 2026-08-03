@@ -142,6 +142,26 @@ Source: `backend/internal/modules/auth/jwt_access.go`, `backend/internal/middlew
 
 Revoke cascades: session → active refresh tokens marked `revoked`.
 
+---
+
+## 失效类操作统一口径（token_version 兜底）
+
+`auth_sessions.token_version` 在登录时快照 `admin_users.token_version`；`/auth/refresh` 与访问令牌
+`ValidateSessionAccess` 同口径校验，不匹配即 401 并吊销会话（`token_version_mismatch`）。因此任何
+递增 `token_version` 的失效类操作都自动使旧会话的访问令牌与 refresh 双双失效，不依赖逐处吊销；
+存量会话（`token_version=0`）跳过校验，升级不强制下线。
+
+| 操作 | token_version+1 | 显式吊销会话 | 兜底效果 |
+| --- | --- | --- | --- |
+| 删除用户（`DELETE /admin/users/:id`） | ✅ | ✅（`user_deleted`） | 访问/refresh 立即 401（软删除后用户查找也失败） |
+| 管理员改密码（`reset-password`） | ✅ | ✅（`password_reset`） | 访问/refresh 立即 401 |
+| 改角色 / 改状态（`PATCH /admin/users/:id`） | ✅ | —（禁用时 refresh 路径吊销 `user_disabled`） | 旧令牌失效，强制重新登录取得新角色 |
+| 店铺授权变更（`PUT store-permissions`） | ✅ | — | 旧令牌失效，强制重新登录刷新授权 |
+| 租户停用 | —（直接校验 `tenantDisabled`） | refresh 路径吊销（`tenant_disabled`） | 访问/refresh 均 401 |
+
+显式吊销（删用户/改密码）仍保留：立即落库 `revoked` 状态，便于审计与会话列表展示；token_version
+校验作为兜底，保证未来新增失效类操作只需递增 token_version 即可全链路生效。
+
 Operation log actions: `session_revoke`, `session_revoke_others`, `logout_all`.
 
 Source: `backend/internal/modules/auth/sessions_handler.go`.

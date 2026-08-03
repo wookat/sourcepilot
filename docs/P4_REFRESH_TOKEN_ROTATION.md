@@ -48,7 +48,10 @@ POST /api/v1/auth/refresh
        revoked/compromised → ErrRefreshTokenRevoked
   → Check expires_at
   → Lock auth_sessions row; verify status = active
-  → Verify user not disabled; check token_version
+  → Verify user not disabled / tenant not disabled
+  → Verify sessions.token_version (login snapshot) still matches users.token_version
+    （不匹配 → 会话吊销 token_version_mismatch + 401，口径与访问令牌 ValidateSessionAccess 一致；
+      token_version=0 的存量会话跳过该检查）
   → Create new refresh row (same token_family_id, parent_token_id = old.id)
   → Mark old row: status=rotated, replaced_by_token_id=new.id
   → Update session last_activity_at, ip_hash, user_agent_summary

@@ -1410,3 +1410,9 @@ Final Production Acceptance Deferred to P10
 - P2 修复：店铺授权 `Form.List` 不再向 `Form.Item` 透传 `key`（消除 React 重复 key/AntD 告警；与 main 上 #181 同源修复已合并取 `restField` 写法）。
 - 新增用户改密码：`POST /admin/users/:id/reset-password`（≥6 位、bcrypt、`token_version+1` + 吊销全部 secure 会话/refresh token 使旧会话失效且不可 refresh 复活、操作日志 `user.password.reset`、权限矩阵已登记 admin-only）；Admin 用户管理页新增「改密码」入口；E2E `r83-users-reset-password.spec.ts` + 后端 `reset_password_test.go`。
 - docs/api.md 已同步；权限矩阵契约全量复跑通过。
+
+### 变更记录（2026-08-03）第 84 轮补充：会话吊销收口（P3）
+
+- 删除用户（`DELETE /admin/users/:id`）同步吊销该用户全部 `auth_sessions`/refresh token（`user_deleted`），旧会话立即不可 refresh 续期；回归测试 `TestDeleteUserRevokesUserSessions`。
+- `/auth/refresh` 增加 `token_version` 校验兜底：`auth_sessions` 新增 `token_version` 列（登录时快照），refresh 时与 `admin_users.token_version` 比对，不匹配即 401 并吊销会话（`token_version_mismatch`），口径与访问令牌 `ValidateSessionAccess` 一致；存量会话（列值 0）跳过校验不强制下线；正常续期与 secure_session 模式不受影响。回归测试见 `session_service_test.go`。
+- 失效类操作统一口径梳理（删用户/改密码/改角色/改状态/店铺授权变更/租户停用）：均已递增 `token_version` 或直接校验，refresh 与访问令牌双链路兜底；详见 docs/P4_AUTH_SESSION_SECURITY.md「失效类操作统一口径」。

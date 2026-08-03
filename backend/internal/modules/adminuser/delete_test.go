@@ -116,6 +116,30 @@ func TestDeleteUserSoftDeletesAndRevokesGrants(t *testing.T) {
 	}
 }
 
+// delete revokes the target user's secure sessions so stale sessions cannot refresh.
+func TestDeleteUserRevokesUserSessions(t *testing.T) {
+	db := openUserTestDB(t)
+	actor := seedUser(t, db, "admin")
+	target := seedUser(t, db, "operator")
+
+	revoker := &stubSessionRevoker{}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set(ctxkey.AdminID, actor.String())
+		c.Set(ctxkey.TenantID, int64(0))
+		c.Next()
+	})
+	adminuser.Register(r.Group("/api/v1"), &adminuser.Handler{Svc: &adminuser.Service{DB: db, Sessions: revoker}})
+
+	if w := doDelete(r, target.String()); w.Code != http.StatusOK {
+		t.Fatalf("delete: got %d body=%s, want 200", w.Code, w.Body.String())
+	}
+	if revoker.calls != 1 || revoker.lastUID != target {
+		t.Fatalf("sessions must be revoked exactly once for target: calls=%d uid=%s", revoker.calls, revoker.lastUID)
+	}
+}
+
 // admin cannot delete their own account.
 func TestDeleteUserRejectsSelf(t *testing.T) {
 	db := openUserTestDB(t)
