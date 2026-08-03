@@ -119,8 +119,8 @@ func TestFullDemoSeedOperatorStoreGrant(t *testing.T) {
 	if err := db.First(&demoShop, "id = ?", grants[0].StoreID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if demoShop.ShopCode != "DEMO-SHOP-1" {
-		t.Fatalf("expected grant on DEMO-SHOP-1, got %s", demoShop.ShopCode)
+	if demoShop.ShopCode != "DEMO-SHOP-2" {
+		t.Fatalf("expected grant on DEMO-SHOP-2 (manual shop; douyin stays denied sample), got %s", demoShop.ShopCode)
 	}
 
 	var n int64

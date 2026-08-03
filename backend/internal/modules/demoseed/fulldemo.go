@@ -181,11 +181,12 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	}
 	count("shops", int64(len(shops)))
 
-	// ---- operator / readonly demo accounts: grant one DEMO shop so scoped
-	// positive paths are testable out of the box (readonly gets view scope to
-	// exercise the read-visible / write-denied permission boundary). Only
-	// users with zero existing store grants are touched; real scope
-	// configuration is never modified.
+	// ---- operator / readonly demo accounts: grant the manual DEMO shop so
+	// scoped positive paths are testable out of the box (readonly gets view
+	// scope to exercise the read-visible / write-denied permission boundary).
+	// The douyin DEMO shop stays ungranted as the denied sample, matching the
+	// seed-demo-permissions convention. Only users with zero existing store
+	// grants are touched; real scope configuration is never modified.
 	var operators []admin.AdminUser
 	if err := tx.Where("tenant_id = ? AND role IN ?", s.TenantID, []string{"operator", "readonly"}).Find(&operators).Error; err != nil {
 		return fmt.Errorf("demoseed: list operators: %w", err)
@@ -202,8 +203,8 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		if strings.EqualFold(op.Role, "readonly") {
 			scope = admin.StorePermScopeView
 		}
-		grant := admin.UserStorePermission{UserID: op.ID, StoreID: shops[0].ID,
-			Platform: shops[0].Platform, PermissionScope: scope}
+		grant := admin.UserStorePermission{UserID: op.ID, StoreID: shops[1].ID,
+			Platform: shops[1].Platform, PermissionScope: scope}
 		if err := tx.Create(&grant).Error; err != nil {
 			return fmt.Errorf("demoseed: operator store grant: %w", err)
 		}

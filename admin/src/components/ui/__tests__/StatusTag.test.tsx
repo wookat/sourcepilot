@@ -28,6 +28,15 @@ describe('StatusTag', () => {
     expect(screen.getByText('some_unknown_status')).toBeInTheDocument();
   });
 
+  it('forwards ref and DOM props so Tooltip can attach', () => {
+    const ref = { current: null as HTMLElement | null };
+    render(<StatusTag ref={ref} status="failed" data-testid="status-tag" onMouseEnter={() => {}} />);
+
+    const tag = screen.getByTestId('status-tag');
+    expect(tag).toBeInTheDocument();
+    expect(ref.current).toBe(tag);
+  });
+
   it('prefers explicit text and className overrides', () => {
     render(<StatusTag status="failed" text="平台返回失败" className="custom-status" />);
 

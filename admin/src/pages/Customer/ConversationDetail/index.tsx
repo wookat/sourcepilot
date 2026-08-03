@@ -42,12 +42,14 @@ import {
   generateCustomerReply,
   getConversation,
   queryMessages,
+  querySuggestions,
   sendPlatformMessage,
   updateConversation,
   updateReplySuggestion,
   type ConversationDetail,
   type CustomerMessageRow,
   type GenerateReplyResult,
+  type SuggestionRow,
 } from '@/services/customer';
 import { queryOrders, type OrderListRow } from '@/services/orders';
 import { queryShops } from '@/services/shops';
@@ -56,6 +58,12 @@ function mapBizStatus(raw: string, dictionary: Record<string, { text: string; co
   const k = dictionary[raw as keyof typeof dictionary];
   if (!k) return <Tag>{raw}</Tag>;
   return <Tag color={k.color as never}>{k.text}</Tag>;
+}
+
+/** 仍可编辑/采纳的草稿建议（含发送失败待重试） */
+function isDraftSuggestion(s: SuggestionRow) {
+  const st = (s.status || '').toLowerCase();
+  return st === 'generated' || st === 'edited' || st === 'send_failed';
 }
 
 function riskTag(level: string) {
@@ -98,15 +106,22 @@ export default function CustomerConversationDetailPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const [c, m] = await Promise.all([getConversation(id), queryMessages(id)]);
+      const [c, m, sugg] = await Promise.all([getConversation(id), queryMessages(id), querySuggestions(id)]);
       setConv(c);
       setMsgs(m.list || []);
       setLang(c.customerLanguage || 'en');
       setPlatform(c.platform || 'manual');
+      const drafts = (sugg.list || []).filter(isDraftSuggestion);
+      const urlSid = searchParams.get('suggestionId')?.trim();
+      const chosen = drafts.find((s) => s.id === urlSid) ?? drafts[drafts.length - 1];
+      if (chosen) {
+        setSuggestionId((prev) => prev ?? chosen.id);
+        setEditedReply((prev) => (prev.trim() ? prev : chosen.editedReply || chosen.suggestedReply || ''));
+      }
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, searchParams]);
 
   const runOrderSearch = useCallback(async () => {
     setOrderSearchLoading(true);
@@ -367,11 +382,11 @@ export default function CustomerConversationDetailPage() {
             <Card size="small" title="关联店铺" variant="borderless" style={{ marginBottom: 16 }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Space wrap>
-                  <Button type="primary" onClick={() => void openShopPick()}>
+                  <Button type="primary" disabled={readOnly} onClick={() => void openShopPick()}>
                     选择店铺
                   </Button>
                   {conv.shopId ? (
-                    <Button danger onClick={() => void unlinkShop()}>
+                    <Button danger disabled={readOnly} onClick={() => void unlinkShop()}>
                       取消关联
                     </Button>
                   ) : null}
@@ -403,6 +418,7 @@ export default function CustomerConversationDetailPage() {
                 <Space wrap>
                   <Button
                     type="primary"
+                    disabled={readOnly}
                     onClick={() => {
                       setOrderPickOpen(true);
                       void runOrderSearch();
@@ -411,7 +427,7 @@ export default function CustomerConversationDetailPage() {
                     选择订单
                   </Button>
                   {conv.orderId ? (
-                    <Button danger onClick={() => void unlinkOrder()}>
+                    <Button danger disabled={readOnly} onClick={() => void unlinkOrder()}>
                       取消关联
                     </Button>
                   ) : null}
