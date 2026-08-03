@@ -43,7 +43,7 @@
 | --- | --- | --- |
 | `POST` | `/api/v1/auth/login` | 管理员登录，支持邮箱或手机号。 |
 | `POST` | `/api/v1/auth/logout` | 退出登录，客户端丢弃 token。 |
-| `GET` | `/api/v1/auth/profile` | 当前管理员信息。 |
+| `GET` | `/api/v1/auth/profile` | 当前管理员信息（含 `role` / `permissions` / `tenantId`，前端据此判定平台管理员可见性）。 |
 
 ## 设置
 
@@ -540,6 +540,15 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `PATCH` | `/api/v1/admin/users/:id` | 修改显示名 / 角色 / 状态；不能禁用自己、不能自我降级 |
 | `PUT` | `/api/v1/admin/users/:id/store-permissions` | 整体替换店铺授权（admin 角色无需分配） |
 | `DELETE` | `/api/v1/admin/users/:id` | 软删除用户（`deleted_at`，数据保留）；同时撤销全部店铺授权并递增 `token_version` 使会话失效；不能删除当前登录账号（400）；路由级只读守卫 403 |
+
+### 平台租户管理（仅平台管理员）
+
+平台管理员口径（最保守判定）：**当前登录账号 `tenant_id = 0` 且角色为 `admin`**。其他租户的 admin、operator、readonly 一律 403；开租操作写入操作日志（`tenant.create`，不含密码）。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/platform/tenants` | 租户列表（含隐式平台租户 0），每项返回 `id` / `name` / `adminCount` / `createdAt` |
+| `POST` | `/api/v1/platform/tenants` | 创建租户 + 初始管理员（事务一次建好）。请求体 `{name, adminEmail, adminPassword}`；返回 `{tenant, adminId, adminEmail}`。租户名 / 管理员邮箱重复返回 400；初始管理员登录后即为新租户 admin |
 
 ## AI 比价选品引擎 API
 

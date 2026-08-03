@@ -1,8 +1,7 @@
 import { DownloadOutlined } from '@ant-design/icons';
-import { Column, Line } from '@ant-design/plots';
 import { ProCard } from '@ant-design/pro-components';
 import { Alert, Button, Col, Row, Segmented, Skeleton, Space, Statistic, Typography, message } from 'antd';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState, TmPageContainer } from '@/components/ui';
 import {
   chartAxisXLabel,
@@ -16,6 +15,10 @@ import {
 } from '@/constants/chartTokens';
 import { downloadDailyReportCsv, fetchOrderDailyStats, type DailyStatsDTO } from '@/services/orders';
 import { useWideScreen } from '@/hooks/useWideScreen';
+
+/** 图表库体积大，懒加载使页面壳先渲染，加载期间用 Skeleton 占位 */
+const Line = lazy(() => import('@ant-design/plots').then((m) => ({ default: m.Line })));
+const Column = lazy(() => import('@ant-design/plots').then((m) => ({ default: m.Column })));
 
 const DAY_OPTIONS = [
   { label: '近 7 天', value: 7 },
@@ -168,21 +171,23 @@ export default function OrderReports() {
         {loading ? (
           <Skeleton active paragraph={{ rows: 6 }} />
         ) : hasData ? (
-          <Line
-            data={countPoints}
-            xField="date"
-            yField="value"
-            colorField="type"
-            height={chartHeight}
-            autoFit
-            scale={{ color: { range: [...chartTokens.seriesColors] } }}
-            axis={{
-              x: countAxisX,
-              y: { labelFormatter: (v: number) => formatCount(Number(v)) },
-            }}
-            legend={{ color: { position: 'top' } }}
-            tooltip={{ items: [{ channel: 'y', valueFormatter: (v: number) => formatCount(Number(v)) }] }}
-          />
+          <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
+            <Line
+              data={countPoints}
+              xField="date"
+              yField="value"
+              colorField="type"
+              height={chartHeight}
+              autoFit
+              scale={{ color: { range: [...chartTokens.seriesColors] } }}
+              axis={{
+                x: countAxisX,
+                y: { labelFormatter: (v: number) => formatCount(Number(v)) },
+              }}
+              legend={{ color: { position: 'top' } }}
+              tooltip={{ items: [{ channel: 'y', valueFormatter: (v: number) => formatCount(Number(v)) }] }}
+            />
+          </Suspense>
         ) : (
           <EmptyState
             compact
@@ -198,25 +203,27 @@ export default function OrderReports() {
         {loading ? (
           <Skeleton active paragraph={{ rows: 6 }} />
         ) : amountPoints.length > 0 ? (
-          <Column
-            data={amountPoints}
-            xField="date"
-            yField="amount"
-            colorField="currency"
-            stack
-            height={chartHeight}
-            autoFit
-            style={{ maxWidth: chartTokens.barMaxWidth }}
-            scale={{ color: { range: [...chartTokens.seriesColors] } }}
-            axis={{
-              x: amountAxisX,
-              y: { labelFormatter: (v: number) => formatCount(Number(v)) },
-            }}
-            legend={{ color: { position: 'top' } }}
-            tooltip={{
-              items: [(d: AmountPoint) => ({ name: d.currency, value: formatAmount(d.amount) })],
-            }}
-          />
+          <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
+            <Column
+              data={amountPoints}
+              xField="date"
+              yField="amount"
+              colorField="currency"
+              stack
+              height={chartHeight}
+              autoFit
+              style={{ maxWidth: chartTokens.barMaxWidth }}
+              scale={{ color: { range: [...chartTokens.seriesColors] } }}
+              axis={{
+                x: amountAxisX,
+                y: { labelFormatter: (v: number) => formatCount(Number(v)) },
+              }}
+              legend={{ color: { position: 'top' } }}
+              tooltip={{
+                items: [(d: AmountPoint) => ({ name: d.currency, value: formatAmount(d.amount) })],
+              }}
+            />
+          </Suspense>
         ) : (
           <EmptyState
             compact

@@ -71,6 +71,28 @@
   },
   {
     "method": "GET",
+    "path": "/api/v1/platform/tenants",
+    "personas": {
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid"
+    },
+    "note": "平台租户管理：仅 tenant 0 admin（平台管理员）可用；矩阵四角色均为非 tenant 0，统一 403"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/platform/tenants",
+    "personas": {
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid"
+    },
+    "note": "平台租户管理：仅 tenant 0 admin（平台管理员）可开租；矩阵四角色均为非 tenant 0，统一 403"
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/admin/users",
     "personas": {
       "admin": "allow",

@@ -120,6 +120,13 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 发布任务越权口径统一：`POST /product-publish/tasks/:id/retry`、`/cancel`、`/recover` 此前对跨租户/不存在对象返回 400（带错误文案），与 `GET /tasks/:id` 的 404 混用；现统一 **404**（不泄露存在性）。`recover` 增加租户归属前置校验（此前内部按裸 id 加载任务）。同租户业务校验错误（如状态不允许重试）仍为 400。
 - 回归证据：`productpublish` 模块 `TestPublishBatchScopedByTenant`（批次创建落租户 + 详情/重试/取消跨租户 404 + 列表过滤）、`TestFailedTargetsFromBatchScopedByTenant`（重试回放跨租户 404）、`TestPublishMutationEndpointsCrossTenant404`（handler 层 6 端点跨租户 404 状态码）。路由级守卫矩阵不变（本轮未新增端点）。
 
+## round81 平台租户管理（R80 开租缺口收口）
+
+- 新增 `GET/POST /api/v1/platform/tenants`（平台级租户列表 / 开租）。平台管理员采用**最保守判定**：当前登录账号 `tenant_id = 0` 且角色为 `admin`（现有语义中无独立"平台管理员"角色，tenant 0 为 legacy/平台桶）。
+- 矩阵四角色（tenant A admin/operator/readonly + tenant B admin）均非 tenant 0，故两条路由全部登记为 `forbid`（统一 403，收紧优先）；POST 对 readonly 同时被 `ReadonlyWriteGuard` 兜底。
+- 平台管理员正向路径与非平台角色 403、越权无副作用由 `platformtenant` 模块 `api_test.go` 覆盖（tenant0 admin 开租成功、初始管理员落新租户 admin、tenant1 admin / tenant0 operator / tenant0 readonly 403）。
+- 开租写操作日志 `tenant.create`（不含密码）；`/auth/register` 行为不变（不提供自助开租）。
+
 ## docs/api.md 口径差异说明
 
 - docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。

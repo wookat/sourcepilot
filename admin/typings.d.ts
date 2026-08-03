@@ -22,6 +22,7 @@ declare namespace API {
     displayName: string;
     role?: string;
     status?: string;
+    tenantId?: number;
     permissions?: string[];
     storePermissions?: StorePermission[];
     createdAt?: string;

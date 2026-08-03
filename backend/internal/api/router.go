@@ -48,6 +48,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/platformtenant"
 	"github.com/trademind-ai/trademind/backend/internal/modules/pricing"
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -810,6 +811,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc}
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
+
+	platformTenantSvc := &platformtenant.Service{DB: dep.DB, OpLog: opLogSvc}
+	platformTenantH := &platformtenant.Handler{Svc: platformTenantSvc}
+	platformtenant.Register(authed, platformTenantH)
 
 	secSvc := &securitymod.Service{DB: dep.DB, Cfg: dep.Config, OpLogs: opLogSvc, Metrics: metricCatalog}
 	secH := &securitymod.Handler{Svc: secSvc, DB: dep.DB}

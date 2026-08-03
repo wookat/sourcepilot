@@ -61,21 +61,66 @@ type CostEstimateSummary struct {
 const MaxBatchEstimateOrders = 50
 
 // EstimateOrderCostBatch estimates several orders at once (for list views);
-// orders that no longer exist are omitted from the result map.
+// orders that no longer exist are omitted from the result map. All related
+// rows are loaded with a fixed number of batched queries.
 func (s *Service) EstimateOrderCostBatch(ctx context.Context, ids []uuid.UUID) (map[string]CostEstimateSummary, error) {
 	out := make(map[string]CostEstimateSummary, len(ids))
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	uniq := make([]uuid.UUID, 0, len(ids))
 	for _, id := range ids {
-		if _, done := out[id.String()]; done {
+		if _, done := seen[id]; done {
 			continue
 		}
-		est, err := s.EstimateOrderCost(ctx, id)
-		if err != nil {
-			if errors.Is(err, ErrNotFound) {
-				continue
-			}
-			return nil, err
+		seen[id] = struct{}{}
+		uniq = append(uniq, id)
+	}
+	if len(uniq) == 0 {
+		return out, nil
+	}
+
+	var orders []order.Order
+	if err := s.DB.WithContext(ctx).Where("id IN ?", uniq).Find(&orders).Error; err != nil {
+		return nil, err
+	}
+	if len(orders) == 0 {
+		return out, nil
+	}
+	orderIDs := make([]uuid.UUID, 0, len(orders))
+	for _, o := range orders {
+		orderIDs = append(orderIDs, o.ID)
+	}
+	var items []order.OrderItem
+	if err := s.DB.WithContext(ctx).Where("order_id IN ?", orderIDs).Find(&items).Error; err != nil {
+		return nil, err
+	}
+	itemsByOrder := make(map[uuid.UUID][]order.OrderItem, len(orders))
+	for _, it := range items {
+		itemsByOrder[it.OrderID] = append(itemsByOrder[it.OrderID], it)
+	}
+
+	costs, err := s.resolveLineCostBatch(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+
+	type rateKey struct {
+		tenantID int64
+		currency string
+	}
+	type rateVal struct {
+		rate float64
+		ok   bool
+	}
+	rates := map[rateKey]rateVal{}
+	for _, o := range orders {
+		k := rateKey{tenantID: o.TenantID, currency: strings.ToUpper(strings.TrimSpace(o.Currency))}
+		rv, cached := rates[k]
+		if !cached {
+			rv.rate, rv.ok = s.resolveExchangeRate(ctx, o.TenantID, o.Currency)
+			rates[k] = rv
 		}
-		out[id.String()] = CostEstimateSummary{
+		est := buildOrderCostEstimate(o, itemsByOrder[o.ID], costs, rv.rate, rv.ok)
+		out[est.OrderID] = CostEstimateSummary{
 			OrderID:          est.OrderID,
 			Currency:         est.Currency,
 			TotalAmount:      est.TotalAmount,
@@ -111,6 +156,33 @@ func (s *Service) EstimateOrderCost(ctx context.Context, orderID uuid.UUID) (*Or
 		return nil, err
 	}
 
+	costs := make(map[uuid.UUID]resolvedLineCost, len(items))
+	for _, it := range items {
+		unit, supplierName, issueCode, issueMsg, err := s.resolveLineCost(ctx, it)
+		if err != nil {
+			return nil, err
+		}
+		costs[it.ID] = resolvedLineCost{
+			unit:         unit,
+			supplierName: supplierName,
+			issueCode:    issueCode,
+			issueMessage: issueMsg,
+		}
+	}
+	rate, hasRate := s.resolveExchangeRate(ctx, o.TenantID, o.Currency)
+	return buildOrderCostEstimate(o, items, costs, rate, hasRate), nil
+}
+
+// resolvedLineCost is one order line's reference unit cost or pricing issue.
+type resolvedLineCost struct {
+	unit         *float64
+	supplierName string
+	issueCode    string
+	issueMessage string
+}
+
+// buildOrderCostEstimate assembles the estimate DTO from pre-resolved line costs.
+func buildOrderCostEstimate(o order.Order, items []order.OrderItem, costs map[uuid.UUID]resolvedLineCost, rate float64, hasRate bool) *OrderCostEstimateDTO {
 	out := &OrderCostEstimateDTO{
 		OrderID:     o.ID.String(),
 		OrderNo:     o.OrderNo,
@@ -127,17 +199,14 @@ func (s *Service) EstimateOrderCost(ctx context.Context, orderID uuid.UUID) (*Or
 		if it.ProductSKUID != nil {
 			line.LocalSKUID = it.ProductSKUID.String()
 		}
-		unit, supplierName, issueCode, issueMsg, err := s.resolveLineCost(ctx, it)
-		if err != nil {
-			return nil, err
-		}
-		line.SupplierName = supplierName
-		if issueCode != "" {
-			line.IssueCode = issueCode
-			line.IssueMessage = issueMsg
+		c := costs[it.ID]
+		line.SupplierName = c.supplierName
+		if c.issueCode != "" {
+			line.IssueCode = c.issueCode
+			line.IssueMessage = c.issueMessage
 			out.MissingLines++
 		} else {
-			u := roundMoney2(*unit)
+			u := roundMoney2(*c.unit)
 			lc := roundMoney2(u * float64(it.Quantity))
 			line.UnitCostCNY = &u
 			line.LineCostCNY = &lc
@@ -147,7 +216,6 @@ func (s *Service) EstimateOrderCost(ctx context.Context, orderID uuid.UUID) (*Or
 	}
 	out.EstimatedCostCNY = roundMoney2(out.EstimatedCostCNY)
 
-	rate, hasRate := s.resolveExchangeRate(ctx, o.TenantID, o.Currency)
 	if hasRate {
 		out.ExchangeRate = &rate
 		cost := roundMoney2(out.EstimatedCostCNY * rate)
@@ -160,6 +228,139 @@ func (s *Service) EstimateOrderCost(ctx context.Context, orderID uuid.UUID) (*Or
 				out.MarginPercent = &margin
 			}
 		}
+	}
+	return out
+}
+
+// resolveLineCostBatch mirrors resolveLineCost for many lines using batched
+// IN queries plus one windowed latest-price query, keyed by order item id.
+func (s *Service) resolveLineCostBatch(ctx context.Context, items []order.OrderItem) (map[uuid.UUID]resolvedLineCost, error) {
+	out := make(map[uuid.UUID]resolvedLineCost, len(items))
+	productIDSet := map[uuid.UUID]struct{}{}
+	productIDs := []uuid.UUID{}
+	for _, it := range items {
+		if it.ProductSKUID == nil || it.ProductID == nil {
+			out[it.ID] = resolvedLineCost{issueCode: "sku.unmatched", issueMessage: "订单行未匹配本地 SKU"}
+			continue
+		}
+		if _, ok := productIDSet[*it.ProductID]; !ok {
+			productIDSet[*it.ProductID] = struct{}{}
+			productIDs = append(productIDs, *it.ProductID)
+		}
+	}
+	if len(productIDs) == 0 {
+		return out, nil
+	}
+
+	// Primary source per product: same ordering as First (primary key asc).
+	var sources []sourcing.ProductSource
+	if err := s.DB.WithContext(ctx).Preload("Supplier").
+		Where("product_id IN ? AND is_primary = TRUE AND status <> ?", productIDs, sourcing.SourceStatusDisabled).
+		Order("id").Find(&sources).Error; err != nil {
+		return nil, err
+	}
+	primaryByProduct := make(map[uuid.UUID]*sourcing.ProductSource, len(sources))
+	sourceIDs := []uuid.UUID{}
+	for i := range sources {
+		src := &sources[i]
+		if _, ok := primaryByProduct[src.ProductID]; ok {
+			continue
+		}
+		primaryByProduct[src.ProductID] = src
+		sourceIDs = append(sourceIDs, src.ID)
+	}
+
+	// SKU mappings: same ordering as First; keep the first row per
+	// (source, local SKU) pair.
+	type mapKey struct {
+		sourceID uuid.UUID
+		localSKU uuid.UUID
+	}
+	mappingByPair := map[mapKey]*sourcing.ProductSourceSKU{}
+	if len(sourceIDs) > 0 {
+		localSKUSet := map[uuid.UUID]struct{}{}
+		localSKUs := []uuid.UUID{}
+		for _, it := range items {
+			if it.ProductSKUID == nil || it.ProductID == nil {
+				continue
+			}
+			if _, ok := localSKUSet[*it.ProductSKUID]; !ok {
+				localSKUSet[*it.ProductSKUID] = struct{}{}
+				localSKUs = append(localSKUs, *it.ProductSKUID)
+			}
+		}
+		var mappings []sourcing.ProductSourceSKU
+		if err := s.DB.WithContext(ctx).
+			Where("product_source_id IN ? AND local_sku_id IN ?", sourceIDs, localSKUs).
+			Order("id").Find(&mappings).Error; err != nil {
+			return nil, err
+		}
+		for i := range mappings {
+			m := &mappings[i]
+			k := mapKey{sourceID: m.ProductSourceID, localSKU: m.LocalSKUID}
+			if _, ok := mappingByPair[k]; !ok {
+				mappingByPair[k] = m
+			}
+		}
+	}
+
+	// Latest captured price per mapping that has no current price.
+	histIDs := []uuid.UUID{}
+	for _, m := range mappingByPair {
+		if m.CurrentPrice == nil {
+			histIDs = append(histIDs, m.ID)
+		}
+	}
+	latestPrice := map[uuid.UUID]float64{}
+	if len(histIDs) > 0 {
+		type histRow struct {
+			SourceSKUID uuid.UUID `gorm:"column:source_sku_id"`
+			Price       float64   `gorm:"column:price"`
+		}
+		var rows []histRow
+		if err := s.DB.WithContext(ctx).Raw(`
+SELECT source_sku_id, price FROM (
+  SELECT source_sku_id, price,
+         ROW_NUMBER() OVER (PARTITION BY source_sku_id ORDER BY captured_at DESC) AS rn
+  FROM source_price_history
+  WHERE source_sku_id IN ?
+) t WHERE rn = 1`, histIDs).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			latestPrice[r.SourceSKUID] = r.Price
+		}
+	}
+
+	for _, it := range items {
+		if it.ProductSKUID == nil || it.ProductID == nil {
+			continue
+		}
+		primary, ok := primaryByProduct[*it.ProductID]
+		if !ok {
+			out[it.ID] = resolvedLineCost{issueCode: "source.missing", issueMessage: "商品没有主货源"}
+			continue
+		}
+		supplierName := ""
+		if primary.Supplier != nil {
+			supplierName = primary.Supplier.Name
+		}
+		mapping, ok := mappingByPair[mapKey{sourceID: primary.ID, localSKU: *it.ProductSKUID}]
+		if !ok {
+			out[it.ID] = resolvedLineCost{supplierName: supplierName, issueCode: "mapping.missing", issueMessage: "主货源缺少该 SKU 的映射"}
+			continue
+		}
+		expected := mapping.CurrentPrice
+		if expected == nil {
+			if p, ok := latestPrice[mapping.ID]; ok {
+				expected = &p
+			}
+		}
+		if expected == nil {
+			out[it.ID] = resolvedLineCost{supplierName: supplierName, issueCode: "price.missing", issueMessage: "SKU 缺少参考进价"}
+			continue
+		}
+		out[it.ID] = resolvedLineCost{unit: expected, supplierName: supplierName}
 	}
 	return out, nil
 }

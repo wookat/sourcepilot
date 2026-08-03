@@ -1352,6 +1352,14 @@ Final Production Acceptance Deferred to P10
 - `GET /ai/batches` 列表接入 `adminperm.ApplyTenantScope`（此前无租户过滤）；`ensureBatchVisible` 改按 `tenant_id` 列校验，未 backfill 的 tenant-0 且有创建人的行回退按创建人租户（与 R71 `GetScoped` 口径一致）；详情/子资源跨租户仍统一 404。批次无店铺维度，各角色同租户口径一致。
 - 回归单测：`TestAIOperationBatchTenantColumnScope`（三角色列表过滤 + 跨租户 404 + 缺租户上下文报错 + backfill/回退口径）；docs/api.md「AI 批次租户口径（round72）」与 docs/permission-matrix.md「round72」已登记。
 
+### 变更记录（2026-08-03）第 81 轮：平台租户管理最小闭环（R80 开租缺口收口）
+
+- 新增 `platformtenant` 模块与 `tenants` 表：`GET/POST /api/v1/platform/tenants`，仅平台管理员（最保守判定：`tenant_id = 0` 且 role=admin）可列出/创建租户；创建时事务一次建好租户 + 初始管理员（bcrypt，落新租户 admin），开租写操作日志 `tenant.create`（不含密码）。
+- 迁移含 `tenants` id 序列与 `admin_users.tenant_id` 存量对齐（`syncTenantsIDSequence`），避免与 SQL 手工造的租户冲突；`/auth/register`、「新建用户继承创建者租户」口径不变；demo seed 不动。
+- `/auth/profile` 增补 `tenantId`；Admin 设置中心新增「平台租户」页（列表 + 创建弹窗），菜单/路由/页面三层按平台管理员判定隐藏（readonly/operator/非 tenant0 admin 不可见不可用）。
+- 权限矩阵登记两条新路由（四 persona 均 forbid，统一 403）；正反向行为由 `platformtenant/api_test.go` 与前端 `permission.test.ts` 覆盖；docs/api.md、docs/permission-matrix.md 已同步。
+- 遗留：租户目前无停用/改名/删除能力（最小闭环，计费/自助开租不做）；权限矩阵 harness 尚无 tenant0 平台管理员 persona（正向路径由模块测试覆盖）。
+
 ### 变更记录（2026-08-03）第 77 轮：UX 复核 v3 Top5 展示层收口（P1×2 由并行分支处理）
 
 - 时间列短格式统一：`formatTime` 新增 `formatDateTimeShort`（MM-DD HH:mm）与共享组件 `DateTimeText`（短格式 + Tooltip 完整时间）；订单/商品草稿/运营任务/失败中心/AI 工作台/客服会话列表时间列接入并收窄列宽（详情页保留完整 `formatDateTime`）。

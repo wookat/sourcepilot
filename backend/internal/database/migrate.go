@@ -26,6 +26,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/performance"
+	"github.com/trademind-ai/trademind/backend/internal/modules/platformtenant"
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
@@ -124,6 +125,7 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(
 		&admin.AdminUser{},
 		&admin.UserStorePermission{},
+		&platformtenant.Tenant{},
 		&settings.Setting{},
 		&operationlog.OperationLog{},
 		&files.FileRecord{},
@@ -252,6 +254,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := backfillPurchaseOrderTenantIDs(db); err != nil {
 		return err
 	}
+	if err := syncTenantsIDSequence(db); err != nil {
+		return err
+	}
 	if err := migrateRound72AIBatchTenant(db); err != nil {
 		return err
 	}
@@ -262,6 +267,20 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 	return migrateP7Performance(db)
+}
+
+// syncTenantsIDSequence keeps the tenants id sequence above any tenant id
+// already present in admin_users (legacy tenants created by direct SQL), so
+// newly provisioned tenants never collide with existing tenant-scoped data.
+func syncTenantsIDSequence(db *gorm.DB) error {
+	sql := `SELECT setval(pg_get_serial_sequence('tenants','id'),
+		GREATEST((SELECT COALESCE(MAX(tenant_id),0) FROM admin_users),
+			(SELECT COALESCE(MAX(id),0) FROM tenants), 1))`
+	if err := db.Exec(sql).Error; err != nil {
+		// Non-PostgreSQL dev databases have no sequences; skip non-fatal.
+		_ = err
+	}
+	return nil
 }
 
 // backfillPurchaseOrderTenantIDs fills purchase_orders.tenant_id from the
