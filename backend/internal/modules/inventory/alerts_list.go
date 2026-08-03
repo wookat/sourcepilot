@@ -56,6 +56,7 @@ func clipErr(msg string, max int) string {
 
 // skuAlertBaseQuery is the shared JOIN/WHERE scope for inventory alert-style SKU listings.
 type skuAlertBaseQuery struct {
+	TenantID      *int64
 	Keyword       string
 	ProductID     *uuid.UUID
 	ProductSkuID  *uuid.UUID
@@ -68,6 +69,7 @@ type skuAlertBaseQuery struct {
 
 func (s *Service) buildAlertsBaseTX(ctx context.Context, q AlertsListQuery) *gorm.DB {
 	return s.buildSKUAlertBaseTX(ctx, skuAlertBaseQuery{
+		TenantID:      q.TenantID,
 		Keyword:       q.Keyword,
 		ProductID:     q.ProductID,
 		ProductSkuID:  q.ProductSkuID,
@@ -83,6 +85,9 @@ func (s *Service) buildSKUAlertBaseTX(ctx context.Context, q skuAlertBaseQuery) 
 	tx := s.DB.WithContext(ctx).Table("product_skus AS sk").
 		Select(`sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock, sk.warning_stock, sk.safety_stock, sk.updated_at, p.title AS product_title`).
 		Joins("INNER JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL")
+	if q.TenantID != nil {
+		tx = tx.Where("p.tenant_id = ?", *q.TenantID)
+	}
 	if pid := q.ProductID; pid != nil && *pid != uuid.Nil {
 		tx = tx.Where("sk.product_id = ?", *pid)
 	}

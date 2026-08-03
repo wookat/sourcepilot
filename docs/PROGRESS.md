@@ -1390,10 +1390,15 @@ Final Production Acceptance Deferred to P10
 - R81 遗留 UX：操作日志「路径」「说明」列补数值列宽（220/240），按 TmProTable 列宽口径参与横向滚动估算，默认视口不再被挤出。
 - docs/api.md、docs/permission-matrix.md 已同步。
 
+### 变更记录（2026-08-03）第 83 轮：双租户全链路隔离实测 + 仪表盘/库存聚合租户收口（P1）
+
+- 双租户实测（docker compose 全栈 + seed:demo:full + 平台租户页正规开租租户 B）发现：运营仪表盘聚合数值跨租户泄露（商品/客服/刊登/库存等计数含他租户数据）；代码走查同时发现 `GET /inventory/alerts` 与 `POST /inventory/stock-settings/batch-preview|batch-update` 无租户过滤（后者可跨租户批量改库存阈值）。
+- 修复：`operationdashboard.Scope` 新增 `applyTenantColumn` / `applyTenantViaProduct` / `applyTenantViaShop`，Summary/Exceptions/Recent 全部聚合查询按可信租户限定；库存 `buildSKUAlertBaseTX` 支持可选 `TenantID`，三个库存端点 handler 注入当前租户。详见 docs/permission-matrix.md「round83」。
+- 回归：`operationdashboard` / `inventory` 新增 dry-run 租户谓词单测；`go test ./...` 全量通过。
+
 ### 变更记录（2026-08-03）第 83 轮：草稿创建脏数据收口 + 引导管理员租户口径 + React warning 清理（R82 遗留 P2）
 
 - P2 修复：`POST /api/v1/products` 手工新建草稿此前对 operator 先落库后做可见性校验，校验失败返回 400 但残留孤儿行。现 `product.Service.Create` 在写入前做 principal 校验：新草稿无店铺关联，仅 admin 可见/可建，非 admin 统一 403 且不落库；权限矩阵 operator 由 allow 改 forbid（见 docs/permission-matrix.md「round83」）。前端草稿列表「新建草稿」按钮改为仅 admin 显示。
 - 引导管理员租户口径：设计意图确认为「引导账号 = tenant 0 平台管理员」（平台租户治理入口）。代码默认本就是 0，本轮把 `.env.example` / `.env.docker.example` 的 `ADMIN_BOOTSTRAP_TENANT_ID` 由 1 收口为 0，并在 docs/env.md 说明（显式 >0 配置仍兼容遗留单租户部署；仅 admin_users 为空首次创建生效，不迁移存量）。
 - React console warning 清理（R82 报告 5 条）：Settings/Users 店铺权限弹窗 `Form.List` 行内 `{...field}` 展开重复传 `key`（4 条 duplicate key warning）改为解构 `{ key, name, ...restField }`；「新建用户」弹窗 `destroyOnHidden` 导致 `useForm` 未连接 warning，改为 `forceRender` + 取消时 `resetFields`。
 - 回归：`product/create_scope_test.go`（operator/readonly 403 + 0 残留行、admin 正常创建）；权限矩阵契约复跑；go fmt/vet/build/test、pnpm test:frontend/build:admin/test:contracts；Docker 实测两条动线（operator 建草稿 403 无残留、bootstrap 账号落 tenant 0 可开租）。
-

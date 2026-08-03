@@ -115,6 +115,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	aiFailTx := s.DB.WithContext(ctx).Model(&aitask.AITask{}).
 		Where("status = ?", aitask.StatusFailed).
 		Where("task_type IN ?", []string{"title_optimize", "product_description_generate"})
+	aiFailTx = q.Scope.applyTenantViaProduct(aiFailTx, "product_id")
 	if q.Start != nil {
 		aiFailTx = aiFailTx.Where("updated_at >= ?", *q.Start)
 	}
@@ -123,9 +124,9 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	}
 	_ = aiFailTx.Count(&sum.AiTaskFailedCount).Error
 
-	_ = s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}), "tenant_id").
 		Where("status = ?", aioperationbatch.StatusRunning).Count(&sum.AiBatchRunningCount).Error
-	_ = s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}), "tenant_id").
 		Where("status = ?", aioperationbatch.StatusFailed).Count(&sum.AiBatchFailedCount).Error
 
 	// Customer
@@ -142,6 +143,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 		for _, sid := range q.Scope.AllowedShopIDs {
 			id := sid
 			invQ := inventory.AlertsListQuery{
+				TenantID: q.Scope.TenantID,
 				Platform: strings.TrimSpace(q.Platform), ShopID: &id,
 				Page: 1, PageSize: 1, IncludeNormal: false, OnlyPublished: false,
 			}
@@ -160,6 +162,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 		}
 	} else {
 		invQBase := inventory.AlertsListQuery{
+			TenantID:      q.Scope.TenantID,
 			Platform:      strings.TrimSpace(q.Platform),
 			ShopID:        shopPtr,
 			Page:          1,
@@ -191,17 +194,18 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 			Start:           q.Start,
 			End:             q.End,
 			AllowedShopIDs:  q.Scope.AllowedShopIDs,
+			TenantID:        q.Scope.tenantValue(),
 		}
 		if su, err := s.TaskCenter.Summary(ctx, p); err == nil {
 			sum.FailedTaskTotal = su.TotalFailed
 			sum.FailedTasks = su.TotalFailed
 		}
 	}
-	_ = s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}), "tenant_id").
 		Where("status = ?", taskcenter.TaskAlertStatusOpen).
 		Where("severity = ?", failureclassifier.SeverityCritical).
 		Count(&sum.CriticalAlertCount).Error
-	_ = s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}), "tenant_id").
 		Where("status = ?", taskcenter.TaskAlertStatusOpen).
 		Count(&sum.OpenAlertCount).Error
 
@@ -227,7 +231,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	sum.Publishable = publishableCount
 
 	// Image tasks (local DB only)
-	imgPendingTx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
+	imgPendingTx := q.Scope.applyTenantViaProduct(s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}), "product_id").
 		Where("status IN ?", []string{imagetask.StatusPending, imagetask.StatusRunning, imagetask.StatusRetrying})
 	if q.Start != nil {
 		imgPendingTx = imgPendingTx.Where("created_at >= ?", *q.Start)
@@ -237,7 +241,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	}
 	_ = imgPendingTx.Count(&sum.ImageTaskPending).Error
 
-	imgFailedTx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Where("status = ?", imagetask.StatusFailed)
+	imgFailedTx := q.Scope.applyTenantViaProduct(s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}), "product_id").Where("status = ?", imagetask.StatusFailed)
 	if q.Start != nil {
 		imgFailedTx = imgFailedTx.Where("updated_at >= ?", *q.Start)
 	}
@@ -254,6 +258,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	if soft, _ := s.schemaFlags(ctx); soft {
 		imgProdTx = imgProdTx.Where("p.deleted_at IS NULL")
 	}
+	imgProdTx = q.Scope.applyTenantColumn(imgProdTx, "p.tenant_id")
 	imgProdTx = s.applyProductJoinScope(imgProdTx, q, "p")
 	_ = imgProdTx.Distinct("pi.product_id").Count(&sum.ImageProcessedCount).Error
 
@@ -309,48 +314,48 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	_ = todayNewTx.Count(&sum.TodayNewProducts).Error
 
 	// 选品 / 货源 / 采购协同（manual 1688 mode）
-	_ = s.DB.WithContext(ctx).Model(&selection.SelectionCandidate{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&selection.SelectionCandidate{}), "tenant_id").
 		Where("status = ? AND product_id IS NULL", selection.CandidateScored).
 		Count(&sum.SelectionReviewCount).Error
-	_ = s.DB.WithContext(ctx).Model(&selection.SelectionTask{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&selection.SelectionTask{}), "tenant_id").
 		Where("status = ?", selection.StatusFailed).
 		Count(&sum.SelectionFailedTasks).Error
-	_ = s.DB.WithContext(ctx).Model(&sourcing.ProductSource{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&sourcing.ProductSource{}), "tenant_id").
 		Where("status = ?", sourcing.SourceStatusPriceAlert).
 		Count(&sum.SourcePriceAlertCount).Error
-	_ = s.DB.WithContext(ctx).Model(&sourcing.ProductSource{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&sourcing.ProductSource{}), "tenant_id").
 		Where("status = ?", sourcing.SourceStatusOutOfStock).
 		Count(&sum.SourceOutOfStockCount).Error
-	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}), "tenant_id").
 		Where("status = ?", procurement.StatusPendingConfirm).
 		Count(&sum.ProcurementPendingConfirmCount).Error
-	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}), "tenant_id").
 		Where("status = ?", procurement.StatusPlacing).
 		Count(&sum.ProcurementPlacingCount).Error
-	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}), "tenant_id").
 		Where("status = ? AND pay_status = ?", procurement.StatusPlaced, procurement.PayStatusUnpaid).
 		Count(&sum.ProcurementUnpaidCount).Error
-	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}), "tenant_id").
 		Where("status = ?", procurement.StatusPaid).
 		Count(&sum.ProcurementAwaitTrackingCount).Error
-	_ = s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&procurement.PurchaseOrder{}), "tenant_id").
 		Where("status = ?", procurement.StatusShipped).
 		Count(&sum.ProcurementAwaitReceiptCount).Error
-	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&order.Order{}), "tenant_id").
 		Where("payment_status = ? AND fulfillment_status = ? AND status NOT IN ?",
 			order.PaymentPaid, order.FulfillmentUnfulfilled,
 			[]string{order.StatusShipped, order.StatusDelivered, order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
 		Count(&sum.AwaitShipmentOrderCount).Error
-	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&order.Order{}), "tenant_id").
 		Where("status = ?", order.StatusShipped).
 		Count(&sum.InTransitOrderCount).Error
-	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&order.Order{}), "tenant_id").
 		Where("payment_status = ? AND fulfillment_status = ? AND status NOT IN ?",
 			order.PaymentPaid, order.FulfillmentUnfulfilled,
 			[]string{order.StatusShipped, order.StatusDelivered, order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
 		Where("NOT EXISTS (SELECT 1 FROM purchase_order_items poi JOIN purchase_orders po2 ON po2.id = poi.purchase_order_id WHERE poi.sales_order_id = orders.id AND po2.status NOT IN ('cancelled','failed','voided'))").
 		Count(&sum.AwaitProcurementOrderCount).Error
-	_ = s.DB.WithContext(ctx).Model(&order.Order{}).
+	_ = q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&order.Order{}), "tenant_id").
 		Where("payment_status = ? AND status NOT IN ?",
 			order.PaymentUnpaid,
 			[]string{order.StatusCancelled, order.StatusRefunded, order.StatusClosed}).
@@ -392,7 +397,7 @@ func (s *Service) applyProductJoinScope(tx *gorm.DB, q Query, alias string) *gor
 }
 
 func (s *Service) collectTaskScope(ctx context.Context, q Query) *gorm.DB {
-	tx := s.DB.WithContext(ctx).Model(&collect.CollectTask{})
+	tx := q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&collect.CollectTask{}), "tenant_id")
 	if v := strings.TrimSpace(q.Source); v != "" {
 		tx = tx.Where("source = ?", v)
 	}
@@ -432,7 +437,7 @@ func (s *Service) applyProductScope(tx *gorm.DB, q Query) *gorm.DB {
 }
 
 func (s *Service) publishTaskScope(ctx context.Context, q Query) *gorm.DB {
-	tx := s.DB.WithContext(ctx).Model(&productpublish.ProductPublishTask{})
+	tx := q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&productpublish.ProductPublishTask{}), "tenant_id")
 	if pl := strings.TrimSpace(q.Platform); pl != "" {
 		tx = tx.Where("LOWER(platform) = ?", strings.ToLower(pl))
 	}
@@ -449,7 +454,7 @@ func (s *Service) publishTaskScope(ctx context.Context, q Query) *gorm.DB {
 }
 
 func (s *Service) publicationScope(ctx context.Context, q Query) *gorm.DB {
-	tx := s.DB.WithContext(ctx).Model(&productpublish.ProductPublication{})
+	tx := q.Scope.applyTenantViaShop(s.DB.WithContext(ctx).Model(&productpublish.ProductPublication{}), "shop_id")
 	if pl := strings.TrimSpace(q.Platform); pl != "" {
 		tx = tx.Where("LOWER(platform) = ?", strings.ToLower(pl))
 	}
@@ -466,7 +471,7 @@ func (s *Service) publicationScope(ctx context.Context, q Query) *gorm.DB {
 }
 
 func (s *Service) customerConvScope(ctx context.Context, q Query) *gorm.DB {
-	tx := s.DB.WithContext(ctx).Model(&customerchat.CustomerConversation{}).Where("customer_conversations.deleted_at IS NULL")
+	tx := q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&customerchat.CustomerConversation{}), "customer_conversations.tenant_id").Where("customer_conversations.deleted_at IS NULL")
 	if pl := strings.TrimSpace(q.Platform); pl != "" {
 		tx = tx.Where("LOWER(customer_conversations.platform) = ?", strings.ToLower(pl))
 	}
@@ -486,6 +491,7 @@ func (s *Service) suggestionPendingScope(ctx context.Context, q Query) *gorm.DB 
 	tx := s.DB.WithContext(ctx).Model(&customerchat.CustomerReplySuggestion{}).
 		Joins(`INNER JOIN customer_conversations c ON c.id = customer_reply_suggestions.conversation_id AND c.deleted_at IS NULL`).
 		Where("customer_reply_suggestions.status IN ?", []string{customerchat.SuggestionGenerated, customerchat.SuggestionEdited})
+	tx = q.Scope.applyTenantColumn(tx, "c.tenant_id")
 	if pl := strings.TrimSpace(q.Platform); pl != "" {
 		tx = tx.Where("LOWER(c.platform) = ?", strings.ToLower(pl))
 	}
@@ -658,7 +664,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 
 	// AI text failures
 	{
-		tx := s.DB.WithContext(ctx).Model(&aitask.AITask{}).
+		tx := q.Scope.applyTenantViaProduct(s.DB.WithContext(ctx).Model(&aitask.AITask{}), "product_id").
 			Where("status = ?", aitask.StatusFailed).
 			Where("task_type IN ?", []string{"title_optimize", "product_description_generate"})
 		if q.Start != nil {
@@ -677,7 +683,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 
 	// AI image failures
 	{
-		tx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Where("status = ?", imagetask.StatusFailed)
+		tx := q.Scope.applyTenantViaProduct(s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}), "product_id").Where("status = ?", imagetask.StatusFailed)
 		if q.Start != nil {
 			tx = tx.Where("updated_at >= ?", *q.Start)
 		}
@@ -705,7 +711,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 
 	// Inventory sync failures
 	{
-		invTx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).Where("status = ?", inventory.StatusFailed)
+		invTx := q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}), "tenant_id").Where("status = ?", inventory.StatusFailed)
 		if pl := strings.TrimSpace(q.Platform); pl != "" {
 			invTx = invTx.Where("LOWER(platform) = ?", strings.ToLower(pl))
 		}
@@ -782,7 +788,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 
 	// Collected products
 	{
-		qb := s.DB.WithContext(ctx).Table("collect_tasks AS t").
+		qb := q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Table("collect_tasks AS t"), "t.tenant_id").
 			Select("t.id, t.result_product_id AS result_product_id, t.updated_at, t.source, p.title AS prod_title, t.status").
 			Joins("INNER JOIN products p ON p.id = t.result_product_id").
 			Where("t.status = ? AND t.result_product_id IS NOT NULL", collect.StatusSuccess)
@@ -823,7 +829,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// AI text tasks
 	{
 		var rows []aitask.AITask
-		tx := s.DB.WithContext(ctx).Model(&aitask.AITask{}).
+		tx := q.Scope.applyTenantViaProduct(s.DB.WithContext(ctx).Model(&aitask.AITask{}), "product_id").
 			Where("task_type IN ?", []string{"title_optimize", "product_description_generate"}).
 			Order("updated_at DESC").Limit(recentLimit)
 		if q.Start != nil {
@@ -860,7 +866,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// AI batches
 	{
 		var rows []aioperationbatch.AIOperationBatch
-		tx := s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}).Where("deleted_at IS NULL").Order("updated_at DESC").Limit(recentLimit)
+		tx := q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}), "tenant_id").Where("deleted_at IS NULL").Order("updated_at DESC").Limit(recentLimit)
 		if q.Start != nil {
 			tx = tx.Where("updated_at >= ?", *q.Start)
 		}
@@ -883,7 +889,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// Image tasks
 	{
 		var rows []imagetask.ImageTask
-		tx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Order("updated_at DESC").Limit(recentLimit)
+		tx := q.Scope.applyTenantViaProduct(s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}), "product_id").Order("updated_at DESC").Limit(recentLimit)
 		if q.Start != nil {
 			tx = tx.Where("updated_at >= ?", *q.Start)
 		}
@@ -928,6 +934,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// Inventory alert samples (low stock)
 	if s.Inventory != nil {
 		res, err := s.Inventory.ListInventoryAlerts(ctx, inventory.AlertsListQuery{
+			TenantID:  q.Scope.TenantID,
 			Platform:  strings.TrimSpace(q.Platform),
 			ShopID:    shopPtr,
 			AlertType: inventory.AlertTypeLowStock,
@@ -988,7 +995,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 			})
 		}
 		var invF []inventory.InventorySyncTask
-		invTx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).Where("status = ?", inventory.StatusFailed).Order("updated_at DESC").Limit(recentLimit)
+		invTx := q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}), "tenant_id").Where("status = ?", inventory.StatusFailed).Order("updated_at DESC").Limit(recentLimit)
 		if pl := strings.TrimSpace(q.Platform); pl != "" {
 			invTx = invTx.Where("LOWER(platform) = ?", strings.ToLower(pl))
 		}
@@ -1035,7 +1042,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// Open alerts
 	{
 		var rows []taskcenter.TaskAlert
-		tx := s.DB.WithContext(ctx).Where("status = ?", taskcenter.TaskAlertStatusOpen).
+		tx := q.Scope.applyTenantColumn(s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}), "tenant_id").Where("status = ?", taskcenter.TaskAlertStatusOpen).
 			Order("last_seen_at DESC").Limit(recentLimit)
 		if q.Start != nil {
 			tx = tx.Where("last_seen_at >= ?", *q.Start)
