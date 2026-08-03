@@ -32,6 +32,18 @@ describe('resolveCollectFailureHint', () => {
   });
 });
 
+describe('TENANT_CONTEXT_MISSING 中文映射', () => {
+  it('平台管理员（租户 0）提交采集时给出租户切换指引', () => {
+    const msg = mapCollectErrorMessage(
+      new Error('TENANT_CONTEXT_MISSING: collect requires positive tenant scope'),
+      '1688',
+    );
+    expect(msg).toContain('平台管理员');
+    expect(msg).toContain('租户');
+    expect(msg).not.toMatch(/TENANT_CONTEXT_MISSING/);
+  });
+});
+
 describe('UNSUPPORTED_URL / INVALID_URL 中文映射', () => {
   it('UNSUPPORTED_URL 有中文短标题', () => {
     expect(mapCollectorErrorCodeLabel('UNSUPPORTED_URL')).toBe('链接类型暂不支持');
