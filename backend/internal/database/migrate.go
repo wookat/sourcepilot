@@ -195,6 +195,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&customerchat.CustomerConversation{},
 		&customerchat.CustomerMessage{},
 		&customerchat.CustomerReplySuggestion{},
+		&customerchat.CustomerReplyTemplate{},
 		&customerchat.CustomerFailureEvent{},
 		&taskcenter.TaskFailureMark{},
 		&taskcenter.TaskAlert{},

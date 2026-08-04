@@ -1089,6 +1089,10 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			}
 		}
 
+		if err := del("customer_reply_templates", tx.Unscoped().Where("name LIKE ? OR content LIKE ?", like, like).Delete(&customerchat.CustomerReplyTemplate{})); err != nil {
+			return err
+		}
+
 		if err := del("order_exception_marks", tx.Unscoped().Where("remark LIKE ?", like).Delete(&orderexception.OrderExceptionMark{})); err != nil {
 			return err
 		}
@@ -1220,6 +1224,11 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 			var n int64
 			return n, tx.Model(&customerchat.CustomerReplySuggestion{}).Unscoped().
 				Where("prompt_code LIKE ? OR suggested_reply LIKE ?", like, like).Count(&n).Error
+		}},
+		{"customer_reply_templates", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&customerchat.CustomerReplyTemplate{}).Unscoped().
+				Where("name LIKE ? OR content LIKE ?", like, like).Count(&n).Error
 		}},
 		{"customer_message_sync_tasks", func() (int64, error) {
 			var n int64
