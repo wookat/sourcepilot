@@ -1021,6 +1021,9 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 		if err := tx.Model(&shop.Shop{}).Unscoped().Where("shop_code LIKE ?", like).Pluck("id", &shopIDs).Error; err != nil {
 			return err
 		}
+		if err := cleanupMigrationImports(tx, res, like, shopIDs); err != nil {
+			return err
+		}
 		if len(shopIDs) > 0 {
 			if err := del("order_sync_tasks", tx.Unscoped().Where("shop_id IN ? AND error_message LIKE ?", shopIDs, like).Delete(&ordersync.OrderSyncTask{})); err != nil {
 				return err
@@ -1231,6 +1234,9 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		}},
 	}
 	checks = append(checks, operationTaskVerifyChecks(tx, like)...)
+	checks = append(checks, migrationImportVerifyChecks(tx, like, func() *gorm.DB {
+		return tx.Model(&shop.Shop{}).Unscoped().Select("id").Where("shop_code LIKE ?", like)
+	})...)
 	for _, c := range checks {
 		n, err := c.count()
 		if err != nil {
