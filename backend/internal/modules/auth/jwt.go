@@ -13,7 +13,7 @@ type Claims = AccessClaims
 
 // MintToken issues a signed JWT for the given admin (legacy path).
 func MintToken(cfg *config.Config, adminID uuid.UUID, username string) (string, time.Time, error) {
-	return LegacyMintToken(cfg, adminID, username, 0)
+	return LegacyMintToken(cfg, adminID, username, 0, 1)
 }
 
 // ParseToken validates the token and returns claims.

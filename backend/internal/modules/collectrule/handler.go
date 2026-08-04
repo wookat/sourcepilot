@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -52,7 +53,12 @@ func (h *Handler) List(c *gin.Context) {
 		Domain:   c.Query("domain"),
 		Status:   c.Query("status"),
 	}
-	res, err := h.Svc.List(c.Request.Context(), q)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	res, err := h.Svc.List(c.Request.Context(), tenantID, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -96,7 +102,12 @@ func (h *Handler) Get(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetDetail(c.Request.Context(), id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.GetDetail(c.Request.Context(), tenantID, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")

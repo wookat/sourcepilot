@@ -48,7 +48,12 @@ func (h *Handler) List(c *gin.Context) {
 	if !h.requireSettingsManage(c) {
 		return
 	}
-	rows, err := h.Svc.List(c.Request.Context())
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	rows, err := h.Svc.List(c.Request.Context(), tenantID)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -66,14 +71,22 @@ func (h *Handler) Put(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	items := make([]PutItem, 0, len(body.Items))
 	for _, it := range body.Items {
-		tid := int64(0)
-		if it.TenantID != nil {
-			tid = *it.TenantID
+		// tenantId is advisory only: settings always land on the request
+		// tenant so a tenant admin cannot overwrite platform (tenant 0) or
+		// peer tenant configuration.
+		if it.TenantID != nil && *it.TenantID != tenantID {
+			response.Fail(c, 403, response.CodeForbidden, "cannot write settings of another tenant")
+			return
 		}
 		items = append(items, PutItem{
-			TenantID:    tid,
+			TenantID:    tenantID,
 			GroupKey:    it.GroupKey,
 			ItemKey:     it.ItemKey,
 			ItemValue:   it.ItemValue,
@@ -130,7 +143,7 @@ func (h *Handler) Put(c *gin.Context) {
 			Message:  "bulk upsert",
 		})
 	}
-	rows, err := h.Svc.List(c.Request.Context())
+	rows, err := h.Svc.List(c.Request.Context(), tenantID)
 	if err != nil {
 		response.HandleError(c, err)
 		return

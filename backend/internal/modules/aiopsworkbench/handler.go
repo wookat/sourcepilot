@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -50,7 +51,12 @@ func parseQuery(c *gin.Context) (Query, error) {
 	if err != nil {
 		return Query{}, err
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return Query{}, err
+	}
 	return Query{
+		TenantID: tenantID,
 		Type:     strings.TrimSpace(c.Query("type")),
 		Priority: strings.TrimSpace(c.Query("priority")),
 		Platform: strings.TrimSpace(c.Query("platform")),

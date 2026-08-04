@@ -147,7 +147,7 @@ func (s *Service) douyinConfig(ctx context.Context) (platformdouyin.RuntimeConfi
 
 func (s *Service) checkAppConfig(ctx context.Context) []CheckItem {
 	out := make([]CheckItem, 0, 12)
-	rows, err := s.Settings.List(ctx)
+	rows, err := s.Settings.List(ctx, 0)
 	if err != nil {
 		out = append(out, checkFailed("app.config", "应用配置", "无法读取平台配置", "检查数据库与 settings 服务", map[string]any{"error": err.Error()}))
 		return out

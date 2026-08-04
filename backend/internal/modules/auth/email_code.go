@@ -17,6 +17,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// ipHourlyEmailCodeLimit caps registration codes requested from one client
+// address per hour, on top of the per-address hourly limit.
+const ipHourlyEmailCodeLimit = 20
+
 type sendEmailCodeBody struct {
 	Email string `json:"email" binding:"required,email"`
 	Scene string `json:"scene" binding:"required,oneof=register"`
@@ -34,16 +38,13 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 	}
 	emailAddr := strings.ToLower(strings.TrimSpace(body.Email))
 
-	// Check if already registered
-	if body.Scene == "register" {
-		_, err := h.Admins.ByEmail(c.Request.Context(), emailAddr)
-		if err == nil {
-			response.Fail(c, 400, response.CodeBadRequest, "email already registered")
-			return
-		} else if err != gorm.ErrRecordNotFound {
-			response.Fail(c, 500, response.CodeInternalError, "database error")
-			return
-		}
+	// Per-IP budget blunts bulk registration: one client cannot walk a list of
+	// addresses even though each address has its own hourly budget below.
+	ipKey := fmt.Sprintf("email_code_ip_hourly:%s:%s", body.Scene, c.ClientIP())
+	ipCount, _ := h.Redis.Get(c.Request.Context(), ipKey).Int()
+	if ipCount >= ipHourlyEmailCodeLimit {
+		response.Fail(c, 429, response.CodeBadRequest, "hourly limit reached")
+		return
 	}
 
 	// Check rate limit: 60s cooldown
@@ -64,6 +65,32 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 	if count >= 5 {
 		response.Fail(c, 429, response.CodeBadRequest, "hourly limit reached")
 		return
+	}
+
+	// Registered addresses must not be distinguishable from new ones: the
+	// budget is consumed and the response is byte-identical to a real send,
+	// only no code is generated or stored (registration would reject it
+	// anyway). The skipped send stays visible in the operation log.
+	if body.Scene == "register" {
+		_, err := h.Admins.ByEmail(c.Request.Context(), emailAddr)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			response.Fail(c, 500, response.CodeInternalError, "database error")
+			return
+		}
+		if err == nil {
+			h.consumeEmailCodeBudget(c, cooldownKey, hourlyKey, ipKey, count, ipCount)
+			if h.OpLog != nil {
+				_ = h.OpLog.Write(c, operationlog.WriteOpts{
+					Username: emailAddr,
+					Action:   "email_code.send",
+					Resource: "auth",
+					Status:   "skipped",
+					Message:  "email already registered",
+				})
+			}
+			response.OK(c, gin.H{"ok": true})
+			return
+		}
 	}
 
 	// Generate code
@@ -88,13 +115,7 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 	// Save to Redis
 	codeKey := fmt.Sprintf("email_code:%s:%s", body.Scene, emailAddr)
 	h.Redis.Set(c.Request.Context(), codeKey, code, 10*time.Minute)
-	h.Redis.Set(c.Request.Context(), cooldownKey, "1", 60*time.Second)
-
-	if count == 0 {
-		h.Redis.Set(c.Request.Context(), hourlyKey, 1, time.Hour)
-	} else {
-		h.Redis.Incr(c.Request.Context(), hourlyKey)
-	}
+	h.consumeEmailCodeBudget(c, cooldownKey, hourlyKey, ipKey, count, ipCount)
 
 	if h.OpLog != nil {
 		_ = h.OpLog.Write(c, operationlog.WriteOpts{
@@ -106,6 +127,23 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 	}
 
 	response.OK(c, gin.H{"ok": true})
+}
+
+// consumeEmailCodeBudget arms the per-address cooldown and increments the
+// per-address and per-IP hourly counters.
+func (h *Handler) consumeEmailCodeBudget(c *gin.Context, cooldownKey, hourlyKey, ipKey string, count, ipCount int) {
+	ctx := c.Request.Context()
+	h.Redis.Set(ctx, cooldownKey, "1", 60*time.Second)
+	if count == 0 {
+		h.Redis.Set(ctx, hourlyKey, 1, time.Hour)
+	} else {
+		h.Redis.Incr(ctx, hourlyKey)
+	}
+	if ipCount == 0 {
+		h.Redis.Set(ctx, ipKey, 1, time.Hour)
+	} else {
+		h.Redis.Incr(ctx, ipKey)
+	}
 }
 
 func (h *Handler) sendCodeEmail(ctx context.Context, to, code string) error {

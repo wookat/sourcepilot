@@ -3,16 +3,21 @@ package aiprompt
 import "github.com/gin-gonic/gin"
 
 // Register mounts /api/v1/ai/prompts routes on an authenticated group.
-func Register(g *gin.RouterGroup, h *Handler) {
+// ai_prompts is a deployment-wide catalog keyed by code, so every write is
+// guarded by writeGuards (platform tenant only); reads stay open to all
+// tenants because prompts drive their AI features.
+func Register(g *gin.RouterGroup, h *Handler, writeGuards ...gin.HandlerFunc) {
 	if g == nil || h == nil {
 		return
 	}
 	rg := g.Group("/ai/prompts")
 	rg.GET("", h.List)
-	rg.POST("", h.Create)
 	rg.GET("/:id", h.Get)
-	rg.PUT("/:id", h.Put)
-	rg.DELETE("/:id", h.Delete)
-	rg.POST("/:id/enable", h.Enable)
-	rg.POST("/:id/disable", h.Disable)
+
+	wg := rg.Group("", writeGuards...)
+	wg.POST("", h.Create)
+	wg.PUT("/:id", h.Put)
+	wg.DELETE("/:id", h.Delete)
+	wg.POST("/:id/enable", h.Enable)
+	wg.POST("/:id/disable", h.Disable)
 }

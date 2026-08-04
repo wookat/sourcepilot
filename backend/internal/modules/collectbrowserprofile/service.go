@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/collectdomain"
 )
 
@@ -88,9 +89,9 @@ func accessToLastCheck(access string) string {
 	}
 }
 
-func (s *Service) byID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfile, error) {
+func (s *Service) byID(ctx context.Context, tenantID int64, id uuid.UUID) (*CollectBrowserProfile, error) {
 	var row CollectBrowserProfile
-	err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error
+	err := s.DB.WithContext(ctx).First(&row, "tenant_id = ? AND id = ?", tenantID, id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProfileNotFound
@@ -100,8 +101,8 @@ func (s *Service) byID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfil
 	return &row, nil
 }
 
-func (s *Service) activeByID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfile, error) {
-	row, err := s.byID(ctx, id)
+func (s *Service) activeByID(ctx context.Context, tenantID int64, id uuid.UUID) (*CollectBrowserProfile, error) {
+	row, err := s.byID(ctx, tenantID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +112,12 @@ func (s *Service) activeByID(ctx context.Context, id uuid.UUID) (*CollectBrowser
 	return row, nil
 }
 
-func (s *Service) List(ctx context.Context, q ListQuery) ([]RowDTO, int64, error) {
+func (s *Service) List(ctx context.Context, tenantID int64, q ListQuery) ([]RowDTO, int64, error) {
 	if s == nil || s.DB == nil {
 		return nil, 0, fmt.Errorf("collectbrowserprofile: no db")
 	}
 	page, ps := s.clampPage(q.Page, q.PageSize)
-	tx := s.DB.WithContext(ctx).Model(&CollectBrowserProfile{})
+	tx := s.DB.WithContext(ctx).Model(&CollectBrowserProfile{}).Where("tenant_id = ?", tenantID)
 	if v := strings.TrimSpace(q.Domain); v != "" {
 		tx = tx.Where("LOWER(domain) LIKE ?", "%"+strings.ToLower(v)+"%")
 	}
@@ -154,7 +155,12 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	if provider == "" {
 		provider = "custom"
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	row := CollectBrowserProfile{
+		TenantID:   tenantID,
 		Name:       name,
 		Domain:     domain,
 		Provider:   provider,
@@ -187,7 +193,11 @@ func (s *Service) Disable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) erro
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("collectbrowserprofile: no db")
 	}
-	row, err := s.byID(c.Request.Context(), id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	row, err := s.byID(c.Request.Context(), tenantID, id)
 	if err != nil {
 		return err
 	}
@@ -195,7 +205,7 @@ func (s *Service) Disable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) erro
 		return nil
 	}
 	res := s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).
-		Where("id = ?", id).
+		Where("tenant_id = ? AND id = ?", tenantID, id).
 		Update("status", StatusDisabled)
 	if res.Error != nil {
 		return res.Error
@@ -216,7 +226,11 @@ func (s *Service) Enable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("collectbrowserprofile: no db")
 	}
-	row, err := s.byID(c.Request.Context(), id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	row, err := s.byID(c.Request.Context(), tenantID, id)
 	if err != nil {
 		return err
 	}
@@ -224,7 +238,7 @@ func (s *Service) Enable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 		return nil
 	}
 	res := s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).
-		Where("id = ?", id).
+		Where("tenant_id = ? AND id = ?", tenantID, id).
 		Update("status", StatusActive)
 	if res.Error != nil {
 		return res.Error
@@ -245,7 +259,11 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("collectbrowserprofile: no db")
 	}
-	row, err := s.byID(c.Request.Context(), id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	row, err := s.byID(c.Request.Context(), tenantID, id)
 	if err != nil {
 		return err
 	}
@@ -277,7 +295,11 @@ func (s *Service) OpenLogin(c *gin.Context, id uuid.UUID, body URLBody, adminID 
 	if s.Collector == nil {
 		return nil, fmt.Errorf("collector unavailable")
 	}
-	row, err := s.activeByID(c.Request.Context(), id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	row, err := s.activeByID(c.Request.Context(), tenantID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +334,11 @@ func (s *Service) Check(c *gin.Context, id uuid.UUID, body URLBody, adminID *uui
 	if s.Collector == nil {
 		return nil, fmt.Errorf("collector unavailable")
 	}
-	row, err := s.activeByID(c.Request.Context(), id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	row, err := s.activeByID(c.Request.Context(), tenantID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +363,8 @@ func (s *Service) Check(c *gin.Context, id uuid.UUID, body URLBody, adminID *uui
 		"last_check_at":     &now,
 		"last_error_code":   strings.TrimSpace(out.ErrorCode),
 	}
-	_ = s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).Where("id = ?", id).Updates(updates).Error
+	_ = s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).
+		Where("tenant_id = ? AND id = ?", tenantID, id).Updates(updates).Error
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
@@ -354,6 +381,7 @@ func (s *Service) Check(c *gin.Context, id uuid.UUID, body URLBody, adminID *uui
 // MergeIntoRequestOptions adds profile snapshot fields to collect_tasks.request_options JSON.
 func (s *Service) MergeIntoRequestOptions(
 	ctx context.Context,
+	tenantID int64,
 	requestOptionsJSON []byte,
 	profileID *uuid.UUID,
 	useBrowserProfile bool,
@@ -362,7 +390,7 @@ func (s *Service) MergeIntoRequestOptions(
 	if !useBrowserProfile || profileID == nil || *profileID == uuid.Nil {
 		return requestOptionsJSON, nil
 	}
-	row, err := s.activeByID(ctx, *profileID)
+	row, err := s.activeByID(ctx, tenantID, *profileID)
 	if err != nil {
 		return nil, err
 	}
@@ -387,6 +415,7 @@ func (s *Service) MergeIntoRequestOptions(
 // EnrichCollectorOptions adds profileKey for Collector HTTP options map.
 func (s *Service) EnrichCollectorOptions(
 	ctx context.Context,
+	tenantID int64,
 	opts map[string]any,
 	profileID *uuid.UUID,
 	useBrowserProfile bool,
@@ -395,7 +424,7 @@ func (s *Service) EnrichCollectorOptions(
 	if !useBrowserProfile || profileID == nil || *profileID == uuid.Nil {
 		return nil
 	}
-	row, err := s.activeByID(ctx, *profileID)
+	row, err := s.activeByID(ctx, tenantID, *profileID)
 	if err != nil {
 		return err
 	}
