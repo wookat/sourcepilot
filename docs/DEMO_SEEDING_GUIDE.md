@@ -8,6 +8,7 @@
 1. PostgreSQL + Redis 已启动（`docker compose up -d` 或等价）
 2. 后端 API 可访问（默认 `http://127.0.0.1:8080`）
 3. 根目录 `.env` 含 `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD`
+   - 在宿主机直跑 Go seed（`pnpm seed:demo:full` 等）而 `.env` 的 `DB_HOST` 写的是容器服务名 `postgres` 时，需临时覆盖 `DB_HOST=127.0.0.1`（PowerShell：`$env:DB_HOST="127.0.0.1"`），见 `docs/env.md`
 4. （可选）AI Provider 已配置 — 客服 AI 建议样本为 best-effort
 
 ## 一键种子

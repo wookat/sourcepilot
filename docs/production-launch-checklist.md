@@ -75,6 +75,7 @@ git checkout <上一个正常commit>
 - 回滚仅回退代码与镜像；数据卷（PostgreSQL/Redis/上传/证书）不受影响。
 - 若新版本已做不兼容迁移：先 `stop backend`，用 `pg_restore --clean --if-exists` 恢复最近备份，再启动旧版本（详见 production-deployment.md「备份与恢复」）。
 - **严禁** `down -v`（删库删证书）。
+- **带存量数据的版本升级**（非首次上线）不走本清单，按 [`upgrade-guide.md`](upgrade-guide.md) 执行：先 `./scripts/deploy-prod.sh --pre-upgrade-check`（全量备份 + 迁移预检）再部署。
 
 ## 五、演练结论与已知注意点（2026-08-02 首演；2026-08-03 复跑）
 

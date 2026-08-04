@@ -93,7 +93,7 @@ docker compose -f docker-compose.full.yml up -d --build
 | 变量 | 示例 / 默认 | 服务 | 敏感 | 说明 |
 | --- | --- | --- | --- | --- |
 | `DB_DRIVER` | `postgres` | backend | 否 | 默认 PostgreSQL；仅遗留库或明确要求时用 MySQL。 |
-| `DB_HOST` | `127.0.0.1` / `postgres` | backend | 否 | 数据库地址。 |
+| `DB_HOST` | `127.0.0.1` / `postgres` | backend | 否 | 数据库地址。容器内互访用服务名 `postgres`；在宿主机直跑后端命令（如 `pnpm seed:demo:full` / `go run ./cmd/seeddemo`）而 `.env` 写的是 `postgres` 时，需临时覆盖为 `DB_HOST=127.0.0.1`（PowerShell：`$env:DB_HOST="127.0.0.1"`）。 |
 | `DB_PORT` | `5432` | backend | 否 | PostgreSQL 默认 5432。 |
 | `DB_USER` | `trademind` | backend | 否 | 数据库用户。 |
 | `DB_PASSWORD` | `trademind` | backend | 是 | 数据库密码。 |

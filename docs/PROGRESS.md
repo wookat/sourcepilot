@@ -1534,3 +1534,16 @@ Final Production Acceptance Deferred to P10
 
 - 生产升级路径演练（旧版本 #204 → 含 #206/#208 新版本，存量多租户/订单/运单/导入任务/汇率配置）暴露：同租户重复订单号会让升级在 GORM AutoMigrate 建 `idx_orders_tenant_order_no` 时以裸 `SQLSTATE 23505` 中断且全站不可用。新增 `preflightOrderNoTenantUnique`（AutoMigrate 最先执行）：检测到同租户重复订单号时输出可操作报错（列出 tenant_id/order_no 组合并指向清理指引），数据零改动；集成回归 `order_no_preflight_test.go`。
 - 新增 `docs/upgrade-guide.md`：带数据迁移的版本升级 SOP（备份、预检 SQL、迁移中断处置、回滚路径与已知陷阱——含跨租户重复订单号出现后不可回滚到 R95 之前版本的陷阱）；docs/README.md、production-deployment.md 挂链接。
+
+### 变更记录（2026-08-04）第 98 轮：PlatformTag migration 映射 + ProTable render 口径修复 + antd dev 警告清零
+
+- `PlatformTag` / `platformLabels` 补 `migration`（迁移导入）平台映射，订单/打印页不再显示裸英文 `migration`。
+- ProTable `render` 统一口径修复：批量发货 / 订单导入 / 采购批量回填 / 迁移向导 / 安全设置 / 运营任务中心等多处 `render` 参数误用（dom 与 entity 混用）修正，展示值与实体字段一致。
+- antd dev 警告清零：ProTable 缺失/不稳定 `rowKey`、`Spin` 嵌套用法整治；E2E `round98-p2.spec.ts` + `PlatformTag` 单测回归。
+
+### 变更记录（2026-08-04）第 100 轮：R99 季度复查 P2 收口 + 文档一致性巡检
+
+- **R91–R99 里程碑索引**：R91 物流闭环 → R92 迁移导入 → R93 报表多币种折算 → R94 第二平台预研 + 毛利汇率口径统一 → R95 安全审计复跑 + 迁移预检/升级 SOP → R96 tenant0 运营任务口径 + UX v4 P2 → R97 汇率租户隔离 → R98 前端展示口径/警告清零 → R99 打印路由别名 + 升级演练 P2。各轮明细见上方对应变更记录。
+- demo seed 商品主图由外链占位域名（`img.demo.trademind.local`，离线环境产生 `ERR_NAME_NOT_RESOLVED` 网络噪音）改为内联 SVG data URI 占位图（`demoImageDataURI`，中性底色 + DEMO-n 标签）；`imageFallback` 破图占位组件口径不变（仍用于真实失效外链）。
+- 宿主机直跑 seed 的 `DB_HOST` 覆盖说明补入 `docs/env.md` 与 `docs/DEMO_SEEDING_GUIDE.md`。
+- 文档一致性巡检：`docs/module-map.md` 补 R89/92/93/95 关联行（迁移导入、报表多币种、租户治理/清退、版本升级/迁移预检）；`docs/production-launch-checklist.md` 回滚章节补「带存量数据升级走 upgrade-guide + --pre-upgrade-check」指引；api.md/permission-matrix.md 抽查 R91–R99 条目（carriers、print/sheets、refresh-tracking、imports、report-currency、tenants purge）与实际路由一致，无需纠偏。
