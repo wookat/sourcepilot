@@ -11,14 +11,14 @@ import (
 // Missing SMTP configuration must be detected before the registration lookup
 // so that registered and unregistered addresses get the same response
 // (anti-enumeration): both must see 503 when mail is unconfigured.
-func TestCheckEmailSettingsIncompleteWithoutSMTP(t *testing.T) {
+func TestSMTPConfigIncompleteWithoutSMTP(t *testing.T) {
 	db := newTenantStateTestDB(t)
 	if err := db.AutoMigrate(&settings.Setting{}); err != nil {
 		t.Fatal(err)
 	}
 	h := &Handler{Settings: &settings.Service{DB: db}}
 
-	if err := h.checkEmailSettings(context.Background()); !errors.Is(err, errEmailSettingsIncomplete) {
+	if _, err := h.smtpConfig(context.Background()); !errors.Is(err, errEmailSettingsIncomplete) {
 		t.Fatalf("expected errEmailSettingsIncomplete without SMTP config, got %v", err)
 	}
 
@@ -27,7 +27,7 @@ func TestCheckEmailSettingsIncompleteWithoutSMTP(t *testing.T) {
 		       (0, 'mail', 'smtp_from', 'noreply@example.com', 0)`).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := h.checkEmailSettings(context.Background()); err != nil {
+	if _, err := h.smtpConfig(context.Background()); err != nil {
 		t.Fatalf("expected usable mail settings, got %v", err)
 	}
 }

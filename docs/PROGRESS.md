@@ -650,6 +650,7 @@ trademind-ai/
 57. ~~**标题 / 属性相似度 SKU 推荐（未完成）**~~ → **（2026-05-18）** 首版已并入 **SKU 候选服务**（**Jaccard + 属性键值**），仍以 **人工确认** 为唯一落库路径；**不标题模糊自动绑定**。
 58. **售后 / 退款异常工作台（未完成）**：当前 **`orderexception`** 聚焦 **SKU / 库存 / 同步**；退换货单独迭代。
 59. **多仓库存（未完成）**：单 **`product_skus.stock`** 模型未扩展 **多仓**。
+60. **租户级 settings 生效缺口（R102 P2 遗留，产品决策）**：`GET/PUT /api/v1/settings` 已按租户隔离展示与写入，但大量服务端消费仍读 **tenant 0 平台默认值**（`PlainByGroup(ctx, 0, ...)`，全仓约 120+ 处：AI / 存储 / 平台 / 采集等），业务租户改自己的 settings 对这些链路**不生效**。当前为**安全默认**（业务租户无法覆盖平台凭据与全局行为，无越权风险）；「租户级覆盖 → 回退平台默认」需逐组梳理哪些配置允许租户自管（涉及计费与凭据边界），单列迭代处理。
 
 ## 8. 下一步开发计划（建议顺序）
 
@@ -701,6 +702,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-08-04 | **R103 安全 P2 收口（#216 后续）**：`ai_prompts` 读收紧为平台租户专属（矩阵 7 条 forbid/platformAdmin，前端 `/ai/prompts` 与 `/ops/备份/恢复/发布/容灾` 入 `PLATFORM_ADMIN_ROUTES`）；`EnsureAccountActive`/`EnsureTenantActive` 由 fail-open 改为 **30s last-known-good 缓存 + fail-closed**（新增 `AUTH_STATE_UNAVAILABLE`，补 Go 回归）；注册验证码 SMTP 反枚举与 #215 配置引导融合（未配置 SMTP 统一 503 引导、发送失败对未注册地址返回与成功一致的 200）；upgrade-guide 增补 R102 采集规则/profile `tenant_id` 回填指引 + 预检 SQL 与业务租户 `/ops/*` 替代口径；租户级 settings 生效缺口列为遗留 §7-60 |
 | 2026-08-04 | **UX 视觉复核 v4（R76 后三批新页面）**：物流（物流商/批量发货弹窗/打印拣货单）、迁移导入向导（上传→映射→校验→结果/历史）、多币种（汇率设置/报表折算）三视口全走查 + v3 闭环回归无回退；修复 P1×2：报表折算合计卡「含未折算币种」改「不含未折算币种」（与后端未折算不计入口径一致）、打印单「平台」接入 `platformLabel` 中文映射；记录 P1-3：demo 全量环境运营任务中心开箱 403（`operationtask` handler 拒绝 tenant 0 而 demo 落 tenant 0，需后端收口）；报告归档 `docs/ux-review/UX_REVIEW_V4_REPORT.md` |
 | 2026-08-04 | **R94 QA 修复（P1）毛利估算与报表汇率口径统一**：订单成本/毛利估算（`/procurement/cost-estimates`）非 CNY 订单折算改为优先使用报表手工汇率表（`report_currency`，CNY→币种 = rate(CNY→本位币)/rate(币种→本位币)），与销售报表同一口径；报表表无该币种时回退原 `settings.pricing.exchangeRate` 单一汇率（行为兼容）。此前两处汇率来源独立，`default_exchange_rate=1` 时 USD 订单毛利被按 1:1 折算严重失真。补 Go 回归测试（优先级 + 回退）。另修复报表币种设置页「添加币种汇率」首次点击偶发不加行：加载完成时 `setFieldsValue` 会重置 rates 覆盖提前新增的行，改为加载期间禁用添加/删除按钮（初始 loading=true），补 Playwright 回归 `round94-report-currency-add-row.spec.ts` |
 | 2026-08-03 | **R76 P2×4 收口**：选品候选详情状态/审核列改共享 `StatusTag` 中文映射（`COMMON_STATUS_LABEL` 补 `scored`）；草稿列表「来源」列 `collect` 中文化（`PRODUCT_SOURCE_LABEL` 补 `collect: 采集`）；demo seed 客服会话 Bob/Carol 样本改挂 operator/readonly 已授权的 DEMO 手工渠道店（Alice 保持抖店），两角色客服页开箱非空、幂等/clean 零残留；修复刊登「子任务」tab 与批次详情数据源不一致根因——`product_publish_tasks` 创建时未写 `tenant_id`（恒为 0）而 `ListTasks` 按租户过滤（`ADMIN_BOOTSTRAP_TENANT_ID=1` 下列表恒空）、批次详情按 `batch_id` 查询不受影响；三处任务创建补租户 + `migrate_round76` 按 products 回填存量，补 Go 回归测试 |

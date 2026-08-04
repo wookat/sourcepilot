@@ -18,12 +18,17 @@ describe('isPlatformAdmin / 平台租户路由', () => {
     expect(canAccessPath('/settings/platform-tenants', 'readonly', undefined, 0)).toBe(false);
   });
 
-  it('备份/恢复/发布/容灾仅平台管理员可访问', () => {
-    for (const path of ['/ops/backups', '/ops/restores', '/ops/releases', '/ops/disaster-recovery']) {
+  it('提示词模板与部署级运维页仅平台管理员可访问（round103）', () => {
+    for (const path of ['/ai/prompts', '/ops/backups', '/ops/restores', '/ops/releases', '/ops/disaster-recovery']) {
       expect(canAccessPath(path, 'admin', undefined, 0)).toBe(true);
       expect(canAccessPath(path, 'admin', undefined, 2)).toBe(false);
       expect(canAccessPath(path, 'operator', undefined, 0)).toBe(false);
     }
+  });
+
+  it('业务租户仍可访问租户隔离的运维页', () => {
+    expect(canAccessPath('/ops/workers/monitor', 'admin', undefined, 2)).toBe(true);
+    expect(canAccessPath('/ai/tasks', 'admin', undefined, 2)).toBe(true);
   });
 });
 

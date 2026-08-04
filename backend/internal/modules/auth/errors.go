@@ -45,6 +45,7 @@ const (
 	ErrTooManyAttempts          = "AUTH_TOO_MANY_ATTEMPTS"
 	ErrPasswordChangeRequired   = "AUTH_PASSWORD_CHANGE_REQUIRED"
 	ErrAuthenticationRequired   = "AUTHENTICATION_REQUIRED"
+	ErrAuthStateUnavailable     = "AUTH_STATE_UNAVAILABLE"
 	ErrPermissionDenied         = "PERMISSION_DENIED"
 	ErrTenantAccessDenied       = "TENANT_ACCESS_DENIED"
 	ErrShopAccessDenied         = "SHOP_ACCESS_DENIED"
