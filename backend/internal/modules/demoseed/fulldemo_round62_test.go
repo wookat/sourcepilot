@@ -75,6 +75,7 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&customerchat.CustomerMessage{},
 		&customerchat.CustomerReplySuggestion{},
 		&customerchat.CustomerFailureEvent{},
+		&customerchat.CustomerReplyTemplate{},
 		&customersync.CustomerMessageSyncTask{},
 		&selection.SelectionTask{},
 		&selection.SelectionCandidate{},
@@ -216,4 +217,48 @@ func TestFullDemoCleanupTenantZeroDemoConversations(t *testing.T) {
 	assertCount(&customerchat.CustomerFailureEvent{}, "conversation_id = ?", []any{orphan.ID}, 0, "orphan failure events")
 	assertCount(&customerchat.CustomerConversation{}, "id = ?", []any{realTenant.ID}, 1, "real tenant conversation")
 	assertCount(&customerchat.CustomerConversation{}, "id = ?", []any{realBuyer.ID}, 1, "non-demo tenant-0 conversation")
+}
+
+// Seed must persist the disabled reply-template sample as disabled（回归：
+// GORM bool default tag 曾把 Enabled:false 零值吞成 true）, and cleanup must
+// remove all DEMO- templates.
+func TestFullDemoSeedReplyTemplates(t *testing.T) {
+	db := openFullDemoTestDB(t)
+	if db == nil {
+		return
+	}
+
+	s := &FullDemoSeeder{DB: db, TenantID: 7, AppEnv: "development"}
+	if _, err := s.Seed(context.Background()); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	var total, disabled int64
+	if err := db.Model(&customerchat.CustomerReplyTemplate{}).
+		Where("tenant_id = ? AND name LIKE ?", 7, DemoPrefix+"%").Count(&total).Error; err != nil {
+		t.Fatal(err)
+	}
+	if total != int64(len(demoReplyTemplatePlans())) {
+		t.Fatalf("seeded templates: got %d, want %d", total, len(demoReplyTemplatePlans()))
+	}
+	if err := db.Model(&customerchat.CustomerReplyTemplate{}).
+		Where("tenant_id = ? AND name LIKE ? AND enabled = ?", 7, DemoPrefix+"%", false).
+		Count(&disabled).Error; err != nil {
+		t.Fatal(err)
+	}
+	if disabled != 1 {
+		t.Fatalf("disabled sample template: got %d rows, want 1", disabled)
+	}
+
+	if _, err := s.Cleanup(context.Background()); err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	var left int64
+	if err := db.Unscoped().Model(&customerchat.CustomerReplyTemplate{}).
+		Where("name LIKE ?", DemoPrefix+"%").Count(&left).Error; err != nil {
+		t.Fatal(err)
+	}
+	if left != 0 {
+		t.Fatalf("cleanup residual templates: %d", left)
+	}
 }

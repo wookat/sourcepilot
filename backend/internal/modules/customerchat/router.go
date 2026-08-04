@@ -31,6 +31,12 @@ func registerCustomerRoutes(c *gin.RouterGroup, h *Handler) {
 	c.PUT("/conversations/:id", h.UpdateConversation)
 	c.DELETE("/conversations/:id", h.DeleteConversation)
 
+	c.GET("/reply-templates", h.ListTemplates)
+	c.POST("/reply-templates", h.CreateTemplate)
+	c.POST("/reply-templates/reorder", h.ReorderTemplates)
+	c.PUT("/reply-templates/:id", h.UpdateTemplate)
+	c.DELETE("/reply-templates/:id", h.DeleteTemplate)
+
 	c.PUT("/reply-suggestions/:id", h.UpdateSuggestion)
 	c.POST("/reply-suggestions/:id/accept", h.AcceptSuggestion)
 	c.POST("/reply-suggestions/:id/discard", h.DiscardSuggestion)

@@ -61,7 +61,7 @@ type ProductPublication struct {
 	Platform           string         `gorm:"size:64;index;not null" json:"platform"`
 	PublishTaskID      *uuid.UUID     `gorm:"type:char(36);index" json:"publishTaskId,omitempty"`
 	ExternalProductID  string         `gorm:"size:512;index" json:"externalProductId,omitempty"`
-	ExternalSPUID      string         `gorm:"size:512" json:"externalSpuId,omitempty"`
+	ExternalSPUID      string         `gorm:"column:external_spu_id;size:512" json:"externalSpuId,omitempty"`
 	Status             string         `gorm:"size:32;index;not null" json:"status"`
 	PublishStatus      string         `gorm:"size:32;index;not null" json:"publishStatus"`
 	PublishMode        string         `gorm:"size:32;index" json:"publishMode,omitempty"`

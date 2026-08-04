@@ -41,6 +41,11 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/reports/profit/export.csv',
         'GET /api/v1/reports/procurement',
         'GET /api/v1/reports/inventory',
+        'GET /api/v1/customer/reply-templates',
+        'POST /api/v1/customer/reply-templates',
+        'PUT /api/v1/customer/reply-templates/:id',
+        'DELETE /api/v1/customer/reply-templates/:id',
+        'POST /api/v1/customer/reply-templates/reorder',
       ]),
     );
   });
@@ -99,8 +104,23 @@ describe('TradeMind API contract registry', () => {
     }
   });
 
+  it('defines payload/query contracts for customer reply template APIs', () => {
+    const list = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/customer/reply-templates');
+    const create = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/customer/reply-templates');
+    const update = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/customer/reply-templates/:id');
+    const reorder = contracts.endpoints.find(
+      (item) => routeKey(item) === 'POST /api/v1/customer/reply-templates/reorder',
+    );
+
+    const upsertBody = ['groupKey', 'name', 'content', 'sortOrder', 'enabled'];
+    expect(list?.query).toEqual(['group', 'keyword', 'enabled']);
+    expect(create?.requestBody).toEqual(upsertBody);
+    expect(update?.requestBody).toEqual(upsertBody);
+    expect(reorder?.requestBody).toEqual(['groupKey', 'ids']);
+  });
+
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(26);
+    expect(contracts.endpoints).toHaveLength(31);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });
