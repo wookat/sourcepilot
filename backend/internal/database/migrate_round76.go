@@ -20,7 +20,7 @@ func migrateRound76PublishTaskTenant(db *gorm.DB) error {
 	if err := db.Exec(backfill).Error; err != nil {
 		// SQLite dev may not support UPDATE FROM; non-fatal, new tasks
 		// carry the tenant at creation time.
-		_ = err
+		warnMigrateSkipped("migrateRound76PublishTaskTenant", err)
 	}
 	return nil
 }

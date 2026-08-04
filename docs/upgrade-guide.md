@@ -9,6 +9,10 @@
 ```bash
 cd trademind
 
+# 一键方式：备份 + 预检一步完成（备份目录默认 /var/backups，可用 BACKUP_DIR=... 覆盖）
+./scripts/deploy-prod.sh --pre-upgrade-check
+
+# 或手动逐步执行：
 # 1. 全量备份（升级失败唯一可靠的回滚依据）
 docker compose -f docker-compose.prod.yml exec -T postgres \
   pg_dump -U trademind -d trademind -Fc \
@@ -95,7 +99,7 @@ docker compose -f docker-compose.prod.yml exec -T postgres psql -U trademind -d 
   ```
 
   有结果则只能回滚到 R95 及之后的版本，或先与业务确认改号。
-- **陷阱 2（升级失败 = 全站不可用）**：backend 迁移失败会连带 admin/caddy 起不来（无旧实例兜底），升级窗口按整站停机预期安排，务必先做备份与预检把失败概率压到最低。
+- **陷阱 2（升级失败 = 全站不可用）**：backend 迁移失败会连带 admin/caddy 起不来（无旧实例兜底），升级窗口按整站停机预期安排，务必先做备份与预检（`--pre-upgrade-check`）把失败概率压到最低。现有友好提示兜底：admin 容器不可达时 Caddy 返回「系统升级维护中」维护页；backend 不可用时 nginx 对 `/api` 返回统一 JSON（503「系统升级维护中，请稍后重试」），不再是裸 502。真正零停机（蓝绿/迁移与启动解耦）需要双实例编排，不在当前单机 compose 架构范围内。
 - 严禁 `docker compose down -v`（删库删证书）。
 
 ## 五、演练记录

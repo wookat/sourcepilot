@@ -1525,6 +1525,11 @@ Final Production Acceptance Deferred to P10
 - 前端：新设置页 `/settings/report-currency`（本位币 + 手工汇率表）；经营报表页折算合计/每日折算图/原币明细/未折算警示（含设置页跳转）；首页销售窗口卡展示折算合计与未折算标记。异常/待办统计不受影响。
 - 权限矩阵登记 2 条新路由；demo seed 补 2 条 USD 已付款订单样本；docs/api.md、docs/provider.md 同步；后端补 fxrate/report_currency/stats 折算与 CSV 测试，前端补 service 单测与 E2E `round93-report-currency.spec.ts`。
 
+### 变更记录（2026-08-04）第 99 轮：打印路由别名 + 升级演练 P2 清单收口
+
+- **打印路由**：新增 `/orders/print-sheets` 别名路由（重定向到 `/orders/print` 并保留 `ids` 查询参数），不再被 `/orders/:id` 捕获显示「未找到订单」；E2E `round99-print-route.spec.ts` 覆盖深链/重定向/刷新。全站路由排查未发现其他静态路由被动态路由遮蔽（React Router v6 静态段优先），顺带修复草稿页死链 `/store/list` → `/shops/manage`。
+- **升级演练 P2 收口**：① 手工建单撞同租户重复订单号时返回业务文案「订单号「X」已存在，请更换订单号」（不再透出裸 SQLSTATE 23505），回归测试覆盖；② 升级期间全站不可用缓解：Caddy 对 admin 不可达返回「系统升级维护中」维护页、nginx 对 backend 不可用的 `/api` 返回统一 JSON 503（蓝绿/迁移解耦超出单机 compose 范围，见 upgrade-guide 陷阱 2）；③ 迁移吞错点（round72/76/81/97、p4_2、migrate.go）改为 WARN 日志 `database migrate step skipped`，迁移语义不变；④ `deploy-prod.sh --pre-upgrade-check`：全量备份 + R95 重复订单号预检一键完成（不部署）。
+
 ### 变更记录（2026-08-04）升级演练收口：R95 迁移预检 + 升级 SOP
 
 - 生产升级路径演练（旧版本 #204 → 含 #206/#208 新版本，存量多租户/订单/运单/导入任务/汇率配置）暴露：同租户重复订单号会让升级在 GORM AutoMigrate 建 `idx_orders_tenant_order_no` 时以裸 `SQLSTATE 23505` 中断且全站不可用。新增 `preflightOrderNoTenantUnique`（AutoMigrate 最先执行）：检测到同租户重复订单号时输出可操作报错（列出 tenant_id/order_no 组合并指向清理指引），数据零改动；集成回归 `order_no_preflight_test.go`。

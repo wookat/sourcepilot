@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # TradeMind 生产一键部署脚本（docker-compose.prod.yml）
 # 用法：
-#   ./scripts/deploy-prod.sh            # 拉最新代码 + 构建 + 启动 + 健康检查
-#   ./scripts/deploy-prod.sh --no-pull  # 跳过 git pull（回滚到指定 commit 后重建时使用）
+#   ./scripts/deploy-prod.sh                     # 拉最新代码 + 构建 + 启动 + 健康检查
+#   ./scripts/deploy-prod.sh --no-pull           # 跳过 git pull（回滚到指定 commit 后重建时使用）
+#   ./scripts/deploy-prod.sh --pre-upgrade-check # 仅执行升级前检查（全量备份 + 迁移预检），不部署
+#                                                # 备份目录默认 /var/backups，可用 BACKUP_DIR=... 覆盖
 # 前置：已 cp .env.prod.example .env 并填入必填项。详见 docs/production-deployment.md
 
 set -euo pipefail
@@ -14,10 +16,13 @@ COMPOSE_FILE=docker-compose.prod.yml
 COMPOSE=(docker compose -f "$COMPOSE_FILE")
 HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-300}"
 NO_PULL=0
+PRE_UPGRADE_CHECK=0
+BACKUP_DIR="${BACKUP_DIR:-/var/backups}"
 
 for arg in "$@"; do
   case "$arg" in
     --no-pull) NO_PULL=1 ;;
+    --pre-upgrade-check) PRE_UPGRADE_CHECK=1 ;;
     *) echo "未知参数: $arg" >&2; exit 2 ;;
   esac
 done
@@ -42,6 +47,33 @@ done
 # 弱示例值拦截
 if grep -qE '^APP_MASTER_KEY=a{64}$' .env; then
   fail "APP_MASTER_KEY 仍是示例值，请用 openssl rand -hex 32 生成"
+fi
+
+# ---------- 0.5 升级前检查（--pre-upgrade-check：仅备份 + 预检，不部署）----------
+if [ "$PRE_UPGRADE_CHECK" -eq 1 ]; then
+  log "升级前检查：全量备份 + 迁移预检（对当前运行中的旧版本执行）"
+  cid="$("${COMPOSE[@]}" ps -q postgres)"
+  [ -n "$cid" ] || fail "postgres 容器未运行，无法执行升级前检查"
+  PG_USER="$(grep -E '^POSTGRES_USER=' .env | head -n1 | cut -d= -f2- || true)"; PG_USER="${PG_USER:-trademind}"
+  PG_DB="$(grep -E '^POSTGRES_DB=' .env | head -n1 | cut -d= -f2- || true)"; PG_DB="${PG_DB:-trademind}"
+
+  mkdir -p "$BACKUP_DIR" 2>/dev/null || fail "无法创建备份目录 $BACKUP_DIR（可用 BACKUP_DIR=路径 覆盖）"
+  BACKUP_FILE="$BACKUP_DIR/trademind-pre-upgrade-$(date +%F-%H%M%S).dump"
+  log "全量备份到 $BACKUP_FILE"
+  "${COMPOSE[@]}" exec -T postgres pg_dump -U "$PG_USER" -d "$PG_DB" -Fc > "$BACKUP_FILE" \
+    || fail "pg_dump 备份失败"
+  [ -s "$BACKUP_FILE" ] || fail "备份文件为空：$BACKUP_FILE"
+
+  log "预检：同租户重复订单号（会中断 R95 唯一索引迁移）"
+  DUP="$("${COMPOSE[@]}" exec -T postgres psql -U "$PG_USER" -d "$PG_DB" -At -c \
+    "SELECT tenant_id, order_no, COUNT(*) FROM orders WHERE deleted_at IS NULL GROUP BY tenant_id, order_no HAVING COUNT(*) > 1;")" \
+    || fail "预检 SQL 执行失败"
+  if [ -n "$DUP" ]; then
+    printf '%s\n' "$DUP" >&2
+    fail "预检失败：存在同租户重复订单号，先按 docs/upgrade-guide.md「迁移中断处置」清理再升级"
+  fi
+  log "升级前检查通过：备份 $BACKUP_FILE，无同租户重复订单号。可继续 checkout 目标版本后执行部署。"
+  exit 0
 fi
 
 # ---------- 1. 拉取代码 ----------
