@@ -11,7 +11,7 @@ import (
 // Missing SMTP configuration must be detected before the registration lookup
 // so that registered and unregistered addresses get the same response
 // (anti-enumeration): both must see 503 when mail is unconfigured.
-func TestCheckEmailSettingsIncompleteWithoutSMTP(t *testing.T) {
+func TestSMTPConfigIncompleteWithoutSMTP(t *testing.T) {
 	db := newTenantStateTestDB(t)
 	if err := db.AutoMigrate(&settings.Setting{}); err != nil {
 		t.Fatal(err)

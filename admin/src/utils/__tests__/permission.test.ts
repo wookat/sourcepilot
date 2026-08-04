@@ -30,7 +30,6 @@ describe('isPlatformAdmin / 平台租户路由', () => {
     expect(canAccessPath('/ops/workers/monitor', 'admin', undefined, 2)).toBe(true);
     expect(canAccessPath('/ai/tasks', 'admin', undefined, 2)).toBe(true);
   });
-
 });
 
 describe('canReviewOperationTasks', () => {
