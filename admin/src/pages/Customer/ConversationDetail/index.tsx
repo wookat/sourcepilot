@@ -12,6 +12,7 @@ import {
   List,
   message,
   Modal,
+  Result,
   Row,
   Select,
   Space,
@@ -88,6 +89,7 @@ export default function CustomerConversationDetailPage() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [conv, setConv] = useState<ConversationDetail | null>(null);
+  const [loadError, setLoadError] = useState<{ status?: number; message: string } | null>(null);
   const [msgs, setMsgs] = useState<CustomerMessageRow[]>([]);
 
   const [newCustomerMsg, setNewCustomerMsg] = useState('');
@@ -123,6 +125,7 @@ export default function CustomerConversationDetailPage() {
     setLoading(true);
     try {
       const [c, m, sugg] = await Promise.all([getConversation(id), queryMessages(id), querySuggestions(id)]);
+      setLoadError(null);
       setConv(c);
       setMsgs(m.list || []);
       setLang(c.customerLanguage || 'en');
@@ -134,6 +137,12 @@ export default function CustomerConversationDetailPage() {
         setSuggestionId((prev) => prev ?? chosen.id);
         setEditedReply((prev) => (prev.trim() ? prev : chosen.editedReply || chosen.suggestedReply || ''));
       }
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number }; code?: number };
+      const status =
+        err?.response?.status ??
+        (typeof err?.code === 'number' ? (err.code >= 10000 ? Math.floor(err.code / 100) : err.code) : undefined);
+      setLoadError({ status, message: extractErrorMessage(e, '会话加载失败') });
     } finally {
       setLoading(false);
     }
@@ -393,6 +402,28 @@ export default function CustomerConversationDetailPage() {
 
   if (!id) {
     return null;
+  }
+
+  if (loadError) {
+    const forbidden = loadError.status === 403;
+    const notFound = loadError.status === 404;
+    return (
+      <TmPageContainer title="AI 客服工作台" onBack={() => history.back()}>
+        <Result
+          status={forbidden ? '403' : notFound ? '404' : 'error'}
+          title={forbidden ? '无权访问该会话' : notFound ? '会话不存在或已被删除' : '会话加载失败'}
+          subTitle={forbidden ? '该会话不属于当前账号可访问的租户，请确认账号或联系管理员。' : notFound ? '会话可能已被删除，或链接有误。' : loadError.message}
+          extra={
+            <Space>
+              <Button type="primary" onClick={() => history.push('/customer/conversations')}>
+                返回会话列表
+              </Button>
+              {!forbidden && !notFound ? <Button onClick={() => loadAll()}>重试</Button> : null}
+            </Space>
+          }
+        />
+      </TmPageContainer>
+    );
   }
 
   const statusMap = conv

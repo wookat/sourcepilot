@@ -233,6 +233,11 @@
 
 客服 AI 回复建议见 **`POST /api/v1/customer/conversations/:id/ai/generate-reply`**（非 legacy `/ai/chat`）。
 
+**AI 优化联动违禁词（依赖违禁词模块）**
+
+- `POST /api/v1/products/:id/ai/optimize-title` 与 `POST /api/v1/products/:id/ai/generate-description` 在调用模型前，会将当前租户启用的**禁止级**违禁词注入 system prompt，要求模型规避（最多注入 200 个词，词库读取失败不阻断生成）。
+- 生成成功后自动用租户启用词库复检输出文本；如有残留命中，响应新增可选字段 `bannedWordHits`（数组，元素含 `word`、`category`、`categoryLabel`、`level`（`forbidden`/`warning`）、`levelLabel`、`suggestion`），无命中时省略。仅提示，不阻断返回，也不改变既有字段。
+
 ### 客服会话子资源 scope 口径（round70）
 
 - 会话全部子资源读写路径（`/customer/conversations/:id/messages` 读写、`/customer/conversations/:id/ai-suggestions` 读写、`mark-replied`、`ai/generate-reply`、`send-platform-message`，以及 `reply-suggestions/:id` 与 `ai-suggestions/:id` 的建议操作）先按父会话的 **tenant + 店铺 scope** 校验归属，与会话详情接口口径一致（同订单/采购/运营任务）。
@@ -808,6 +813,19 @@ Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_nega
 ### 订单异常工作台：全部视图
 
 `GET /api/v1/orders/exceptions` 查询参数除 `handled=true`（只看已处理标记）、`ignored=true`（只看已忽略标记）外，支持 `all=true`：同时返回未处理、已处理与已忽略的行（`summary` 口径不变，仍只统计未处理）。默认（不带三者）只返回未处理行。
+
+## 深度报表（reports，round110）
+
+只读报表聚合 API（GET-only，readonly 角色可用），租户隔离；利润报表店铺 scope 与订单列表一致（非 admin 按授权店铺过滤），采购报表按授权店铺关联的采购单过滤。时间范围参数统一：`?days=7|30|90`（默认 30，最大 366）或 `?start=YYYY-MM-DD&end=YYYY-MM-DD`（含端点，跨度 ≤366 天，同传时优先自定义区间）。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/reports/profit` | 利润报表：`?dimension=order|product|shop`（默认 order）+ 范围参数。已付款订单口径（按创建时间），收入-采购成本-费用=毛利。返回 `{generatedAt, dimension, startDate, endDate, baseCurrency, feeItems:[{name, mode: percent|fixed_per_order, value}], summary, rows[], truncated?}`；行/合计字段 `{key, label, platform?, orderCount, quantity?, revenue:[{currency, amount, baseAmount?}], revenueBase, unconvertedCurrencies?, costCny, costBase?, missingCostLines, feeBase, grossProfitBase?, marginPercent?}`。多币种按 `report_currency` 手工汇率表折算本位币（decimal 精确计算、两位小数），无汇率币种不计入 `revenueBase` 而列入 `unconvertedCurrencies`；采购成本沿用采购成本预估口径（主货源 SKU 映射进价，CNY），缺进价行计入 `missingCostLines`（成本按可估算行合计、偏低）；`costBase/grossProfitBase/marginPercent` 仅在配置了 CNY→本位币汇率时返回。费用项来自租户 settings `report_profit.fee_items`（percent 按折算收入百分比、fixed_per_order 按订单数×本位币定额），未配置视为 0。rows 按折算收入降序（order 维度按时间倒序），超过 500 行截断并置 `truncated=true`。 |
+| `GET` | `/api/v1/reports/profit/export.csv` | 利润报表 CSV 导出（参数同上）：UTF-8 BOM，含原币列与折算列（无汇率时折算列留空而非补 0）、成本/费用/毛利/毛利率/缺进价行数/未折算币种，数据与 `reports/profit` 完全一致。 |
+| `GET` | `/api/v1/reports/procurement` | 采购报表（范围参数同上，金额为采购单原币 CNY 口径）：按采购单创建时间统计非 voided 单，返回 `{generatedAt, startDate, endDate, currency:"CNY", summary:{poCount, totalAmount(不含 cancelled), inTransitCount(placing/placed/paid/shipped), deliveredCount, cancelledCount, avgLeadTimeDays?, leadTimeSamples}, daily:[{date, poCount, amount}], leadTime:[{label: 0-3 天|4-7 天|8-15 天|16 天以上, count}], suppliers:[{supplierId, supplierName, poCount, amount, deliveredCount, avgLeadTimeDays?}]}`；签收时效=下单→首个 `to_status=delivered` 事件的天数，供应商按金额降序。 |
+| `GET` | `/api/v1/reports/inventory` | 库存报表：`?slowDays=30`（默认 30，滞销判定天数）。返回 `{generatedAt, slowDays, currency:"CNY", summary:{skuCount, totalStock, stockValueCny, valuedSkuCount, unvaluedSkuCount, lowStockCount, outOfStockCount, slowMovingCount, avgDailyOutbound?, turnoverDays?}, slowMoving[], lowStock[]}`；SKU 行 `{productId, skuId, title, skuName?, skuCode?, stock, warningStock, safetyStock, unitCostCny?, stockValueCny?, lastOutboundAt?}`。库存价值按参考进价估（主货源 SKU 映射进价，缺失回退本地 SKU 成本价；均缺则计入 `unvaluedSkuCount` 不计价值）；周转天数=当前总库存÷近 30 天日均出库（`inventory_change_logs.delta<0`）；滞销=有库存且 `slowDays` 天内无出库；低库存=库存 ≤ 预警阈值（与库存预警口径一致）。 |
+
+对应管理端入口：`/orders/reports-profit`（利润报表）、`/orders/reports-procurement`（采购报表）、`/orders/reports-inventory`（库存报表），与 `/orders/reports` 经营报表并列。
 
 ## 迁移导入（migrationimport，round92）
 

@@ -45,6 +45,10 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/imports',
         'GET /api/v1/imports/:id',
         'GET /api/v1/imports/:id/errors.csv',
+        'GET /api/v1/reports/profit',
+        'GET /api/v1/reports/profit/export.csv',
+        'GET /api/v1/reports/procurement',
+        'GET /api/v1/reports/inventory',
         'GET /api/v1/customer/reply-templates',
         'POST /api/v1/customer/reply-templates',
         'PUT /api/v1/customer/reply-templates/:id',
@@ -159,6 +163,25 @@ describe('TradeMind API contract registry', () => {
     expect(list?.query).toEqual(['page', 'pageSize', 'kind']);
   });
 
+  it('defines query contracts for the deep report read APIs (GET-only, readonly included)', () => {
+    const profit = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/reports/profit');
+    const profitCsv = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/reports/profit/export.csv');
+    const procurement = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/reports/procurement');
+    const inventory = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/reports/inventory');
+
+    expect(profit?.query).toEqual(['dimension', 'days', 'start', 'end']);
+    expect(profit?.responseData).toBe('ProfitReportDTO');
+    expect(profitCsv?.query).toEqual(['dimension', 'days', 'start', 'end']);
+    expect(profitCsv?.responseData).toBe('CSV');
+    expect(procurement?.query).toEqual(['days', 'start', 'end']);
+    expect(procurement?.responseData).toBe('ProcurementReportDTO');
+    expect(inventory?.query).toEqual(['slowDays']);
+    expect(inventory?.responseData).toBe('InventoryReportDTO');
+    for (const endpoint of [profit, profitCsv, procurement, inventory]) {
+      expect(endpoint?.method).toBe('GET');
+    }
+  });
+
   it('defines payload/query contracts for customer reply template APIs', () => {
     const list = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/customer/reply-templates');
     const create = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/customer/reply-templates');
@@ -175,7 +198,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(46);
+    expect(contracts.endpoints).toHaveLength(50);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

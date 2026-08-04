@@ -58,6 +58,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/release"
+	"github.com/trademind-ai/trademind/backend/internal/modules/reports"
 	"github.com/trademind-ai/trademind/backend/internal/modules/restore"
 	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/selection"
@@ -560,6 +561,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	bannedWordsSvc := &bannedwords.Service{DB: dep.DB, OpLog: opLogSvc}
 	bannedWordsH := &bannedwords.Handler{Svc: bannedWordsSvc, OpLog: opLogSvc}
+	productSvc.Compliance = &bannedwords.AIComplianceAdvisor{Svc: bannedWordsSvc}
 
 	readinessSvc := &productcheck.Service{
 		DB:       dep.DB,
@@ -735,6 +737,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	excSvc.Cost = procurementSvc
 	procurementH := &procurement.Handler{Svc: procurementSvc}
 	procurement.Register(authed, procurementH)
+	reportsH := &reports.Handler{Svc: &reports.Service{DB: dep.DB, Settings: settingsSvc, Proc: procurementSvc}}
+	reports.Register(authed, reportsH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
 	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)

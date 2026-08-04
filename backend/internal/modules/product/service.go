@@ -37,6 +37,7 @@ type Service struct {
 	AITasks     *aitask.Service
 	AIGateway   *aigate.Gateway
 	Idempotency *idempotency.Service
+	Compliance  ComplianceAdvisor
 
 	Shops               DouyinShopClientFactory
 	DouyinImageUploader DouyinImageUploader
