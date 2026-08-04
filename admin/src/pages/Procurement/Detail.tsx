@@ -1,3 +1,4 @@
+import CarrierSelect, { useEnabledCarriers } from '@/components/CarrierSelect';
 import { TmPageContainer } from '@/components/ui';
 import {
   cancelPurchaseOrder,
@@ -55,6 +56,7 @@ export default function ProcurementOrderDetailPage() {
   const [placedForm] = Form.useForm();
   const [logisticsOpen, setLogisticsOpen] = useState(false);
   const [logisticsForm] = Form.useForm();
+  const { carriers, loading: carriersLoading } = useEnabledCarriers(logisticsOpen);
   const [paidOpen, setPaidOpen] = useState(false);
   const [paidForm] = Form.useForm();
   const [priceEdit, setPriceEdit] = useState<{ itemId: string; value?: number } | null>(null);
@@ -441,7 +443,11 @@ export default function ProcurementOrderDetailPage() {
             <Input />
           </Form.Item>
           <Form.Item name="carrier" label="承运商（可选）">
-            <Input placeholder="如：中通 / 圆通 / 顺丰" />
+            <CarrierSelect
+              carriers={carriers}
+              loading={carriersLoading}
+              placeholder="选择物流商或输入承运商名称，如：中通 / 圆通 / 顺丰"
+            />
           </Form.Item>
         </Form>
       </Modal>
