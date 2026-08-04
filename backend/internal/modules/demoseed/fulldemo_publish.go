@@ -17,14 +17,17 @@ import (
 // presets only and never touches operator-managed configuration.
 const demoSettingRemark = DemoPrefix + "演示配置（种子数据）"
 
-// demoTikTokPublishPreset lists the platform_tiktok required fields with
-// obviously-fake DEMO values. The preset only unlocks the degraded
+// demoPublishPresetRow is one settings row of a platform publish preset.
+type demoPublishPresetRow struct {
+	key, value, valueType string
+}
+
+// demoPublishPresets maps settings group key to the required fields with
+// obviously-fake DEMO values. Each preset only unlocks the degraded
 // local_draft_only publish capability (no platform API is ever called on
 // that path), so no real credential is fabricated.
-func demoTikTokPublishPreset() []settings.Setting {
-	rows := []struct {
-		key, value, valueType string
-	}{
+var demoPublishPresets = map[string][]demoPublishPresetRow{
+	"platform_tiktok": {
 		{"app_key", "DEMO-tiktok-app-key", "string"},
 		{"app_secret", "DEMO-not-a-real-secret", "string"},
 		{"auth_base_url", "https://auth.tiktok-shops.com", "string"},
@@ -32,12 +35,24 @@ func demoTikTokPublishPreset() []settings.Setting {
 		{"redirect_uri", "https://demo.trademind.local/api/v1/stores/tiktok/callback", "string"},
 		{"api_version", "202309", "string"},
 		{"timeout_sec", "30", "number"},
-	}
+	},
+	"platform_shopee": {
+		{"partner_id", "1000000", "string"},
+		{"partner_key", "DEMO-not-a-real-partner-key", "string"},
+		{"auth_base_url", "https://partner.shopeemobile.com", "string"},
+		{"api_base_url", "https://partner.shopeemobile.com", "string"},
+		{"redirect_uri", "https://demo.trademind.local/api/v1/stores/shopee/callback", "string"},
+		{"timeout_sec", "30", "number"},
+	},
+}
+
+func demoPublishPresetSettings(groupKey string) []settings.Setting {
+	rows := demoPublishPresets[groupKey]
 	out := make([]settings.Setting, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, settings.Setting{
 			TenantID:  0,
-			GroupKey:  "platform_tiktok",
+			GroupKey:  groupKey,
 			ItemKey:   r.key,
 			ItemValue: r.value,
 			ValueType: r.valueType,
@@ -47,28 +62,31 @@ func demoTikTokPublishPreset() []settings.Setting {
 	return out
 }
 
-// seedPublishCapabilityPreset inserts the platform_tiktok app config preset
-// so the TikTok publish target resolves to the degraded local_draft_only
-// capability out of the box. Real configuration is never modified: the
-// preset is skipped entirely when the group already has any row.
+// seedPublishCapabilityPreset inserts the platform_tiktok / platform_shopee
+// app config presets so the TikTok and Shopee publish targets resolve to the
+// degraded local_draft_only capability out of the box. Real configuration is
+// never modified: a preset is skipped entirely when its group already has
+// any row.
 func (s *FullDemoSeeder) seedPublishCapabilityPreset(tx *gorm.DB, res *FullDemoResult) error {
 	if !tx.Migrator().HasTable("settings") {
 		return nil
 	}
-	var n int64
-	if err := tx.Model(&settings.Setting{}).
-		Where("tenant_id = 0 AND group_key = ?", "platform_tiktok").Count(&n).Error; err != nil {
-		return fmt.Errorf("demoseed: count platform_tiktok settings: %w", err)
-	}
-	if n > 0 {
-		return nil
-	}
-	for _, row := range demoTikTokPublishPreset() {
-		row := row
-		if err := tx.Create(&row).Error; err != nil {
-			return fmt.Errorf("demoseed: platform_tiktok preset: %w", err)
+	for _, groupKey := range []string{"platform_tiktok", "platform_shopee"} {
+		var n int64
+		if err := tx.Model(&settings.Setting{}).
+			Where("tenant_id = 0 AND group_key = ?", groupKey).Count(&n).Error; err != nil {
+			return fmt.Errorf("demoseed: count %s settings: %w", groupKey, err)
 		}
-		res.Counts["settings"]++
+		if n > 0 {
+			continue
+		}
+		for _, row := range demoPublishPresetSettings(groupKey) {
+			row := row
+			if err := tx.Create(&row).Error; err != nil {
+				return fmt.Errorf("demoseed: %s preset: %w", groupKey, err)
+			}
+			res.Counts["settings"]++
+		}
 	}
 	return nil
 }

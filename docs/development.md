@@ -62,7 +62,7 @@ pnpm dev:reset
 
 ## 一键演示种子数据（seeddemo）
 
-面向新用户 / 演示环境空库和 QA fixture 场景的全链路演示数据（店铺、商品草稿含 AI 优化前后文案、供应商与货源 + SKU 映射、各状态销售订单与采购单、库存与变动流水、异常工作台样本、物流记录、刊登链路样本：TikTok 演示店 + 降级 local_draft_only 刊登能力预设、已绑定抖店 publication 与 SKU 绑定行、≥2 条待审运营任务）。所有数据带 `DEMO-` 前缀，直接写库（不经 API、不改权限），采购单/订单状态流转经真实状态机校验。
+面向新用户 / 演示环境空库和 QA fixture 场景的全链路演示数据（店铺、商品草稿含 AI 优化前后文案、供应商与货源 + SKU 映射、各状态销售订单与采购单、库存与变动流水、异常工作台样本、物流记录、刊登链路样本：TikTok / 虾皮（Shopee）演示店 + 降级 local_draft_only 刊登能力预设（platform_tiktok / platform_shopee）、已绑定抖店 publication 与 SKU 绑定行、≥2 条待审运营任务）。所有数据带 `DEMO-` 前缀，直接写库（不经 API、不改权限），采购单/订单状态流转经真实状态机校验。
 
 ```bash
 pnpm seed:demo:full          # 种子（幂等：先清理旧 DEMO- 数据再重建）

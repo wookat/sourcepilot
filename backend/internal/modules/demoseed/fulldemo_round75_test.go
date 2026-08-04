@@ -45,8 +45,8 @@ func TestFullDemoSeedPublishSamples(t *testing.T) {
 	if err := db.Where("tenant_id = 0 AND group_key = ?", "platform_tiktok").Find(&presetRows).Error; err != nil {
 		t.Fatal(err)
 	}
-	if len(presetRows) != len(demoTikTokPublishPreset()) {
-		t.Fatalf("expected %d preset rows, got %d", len(demoTikTokPublishPreset()), len(presetRows))
+	if len(presetRows) != len(demoPublishPresetSettings("platform_tiktok")) {
+		t.Fatalf("expected %d preset rows, got %d", len(demoPublishPresetSettings("platform_tiktok")), len(presetRows))
 	}
 	for _, row := range presetRows {
 		if row.Remark != demoSettingRemark {
