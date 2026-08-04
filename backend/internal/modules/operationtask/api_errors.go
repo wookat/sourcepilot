@@ -74,7 +74,7 @@ func executionDomainErrorSpec(err error) apiErrorSpec {
 	}
 	switch domain.Category {
 	case ExecutionErrorCategoryValidation:
-		return apiErrorSpec{status: http.StatusBadRequest, code: ErrCodeExecutionValidationFailed, msg: "execution payload validation failed", biz: response.CodeBadRequest}
+		return apiErrorSpec{status: http.StatusBadRequest, code: ErrCodeExecutionValidationFailed, msg: "刊登 payload 校验未通过，请检查商品资料（主图、刊登目标、店铺）后重试", biz: response.CodeBadRequest}
 	case ExecutionErrorCategoryPermissionDenied:
 		return apiErrorSpec{status: http.StatusForbidden, code: ErrCodePermissionDenied, msg: "permission denied", biz: response.CodePermissionDenied}
 	case ExecutionErrorCategoryStateConflict, ExecutionErrorCategoryIdempotencyConflict:

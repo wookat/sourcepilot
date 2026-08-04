@@ -617,6 +617,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	v1 := r.Group("/api/v1")
 	v1.POST("/auth/login", authH.Login)
 	v1.POST("/auth/register", authH.Register)
+	v1.GET("/auth/register-config", authH.RegisterConfig)
 	v1.POST("/auth/send-email-code", authH.SendEmailCode)
 	v1.POST("/auth/refresh", sessionH.Refresh)
 

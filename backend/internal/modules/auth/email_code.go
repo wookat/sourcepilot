@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -21,6 +22,16 @@ import (
 // address per hour, on top of the per-address hourly limit.
 const ipHourlyEmailCodeLimit = 20
 
+// errEmailSettingsIncomplete marks a send attempt with no usable SMTP
+// configuration, so the handler can return actionable guidance instead of a
+// generic send failure.
+var errEmailSettingsIncomplete = errors.New("email settings incomplete")
+
+const (
+	msgEmailVerifyDisabled     = "当前部署已关闭注册邮箱验证，无需获取验证码，直接提交注册即可。"
+	msgEmailSettingsIncomplete = "邮件服务未配置，无法发送注册验证码。请管理员在「设置 → 邮件设置」完成 SMTP 配置；本地/自托管部署可通过环境变量 AUTH_REGISTER_SKIP_EMAIL_VERIFY=true 显式关闭注册邮箱验证（仅限非生产环境）。"
+)
+
 type sendEmailCodeBody struct {
 	Email string `json:"email" binding:"required,email"`
 	Scene string `json:"scene" binding:"required,oneof=register"`
@@ -31,12 +42,28 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 		response.Fail(c, 503, response.CodeInternalError, "redis unavailable")
 		return
 	}
+	if h.Cfg != nil && h.Cfg.RegisterEmailVerifyDisabled() {
+		response.Fail(c, 400, response.CodeBadRequest, msgEmailVerifyDisabled)
+		return
+	}
 	var body sendEmailCodeBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
 	emailAddr := strings.ToLower(strings.TrimSpace(body.Email))
+
+	// Missing SMTP configuration is reported before the address is looked at,
+	// so the guidance response never distinguishes registered addresses.
+	smtpCfg, err := h.smtpConfig(c.Request.Context())
+	if err != nil {
+		if errors.Is(err, errEmailSettingsIncomplete) {
+			response.Fail(c, 503, response.CodeServiceUnavailable, msgEmailSettingsIncomplete)
+			return
+		}
+		response.Fail(c, 500, response.CodeInternalError, "email settings error")
+		return
+	}
 
 	// Per-IP budget blunts bulk registration: one client cannot walk a list of
 	// addresses even though each address has its own hourly budget below.
@@ -97,8 +124,12 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 	n, _ := rand.Int(rand.Reader, big.NewInt(1000000))
 	code := fmt.Sprintf("%06d", n.Int64())
 
-	// Send email
-	if err := h.sendCodeEmail(c.Request.Context(), emailAddr, code); err != nil {
+	// Send email. Transient SMTP failures still answer with the same 200 body
+	// as a successful send: an error here only happens for unregistered
+	// addresses, so any distinct status would re-open account enumeration.
+	// The failure stays visible in the operation log and the code is not
+	// stored, so the address simply retries after the cooldown.
+	if err := h.sendCodeEmail(c.Request.Context(), smtpCfg, emailAddr, code); err != nil {
 		if h.OpLog != nil {
 			_ = h.OpLog.Write(c, operationlog.WriteOpts{
 				Username: emailAddr,
@@ -108,7 +139,8 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 				Message:  "failed to send email",
 			})
 		}
-		response.Fail(c, 500, response.CodeInternalError, "failed to send email")
+		h.consumeEmailCodeBudget(c, cooldownKey, hourlyKey, ipKey, count, ipCount)
+		response.OK(c, gin.H{"ok": true})
 		return
 	}
 
@@ -146,33 +178,39 @@ func (h *Handler) consumeEmailCodeBudget(c *gin.Context, cooldownKey, hourlyKey,
 	}
 }
 
-func (h *Handler) sendCodeEmail(ctx context.Context, to, code string) error {
+// smtpConfig resolves the deployment SMTP configuration and reports
+// errEmailSettingsIncomplete when it is unusable.
+func (h *Handler) smtpConfig(ctx context.Context) (smtp.Config, error) {
 	m, err := h.Settings.PlainMailSettings(ctx)
 	if err != nil {
-		return err
+		return smtp.Config{}, err
 	}
 	providerStr := strings.TrimSpace(m["provider"])
-	if providerStr == "" || providerStr == "smtp" {
-		port, _ := strconv.Atoi(m["smtp_port"])
-		cfg := smtp.Config{
-			Host:     m["smtp_host"],
-			Port:     port,
-			Username: m["smtp_username"],
-			Password: m["smtp_password"],
-			FromName: m["smtp_from_name"],
-			From:     m["smtp_from"],
-			UseTLS:   m["smtp_use_tls"] == "true",
-			UseSSL:   m["smtp_use_ssl"] == "true",
-		}
-		if cfg.Host == "" || cfg.From == "" {
-			return fmt.Errorf("email settings incomplete")
-		}
-		p := smtp.NewProvider(cfg)
-		return p.Send(ctx, email.SendEmailRequest{
-			To:      to,
-			Subject: "Your Verification Code - TradeMind",
-			Content: fmt.Sprintf("Your verification code is: %s. It will expire in 10 minutes.", code),
-		})
+	if providerStr != "" && providerStr != "smtp" {
+		return smtp.Config{}, fmt.Errorf("unsupported email provider %q", providerStr)
 	}
-	return fmt.Errorf("unsupported email provider %q", providerStr)
+	port, _ := strconv.Atoi(m["smtp_port"])
+	cfg := smtp.Config{
+		Host:     m["smtp_host"],
+		Port:     port,
+		Username: m["smtp_username"],
+		Password: m["smtp_password"],
+		FromName: m["smtp_from_name"],
+		From:     m["smtp_from"],
+		UseTLS:   m["smtp_use_tls"] == "true",
+		UseSSL:   m["smtp_use_ssl"] == "true",
+	}
+	if cfg.Host == "" || cfg.From == "" {
+		return smtp.Config{}, errEmailSettingsIncomplete
+	}
+	return cfg, nil
+}
+
+func (h *Handler) sendCodeEmail(ctx context.Context, cfg smtp.Config, to, code string) error {
+	p := smtp.NewProvider(cfg)
+	return p.Send(ctx, email.SendEmailRequest{
+		To:      to,
+		Subject: "Your Verification Code - TradeMind",
+		Content: fmt.Sprintf("Your verification code is: %s. It will expire in 10 minutes.", code),
+	})
 }

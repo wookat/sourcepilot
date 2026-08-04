@@ -48,6 +48,7 @@ docker compose -f docker-compose.full.yml up -d --build
 | `JWT_SECRET` | `change-me-in-production` | backend | 是 | JWT 签名密钥。 |
 | `JWT_EXPIRE_HOURS` | `168` | backend | 否 | JWT 有效期小时数（仅 `legacy_local_storage` 模式生效）。 |
 | `AUTH_SESSION_MODE` | dev 默认 `legacy_local_storage`；staging/production 强制 `secure_session` | backend | 否 | 会话模式。`secure_session`：refresh token 走 HttpOnly Cookie，access token 必须带 session 绑定；`legacy_local_storage`：仅限开发/遗留本地部署。 |
+| `AUTH_REGISTER_SKIP_EMAIL_VERIFY` | `false` | backend | 否 | 本地/自托管无 SMTP 时显式关闭注册邮箱验证（见下方说明）。 |
 | `UPLOAD_MAX_MB` | `10` | backend | 否 | 单文件上传大小上限。 |
 
 ### secure_session 模式的 legacy token 收紧与迁移
@@ -56,6 +57,14 @@ docker compose -f docker-compose.full.yml up -d --build
 
 - **现网升级路径**：从旧版本（或从 `legacy_local_storage` 切到 `secure_session`）升级后，存量 legacy token 首次请求即被 401 拒绝，前端会话守卫会弹出「登录已过期」引导重新登录；重新登录后即获得 session 绑定 token，无需额外迁移操作。
 - **开发/遗留部署**：`APP_ENV=development` 下默认 `legacy_local_storage`，legacy token 行为不变；显式设 `AUTH_SESSION_MODE=secure_session` 时与生产同口径。
+
+### 无 SMTP 部署的注册降级（AUTH_REGISTER_SKIP_EMAIL_VERIFY）
+
+注册默认依赖邮箱验证码（SMTP 在「设置 → 邮件设置」配置）。SMTP 未配置时：
+
+- `POST /api/v1/auth/send-email-code` 返回 503 + 中文引导（提示管理员配置 SMTP 或使用本开关），验证码不会写入 Redis，注册无法完成——这是安全默认。
+- 本地/自托管部署可显式设置 `AUTH_REGISTER_SKIP_EMAIL_VERIFY=true`，注册免邮箱验证码（`code` 可为空），登录页注册表单自动隐藏验证码输入（由 `GET /api/v1/auth/register-config` 下发）。
+- 该开关默认 `false`，且仅在非 staging/production 环境生效；`APP_ENV=staging|production` 下设 `true` 会在启动配置校验时直接报错（insecure_auth_config）。开启即允许任意可达者注册开租，仅限内网/本机部署使用。
 
 ## 可观测性与 OTLP
 
