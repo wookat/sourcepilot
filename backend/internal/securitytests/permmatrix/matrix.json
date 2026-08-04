@@ -547,6 +547,11 @@
     "public": true
   },
   {
+    "method": "GET",
+    "path": "/api/v1/auth/register-config",
+    "public": true
+  },
+  {
     "method": "POST",
     "path": "/api/v1/auth/send-email-code",
     "public": true
