@@ -1,7 +1,9 @@
 package demoseed
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/providers/fxrate"
 	"gorm.io/gorm"
 )
 
@@ -87,6 +90,40 @@ func (s *FullDemoSeeder) seedPublishCapabilityPreset(tx *gorm.DB, res *FullDemoR
 			}
 			res.Counts["settings"]++
 		}
+	}
+	return nil
+}
+
+// seedReportCurrencyRates fills the manual USD report rate when the tenant-0
+// rate table is still empty, so demo USD orders convert in reports out of the
+// box instead of showing the "unconverted currency" notice. A non-empty rate
+// table (real configuration) is never modified.
+func (s *FullDemoSeeder) seedReportCurrencyRates(tx *gorm.DB, res *FullDemoResult) error {
+	if !tx.Migrator().HasTable("settings") {
+		return nil
+	}
+	const demoRates = `{"USD":"7.20"}`
+	var row settings.Setting
+	err := tx.Where("tenant_id = 0 AND group_key = ? AND item_key = ?",
+		fxrate.SettingsGroup, fxrate.KeyRates).First(&row).Error
+	switch {
+	case err == nil:
+		if v := strings.TrimSpace(row.ItemValue); v != "" && v != "{}" {
+			return nil
+		}
+		if err := tx.Model(&settings.Setting{}).Where("id = ?", row.ID).
+			Update("item_value", demoRates).Error; err != nil {
+			return fmt.Errorf("demoseed: update report currency rates: %w", err)
+		}
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		create := settings.Setting{TenantID: 0, GroupKey: fxrate.SettingsGroup,
+			ItemKey: fxrate.KeyRates, ItemValue: demoRates, ValueType: "json", Remark: demoSettingRemark}
+		if err := tx.Create(&create).Error; err != nil {
+			return fmt.Errorf("demoseed: create report currency rates: %w", err)
+		}
+		res.Counts["settings"]++
+	default:
+		return fmt.Errorf("demoseed: load report currency rates: %w", err)
 	}
 	return nil
 }

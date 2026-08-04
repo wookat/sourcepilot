@@ -363,7 +363,7 @@ func (a *DouyinDraftFixtureAdapter) recordIdempotency(input DraftExecutionInput)
 }
 
 func validatePlatformDraftExecutionInput(input DraftExecutionInput) error {
-	if input.TenantID <= 0 || input.OperationTaskID == uuid.Nil || input.PlatformDraftID == uuid.Nil || input.ActorID == uuid.Nil || input.DraftVersion < 1 || strings.TrimSpace(input.RequestID) == "" {
+	if input.TenantID < 0 || input.OperationTaskID == uuid.Nil || input.PlatformDraftID == uuid.Nil || input.ActorID == uuid.Nil || input.DraftVersion < 1 || strings.TrimSpace(input.RequestID) == "" {
 		return adapterDomainError(ExecutionErrorCategoryValidation, ErrCodeValidation, "Draft execution input is invalid", false)
 	}
 	if !sha256LowerHex.MatchString(strings.TrimSpace(input.DraftPayloadHash)) {

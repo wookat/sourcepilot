@@ -12,6 +12,11 @@ import (
 
 type Handler struct {
 	Svc *APIService
+	// AllowTenantZeroWrites opens write endpoints to the platform tenant
+	// (tenant 0). Demo/dev deployments host the demo dataset under tenant 0,
+	// so the task center must be fully usable there; production keeps the
+	// tenant-0 business-data write gate (R84 #185).
+	AllowTenantZeroWrites bool
 }
 
 func (h *Handler) actor(c *gin.Context) (APIActor, error) {
@@ -20,7 +25,7 @@ func (h *Handler) actor(c *gin.Context) (APIActor, error) {
 		return actor, ErrConflict
 	}
 	tenantID, err := adminperm.TenantIDFromGin(c)
-	if err != nil || tenantID <= 0 {
+	if err != nil || tenantID < 0 {
 		return actor, ErrPermissionDenied
 	}
 	actorID, err := apiActorID(c)
@@ -35,7 +40,7 @@ func (h *Handler) actor(c *gin.Context) (APIActor, error) {
 }
 
 func (h *Handler) CreateTask(c *gin.Context) {
-	actor, ok := h.requireActor(c)
+	actor, ok := h.requireWriteActor(c)
 	if !ok {
 		return
 	}
@@ -306,8 +311,23 @@ func (h *Handler) requireActor(c *gin.Context) (APIActor, bool) {
 	return actor, true
 }
 
-func (h *Handler) requireWrite(c *gin.Context) (APIActor, uuid.UUID, string, bool) {
+// requireWriteActor enforces the tenant-0 write gate on top of requireActor:
+// reads stay tenant-scoped and open to tenant 0, while writes from the
+// platform tenant are rejected unless the deployment allows them (demo/dev).
+func (h *Handler) requireWriteActor(c *gin.Context) (APIActor, bool) {
 	actor, ok := h.requireActor(c)
+	if !ok {
+		return APIActor{}, false
+	}
+	if actor.TenantID == 0 && !h.AllowTenantZeroWrites {
+		apiRespondError(c, ErrPermissionDenied)
+		return APIActor{}, false
+	}
+	return actor, true
+}
+
+func (h *Handler) requireWrite(c *gin.Context) (APIActor, uuid.UUID, string, bool) {
+	actor, ok := h.requireWriteActor(c)
 	if !ok {
 		return APIActor{}, uuid.Nil, "", false
 	}

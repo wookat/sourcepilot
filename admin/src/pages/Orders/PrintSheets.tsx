@@ -2,7 +2,7 @@ import { getOrderPrintSheets, type PrintSheet } from '@/services/orders';
 import { ORDER_SHIPMENT_STATUS } from '@/constants/status';
 import { platformLabel } from '@/constants/userFriendly';
 import { formatDateTime } from '@/utils/formatTime';
-import { Alert, Button, Empty, Space, Spin } from 'antd';
+import { Alert, Button, Empty, Grid, Space, Spin } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from '@umijs/max';
 
@@ -35,6 +35,7 @@ export default function OrderPrintSheetsPage() {
   const [sheets, setSheets] = useState<PrintSheet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const screens = Grid.useBreakpoint();
 
   useEffect(() => {
     if (ids.length === 0) {
@@ -53,6 +54,14 @@ export default function OrderPrintSheetsPage() {
     <div style={{ padding: 16 }}>
       <style>{sheetStyles}</style>
       <div className="print-toolbar" style={{ maxWidth: 720, margin: '0 auto 16px' }}>
+        {!screens.md && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="当前为小屏设备，建议在桌面端浏览器打印以保证 A4 版式效果"
+          />
+        )}
         <Space wrap>
           <Button type="primary" disabled={loading || sheets.length === 0} onClick={() => window.print()}>
             打印

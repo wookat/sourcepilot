@@ -58,7 +58,7 @@ func (r *OperationTaskRepository) GetByIdempotencyKey(ctx context.Context, tenan
 		return nil, fmt.Errorf("operation task repository: db is nil")
 	}
 	key = strings.TrimSpace(key)
-	if tenantID <= 0 || key == "" {
+	if tenantID < 0 || key == "" {
 		return nil, ErrValidation
 	}
 	var task OperationTask
@@ -78,7 +78,7 @@ func (r *OperationTaskRepository) List(ctx context.Context, p OperationTaskListP
 	if r == nil || r.DB == nil {
 		return zero, fmt.Errorf("operation task repository: db is nil")
 	}
-	if p.TenantID <= 0 {
+	if p.TenantID < 0 {
 		return zero, ErrValidation
 	}
 	limit := p.Limit
@@ -138,7 +138,7 @@ func (r *OperationTaskRepository) UpdateRevision(ctx context.Context, tenantID i
 	if r == nil || r.DB == nil {
 		return nil, fmt.Errorf("operation task repository: db is nil")
 	}
-	if tenantID <= 0 || expectedRevision < 1 {
+	if tenantID < 0 || expectedRevision < 1 {
 		return nil, ErrValidation
 	}
 	now := utcNow()
@@ -414,7 +414,7 @@ func (r *ApprovalRecordRepository) GetByIdempotencyKey(ctx context.Context, tena
 		return nil, fmt.Errorf("approval record repository: db is nil")
 	}
 	key = strings.TrimSpace(key)
-	if tenantID <= 0 || taskID == uuid.Nil || key == "" {
+	if tenantID < 0 || taskID == uuid.Nil || key == "" {
 		return nil, ErrValidation
 	}
 	var record ApprovalRecord
@@ -528,7 +528,7 @@ func (r *ExecutionAttemptRepository) GetByIdempotencyKey(ctx context.Context, te
 		return nil, fmt.Errorf("execution attempt repository: db is nil")
 	}
 	key = strings.TrimSpace(key)
-	if tenantID <= 0 || taskID == uuid.Nil || key == "" {
+	if tenantID < 0 || taskID == uuid.Nil || key == "" {
 		return nil, ErrValidation
 	}
 	var attempt ExecutionAttempt
@@ -577,7 +577,7 @@ func (r *ExecutionAttemptRepository) UpdateLifecycle(ctx context.Context, tenant
 	if r == nil || r.DB == nil {
 		return nil, fmt.Errorf("execution attempt repository: db is nil")
 	}
-	if tenantID <= 0 || id == uuid.Nil || expectedRevision < 1 {
+	if tenantID < 0 || id == uuid.Nil || expectedRevision < 1 {
 		return nil, ErrValidation
 	}
 	updates := map[string]any{
@@ -813,7 +813,7 @@ func (r *OperationTaskEventRepository) ListByTask(ctx context.Context, p Operati
 	if r == nil || r.DB == nil {
 		return zero, fmt.Errorf("operation task event repository: db is nil")
 	}
-	if p.TenantID <= 0 || p.OperationTaskID == uuid.Nil || p.AfterSequence < 0 {
+	if p.TenantID < 0 || p.OperationTaskID == uuid.Nil || p.AfterSequence < 0 {
 		return zero, ErrValidation
 	}
 	limit := p.Limit

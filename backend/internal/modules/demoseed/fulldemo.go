@@ -398,6 +398,9 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	if err := s.seedPublishCapabilityPreset(tx, res); err != nil {
 		return err
 	}
+	if err := s.seedReportCurrencyRates(tx, res); err != nil {
+		return err
+	}
 	if err := s.seedDouyinPublicationSample(tx, res, now, shops[0], products[1], skus[2:4]); err != nil {
 		return err
 	}

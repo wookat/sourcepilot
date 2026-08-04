@@ -3,7 +3,7 @@ import {
   type BatchShipmentLineResult,
 } from '@/services/orders';
 import { listCarriers, type CarrierRow } from '@/services/carriers';
-import { Alert, Button, Input, Modal, Select, Space, Table, Tag, Tooltip, message } from 'antd';
+import { Alert, Button, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { ORDER_STATUS } from '@/constants/status';
 
@@ -130,7 +130,14 @@ export default function BatchShipModal({
         showIcon
         style={{ marginBottom: 12 }}
         message="按订单号匹配已付款销售订单并新增「已发货」物流，订单会自动流转为已发货；未付款、已取消订单会逐行提示失败。"
-        description="按当前「手工扣库存」策略，发货不会自动扣减本地库存（属预期行为）；结果中标记「未扣库存」的订单，可到订单详情「库存影响」Tab 手工扣减。"
+        description={
+          <Typography.Paragraph
+            style={{ marginBottom: 0 }}
+            ellipsis={{ rows: 1, expandable: true, symbol: '展开' }}
+          >
+            按当前「手工扣库存」策略，发货不会自动扣减本地库存（属预期行为）；结果中标记「未扣库存」的订单，可到订单详情「库存影响」Tab 手工扣减。
+          </Typography.Paragraph>
+        }
       />
       {!results && (
         <>

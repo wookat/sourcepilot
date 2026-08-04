@@ -111,6 +111,16 @@ func TestGuessMappingAndDetect(t *testing.T) {
 	if got := DetectSourceFormat([]string{"a", "b"}); got != SourceCustom {
 		t.Fatalf("detect custom got %s", got)
 	}
+
+	// 常见导出列名「标题」应自动映射商品名称（商品与订单两种 kind）。
+	pm := GuessMapping(KindProduct, []string{"标题", "售价", "数量"})
+	if pm[FTitle] != 0 {
+		t.Fatalf("product title alias 标题: %v", pm)
+	}
+	om := GuessMapping(KindOrder, []string{"订单号", "收件人", "标题", "数量", "订单状态"})
+	if om[FProductTitle] != 2 {
+		t.Fatalf("order product title alias 标题: %v", om)
+	}
 }
 
 func TestMapOrderStatus(t *testing.T) {
