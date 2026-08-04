@@ -871,6 +871,9 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 		return nil
 	})
 	if err != nil {
+		if isOrderNoUniqueViolation(err) {
+			return nil, fmt.Errorf("订单号「%s」已存在，请更换订单号", o.OrderNo)
+		}
 		return nil, err
 	}
 	if s.OpLog != nil {

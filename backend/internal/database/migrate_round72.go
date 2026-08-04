@@ -24,7 +24,7 @@ func migrateRound72AIBatchTenant(db *gorm.DB) error {
 		// SQLite dev may not support UPDATE FROM; skip non-fatal
 		// (ensureBatchVisible falls back to creator derivation for
 		// tenant-0 rows with a creator).
-		_ = err
+		warnMigrateSkipped("migrateRound72AIBatchTenant", err)
 	}
 	if !db.Migrator().HasTable("ai_operation_batches") {
 		return nil

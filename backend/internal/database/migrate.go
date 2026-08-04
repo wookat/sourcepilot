@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
@@ -284,6 +285,17 @@ func AutoMigrate(db *gorm.DB) error {
 	return migrateP7Performance(db)
 }
 
+// warnMigrateSkipped logs a non-fatal migration step failure. Such steps are
+// intentionally tolerated (SQLite dev databases lack some PostgreSQL syntax),
+// but a silent failure on PostgreSQL would hide a real backfill problem, so
+// the skip is at least surfaced as a warning.
+func warnMigrateSkipped(step string, err error) {
+	if err == nil {
+		return
+	}
+	slog.Warn("database migrate step skipped", "step", step, "error", err.Error())
+}
+
 // syncTenantsIDSequence keeps the tenants id sequence above any tenant id
 // already present in admin_users (legacy tenants created by direct SQL), so
 // newly provisioned tenants never collide with existing tenant-scoped data.
@@ -293,7 +305,7 @@ func syncTenantsIDSequence(db *gorm.DB) error {
 			(SELECT COALESCE(MAX(id),0) FROM tenants), 1))`
 	if err := db.Exec(sql).Error; err != nil {
 		// Non-PostgreSQL dev databases have no sequences; skip non-fatal.
-		_ = err
+		warnMigrateSkipped("syncTenantsIDSequence", err)
 	}
 	return nil
 }
@@ -307,7 +319,7 @@ func backfillPurchaseOrderTenantIDs(db *gorm.DB) error {
 		WHERE poi.purchase_order_id = po.id AND o.tenant_id <> 0 AND (po.tenant_id IS NULL OR po.tenant_id = 0)`
 	if err := db.Exec(sql).Error; err != nil {
 		// SQLite dev may not support UPDATE FROM; skip non-fatal.
-		_ = err
+		warnMigrateSkipped("backfillPurchaseOrderTenantIDs", err)
 	}
 	return nil
 }

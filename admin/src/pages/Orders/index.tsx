@@ -936,7 +936,12 @@ export default function OrdersPage() {
             title="新建手工订单"
             trigger={<Button type="primary">新建订单</Button>}
             onFinish={async (vals) => {
-              await createOrder(vals as Record<string, unknown>);
+              try {
+                await createOrder(vals as Record<string, unknown>);
+              } catch (e) {
+                message.error((e as Error)?.message || '创建订单失败');
+                return false;
+              }
               message.success('已创建');
               actionRef.current?.reload();
               return true;

@@ -30,7 +30,7 @@ func migrateRound97ReportCurrencyTenant(db *gorm.DB) error {
 	if err := db.Exec(sql).Error; err != nil {
 		// SQLite dev databases may lack NOW(); non-fatal — tenants without a
 		// copied table fall back to the default base currency.
-		_ = err
+		warnMigrateSkipped("migrateRound97ReportCurrencyTenant", err)
 	}
 	return nil
 }
