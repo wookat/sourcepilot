@@ -22,3 +22,9 @@ const (
 	// or cannot be reached (environment issue, not a business error).
 	CodeCollectorUnreachable = 50302
 )
+
+// MsgAuthStateUnavailable mirrors auth.ErrAuthStateUnavailable (kept local to
+// avoid an import cycle): the database is temporarily unreachable and the
+// request is safe to retry with backoff. Also used for handler-level 5xx on
+// snapshot-bridged requests (503).
+const MsgAuthStateUnavailable = "AUTH_STATE_UNAVAILABLE"

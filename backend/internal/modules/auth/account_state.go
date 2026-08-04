@@ -40,8 +40,16 @@ var accountStateCache sync.Map // uuid.UUID -> cachedAccountState
 // read within authStateCacheTTL; with no fresh snapshot the request fails
 // closed with ErrAuthStateUnavailable instead of silently passing.
 func EnsureAccountActive(ctx context.Context, db *gorm.DB, userID uuid.UUID, tokenVersion int) error {
+	_, err := EnsureAccountActiveDetailed(ctx, db, userID, tokenVersion)
+	return err
+}
+
+// EnsureAccountActiveDetailed reports, in addition to the validation result,
+// whether the decision was bridged from the last snapshot because the
+// database was unreachable.
+func EnsureAccountActiveDetailed(ctx context.Context, db *gorm.DB, userID uuid.UUID, tokenVersion int) (bridged bool, err error) {
 	if db == nil || userID == uuid.Nil {
-		return nil
+		return false, nil
 	}
 	var rows []accountState
 	if err := db.WithContext(ctx).Table("admin_users").
@@ -51,17 +59,17 @@ func EnsureAccountActive(ctx context.Context, db *gorm.DB, userID uuid.UUID, tok
 		if cached, ok := accountStateCache.Load(userID); ok {
 			c := cached.(cachedAccountState)
 			if time.Since(c.at) <= authStateCacheTTL {
-				return evaluateAccountState(c.state, tokenVersion)
+				return true, evaluateAccountState(c.state, tokenVersion)
 			}
 		}
-		return errors.New(ErrAuthStateUnavailable)
+		return true, errors.New(ErrAuthStateUnavailable)
 	}
 	if len(rows) == 0 {
 		accountStateCache.Delete(userID)
-		return errors.New(ErrUserDisabled)
+		return false, errors.New(ErrUserDisabled)
 	}
 	accountStateCache.Store(userID, cachedAccountState{state: rows[0], at: time.Now()})
-	return evaluateAccountState(rows[0], tokenVersion)
+	return false, evaluateAccountState(rows[0], tokenVersion)
 }
 
 func evaluateAccountState(st accountState, tokenVersion int) error {

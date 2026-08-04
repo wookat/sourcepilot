@@ -77,6 +77,7 @@ import (
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
+	platformgoofish "github.com/trademind-ai/trademind/backend/internal/providers/platform/goofish"
 	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
@@ -224,6 +225,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	platformp.Bootstrap()
 	h := healthHandler(dep)
 	r.GET("/health", h)
+	// k8s/监控探针惯用别名，与 /health 同语义
+	r.GET("/healthz", h)
 	r.GET("/api/v1/health", h)
 	health.Register(r, &health.Deps{
 		Config:          dep.Config,
@@ -428,6 +431,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	platformlazada.RegisterProvider()
 	platformamazon.BindShops(shopSvc.AmazonShopsBridge())
 	platformamazon.RegisterProvider()
+	platformgoofish.RegisterProvider()
 	shopH := &shop.Handler{Svc: shopSvc}
 
 	storagePublicSvc := &storagepublic.Service{Settings: settingsSvc, OpLog: opLogSvc}
@@ -593,6 +597,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Idempotency: idempotencySvc,
 	}
 	if dep.Config != nil {
+		productPublishSvc.AllowTenantZeroTasks = dep.Config.EnableDemoSeed && !config.IsProduction(dep.Config.AppEnv)
 		productPublishSvc.QueueEnabled = dep.Config.ProductPublishQueueEnabled
 		if strings.TrimSpace(dep.Config.ProductPublishQueueName) != "" {
 			productPublishSvc.QueueName = strings.TrimSpace(dep.Config.ProductPublishQueueName)

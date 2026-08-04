@@ -5,7 +5,7 @@
 ## 基础约定
 
 - 基础路径：`/api/v1`
-- 健康检查：`GET /health`、`GET /api/v1/health`（综合）；`GET /health/live`（存活）；`GET /health/ready`（就绪，DB/Redis/迁移/生产门闸）
+- 健康检查：`GET /health`、`GET /healthz`、`GET /api/v1/health`（综合）；`GET /health/live`（存活）；`GET /health/ready`（就绪，DB/Redis/迁移/生产门闸）
 - 可观测性（P5 / P5.1 / P5-V，需权限）：`GET /api/v1/observability/overview|http|tasks|providers|security`；`overview` 会返回运行态 `runtimeStatus` 与 telemetry 导出摘要，用于区分 `standard_protocol_ready` / `mock_verified` / `real_backend_deferred` / `export_degraded` / `disabled` / `incomplete`；`GET /api/v1/observability/alerts`；`POST /api/v1/observability/alerts/:id/ack|silence`；内部指标：`GET /internal/metrics`（默认仅内网/本机）
 - 鉴权：管理端受保护接口使用 `Authorization: Bearer <token>`
 - 返回格式：统一 JSON 响应，核心字段为 `code`、`message`、`data`、`traceId`
@@ -475,6 +475,7 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/health` | 匿名；`data.status` 为 `up` / `degraded`；含 `checks.database`、`checks.redis` |
+| `GET` | `/healthz` | 同上（k8s/监控探针惯用别名） |
 | `GET` | `/api/v1/health` | 同上 |
 
 `data` 中与抖店 Worker 相关的块（队列启用时）：

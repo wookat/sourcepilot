@@ -27,6 +27,12 @@ type Service struct {
 	QueueName    string
 	TaskTimeout  time.Duration
 
+	// AllowTenantZeroTasks lets queue workers process platform-tenant
+	// (tenant 0) demo seed tasks, mirroring the API-side demo gate
+	// (EnableDemoSeed && !production). Publish capability limits such as
+	// local_draft_only still apply, so no real platform call is made.
+	AllowTenantZeroTasks bool
+
 	BatchMaxProducts int
 	BatchMaxTargets  int
 	BatchMaxTasks    int

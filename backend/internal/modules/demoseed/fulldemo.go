@@ -173,6 +173,9 @@ func (s *FullDemoSeeder) Seed(ctx context.Context) (*FullDemoResult, error) {
 	if err := s.guard(); err != nil {
 		return nil, err
 	}
+	if s.TenantID <= 0 {
+		return nil, fmt.Errorf("demoseed: positive tenant id required (got %d): task workers reject tenant_id<=0 rows, so seeded publish/order demos would never run", s.TenantID)
+	}
 	if s.cleanPrefix() != DemoPrefix {
 		return nil, fmt.Errorf("demoseed: seed only supports the %s prefix", DemoPrefix)
 	}
