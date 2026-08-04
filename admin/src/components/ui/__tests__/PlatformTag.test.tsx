@@ -12,6 +12,15 @@ describe('PlatformTag', () => {
     expect(screen.queryByText('douyin_shop')).toBeNull();
   });
 
+  it('maps migration platform to Chinese label', () => {
+    render(<PlatformTag platform="migration" />);
+
+    const tag = screen.getByText('迁移导入');
+    expect(tag).toBeInTheDocument();
+    expect(tag.closest('.ant-tag-purple')).not.toBeNull();
+    expect(screen.queryByText('migration')).toBeNull();
+  });
+
   it('keeps unknown platform value visible with default color', () => {
     render(<PlatformTag platform="unknown_platform" />);
 

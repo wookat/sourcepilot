@@ -10,6 +10,7 @@ const PLATFORM_TAG_COLOR: Record<string, string> = {
   amazon: 'gold',
   mock: 'default',
   manual: 'default',
+  migration: 'purple',
 };
 
 export type PlatformTagProps = {

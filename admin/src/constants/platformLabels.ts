@@ -8,6 +8,7 @@ export const PLATFORM_DISPLAY_LABEL: Record<string, string> = {
   amazon: 'Amazon',
   mock: '模拟',
   manual: '手动',
+  migration: '迁移导入',
 };
 
 export const SHOP_AUTH_STATUS_LABEL: Record<string, string> = {

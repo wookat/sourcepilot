@@ -193,10 +193,10 @@ export default function BatchShipModal({
               description="发货与库存扣减解耦，发货成功不会自动扣减本地库存；请到对应订单详情的「库存影响」Tab 手工扣减，保持库存准确。"
             />
           ) : null}
-          <Table<BatchShipmentLineResult>
-          rowKey={(r, i) => `${r.key}-${i}`}
+          <Table<BatchShipmentLineResult & { __rowKey: string }>
+          rowKey="__rowKey"
           size="small"
-          dataSource={results}
+          dataSource={results.map((r, i) => ({ ...r, __rowKey: `${r.key}-${i}` }))}
           pagination={results.length > 10 ? { pageSize: 10 } : false}
           scroll={{ x: 520 }}
           columns={[

@@ -191,10 +191,10 @@ export default function ImportOrdersModal({
         </>
       )}
       {results && (
-        <Table<OrderImportRowResult>
-          rowKey={(r, i) => `${r.orderNo}-${i}`}
+        <Table<OrderImportRowResult & { __rowKey: string }>
+          rowKey="__rowKey"
           size="small"
-          dataSource={results}
+          dataSource={results.map((r, i) => ({ ...r, __rowKey: `${r.orderNo}-${i}` }))}
           pagination={results.length > 10 ? { pageSize: 10 } : false}
           scroll={{ x: 560 }}
           columns={[
