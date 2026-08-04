@@ -158,7 +158,6 @@ export default function AISettingsPage() {
       const specs = buildAISaveFieldSpecs(provider);
       await saveSettingsItems(
         Object.entries(specs).map(([itemKey, spec]) => ({
-          tenantId: 0,
           groupKey: GROUP,
           itemKey,
           itemValue: '',

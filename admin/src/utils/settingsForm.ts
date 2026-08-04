@@ -30,15 +30,17 @@ export function mergeSettingsPrimaryFallback(
 
 export type FieldSpec = { encrypted?: boolean; valueType?: string };
 
-/** Build PUT items from form values; `specs` maps itemKey -> { encrypted }. */
+/**
+ * Build PUT items from form values; `specs` maps itemKey -> { encrypted }.
+ * tenantId is intentionally omitted: the backend always writes to the
+ * request tenant and rejects mismatched tenantId values.
+ */
 export function toPutItems(
   groupKey: string,
   specs: Record<string, FieldSpec>,
   values: Record<string, unknown>,
-  tenantId = 0,
 ): SettingPutItem[] {
   return Object.keys(specs).map((itemKey) => ({
-    tenantId,
     groupKey,
     itemKey,
     itemValue: values[itemKey] == null ? '' : String(values[itemKey]),

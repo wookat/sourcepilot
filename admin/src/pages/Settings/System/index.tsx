@@ -25,19 +25,17 @@ function truthyStored(v: string | undefined): boolean {
 }
 
 function buildTCItems(values: Record<string, unknown>): SettingPutItem[] {
-  const tenantId = 0;
   const gk = GROUP_TC;
   const boolStr = (b: unknown) => (b ? 'true' : 'false');
   return [
-    { tenantId, groupKey: gk, itemKey: 'enable_task_alerts', itemValue: boolStr(values.enable_task_alerts), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: gk, itemKey: 'alert_min_severity', itemValue: String(values.alert_min_severity ?? ''), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: gk, itemKey: 'alert_on_platform_permission', itemValue: boolStr(values.alert_on_platform_permission), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: gk, itemKey: 'alert_on_platform_config', itemValue: boolStr(values.alert_on_platform_config), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: gk, itemKey: 'alert_on_inventory_mapping_missing', itemValue: boolStr(values.alert_on_inventory_mapping_missing), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: gk, itemKey: 'alert_on_worker_lease_expired', itemValue: boolStr(values.alert_on_worker_lease_expired), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: gk, itemKey: 'alert_on_repeated_failures', itemValue: boolStr(values.alert_on_repeated_failures), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: gk, itemKey: 'enable_task_alerts', itemValue: boolStr(values.enable_task_alerts), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: gk, itemKey: 'alert_min_severity', itemValue: String(values.alert_min_severity ?? ''), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: gk, itemKey: 'alert_on_platform_permission', itemValue: boolStr(values.alert_on_platform_permission), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: gk, itemKey: 'alert_on_platform_config', itemValue: boolStr(values.alert_on_platform_config), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: gk, itemKey: 'alert_on_inventory_mapping_missing', itemValue: boolStr(values.alert_on_inventory_mapping_missing), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: gk, itemKey: 'alert_on_worker_lease_expired', itemValue: boolStr(values.alert_on_worker_lease_expired), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: gk, itemKey: 'alert_on_repeated_failures', itemValue: boolStr(values.alert_on_repeated_failures), valueType: 'string', isEncrypted: false, remark: '' },
     {
-      tenantId,
       groupKey: gk,
       itemKey: 'repeated_failure_threshold',
       itemValue: values.repeated_failure_threshold === undefined || values.repeated_failure_threshold === null || values.repeated_failure_threshold === ''
@@ -48,7 +46,6 @@ function buildTCItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: gk,
       itemKey: 'repeated_failure_window_minutes',
       itemValue:
@@ -61,9 +58,8 @@ function buildTCItems(values: Record<string, unknown>): SettingPutItem[] {
       isEncrypted: false,
       remark: '',
     },
-    { tenantId, groupKey: gk, itemKey: 'enable_alert_scan_worker', itemValue: boolStr(values.enable_alert_scan_worker), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: gk, itemKey: 'enable_alert_scan_worker', itemValue: boolStr(values.enable_alert_scan_worker), valueType: 'string', isEncrypted: false, remark: '' },
     {
-      tenantId,
       groupKey: gk,
       itemKey: 'alert_scan_interval_seconds',
       itemValue:
@@ -162,7 +158,6 @@ export default function SystemSettingsPage() {
     try {
       const sysPut: SettingPutItem[] = [
         {
-          tenantId: 0,
           groupKey: GROUP_SYSTEM,
           itemKey: 'site_name',
           itemValue: String(values.site_name ?? ''),
@@ -171,7 +166,6 @@ export default function SystemSettingsPage() {
           remark: '',
         },
         {
-          tenantId: 0,
           groupKey: GROUP_SYSTEM,
           itemKey: 'timezone',
           itemValue: String(values.timezone ?? ''),
