@@ -358,3 +358,64 @@ export async function sendPlatformMessage(
 ): Promise<CustomerMessageRow> {
   return postJSON(`/api/v1/customer/conversations/${conversationId}/send-platform-message`, payload);
 }
+
+// ---- 客服话术模板 ----
+
+export type ReplyTemplateGroupKey = 'presale' | 'aftersale' | 'logistics' | 'refund' | 'other';
+
+export type ReplyTemplateRow = {
+  id: string;
+  groupKey: ReplyTemplateGroupKey;
+  name: string;
+  content: string;
+  sortOrder: number;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReplyTemplateListQuery = {
+  group?: ReplyTemplateGroupKey;
+  keyword?: string;
+  enabled?: boolean;
+};
+
+export async function queryReplyTemplates(
+  query: ReplyTemplateListQuery = {},
+): Promise<{ list: ReplyTemplateRow[]; canWrite: boolean }> {
+  return getWithParams('/api/v1/customer/reply-templates', {
+    group: query.group,
+    keyword: query.keyword,
+    enabled: query.enabled === undefined ? undefined : query.enabled ? 'true' : 'false',
+  });
+}
+
+export type ReplyTemplateUpsertBody = {
+  groupKey?: ReplyTemplateGroupKey;
+  name?: string;
+  content?: string;
+  sortOrder?: number;
+  enabled?: boolean;
+};
+
+export async function createReplyTemplate(body: ReplyTemplateUpsertBody): Promise<ReplyTemplateRow> {
+  return postJSON('/api/v1/customer/reply-templates', body);
+}
+
+export async function updateReplyTemplate(
+  id: string,
+  body: ReplyTemplateUpsertBody,
+): Promise<ReplyTemplateRow> {
+  return putJSON(`/api/v1/customer/reply-templates/${id}`, body);
+}
+
+export async function deleteReplyTemplate(id: string): Promise<{ ok: boolean }> {
+  return deleteJSON(`/api/v1/customer/reply-templates/${id}`);
+}
+
+export async function reorderReplyTemplates(payload: {
+  groupKey: ReplyTemplateGroupKey;
+  ids: string[];
+}): Promise<{ ok: boolean }> {
+  return postJSON('/api/v1/customer/reply-templates/reorder', payload);
+}
