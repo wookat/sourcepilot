@@ -1,8 +1,12 @@
 package auth
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
@@ -10,7 +14,45 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
+
+// registrationTenant mirrors the tenants table without a cross-module import
+// (auth reads tenants by table name; see tenant_state.go).
+type registrationTenant struct {
+	ID        int64  `gorm:"primaryKey;autoIncrement"`
+	Name      string `gorm:"size:128;not null"`
+	Status    string `gorm:"size:16;not null"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (registrationTenant) TableName() string { return "tenants" }
+
+// registrationTenantName derives a unique tenant name from the owner email,
+// keeping within the 128-char column while avoiding soft-delete name clashes.
+func registrationTenantName(email string) string {
+	suffix := make([]byte, 4)
+	_, _ = rand.Read(suffix)
+	if len(email) > 100 {
+		email = email[:100]
+	}
+	return email + "-" + hex.EncodeToString(suffix)
+}
+
+// createRegistrationUser provisions a fresh tenant for a self-registered
+// account and creates its admin user inside that tenant atomically, so a new
+// registration never lands in the platform tenant (tenant 0).
+func createRegistrationUser(ctx context.Context, db *gorm.DB, u *admin.AdminUser) error {
+	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		t := registrationTenant{Name: registrationTenantName(u.Email), Status: "active"}
+		if err := tx.Create(&t).Error; err != nil {
+			return err
+		}
+		u.TenantID = t.ID
+		return tx.Create(u).Error
+	})
+}
 
 type registerBody struct {
 	Email           string `json:"email" binding:"required,email,max=128"`
@@ -55,7 +97,7 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	// Create user
+	// Create user in its own fresh tenant
 	u := admin.AdminUser{
 		Base:         model.Base{},
 		Username:     admin.NewInternalUsername(),
@@ -66,7 +108,7 @@ func (h *Handler) Register(c *gin.Context) {
 		Status:       "active",
 	}
 
-	if err := h.Admins.DB.WithContext(c.Request.Context()).Create(&u).Error; err != nil {
+	if err := createRegistrationUser(c.Request.Context(), h.Admins.DB, &u); err != nil {
 		if h.OpLog != nil {
 			_ = h.OpLog.Write(c, operationlog.WriteOpts{
 				Username: emailAddr,

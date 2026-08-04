@@ -1547,3 +1547,8 @@ Final Production Acceptance Deferred to P10
 - demo seed 商品主图由外链占位域名（`img.demo.trademind.local`，离线环境产生 `ERR_NAME_NOT_RESOLVED` 网络噪音）改为内联 SVG data URI 占位图（`demoImageDataURI`，中性底色 + DEMO-n 标签）；`imageFallback` 破图占位组件口径不变（仍用于真实失效外链）。
 - 宿主机直跑 seed 的 `DB_HOST` 覆盖说明补入 `docs/env.md` 与 `docs/DEMO_SEEDING_GUIDE.md`。
 - 文档一致性巡检：`docs/module-map.md` 补 R89/92/93/95 关联行（迁移导入、报表多币种、租户治理/清退、版本升级/迁移预检）；`docs/production-launch-checklist.md` 回滚章节补「带存量数据升级走 upgrade-guide + --pre-upgrade-check」指引；api.md/permission-matrix.md 抽查 R91–R99 条目（carriers、print/sheets、refresh-tracking、imports、report-currency、tenants purge）与实际路由一致，无需纠偏。
+
+### 变更记录（2026-08-04）第 101 轮：季度复查 P0——自助注册租户隔离
+
+- **P0 修复**：`POST /api/v1/auth/register` 此前把新注册用户落在 `tenant_id=0`（平台租户）且 `role=admin`，注册即获得 tenant0 全部数据视图（跨租户数据泄露）。现在注册时在事务内为每个新账号创建独立 tenants 行并绑定（`createRegistrationUser`），查询层隔离机制无需改动；回归测试 `register_test.go` 覆盖「非 0 租户、落库一致、两次注册不同租户」。
+- 本轮季度复查其余项（发布/刊登降级、运营任务批量批准驳回、采集失败链路、选品全链路、三角色权限、响应式硬指标、clean 零残留）复查通过，P2 观察项见 QA 报告（PR 评论）。
