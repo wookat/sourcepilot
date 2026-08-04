@@ -309,3 +309,15 @@ export function mapCollectErrorMessage(err: unknown, source?: string | null): st
   }
   return raw || '采集失败';
 }
+
+const CJK_PATTERN = /[\u4e00-\u9fff]/;
+
+export const COLLECT_ERROR_FALLBACK = '采集失败，请重试；若持续失败请联系管理员排查。';
+
+/** 原始 errorMessage 中文兜底：可识别错误走既有映射，未识别的英文原文不直出。 */
+export function localizeCollectErrorMessage(msg?: string | null, source?: string | null): string {
+  const raw = (msg ?? '').trim();
+  if (!raw) return '';
+  const mapped = mapCollectErrorMessage(raw, source);
+  return CJK_PATTERN.test(mapped) ? mapped : COLLECT_ERROR_FALLBACK;
+}

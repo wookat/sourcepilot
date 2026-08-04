@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COLLECT_ERROR_FALLBACK,
+  localizeCollectErrorMessage,
   mapCollectErrorMessage,
   mapCollectorErrorCodeDetail,
   mapCollectorErrorCodeLabel,
@@ -69,5 +71,28 @@ describe('UNSUPPORTED_URL / INVALID_URL 中文映射', () => {
   it('collector INVALID_URL 原始错误映射为中文', () => {
     const msg = mapCollectErrorMessage('INVALID_URL:not_a_1688_product_url', '1688');
     expect(msg).toContain('1688 商品详情页');
+  });
+});
+
+describe('localizeCollectErrorMessage 中文兜底', () => {
+  it('可识别错误走既有中文映射', () => {
+    const msg = localizeCollectErrorMessage('LOGIN_REQUIRED: login page detected', 'taobao_tmall');
+    expect(msg).toContain('登录');
+    expect(msg).not.toMatch(/login page/i);
+  });
+
+  it('未识别的英文原文不直出，回退通用中文提示', () => {
+    const msg = localizeCollectErrorMessage('net::ERR_CONNECTION_RESET at page.goto', '1688');
+    expect(msg).toBe(COLLECT_ERROR_FALLBACK);
+    expect(msg).not.toMatch(/ERR_CONNECTION_RESET/);
+  });
+
+  it('已是中文的错误原样保留', () => {
+    expect(localizeCollectErrorMessage('商品已下架')).toBe('商品已下架');
+  });
+
+  it('空值返回空字符串', () => {
+    expect(localizeCollectErrorMessage(undefined)).toBe('');
+    expect(localizeCollectErrorMessage('  ')).toBe('');
   });
 });

@@ -45,6 +45,9 @@
 | `POST` | `/api/v1/auth/login` | 管理员登录，支持邮箱或手机号。 |
 | `POST` | `/api/v1/auth/logout` | 退出登录，客户端丢弃 token。 |
 | `GET` | `/api/v1/auth/profile` | 当前管理员信息（含 `role` / `permissions` / `tenantId`，前端据此判定平台管理员可见性）。 |
+| `GET` | `/api/v1/auth/register-config` | 注册行为配置（公开）：`{emailVerifyRequired}`。`AUTH_REGISTER_SKIP_EMAIL_VERIFY=true` 且非 staging/production 时为 `false`，登录页据此隐藏验证码输入。 |
+| `POST` | `/api/v1/auth/send-email-code` | 发送注册邮箱验证码。SMTP 未配置返回 503 + 中文引导；注册免验证开关开启时返回 400 提示无需验证码。 |
+| `POST` | `/api/v1/auth/register` | 自助注册（独立租户）。默认要求 `code`（6 位邮箱验证码）；`emailVerifyRequired=false` 时 `code` 可省略。 |
 
 `secure_session` 模式下（staging/production 强制），无 session 绑定的 legacy JWT 统一返回 `401` + `AUTH_SESSION_BINDING_REQUIRED`，客户端应引导重新登录；迁移说明见 `docs/env.md`。
 

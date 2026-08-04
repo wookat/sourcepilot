@@ -41,6 +41,7 @@ import {
 import type { CollectRuleRow } from '@/services/collectRules';
 import { queryCollectRules } from '@/services/collectRules';
 import {
+  localizeCollectErrorMessage,
   mapCollectErrorMessage,
   mapCollectorErrorCodeDetail,
   mapCollectorErrorCodeLabel,
@@ -348,7 +349,7 @@ export default function CollectTasksPage() {
         return (
           mapCollectorErrorCodeLabel(row.collectorErrorCode) ||
           resolveCollectFailureHint(row.failureHint, !!row.batchId) ||
-          (row.errorMessage ? mapCollectErrorMessage(row.errorMessage, row.source) : '') ||
+          localizeCollectErrorMessage(row.errorMessage, row.source) ||
           '—'
         );
       },
@@ -364,7 +365,7 @@ export default function CollectTasksPage() {
         const hint =
           resolveCollectFailureHint(row.failureHint, !!row.batchId) ||
           mapCollectorErrorCodeDetail(row.collectorErrorCode, row.source) ||
-          (row.errorMessage ? mapCollectErrorMessage(row.errorMessage, row.source) : '');
+          localizeCollectErrorMessage(row.errorMessage, row.source);
         return hint || '—';
       },
     },

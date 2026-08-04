@@ -54,9 +54,17 @@ func createRegistrationUser(ctx context.Context, db *gorm.DB, u *admin.AdminUser
 	})
 }
 
+// RegisterConfig exposes registration behavior the login page needs before
+// authentication (whether the email verification code is required).
+func (h *Handler) RegisterConfig(c *gin.Context) {
+	response.OK(c, gin.H{
+		"emailVerifyRequired": !(h.Cfg != nil && h.Cfg.RegisterEmailVerifyDisabled()),
+	})
+}
+
 type registerBody struct {
 	Email           string `json:"email" binding:"required,email,max=128"`
-	Code            string `json:"code" binding:"required,len=6"`
+	Code            string `json:"code" binding:"omitempty,len=6"`
 	Password        string `json:"password" binding:"required,min=6,max=128"`
 	ConfirmPassword string `json:"confirmPassword" binding:"required,eqfield=Password"`
 }
@@ -73,21 +81,25 @@ func (h *Handler) Register(c *gin.Context) {
 	}
 	emailAddr := strings.ToLower(strings.TrimSpace(body.Email))
 
-	// Verify code
+	// Verify code (skipped only when the deployment explicitly disables
+	// register email verification, e.g. local/self-hosted without SMTP)
+	skipEmailVerify := h.Cfg != nil && h.Cfg.RegisterEmailVerifyDisabled()
 	codeKey := fmt.Sprintf("email_code:register:%s", emailAddr)
-	storedCode, err := h.Redis.Get(c.Request.Context(), codeKey).Result()
-	if err != nil || storedCode != body.Code {
-		if h.OpLog != nil {
-			_ = h.OpLog.Write(c, operationlog.WriteOpts{
-				Username: emailAddr,
-				Action:   "register",
-				Resource: "auth",
-				Status:   "failed",
-				Message:  "invalid verification code",
-			})
+	if !skipEmailVerify {
+		storedCode, err := h.Redis.Get(c.Request.Context(), codeKey).Result()
+		if err != nil || body.Code == "" || storedCode != body.Code {
+			if h.OpLog != nil {
+				_ = h.OpLog.Write(c, operationlog.WriteOpts{
+					Username: emailAddr,
+					Action:   "register",
+					Resource: "auth",
+					Status:   "failed",
+					Message:  "invalid verification code",
+				})
+			}
+			response.Fail(c, 400, response.CodeBadRequest, "invalid verification code")
+			return
 		}
-		response.Fail(c, 400, response.CodeBadRequest, "invalid verification code")
-		return
 	}
 
 	// Hash password
