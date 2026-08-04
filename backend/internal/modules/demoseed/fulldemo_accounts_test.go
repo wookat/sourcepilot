@@ -16,7 +16,7 @@ func TestSeedEnsuresDemoAccounts(t *testing.T) {
 		return
 	}
 
-	s := &FullDemoSeeder{DB: db, TenantID: 0, AppEnv: "development"}
+	s := &FullDemoSeeder{DB: db, TenantID: 7, AppEnv: "development"}
 	if _, err := s.Seed(context.Background()); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
