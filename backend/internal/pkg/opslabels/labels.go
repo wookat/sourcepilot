@@ -164,6 +164,7 @@ var PlatformLabels = map[string]string{
 	"shopee":      "Shopee",
 	"lazada":      "Lazada",
 	"amazon":      "Amazon",
+	"goofish":     "闲鱼",
 	"mock":        "模拟",
 	"manual":      "手动",
 }

@@ -16,6 +16,7 @@ import {
   Select,
   Space,
   Spin,
+  Tabs,
   Tag,
   Typography,
   Alert,
@@ -42,6 +43,7 @@ import {
   generateCustomerReply,
   getConversation,
   queryMessages,
+  queryReplyTemplates,
   querySuggestions,
   sendPlatformMessage,
   updateConversation,
@@ -49,8 +51,16 @@ import {
   type ConversationDetail,
   type CustomerMessageRow,
   type GenerateReplyResult,
+  type ReplyTemplateGroupKey,
+  type ReplyTemplateRow,
   type SuggestionRow,
 } from '@/services/customer';
+import {
+  REPLY_TEMPLATE_GROUPS,
+  fillReplyTemplate,
+  replyTemplateGroupLabel,
+  type ReplyTemplateVarContext,
+} from '@/utils/replyTemplateVars';
 import { queryOrders, type OrderListRow } from '@/services/orders';
 import { queryShops } from '@/services/shops';
 
@@ -97,6 +107,12 @@ export default function CustomerConversationDetailPage() {
   const [orderFilterNo, setOrderFilterNo] = useState('');
   const [orderFilterName, setOrderFilterName] = useState('');
   const [orderHits, setOrderHits] = useState<OrderListRow[]>([]);
+
+  const [tplOpen, setTplOpen] = useState(false);
+  const [tplLoading, setTplLoading] = useState(false);
+  const [tplRows, setTplRows] = useState<ReplyTemplateRow[]>([]);
+  const [tplGroup, setTplGroup] = useState<'all' | ReplyTemplateGroupKey>('all');
+  const [tplKeyword, setTplKeyword] = useState('');
 
   const [shopPickOpen, setShopPickOpen] = useState(false);
   const [shopOpts, setShopOpts] = useState<{ label: string; value: string }[]>([]);
@@ -253,6 +269,50 @@ export default function CustomerConversationDetailPage() {
       message.error(extractErrorMessage(e, '生成失败'));
     } finally {
       setGenLoading(false);
+    }
+  };
+
+  const templateVarContext: ReplyTemplateVarContext = useMemo(
+    () => ({
+      买家昵称: conv?.customerNameMasked || conv?.customerName,
+      订单号: conv?.orderSummary?.orderNo,
+      物流单号: conv?.orderSummary?.shipments?.find((s) => s.trackingNo)?.trackingNo,
+      商品名: conv?.contextSummary?.productTitle || conv?.productContexts?.[0]?.productTitle,
+      店铺名: conv?.shopSummary?.shopName,
+    }),
+    [conv],
+  );
+
+  const openTemplatePicker = async () => {
+    setTplOpen(true);
+    setTplLoading(true);
+    try {
+      const res = await queryReplyTemplates({ enabled: true });
+      setTplRows(res.list || []);
+    } catch (e: unknown) {
+      message.error(extractErrorMessage(e, '加载话术模板失败'));
+    } finally {
+      setTplLoading(false);
+    }
+  };
+
+  const visibleTemplates = useMemo(() => {
+    const kw = tplKeyword.trim();
+    return tplRows.filter(
+      (t) =>
+        (tplGroup === 'all' || t.groupKey === tplGroup) &&
+        (!kw || t.name.includes(kw) || t.content.includes(kw)),
+    );
+  }, [tplRows, tplGroup, tplKeyword]);
+
+  const insertTemplate = (tpl: ReplyTemplateRow) => {
+    const { text, missing } = fillReplyTemplate(tpl.content, templateVarContext);
+    setEditedReply((prev) => (prev.trim() ? `${prev}\n${text}` : text));
+    setTplOpen(false);
+    if (missing.length > 0) {
+      message.warning(`已插入模板，但以下变量缺少上下文未填充，请手动补充：${missing.map((m) => `{${m}}`).join('、')}`);
+    } else {
+      message.success('已插入话术模板，可继续编辑后人工发送');
     }
   };
 
@@ -689,6 +749,14 @@ export default function CustomerConversationDetailPage() {
                     onChange={(e) => setEditedReply(e.target.value)}
                     placeholder="编辑或手写回复内容…"
                   />
+                  <Space style={{ marginTop: 8 }} wrap>
+                    <Button disabled={readOnly} onClick={() => void openTemplatePicker()}>
+                      插入话术模板
+                    </Button>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      模板插入后仍可编辑，发送需人工确认
+                    </Typography.Text>
+                  </Space>
                 </div>
                 <Space wrap align="start">
                   <Button onClick={() => void onSaveEdit()} disabled={readOnly || !suggestionId}>
@@ -770,6 +838,64 @@ export default function CustomerConversationDetailPage() {
                         {row.currency} {row.totalAmount}
                       </Typography.Text>
                     </Space>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        </Modal>
+
+        <Modal
+          title="插入话术模板"
+          open={tplOpen}
+          onCancel={() => setTplOpen(false)}
+          footer={null}
+          width={680}
+          destroyOnHidden
+        >
+          <Tabs
+            activeKey={tplGroup}
+            onChange={(k) => setTplGroup(k as 'all' | ReplyTemplateGroupKey)}
+            items={[
+              { key: 'all', label: '全部' },
+              ...REPLY_TEMPLATE_GROUPS.map((g) => ({ key: g.key, label: g.label })),
+            ]}
+          />
+          <Input.Search
+            allowClear
+            placeholder="按名称 / 内容搜索话术"
+            style={{ marginBottom: 12 }}
+            value={tplKeyword}
+            onChange={(e) => setTplKeyword(e.target.value)}
+          />
+          <List<ReplyTemplateRow>
+            dataSource={visibleTemplates}
+            loading={tplLoading}
+            locale={{ emptyText: '没有可用话术模板，可到「客服 → 话术模板」页面新增' }}
+            style={{ maxHeight: 360, overflowY: 'auto' }}
+            renderItem={(tpl) => (
+              <List.Item
+                actions={[
+                  <Button key="ins" size="small" type="link" onClick={() => insertTemplate(tpl)}>
+                    插入
+                  </Button>,
+                ]}
+              >
+                <List.Item.Meta
+                  title={
+                    <Space size={8}>
+                      <Typography.Text strong>{tpl.name}</Typography.Text>
+                      <Tag>{replyTemplateGroupLabel(tpl.groupKey)}</Tag>
+                    </Space>
+                  }
+                  description={
+                    <Typography.Paragraph
+                      type="secondary"
+                      style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}
+                      ellipsis={{ rows: 2, tooltip: tpl.content }}
+                    >
+                      {tpl.content}
+                    </Typography.Paragraph>
                   }
                 />
               </List.Item>

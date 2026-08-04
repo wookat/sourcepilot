@@ -65,6 +65,21 @@ func migrateLegacyPublicationSKUColumns(db *gorm.DB) error {
 	return nil
 }
 
+// migrateLegacyPublicationColumns renames the GORM-default external_sp_uid column on
+// product_publications to external_spu_id so raw SQL updates stay consistent.
+func migrateLegacyPublicationColumns(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable("product_publications") {
+		return nil
+	}
+	dst := &productpublish.ProductPublication{}
+	if db.Migrator().HasColumn(dst, "external_sp_uid") && !db.Migrator().HasColumn(dst, "external_spu_id") {
+		if err := db.Migrator().RenameColumn(dst, "external_sp_uid", "external_spu_id"); err != nil {
+			return fmt.Errorf("rename product_publications.external_sp_uid: %w", err)
+		}
+	}
+	return nil
+}
+
 // migrateLegacyInventorySKUColumns renames early GORM typo columns (product_sk_uid / external_sk_uid)
 // and ensures inventory / order SKU linkage columns exist before raw SQL aggregations run.
 func migrateLegacyInventorySKUColumns(db *gorm.DB) error {
@@ -121,6 +136,9 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 	if err := migrateLegacyPublicationSKUColumns(db); err != nil {
+		return err
+	}
+	if err := migrateLegacyPublicationColumns(db); err != nil {
 		return err
 	}
 	if err := migrateLegacyInventorySKUColumns(db); err != nil {
@@ -198,6 +216,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&customerchat.CustomerConversation{},
 		&customerchat.CustomerMessage{},
 		&customerchat.CustomerReplySuggestion{},
+		&customerchat.CustomerReplyTemplate{},
 		&customerchat.CustomerFailureEvent{},
 		&taskcenter.TaskFailureMark{},
 		&taskcenter.TaskAlert{},

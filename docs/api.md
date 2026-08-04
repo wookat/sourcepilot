@@ -266,6 +266,18 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 - `GET /product-publish/batches` 列表按 `ApplyTenantScope` 过滤；`GET /batches/:id`、`POST /batches/:id/retry-failed`、`POST /batches/:id/cancel-pending` 及 `retryFailedOnly` 重试回放按 `tenant_id` 列校验（未 backfill 的 tenant-0 行回退按创建人租户），跨租户统一 **404**；DTO 不变（`tenant_id` 不出现在响应中）。
 - 发布任务越权口径统一：`POST /product-publish/tasks/:id/retry|cancel|recover` 与批次 `retry-failed`/`cancel-pending` 对跨租户/不存在对象由 400 改为 **404**（不泄露存在性）；`recover` 增加租户归属前置校验。同租户业务校验错误仍为 400，同租户非创建者仍为 403。
 
+### 客服话术模板（round109）
+
+租户级客服快捷回复话术模板，供会话回复框一键插入（支持 `{订单号}`、`{买家昵称}`、`{物流单号}`、`{商品名}`、`{店铺名}` 变量占位，插入时按会话上下文自动填充；插入后仍可编辑，发送仍需人工确认，不引入自动外发）。分组固定为 `presale` / `aftersale` / `logistics` / `refund` / `other`。写端点复用客服操作权限口径（`adminperm.CanWriteCustomer`），readonly 账号返回 **403**；全部端点按当前租户隔离；写操作记录 operation log（resource=`customer_reply_template`）。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/customer/reply-templates` | 模板列表。query：`group`（分组）、`keyword`（名称/内容模糊）、`enabled`（三态布尔）。返回 `{ list, canWrite }`，按 `groupKey + sortOrder` 排序。 |
+| `POST` | `/api/v1/customer/reply-templates` | 新建模板。body：`groupKey`、`name`、`content`（≤4000 字符）、可选 `sortOrder`（缺省追加到组尾）、`enabled`（默认启用）。 |
+| `PUT` | `/api/v1/customer/reply-templates/:id` | 更新模板（支持部分字段：改名、改内容、换分组、启停、排序）。跨租户/不存在返回 **404**。 |
+| `DELETE` | `/api/v1/customer/reply-templates/:id` | 删除模板（软删除）。返回 `{ ok: true }`。 |
+| `POST` | `/api/v1/customer/reply-templates/reorder` | 组内重排。body：`groupKey`、`ids`（该组完整有序 ID 列表，校验归属后按顺序写 `sortOrder`）。 |
+
 ## Dev / Demo 种子（非 production）
 
 | 方法 | 路径 | 说明 |
