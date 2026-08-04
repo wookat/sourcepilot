@@ -379,9 +379,17 @@ function ImportWizard({ writable }: { writable: boolean }) {
             title={
               committed.replayed
                 ? '该批次此前已导入（幂等跳过）'
-                : `导入完成：成功 ${committed.successRows} 行`
+                : committed.status === 'failed'
+                  ? '导入失败'
+                  : committed.failedRows > 0
+                    ? `部分成功：成功 ${committed.successRows} 行，失败 ${committed.failedRows} 行`
+                    : `导入成功：共 ${committed.successRows} 行`
             }
-            subTitle={`共 ${committed.totalRows} 行 · 成功 ${committed.successRows} · 失败 ${committed.failedRows} · 重复跳过 ${committed.duplicateRows}`}
+            subTitle={
+              committed.failedRows > 0 && committed.status !== 'failed'
+                ? `共 ${committed.totalRows} 行 · 成功 ${committed.successRows} · 失败 ${committed.failedRows} · 重复跳过 ${committed.duplicateRows}；失败行未入库，可下载错误行报告修正后重新导入`
+                : `共 ${committed.totalRows} 行 · 成功 ${committed.successRows} · 失败 ${committed.failedRows} · 重复跳过 ${committed.duplicateRows}`
+            }
             extra={[
               (committed.failedRows > 0 || committed.duplicateRows > 0) && (
                 <Button
@@ -406,7 +414,7 @@ function ImportWizard({ writable }: { writable: boolean }) {
   );
 }
 
-function ImportHistory() {
+function ImportHistory({ onGoWizard }: { onGoWizard: () => void }) {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<ImportJobRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -463,7 +471,15 @@ function ImportHistory() {
             setPageSize(ps);
           },
         }}
-        locale={{ emptyText: <Empty description="暂无导入记录" /> }}
+        locale={{
+          emptyText: (
+            <Empty description="暂无导入记录，从导入向导上传店小秘 / 马帮导出文件开始迁移">
+              <Button type="primary" onClick={onGoWizard}>
+                去导入向导
+              </Button>
+            </Empty>
+          ),
+        }}
         columns={[
           {
             title: '类型',
@@ -589,14 +605,20 @@ export default function MigrationImportPage() {
     initialState?.currentUser?.role,
     initialState?.currentUser?.permissions,
   );
+  const [activeTab, setActiveTab] = useState('wizard');
 
   return (
     <TmPageContainer title="迁移导入" subTitle="从店小秘 / 马帮导出文件导入存量商品与历史订单">
       <Tabs
-        defaultActiveKey="wizard"
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           { key: 'wizard', label: '导入向导', children: <ImportWizard writable={writable} /> },
-          { key: 'history', label: '导入历史', children: <ImportHistory /> },
+          {
+            key: 'history',
+            label: '导入历史',
+            children: <ImportHistory onGoWizard={() => setActiveTab('wizard')} />,
+          },
         ]}
       />
     </TmPageContainer>

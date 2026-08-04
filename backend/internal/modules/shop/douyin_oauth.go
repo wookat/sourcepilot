@@ -182,10 +182,11 @@ func (s *Service) DouyinOAuthStart(c *gin.Context, shopID *uuid.UUID, adminID *u
 	}
 	ctx := c.Request.Context()
 	if shopID != nil && *shopID != uuid.Nil {
-		var row Shop
-		if err := s.DB.WithContext(ctx).First(&row, "id = ?", *shopID).Error; err != nil {
+		rowPtr, err := s.findScopedShop(c, *shopID)
+		if err != nil {
 			return nil, err
 		}
+		row := *rowPtr
 		if strings.TrimSpace(row.Platform) != "douyin_shop" {
 			return nil, fmt.Errorf("shop platform must be douyin_shop")
 		}
@@ -570,6 +571,9 @@ func (s *Service) markDouyinShopInfoFailed(ctx context.Context, shopID uuid.UUID
 }
 
 func (s *Service) DouyinOAuthRefresh(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*ShopDetailDTO, error) {
+	if err := s.ensureShopScoped(c, shopID); err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
 	mu := douyinLockForShop(shopID)
@@ -602,6 +606,9 @@ func (s *Service) DouyinOAuthRefresh(c *gin.Context, shopID uuid.UUID, adminID *
 }
 
 func (s *Service) DouyinOAuthRevoke(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*ShopDetailDTO, error) {
+	if err := s.ensureShopScoped(c, shopID); err != nil {
+		return nil, err
+	}
 	ctx := c.Request.Context()
 	var row Shop
 	if err := s.DB.WithContext(ctx).First(&row, "id = ?", shopID).Error; err != nil {
@@ -624,6 +631,9 @@ func (s *Service) DouyinOAuthRevoke(c *gin.Context, shopID uuid.UUID, adminID *u
 }
 
 func (s *Service) DouyinOAuthTest(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*TestShopConnectionResult, error) {
+	if err := s.ensureShopScoped(c, shopID); err != nil {
+		return nil, err
+	}
 	res, err := s.testDouyinShopConnection(c, shopID, adminID)
 	st := "success"
 	code := ""
@@ -652,6 +662,9 @@ type platformTestResult struct {
 }
 
 func (s *Service) testDouyinShopConnection(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*platformTestResult, error) {
+	if err := s.ensureShopScoped(c, shopID); err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
 	mu := douyinLockForShop(shopID)
@@ -713,6 +726,9 @@ func (s *Service) testDouyinShopConnection(c *gin.Context, shopID uuid.UUID, adm
 }
 
 func (s *Service) DouyinSyncShopInfo(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*ShopDetailDTO, error) {
+	if err := s.ensureShopScoped(c, shopID); err != nil {
+		return nil, err
+	}
 	if _, err := s.testDouyinShopConnection(c, shopID, adminID); err != nil {
 		return nil, err
 	}

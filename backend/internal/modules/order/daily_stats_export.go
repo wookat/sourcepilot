@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/csvsafe"
 )
 
 // ExportDailyStatsCSV renders the daily report as one CSV row per day.
@@ -77,7 +78,7 @@ func (s *Service) ExportDailyStatsCSV(c *gin.Context, days int) ([]byte, string,
 			}
 		}
 		row = append(row, fmt.Sprintf("%.2f", it.PaidAmountBase), strings.Join(it.UnconvertedCurrencies, " "))
-		if err := w.Write(row); err != nil {
+		if err := w.Write(csvsafe.Row(row)); err != nil {
 			return nil, "", err
 		}
 	}

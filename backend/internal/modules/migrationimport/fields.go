@@ -51,7 +51,7 @@ const (
 func ProductFields() []FieldDef {
 	return []FieldDef{
 		{Key: FTitle, Label: "商品名称", Required: true,
-			Aliases: []string{"商品名称", "产品名称", "品名", "商品标题", "产品标题", "名称", "product name", "name", "title"}},
+			Aliases: []string{"商品名称", "产品名称", "品名", "商品标题", "产品标题", "标题", "宝贝标题", "商品名", "产品名", "名称", "product name", "name", "title"}},
 		{Key: FSKUCode, Label: "SKU编码",
 			Aliases: []string{"sku", "库存sku", "库存sku编号", "商品sku", "商品编号", "货号", "sku编码", "sku编号", "seller sku"}},
 		{Key: FSKUName, Label: "规格名称",
@@ -98,7 +98,7 @@ func OrderFields() []FieldDef {
 		{Key: FZipCode, Label: "邮编",
 			Aliases: []string{"邮编", "邮政编码", "zip code", "zip", "postcode"}},
 		{Key: FProductTitle, Label: "商品名称", Required: true,
-			Aliases: []string{"商品名称", "产品名称", "品名", "商品标题", "goods to named", "product name"}},
+			Aliases: []string{"商品名称", "产品名称", "品名", "商品标题", "产品标题", "标题", "商品名", "产品名", "goods to named", "product name"}},
 		{Key: FSKUCode, Label: "SKU编码",
 			Aliases: []string{"sku", "商品sku", "商品编号", "库存sku", "货号", "seller sku"}},
 		{Key: FSKUName, Label: "规格名称",

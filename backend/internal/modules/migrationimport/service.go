@@ -412,10 +412,17 @@ func (s *Service) commitProducts(c *gin.Context, job *ImportJob, errorRows *[]Im
 }
 
 func (s *Service) commitOrders(c *gin.Context, job *ImportJob, errorRows *[]ImportJobRow, body WizardBody, orders []OrderInput, adminID *uuid.UUID) {
+	tid, tenantErr := adminperm.TenantIDFromGin(c)
 	for _, oi := range orders {
+		if tenantErr != nil {
+			s.markRows(job, errorRows, body, oi.RowNumbers, RowStatusFailed, FOrderNo, tenantErr.Error())
+			continue
+		}
 		var cnt int64
+		// Duplicate detection is per tenant: a global lookup would report
+		// another tenant's order number as an existing one.
 		if err := s.DB.WithContext(c.Request.Context()).Model(&order.Order{}).
-			Where("order_no = ?", oi.OrderNo).Count(&cnt).Error; err != nil {
+			Where("tenant_id = ? AND order_no = ?", tid, oi.OrderNo).Count(&cnt).Error; err != nil {
 			s.markRows(job, errorRows, body, oi.RowNumbers, RowStatusFailed, FOrderNo, err.Error())
 			continue
 		}
@@ -454,13 +461,19 @@ func (s *Service) markRows(job *ImportJob, errorRows *[]ImportJobRow, body Wizar
 	}
 }
 
-// ListJobs returns tenant-scoped import history (newest first).
+// ListJobs returns tenant + store scoped import history (newest first).
+// Jobs always carry the target shop, so non-admin principals only see the
+// history of shops they are granted (same semantics as order lists).
 func (s *Service) ListJobs(c *gin.Context, kind string, page, pageSize int) ([]JobDTO, int64, error) {
 	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		return nil, 0, err
 	}
 	tx := s.DB.WithContext(c.Request.Context()).Model(&ImportJob{}).Where("tenant_id = ?", tid)
+	tx, err = adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
+	if err != nil {
+		return nil, 0, err
+	}
 	if k := strings.TrimSpace(kind); k != "" {
 		if k != KindProduct && k != KindOrder {
 			return nil, 0, fmt.Errorf("kind 需为 product 或 order")
@@ -482,7 +495,9 @@ func (s *Service) ListJobs(c *gin.Context, kind string, page, pageSize int) ([]J
 	return out, total, nil
 }
 
-// GetJob loads one job with its error rows.
+// GetJob loads one job with its error rows, enforcing tenant + store scope:
+// a job outside the caller's store scope is indistinguishable from a missing
+// one (404, no existence leak).
 func (s *Service) GetJob(c *gin.Context, id uuid.UUID) (*ImportJob, []ImportJobRow, error) {
 	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
@@ -491,6 +506,9 @@ func (s *Service) GetJob(c *gin.Context, id uuid.UUID) (*ImportJob, []ImportJobR
 	var job ImportJob
 	if err := s.DB.WithContext(c.Request.Context()).
 		Where("tenant_id = ?", tid).First(&job, "id = ?", id).Error; err != nil {
+		return nil, nil, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, job.ShopID); err != nil {
 		return nil, nil, err
 	}
 	var rows []ImportJobRow

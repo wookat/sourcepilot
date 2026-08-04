@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/csvsafe"
 	"gorm.io/gorm"
 )
 
@@ -58,7 +59,7 @@ func (s *Service) ExportShippingListCSV(c *gin.Context, ids []uuid.UUID) ([]byte
 				o.OrderNo, o.CustomerName, o.CustomerPhone, "", "", "0",
 				o.Currency, fmt.Sprintf("%.2f", o.TotalAmount), "", "",
 			}
-			if err := w.Write(row); err != nil {
+			if err := w.Write(csvsafe.Row(row)); err != nil {
 				return nil, "", err
 			}
 			continue
@@ -80,7 +81,7 @@ func (s *Service) ExportShippingListCSV(c *gin.Context, ids []uuid.UUID) ([]byte
 				"",
 				"",
 			}
-			if err := w.Write(row); err != nil {
+			if err := w.Write(csvsafe.Row(row)); err != nil {
 				return nil, "", err
 			}
 		}

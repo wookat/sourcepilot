@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 // Import row statuses.
@@ -73,8 +74,13 @@ func (s *Service) ImportOrders(c *gin.Context, body ImportBody, adminID *uuid.UU
 		}
 		seen[orderNo] = true
 		var cnt int64
-		if err := s.DB.WithContext(c.Request.Context()).Model(&Order{}).
-			Where("order_no = ?", orderNo).Count(&cnt).Error; err != nil {
+		// Per-tenant duplicate check: order numbers are unique per tenant.
+		dupTx := s.DB.WithContext(c.Request.Context()).Model(&Order{}).Where("order_no = ?", orderNo)
+		scopedDup, _, err := adminperm.ApplyTenantScope(c, dupTx)
+		if err != nil {
+			return nil, err
+		}
+		if err := scopedDup.Count(&cnt).Error; err != nil {
 			return nil, err
 		}
 		if cnt > 0 {

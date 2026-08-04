@@ -699,6 +699,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-08-04 | **UX 视觉复核 v4（R76 后三批新页面）**：物流（物流商/批量发货弹窗/打印拣货单）、迁移导入向导（上传→映射→校验→结果/历史）、多币种（汇率设置/报表折算）三视口全走查 + v3 闭环回归无回退；修复 P1×2：报表折算合计卡「含未折算币种」改「不含未折算币种」（与后端未折算不计入口径一致）、打印单「平台」接入 `platformLabel` 中文映射；记录 P1-3：demo 全量环境运营任务中心开箱 403（`operationtask` handler 拒绝 tenant 0 而 demo 落 tenant 0，需后端收口）；报告归档 `docs/ux-review/UX_REVIEW_V4_REPORT.md` |
 | 2026-08-04 | **R94 QA 修复（P1）毛利估算与报表汇率口径统一**：订单成本/毛利估算（`/procurement/cost-estimates`）非 CNY 订单折算改为优先使用报表手工汇率表（`report_currency`，CNY→币种 = rate(CNY→本位币)/rate(币种→本位币)），与销售报表同一口径；报表表无该币种时回退原 `settings.pricing.exchangeRate` 单一汇率（行为兼容）。此前两处汇率来源独立，`default_exchange_rate=1` 时 USD 订单毛利被按 1:1 折算严重失真。补 Go 回归测试（优先级 + 回退）。另修复报表币种设置页「添加币种汇率」首次点击偶发不加行：加载完成时 `setFieldsValue` 会重置 rates 覆盖提前新增的行，改为加载期间禁用添加/删除按钮（初始 loading=true），补 Playwright 回归 `round94-report-currency-add-row.spec.ts` |
 | 2026-08-03 | **R76 P2×4 收口**：选品候选详情状态/审核列改共享 `StatusTag` 中文映射（`COMMON_STATUS_LABEL` 补 `scored`）；草稿列表「来源」列 `collect` 中文化（`PRODUCT_SOURCE_LABEL` 补 `collect: 采集`）；demo seed 客服会话 Bob/Carol 样本改挂 operator/readonly 已授权的 DEMO 手工渠道店（Alice 保持抖店），两角色客服页开箱非空、幂等/clean 零残留；修复刊登「子任务」tab 与批次详情数据源不一致根因——`product_publish_tasks` 创建时未写 `tenant_id`（恒为 0）而 `ListTasks` 按租户过滤（`ADMIN_BOOTSTRAP_TENANT_ID=1` 下列表恒空）、批次详情按 `batch_id` 查询不受影响；三处任务创建补租户 + `migrate_round76` 按 products 回填存量，补 Go 回归测试 |
 | 2026-08-03 | **R74 发布/刊登链路非空态回归**：全栈 docker compose + demo seed 实测 readiness/刊登草稿/运营任务降级执行/发布总览/三角色 RBAC/响应式，硬指标（console error/panic/5xx/42703）全零；修复 P1：`/product/publish-tasks` 刊登批次表挂载时误清 URL `tab` 参数导致「子任务」Tab 切换/刷新后回跳批次视图（两个 ProTable 的 URL 同步按 activeTab 守卫），子任务列表空状态改用独立 `publishTaskRecords` 文案；新增 `round74-publish-tasks-tab.spec.ts` 回归；P2 遗留：demo seed 无平台刊登能力预设致 publications/批次创建非空态不可达、缺 ≥2 同时待审任务致批量驳回不可测 |
@@ -1368,6 +1369,15 @@ Final Production Acceptance Deferred to P10
 - 销售额舍入口径统一（v3 P2-1）：报表合计卡销售额由 antd Statistic `precision`（截断）改为与首页经营概览相同的 `formatAmount`（四舍五入），消除 171.40 vs 171.39 展示差；后端数据与 DTO 不变。
 - UX 复核 v3 报告归档至 `docs/ux-review/UX_REVIEW_V3_REPORT.md`（响应 v3 流程建议：走查报告入仓可追溯）。
 
+### 变更记录（2026-08-04）第 95 轮：安全审计复跑（R95）店铺授权/订单号/导入 跨租户收口
+
+- 店铺授权面按租户+店铺 scope 收口（`shop/service.go` 新增 `findScopedShop`/`ensureShopScoped`）：`PUT /shops/:id/auth`、`POST /shops/:id/test-connection` 与各平台 OAuth（amazon/lazada/shopee/tiktok/douyin 的 authorize-url、callback、refresh、revoke、test、sync）此前按裸 ID 查店铺，跨租户可覆写他租户平台凭证；现统一 404（`PUT /auth` 的 record not found 也由 400 改 404，与既有越权口径一致）。worker 路径（nil gin context）不变。
+- 订单号唯一键由全局改按租户（`idx_orders_tenant_order_no`，migrate_round95）：全局唯一索引让 duplicate key 成为他租户订单号的存在性探针，并可被跨租户抢占号段导致迁移导入失败；手工导入与迁移导入的重复判定同步补租户过滤。
+- 迁移导入任务列表/详情补店铺 scope（`ApplyStoreScope` + `EnsureStoreVisible`），错误行 CSV 与商品/订单/采购/日销导出统一经 `pkg/csvsafe` 中和公式注入（`=`/`+`/`-`/`@`/Tab/CR 前缀加 `'`，纯数值不误伤）。
+- 租户清退补 `import_job_rows`（按 `import_jobs.id` 级联）与残留校验表，双租户实测清退报告 total=0。
+- 前端构建链 `pnpm.overrides` 补 `@babel/core ^7.29.7`、`@babel/runtime ^7.29.7`、`path-to-regexp@1 1.9.0` / `@8 8.4.0`（同大版本补丁）：pnpm audit 55→49，其余需跨大版本（vite/vitest/axios/immer/esbuild，均构建期依赖）列入 P2；govulncheck 0 命中。
+- 回归单测：order `TestOrderSubresourceCrossTenant404`、`TestOrderNoUniquePerTenantNotGlobally`、`TestManualImportDuplicateIsTenantScoped`，shop `TestShopAuthRoutesAreTenantScoped`，`pkg/csvsafe` 单测；权限矩阵契约全量复跑通过。
+
 ### 变更记录（2026-08-03）第 78 轮：安全审计复跑（R73）跨租户越权收口 + Go 补丁工具链
 
 - sourcing 写/列路径改按请求租户收口（`scope.go`：supplier/source/sourceSKU/switchEvent/product 可见性校验；service 方法改收 `*gin.Context`）：跨租户 supplier 改删、source 改删/设主/刷新、SKU 映射保存删除、切换建议采纳/忽略统一 404；`GET /suppliers`、`/product-source-alerts`、`/product-sources/orphans`、`/source-switch-events` 补租户过滤（此前返回全量）；新建 supplier/source/SKU/价格历史写入 `tenant_id`。
@@ -1501,6 +1511,11 @@ Final Production Acceptance Deferred to P10
 - 轨迹 Provider 预留：`providers/tracking`（`TrackingProvider` 接口 + `manual` provider，不接真实 API），`POST /orders/:id/shipments/:shipmentId/refresh-tracking` 端点返回 manual 口径；手工编辑物流状态推动订单在途→送达既有流转不变。
 - 拣货/发货单打印：`GET /api/v1/orders/print/sheets?ids=`（≤50 单，店铺 scope）+ 前端打印页 `/orders/print`（订单+收件人+SKU 明细+物流商+运单号+贴单区，浏览器打印，非电子面单），订单列表勾选后「打印拣货单」入口。
 - 权限矩阵登记 6 条新路由（readonly 写 403、operator 店铺 scope），docs/api.md / module-map / permission-matrix / provider.md 同步；demo seed 补物流商预置与顺丰运单样本；契约测试补 7 端点。回归：carrier `service_test.go`、order `carrier_shipment_test.go`。
+
+### 变更记录（2026-08-04）第 96 轮：tenant 0 运营任务口径修复 + UX v4 P2 收口
+
+- **tenant 0 语义理清**：读接口不再被 R85 #185「tenant 0 误建业务数据闸门」拦截（operationtask 各层 `tenantID <= 0` 改为 `< 0`，读仍严格按 `tenant_id` 隔离）；写接口保留生产闸门，新增 `Handler.AllowTenantZeroWrites`（router 按 `EnableDemoSeed && !IsProduction` 注入），demo/dev 全量环境 tenant 0 演示租户可完整使用运营任务中心，production tenant 0 写入仍 403 且零落库。回归测试 `tenant0_gate_test.go` 覆盖两种口径 + 三角色 + 跨租户隔离。
+- **UX v4 P2 批次**：迁移向导「标题/宝贝标题/商品名/产品名」列名别名扩充（商品+订单）；导入结果页按成功/部分成功/失败视觉分层（部分成功明确失败行未入库可下载修正）；导入历史空态引导（跳导入向导按钮）；批量发货「手工扣库存」长说明改为单行可展开；打印页小屏提示建议桌面端打印；物流商轨迹 URL 模板列悬浮完整显示；demoseed 空汇率表时幂等补 USD 手工汇率（已配置不覆盖），报表演示不再出现未折算提示。v3 遗留 P2-7：订单列表批量工具栏移除 `alwaysShowAlert` 占位，选中行才出现。
 
 ### 变更记录（2026-08-04）第 93 轮：报表合规（多币种本位币折算）
 

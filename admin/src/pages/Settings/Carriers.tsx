@@ -178,7 +178,14 @@ export default function CarrierSettingsPage() {
               title: '轨迹查询 URL 模板',
               dataIndex: 'trackingUrlTemplate',
               ellipsis: true,
-              render: (v: string) => v || '—',
+              render: (v: string) =>
+                v ? (
+                  <Tooltip title={v} placement="topLeft">
+                    <span>{v}</span>
+                  </Tooltip>
+                ) : (
+                  '—'
+                ),
             },
             {
               title: '启用',

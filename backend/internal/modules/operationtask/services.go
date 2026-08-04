@@ -36,7 +36,7 @@ func (s *TaskTransitionService) Transition(ctx context.Context, in TaskTransitio
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("task transition service: db is nil")
 	}
-	if in.TenantID <= 0 || in.OperationTaskID == uuid.Nil || in.ExpectedRevision < 1 {
+	if in.TenantID < 0 || in.OperationTaskID == uuid.Nil || in.ExpectedRevision < 1 {
 		return nil, ErrValidation
 	}
 	toStatus := normalizeTaskStatusValue(in.ToStatus)
@@ -145,7 +145,7 @@ func (s *DraftVersionService) createDraftVersion(ctx context.Context, in DraftVe
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("draft version service: db is nil")
 	}
-	if in.TenantID <= 0 || in.OperationTaskID == uuid.Nil || in.ExpectedRevision < 1 || strings.TrimSpace(in.IdempotencyKey) == "" {
+	if in.TenantID < 0 || in.OperationTaskID == uuid.Nil || in.ExpectedRevision < 1 || strings.TrimSpace(in.IdempotencyKey) == "" {
 		return nil, ErrValidation
 	}
 	if !isValidJSON(in.Payload) || payloadHasSecret(in.Payload) {
@@ -293,7 +293,7 @@ func (s *ApprovalService) decide(ctx context.Context, in ApprovalInput, decision
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("approval service: db is nil")
 	}
-	if in.TenantID <= 0 || in.OperationTaskID == uuid.Nil || in.ExpectedRevision < 1 ||
+	if in.TenantID < 0 || in.OperationTaskID == uuid.Nil || in.ExpectedRevision < 1 ||
 		in.DraftVersion < 1 || in.ReviewerID == uuid.Nil || strings.TrimSpace(in.IdempotencyKey) == "" ||
 		strings.TrimSpace(in.RequestID) == "" {
 		return nil, ErrValidation
