@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 const (
@@ -45,7 +47,7 @@ func taobaoTmallGotoTimeoutMs(ctx context.Context, s *Service, opts map[string]a
 		}
 	}
 	if s != nil && s.Settings != nil {
-		m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+		m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 		if err == nil {
 			if v := strings.TrimSpace(m["collect_taobao_tmall_timeout_ms"]); v != "" {
 				if n, err := strconv.Atoi(v); err == nil && n > 0 {

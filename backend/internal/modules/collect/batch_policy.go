@@ -4,6 +4,8 @@ import (
 	"context"
 	"strconv"
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 // BatchSourcePolicy controls throttling and retry behavior for bulk collect by source.
@@ -78,7 +80,7 @@ func (s *Service) batchPolicyForSource(ctx context.Context, source string) Batch
 	if s == nil || s.Settings == nil {
 		return p
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+	m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 	if err != nil || len(m) == 0 {
 		return p
 	}

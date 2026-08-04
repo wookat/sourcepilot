@@ -650,7 +650,7 @@ trademind-ai/
 57. ~~**标题 / 属性相似度 SKU 推荐（未完成）**~~ → **（2026-05-18）** 首版已并入 **SKU 候选服务**（**Jaccard + 属性键值**），仍以 **人工确认** 为唯一落库路径；**不标题模糊自动绑定**。
 58. **售后 / 退款异常工作台（未完成）**：当前 **`orderexception`** 聚焦 **SKU / 库存 / 同步**；退换货单独迭代。
 59. **多仓库存（未完成）**：单 **`product_skus.stock`** 模型未扩展 **多仓**。
-60. **租户级 settings 生效缺口（R102 P2 遗留，产品决策）**：`GET/PUT /api/v1/settings` 已按租户隔离展示与写入，但大量服务端消费仍读 **tenant 0 平台默认值**（`PlainByGroup(ctx, 0, ...)`，全仓约 120+ 处：AI / 存储 / 平台 / 采集等），业务租户改自己的 settings 对这些链路**不生效**。当前为**安全默认**（业务租户无法覆盖平台凭据与全局行为，无越权风险）；「租户级覆盖 → 回退平台默认」需逐组梳理哪些配置允许租户自管（涉及计费与凭据边界），单列迭代处理。
+60. **租户级 settings 生效缺口（R102 P2 遗留，产品决策；R104 部分收口）**：口径已定——**面向业务/租户体验的设置租户化，部署/基础设施级设置保留平台级**。R104 已落地 **ai**（整组回退：租户配置自有 API Key 则整组用租户配置，否则整组回退平台默认）与 **collector**（逐 key 合并：租户覆盖单项、其余继承平台默认），经 `internal/pkg/tenantsettings` 统一解析。**剩余待租户化组**（按同口径单列迭代）：`image`（AI 图片 provider 凭据/参数，26 处）、`inventory`（库存策略，9 处）、`pricing` 残留 4 处（selection/procurement 已按租户读）、`taskcenter`+`alert_notify`（告警通知，3 处）、`sourcing`（1 处）。**保留平台级**：`storage`（部署存储桶/本地根路径）、`mail/email`（SMTP）、`system`、`platform_*`（开放平台应用凭据；店铺级凭据已按租户存 `shop_auth_tokens`）、`/ops/*` 备份容灾。
 
 ## 8. 下一步开发计划（建议顺序）
 
@@ -1584,3 +1584,12 @@ Final Production Acceptance Deferred to P10
 - **P1 无权限设置读取 403 噪音清零（前端）**：operator / readonly 打开工作台、订单列表、选品任务、任务中心告警页时不再调用 `GET /settings`、`GET /settings/integrations/overview`（无 `settings.manage` 时跳过，页面正常降级），浏览器控制台不再出现 403 报错；`/settings/report-currency` 登记进 `ROUTE_PERMISSIONS`（需 `settings.manage`），operator / readonly 菜单不再出现该死路入口。
 - **P1 采购单空态缺下一步指引**：`/procurement/orders` 空态此前仅"暂无数据"，与其他模块空态指引不一致；接入统一 `useListEmptyLocale`（新增 `purchaseOrders` 文案：先在订单列表标记已付款再一键生成采购单，含权限提示与"前往订单列表"按钮）。
 - 已知后续观察项（P2）：告警扫描（`ScanAndGenerateTaskAlerts`）目前以平台视角运行、告警行 `tenant_id` 恒为 0，业务租户暂看不到自身任务失败聚合出的告警（失败明细在任务中心仍可见）；如需业务租户级告警需在 Upsert 链路补租户来源。
+
+### 变更记录（2026-08-04）第 104 轮：settings 租户化第一批——AI 配置 + 采集配置（R102 P2-2 收口开工）
+
+- 新增 `internal/pkg/tenantsettings`：按可信租户上下文（`security.TenantContext`）解析生效 settings，两种回退口径——**ai 整组回退**（租户配置任一自有 `api_key`/`*_api_key` 则整组以租户配置为准，杜绝租户模型跑平台 Key 的混流；未配置则整组回退平台默认）、**collector 逐 key 合并**（行为参数：租户覆盖单项，空值视为未设置继承平台默认）。
+- JWT 中间件将 `TenantContext` 同步挂到 `c.Request.Context()`，服务层/Provider 层仅凭 `context.Context` 即可取可信租户；worker 链路沿用 `tasktenant.BuildWorkerContext` 既有注入。
+- 替换读点：`ai` 组 14 处（AI Gateway Chat/TestConnection、aiproducttext、aioperationbatch、product ai_title、customerchat、collectruleai、settings test-ai/integration-overview、configstatus AI 项）与 `collector` 组 17 处（collect 批策略/超时/profile/auth 检查、collectruleai）改经 `tenantsettings` 解析；`PlainByGroup` 本身语义不变，平台级组照旧显式读 tenant 0。
+- 无存量迁移：租户未配置时整组/逐 key 回退平台默认，行为与租户化前逐字节一致（tenant 0 demo 开箱不回退）；AES-GCM 加密与脱敏口径不变（租户行同样按 `is_encrypted` 加密、`List` 脱敏）。
+- 测试：`tenantsettings` 单测（回退矩阵/合并/错误传播）、settings 双租户隔离+加密 DB 测试、AI Gateway 租户整组原子性测试、JWT 请求上下文注入回归测试。
+- 剩余组清单与归类见 §7 遗留 60 条目（image/inventory/pricing 残留/告警通知/sourcing 待租户化；storage/mail/system/platform_* 保留平台级）。

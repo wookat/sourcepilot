@@ -47,13 +47,11 @@ function truthyStored(v: string | undefined): boolean {
 }
 
 function buildTcNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
-  const tenantId = 0;
   const channels = Array.isArray(values.notification_channels)
     ? stringifyNotificationChannels(values.notification_channels as string[])
     : String(values.notification_channels ?? '[]');
   return [
     {
-      tenantId,
       groupKey: GROUP_TC,
       itemKey: 'enable_external_notifications',
       itemValue: boolStr(values.enable_external_notifications),
@@ -62,7 +60,6 @@ function buildTcNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: GROUP_TC,
       itemKey: 'notification_min_severity',
       itemValue: String(values.notification_min_severity ?? ''),
@@ -71,7 +68,6 @@ function buildTcNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: GROUP_TC,
       itemKey: 'notify_on_alert_generated',
       itemValue: boolStr(values.notify_on_alert_generated),
@@ -80,7 +76,6 @@ function buildTcNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: GROUP_TC,
       itemKey: 'notify_on_repeated_alert',
       itemValue: boolStr(values.notify_on_repeated_alert),
@@ -89,7 +84,6 @@ function buildTcNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: GROUP_TC,
       itemKey: 'notification_channels',
       itemValue: channels,
@@ -98,7 +92,6 @@ function buildTcNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: GROUP_TC,
       itemKey: 'alert_detail_public_base',
       itemValue: String(values.alert_detail_public_base ?? '').trim(),
@@ -110,19 +103,17 @@ function buildTcNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
 }
 
 function buildAlertNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
-  const tenantId = 0;
   const g = GROUP_AN;
   const displayChannels = Array.isArray(values.an_channels)
     ? stringifyNotificationChannels(values.an_channels as string[])
     : String(values.an_channels ?? '[]');
   return [
-    { tenantId, groupKey: g, itemKey: 'enabled', itemValue: boolStr(values.an_enabled), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: g, itemKey: 'channels', itemValue: displayChannels, valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: g, itemKey: 'mail_enabled', itemValue: boolStr(values.mail_enabled), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: g, itemKey: 'mail_to', itemValue: String(values.mail_to ?? ''), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: g, itemKey: 'mail_cc', itemValue: String(values.mail_cc ?? ''), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: g, itemKey: 'enabled', itemValue: boolStr(values.an_enabled), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: g, itemKey: 'channels', itemValue: displayChannels, valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: g, itemKey: 'mail_enabled', itemValue: boolStr(values.mail_enabled), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: g, itemKey: 'mail_to', itemValue: String(values.mail_to ?? ''), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: g, itemKey: 'mail_cc', itemValue: String(values.mail_cc ?? ''), valueType: 'string', isEncrypted: false, remark: '' },
     {
-      tenantId,
       groupKey: g,
       itemKey: 'mail_subject_prefix',
       itemValue: String(values.mail_subject_prefix ?? ''),
@@ -130,10 +121,9 @@ function buildAlertNotifyItems(values: Record<string, unknown>): SettingPutItem[
       isEncrypted: false,
       remark: '',
     },
-    { tenantId, groupKey: g, itemKey: 'webhook_enabled', itemValue: boolStr(values.webhook_enabled), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: g, itemKey: 'webhook_url', itemValue: String(values.webhook_url ?? ''), valueType: 'string', isEncrypted: true, remark: '' },
+    { groupKey: g, itemKey: 'webhook_enabled', itemValue: boolStr(values.webhook_enabled), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: g, itemKey: 'webhook_url', itemValue: String(values.webhook_url ?? ''), valueType: 'string', isEncrypted: true, remark: '' },
     {
-      tenantId,
       groupKey: g,
       itemKey: 'webhook_method',
       itemValue: String(values.webhook_method ?? ''),
@@ -141,9 +131,8 @@ function buildAlertNotifyItems(values: Record<string, unknown>): SettingPutItem[
       isEncrypted: false,
       remark: '',
     },
-    { tenantId, groupKey: g, itemKey: 'webhook_secret', itemValue: String(values.webhook_secret ?? ''), valueType: 'string', isEncrypted: true, remark: '' },
+    { groupKey: g, itemKey: 'webhook_secret', itemValue: String(values.webhook_secret ?? ''), valueType: 'string', isEncrypted: true, remark: '' },
     {
-      tenantId,
       groupKey: g,
       itemKey: 'webhook_timeout_seconds',
       itemValue:
@@ -154,12 +143,12 @@ function buildAlertNotifyItems(values: Record<string, unknown>): SettingPutItem[
       isEncrypted: false,
       remark: '',
     },
-    { tenantId, groupKey: g, itemKey: 'webhook_template', itemValue: String(values.webhook_template ?? ''), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: g, itemKey: 'feishu_enabled', itemValue: boolStr(values.feishu_enabled), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: g, itemKey: 'feishu_webhook_url', itemValue: String(values.feishu_webhook_url ?? ''), valueType: 'string', isEncrypted: true, remark: '' },
-    { tenantId, groupKey: g, itemKey: 'feishu_secret', itemValue: String(values.feishu_secret ?? ''), valueType: 'string', isEncrypted: true, remark: '' },
-    { tenantId, groupKey: g, itemKey: 'wecom_enabled', itemValue: boolStr(values.wecom_enabled), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: g, itemKey: 'wecom_webhook_url', itemValue: String(values.wecom_webhook_url ?? ''), valueType: 'string', isEncrypted: true, remark: '' },
+    { groupKey: g, itemKey: 'webhook_template', itemValue: String(values.webhook_template ?? ''), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: g, itemKey: 'feishu_enabled', itemValue: boolStr(values.feishu_enabled), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: g, itemKey: 'feishu_webhook_url', itemValue: String(values.feishu_webhook_url ?? ''), valueType: 'string', isEncrypted: true, remark: '' },
+    { groupKey: g, itemKey: 'feishu_secret', itemValue: String(values.feishu_secret ?? ''), valueType: 'string', isEncrypted: true, remark: '' },
+    { groupKey: g, itemKey: 'wecom_enabled', itemValue: boolStr(values.wecom_enabled), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: g, itemKey: 'wecom_webhook_url', itemValue: String(values.wecom_webhook_url ?? ''), valueType: 'string', isEncrypted: true, remark: '' },
   ];
 }
 
