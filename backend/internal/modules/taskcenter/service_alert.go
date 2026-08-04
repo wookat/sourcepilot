@@ -13,11 +13,14 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantquery"
 	"gorm.io/gorm"
 )
 
 // ListAlertsParams binds GET /task-center/alerts.
 type ListAlertsParams struct {
+	TenantID        int64
 	Status          string
 	Severity        string
 	FailureCategory string
@@ -144,7 +147,7 @@ func (s *Service) ListAlerts(ctx context.Context, p ListAlertsParams) (ListAlert
 		return out, fmt.Errorf("taskcenter: no db")
 	}
 	page, pageSize := clampPage(p.Page, p.PageSize)
-	q := s.DB.WithContext(ctx).Model(&TaskAlert{})
+	q := tenantquery.ScopeTenant(s.DB.WithContext(ctx).Model(&TaskAlert{}), p.TenantID)
 	if st := strings.TrimSpace(p.Status); st != "" {
 		q = q.Where("status = ?", st)
 	}
@@ -345,18 +348,30 @@ func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSumm
 	return sum, nil
 }
 
+// findTenantAlert loads one alert scoped to the caller's tenant so business
+// tenants cannot act on other tenants' alerts by guessing IDs.
+func (s *Service) findTenantAlert(c *gin.Context, alertID uuid.UUID) (TaskAlert, error) {
+	var a TaskAlert
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return a, err
+	}
+	ctx := c.Request.Context()
+	err = tenantquery.ScopeTenant(s.DB.WithContext(ctx), tid).First(&a, "id = ?", alertID).Error
+	return a, err
+}
+
 // HandleTaskAlert marks one alert handled (does not change source failing task rows).
 func (s *Service) HandleTaskAlert(c *gin.Context, alertID uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("taskcenter: no db")
 	}
-	ctx := c.Request.Context()
-	var a TaskAlert
-	if err := s.DB.WithContext(ctx).First(&a, "id = ?", alertID).Error; err != nil {
+	a, err := s.findTenantAlert(c, alertID)
+	if err != nil {
 		return err
 	}
 	now := time.Now().UTC()
-	return s.finishAlertStatusChange(ctx, c, a, TaskAlertStatusHandled, now, adminFromGin(c), "task_center.alert.handle")
+	return s.finishAlertStatusChange(c.Request.Context(), c, a, TaskAlertStatusHandled, now, adminFromGin(c), "task_center.alert.handle")
 }
 
 // IgnoreTaskAlert marks ignored.
@@ -364,13 +379,12 @@ func (s *Service) IgnoreTaskAlert(c *gin.Context, alertID uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("taskcenter: no db")
 	}
-	ctx := c.Request.Context()
-	var a TaskAlert
-	if err := s.DB.WithContext(ctx).First(&a, "id = ?", alertID).Error; err != nil {
+	a, err := s.findTenantAlert(c, alertID)
+	if err != nil {
 		return err
 	}
 	now := time.Now().UTC()
-	return s.finishAlertStatusChange(ctx, c, a, TaskAlertStatusIgnored, now, adminFromGin(c), "task_center.alert.ignore")
+	return s.finishAlertStatusChange(c.Request.Context(), c, a, TaskAlertStatusIgnored, now, adminFromGin(c), "task_center.alert.ignore")
 }
 
 // UnmarkTaskAlert restores open state.
@@ -379,8 +393,8 @@ func (s *Service) UnmarkTaskAlert(c *gin.Context, alertID uuid.UUID) error {
 		return fmt.Errorf("taskcenter: no db")
 	}
 	ctx := c.Request.Context()
-	var a TaskAlert
-	if err := s.DB.WithContext(ctx).First(&a, "id = ?", alertID).Error; err != nil {
+	a, err := s.findTenantAlert(c, alertID)
+	if err != nil {
 		return err
 	}
 	now := time.Now().UTC()

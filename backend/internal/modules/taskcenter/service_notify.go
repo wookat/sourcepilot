@@ -532,8 +532,8 @@ func (s *Service) NotifyTaskAlertManual(ctx context.Context, c *gin.Context, ale
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("taskcenter: no db")
 	}
-	var a TaskAlert
-	if err := s.DB.WithContext(ctx).First(&a, "id = ?", alertID).Error; err != nil {
+	a, err := s.findTenantAlert(c, alertID)
+	if err != nil {
 		return err
 	}
 	filter := make([]string, 0, len(channels))

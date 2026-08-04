@@ -1570,3 +1570,9 @@ Final Production Acceptance Deferred to P10
 - **P1 采集规则 / 浏览器 profile 缺租户维度**：`collect_rules`、`collect_browser_profiles` 新增 `tenant_id`（AutoMigrate，默认 0，索引），列表 / 详情 / 增删改 / 启停 / 规则解析 / profile 注入全部按可信租户限定，跨租户 404。
 - **P1 注册接口枚举防护**：`POST /auth/send-email-code` 对已注册与未注册邮箱返回一致的 `200 {ok:true}`（已注册不下发验证码，写 `status=skipped` 操作日志）并消耗同样限流额度；叠加单 IP 每小时 20 次限流以钝化批量注册。
 - 回归证据：`permmatrix` 新增 `tenant_zero_test.go`（平台专属运维路由 / 提示词写 / settings tenant 0 读写 / 采集规则与 profile 跨租户 / 商品子资源守卫）、matrix.json 登记 23 条新口径；`middleware/jwt_account_state_test.go`（停用 / 缺失 / `token_version` 提升三类旧 token 401）、`auth/jwt_access_test.go` 补 token_version 携带断言。测试库全量 `go test ./...` + 权限矩阵契约通过（Actions CI 不作依据）。
+
+### 变更记录（2026-08-04）UX v5 全站走查 P1 修复：全局库存/告警跨租户泄露收口 + 无权限设置读 403 噪音清零
+
+- **P1 跨租户数据泄露收口（后端）**：`GET /inventory/logs`、`GET /inventory/effects` 此前无租户过滤，新注册业务租户可看到 tenant 0 演示数据的库存流水（实测泄露）。现在流水按 `tenant_id` 限定、effects 经 `orders.tenant_id` 子查询限定；`GET /task-center/alerts` 同步按 `tenant_id` 过滤，告警 handle / ignore / unmark / notify 单条操作改为租户内查找（跨租户 404），杜绝按 ID 越权操作。回归测试：`inventory/global_feeds_tenant_scope_test.go`、`taskcenter/alerts_tenant_scope_test.go`。
+- **P1 无权限设置读取 403 噪音清零（前端）**：operator / readonly 打开工作台、订单列表、选品任务、任务中心告警页时不再调用 `GET /settings`、`GET /settings/integrations/overview`（无 `settings.manage` 时跳过，页面正常降级），浏览器控制台不再出现 403 报错；`/settings/report-currency` 登记进 `ROUTE_PERMISSIONS`（需 `settings.manage`），operator / readonly 菜单不再出现该死路入口。
+- 已知后续观察项（P2）：告警扫描（`ScanAndGenerateTaskAlerts`）目前以平台视角运行、告警行 `tenant_id` 恒为 0，业务租户暂看不到自身任务失败聚合出的告警（失败明细在任务中心仍可见）；如需业务租户级告警需在 Upsert 链路补租户来源。

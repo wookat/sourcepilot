@@ -26,6 +26,12 @@ describe('isPlatformAdmin / 平台租户路由', () => {
     }
   });
 
+  it('报表本位币设置页需要 settings.manage 权限', () => {
+    expect(canAccessPath('/settings/report-currency', 'admin', undefined, 2)).toBe(true);
+    expect(canAccessPath('/settings/report-currency', 'operator', undefined, 0)).toBe(false);
+    expect(canAccessPath('/settings/report-currency', 'readonly', undefined, 0)).toBe(false);
+  });
+
   it('业务租户仍可访问租户隔离的运维页', () => {
     expect(canAccessPath('/ops/workers/monitor', 'admin', undefined, 2)).toBe(true);
     expect(canAccessPath('/ai/tasks', 'admin', undefined, 2)).toBe(true);

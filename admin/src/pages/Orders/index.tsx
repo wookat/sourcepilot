@@ -72,6 +72,7 @@ import {
 import GenerateResultAlerts from '@/components/procurement/GenerateResultAlerts';
 import { chartTokens, tabularNumsStyle } from '@/constants/chartTokens';
 import { canWriteOrders } from '@/utils/orderPerm';
+import { canManageSettings } from '@/utils/permission';
 import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
 import { pickGroup } from '@/utils/settingsForm';
@@ -185,6 +186,10 @@ export default function OrdersPage() {
     initialState?: { currentUser?: API.CurrentUser };
   };
   const writable = canWriteOrders(initialState?.currentUser?.role);
+  const settingsReadable = canManageSettings(
+    initialState?.currentUser?.role,
+    initialState?.currentUser?.permissions,
+  );
   const screens = Grid.useBreakpoint();
   const [wideScreen, setWideScreen] = useState(
     () => typeof window === 'undefined' || window.innerWidth >= 768,
@@ -344,6 +349,7 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => {
+    if (!settingsReadable) return;
     void (async () => {
       try {
         const { items } = await fetchSettingsList();
@@ -358,7 +364,7 @@ export default function OrdersPage() {
         /* ignore */
       }
     })();
-  }, []);
+  }, [settingsReadable]);
 
   const refreshDetail = useCallback(async (id?: string) => {
     const oid = id ?? detailIdRef.current;

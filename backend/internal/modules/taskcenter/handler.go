@@ -357,7 +357,13 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid end time (RFC3339)")
 		return
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 403, response.CodePermissionDenied, "tenant context missing")
+		return
+	}
 	p := ListAlertsParams{
+		TenantID:        tid,
 		Status:          strings.TrimSpace(c.Query("status")),
 		Severity:        strings.TrimSpace(c.Query("severity")),
 		FailureCategory: strings.TrimSpace(c.Query("failureCategory")),

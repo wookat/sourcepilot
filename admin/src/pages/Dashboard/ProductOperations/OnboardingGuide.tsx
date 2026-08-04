@@ -19,6 +19,7 @@ import { fetchPurchaseOrders } from '@/services/procurement';
 import { fetchProducts } from '@/services/products';
 import { fetchSettingsList } from '@/services/settings';
 import { fetchSuppliers } from '@/services/sourcing';
+import { usePermission } from '@/hooks/usePermission';
 import { pickGroup } from '@/utils/settingsForm';
 import { appendSourceToUrl } from '@/utils/urlState';
 
@@ -101,11 +102,11 @@ function readDismissed(): boolean {
   }
 }
 
-async function detectDone(): Promise<Partial<Record<StepKey, boolean>>> {
+async function detectDone(canReadSettings: boolean): Promise<Partial<Record<StepKey, boolean>>> {
   const one = { page: 1, pageSize: 1 };
   const [settings, collect, products, suppliers, orders, purchase, fulfilled, partial] =
     await Promise.allSettled([
-      fetchSettingsList(),
+      canReadSettings ? fetchSettingsList() : Promise.reject(new Error('no settings permission')),
       fetchCollectTasks(one),
       fetchProducts(one),
       fetchSuppliers(one),
@@ -204,17 +205,18 @@ function StepCard({ step, index, done }: { step: StepMeta; index: number; done: 
 export default function OnboardingGuide() {
   const [dismissed, setDismissed] = useState<boolean>(() => readDismissed());
   const [done, setDone] = useState<Partial<Record<StepKey, boolean>>>({});
+  const { canManageSettings } = usePermission();
 
   useEffect(() => {
     if (dismissed) return;
     let cancelled = false;
-    void detectDone().then((res) => {
+    void detectDone(canManageSettings).then((res) => {
       if (!cancelled) setDone(res);
     });
     return () => {
       cancelled = true;
     };
-  }, [dismissed]);
+  }, [dismissed, canManageSettings]);
 
   const doneCount = useMemo(() => STEPS.filter((s) => done[s.key]).length, [done]);
 
