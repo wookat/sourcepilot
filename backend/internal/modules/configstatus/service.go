@@ -506,7 +506,7 @@ func (s *Service) inventorySyncItem(ctx context.Context) Item {
 		Title:       "库存同步开关",
 		SettingsURL: "/settings/inventory",
 	}
-	inv, err := s.Settings.PlainByGroup(ctx, 0, "inventory")
+	inv, err := tenantsettings.InventoryPlain(ctx, s.Settings)
 	if err != nil {
 		it.Status = StatusConfigError
 		return it

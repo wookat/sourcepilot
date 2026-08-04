@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -132,7 +133,7 @@ func (s *Service) inventoryBatchMaxTasks(ctx context.Context) int {
 	if s == nil || s.Settings == nil {
 		return max
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "inventory")
+	m, err := tenantsettings.InventoryPlain(ctx, s.Settings)
 	if err != nil {
 		return max
 	}

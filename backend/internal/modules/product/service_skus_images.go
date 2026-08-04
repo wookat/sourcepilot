@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 func validateProductStatus(s string) error {
@@ -110,7 +111,7 @@ func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, a
 		SafetyStock:     0,
 	}
 	if s.Settings != nil {
-		if m, err := s.Settings.PlainByGroup(c.Request.Context(), 0, "inventory"); err == nil {
+		if m, err := tenantsettings.InventoryPlain(c.Request.Context(), s.Settings); err == nil {
 			w := settings.DefaultWarningStockFromMap(m)
 			sa := settings.DefaultSafetyStockFromMap(m)
 			w, sa = settings.CoalesceDefaultStockLines(w, sa)
