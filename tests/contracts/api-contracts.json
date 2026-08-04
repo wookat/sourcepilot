@@ -209,6 +209,50 @@
       "path": "/api/v1/imports/:id/errors.csv",
       "auth": true,
       "responseData": "CSV"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/profit",
+      "auth": true,
+      "query": [
+        "dimension",
+        "days",
+        "start",
+        "end"
+      ],
+      "responseData": "ProfitReportDTO"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/profit/export.csv",
+      "auth": true,
+      "query": [
+        "dimension",
+        "days",
+        "start",
+        "end"
+      ],
+      "responseData": "CSV"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/procurement",
+      "auth": true,
+      "query": [
+        "days",
+        "start",
+        "end"
+      ],
+      "responseData": "ProcurementReportDTO"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/inventory",
+      "auth": true,
+      "query": [
+        "slowDays"
+      ],
+      "responseData": "InventoryReportDTO"
     }
   ]
 }
