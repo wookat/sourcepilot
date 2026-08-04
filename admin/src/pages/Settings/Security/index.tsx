@@ -356,7 +356,7 @@ export default function SecuritySettingsPage() {
       dataIndex: 'browserSummary',
       ellipsis: true,
       width: 140,
-      render: (v) => v || '—',
+      render: (_, row) => row.browserSummary || '—',
     },
     {
       title: '状态',
@@ -409,7 +409,8 @@ export default function SecuritySettingsPage() {
       title: '解密失败',
       dataIndex: 'decryptFailures',
       width: 90,
-      render: (v) => (Number(v) > 0 ? <Text type="danger">{v}</Text> : v),
+      render: (_, row) =>
+        row.decryptFailures > 0 ? <Text type="danger">{row.decryptFailures}</Text> : row.decryptFailures,
     },
     { title: '未知格式', dataIndex: 'unknownFormat', width: 90 },
   ];

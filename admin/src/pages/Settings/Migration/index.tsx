@@ -313,8 +313,8 @@ function ImportWizard({ writable }: { writable: boolean }) {
             </Typography.Title>
             <Table
               size="small"
-              rowKey={(_, i) => String(i)}
-              dataSource={parsed.rows.slice(0, 5)}
+              rowKey="__rowKey"
+              dataSource={parsed.rows.slice(0, 5).map((r, i) => Object.assign([...r], { __rowKey: `row-${i}` }))}
               columns={previewColumns}
               pagination={false}
               scroll={{ x: 'max-content' }}
@@ -345,10 +345,8 @@ function ImportWizard({ writable }: { writable: boolean }) {
             {validated.errors.length > 0 && (
               <Table
                 size="small"
-                rowKey={(e: { rowNumber: number; field?: string; message: string }, i) =>
-                  `${e.rowNumber}-${i}`
-                }
-                dataSource={validated.errors}
+                rowKey="__rowKey"
+                dataSource={validated.errors.map((e, i) => ({ ...e, __rowKey: `${e.rowNumber}-${i}` }))}
                 pagination={{ pageSize: 10, showSizeChanger: false }}
                 scroll={{ x: 'max-content' }}
                 columns={[

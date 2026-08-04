@@ -179,10 +179,10 @@ export default function BatchBackfillModal({
         </>
       )}
       {results && (
-        <Table<BatchLineResult>
-          rowKey={(r, i) => `${r.key}-${i}`}
+        <Table<BatchLineResult & { __rowKey: string }>
+          rowKey="__rowKey"
           size="small"
-          dataSource={results}
+          dataSource={results.map((r, i) => ({ ...r, __rowKey: `${r.key}-${i}` }))}
           pagination={results.length > 10 ? { pageSize: 10 } : false}
           scroll={{ x: 560 }}
           columns={[
