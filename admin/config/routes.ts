@@ -498,6 +498,11 @@ export default [
         name: '消息同步任务',
         component: './Customer/MessageSyncTasks',
       },
+      {
+        path: '/customer/reply-templates',
+        name: '话术模板',
+        component: './Customer/ReplyTemplates',
+      },
     ],
   },
   {

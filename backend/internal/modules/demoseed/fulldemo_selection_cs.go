@@ -220,6 +220,25 @@ func demoCustomerConversationPlans() []customerConversationPlan {
 	}
 }
 
+// demoReplyTemplatePlans returns DEMO- canned reply templates covering every
+// group with variable placeholders that the workbench fills from context.
+func demoReplyTemplatePlans() []customerchat.CustomerReplyTemplate {
+	return []customerchat.CustomerReplyTemplate{
+		{GroupKey: customerchat.TemplateGroupPresale, Name: "DEMO-售前-库存确认", SortOrder: 1, Enabled: true,
+			Content: "DEMO- 亲爱的{买家昵称}您好！您咨询的{商品名}现在有现货，下单后 24 小时内发出哦～"},
+		{GroupKey: customerchat.TemplateGroupPresale, Name: "DEMO-售前-尺寸咨询", SortOrder: 2, Enabled: true,
+			Content: "DEMO- 您好{买家昵称}！{商品名}的详细尺寸请见商品详情页规格表，如仍有疑问请告诉我具体使用场景，我帮您推荐。"},
+		{GroupKey: customerchat.TemplateGroupAftersale, Name: "DEMO-售后-使用问题", SortOrder: 1, Enabled: true,
+			Content: "DEMO- {买家昵称}您好，收到您反馈的问题，请提供订单号 {订单号} 对应商品的照片或视频，我们会在 24 小时内给您处理方案。"},
+		{GroupKey: customerchat.TemplateGroupLogistics, Name: "DEMO-物流-查询进度", SortOrder: 1, Enabled: true,
+			Content: "DEMO- 您好{买家昵称}，您的订单 {订单号} 已发货，物流单号 {物流单号}，可在物流官网查询最新进度。"},
+		{GroupKey: customerchat.TemplateGroupRefund, Name: "DEMO-退款-流程说明", SortOrder: 1, Enabled: true,
+			Content: "DEMO- {买家昵称}您好，订单 {订单号} 的退款申请已收到，审核通过后 1-3 个工作日原路退回，请注意查收。"},
+		{GroupKey: customerchat.TemplateGroupOther, Name: "DEMO-通用-欢迎语（停用样例）", SortOrder: 1, Enabled: false,
+			Content: "DEMO- 您好{买家昵称}，欢迎光临{店铺名}，很高兴为您服务！"},
+	}
+}
+
 // seedCustomerService inserts DEMO- customer conversations (message timeline +
 // AI reply suggestions) and customer message sync tasks (success + failed).
 // Conversations are stamped with the seeder tenant (never tenant 0).
@@ -278,6 +297,16 @@ func (s *FullDemoSeeder) seedCustomerService(tx *gorm.DB, res *FullDemoResult, n
 			}
 			count("customer_reply_suggestions", 1)
 		}
+	}
+
+	// ---- customer reply templates（话术模板样本，覆盖全部分组 + 停用样例）----
+	for _, tpl := range demoReplyTemplatePlans() {
+		row := tpl
+		row.TenantID = s.TenantID
+		if err := tx.Create(&row).Error; err != nil {
+			return fmt.Errorf("demoseed: reply template: %w", err)
+		}
+		count("customer_reply_templates", 1)
 	}
 
 	// ---- customer message sync tasks（成功 + 失败样本）----

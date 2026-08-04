@@ -209,6 +209,59 @@
       "path": "/api/v1/imports/:id/errors.csv",
       "auth": true,
       "responseData": "CSV"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/customer/reply-templates",
+      "auth": true,
+      "query": [
+        "group",
+        "keyword",
+        "enabled"
+      ],
+      "responseData": "{ list: ReplyTemplate[], canWrite: boolean }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/customer/reply-templates",
+      "auth": true,
+      "requestBody": [
+        "groupKey",
+        "name",
+        "content",
+        "sortOrder",
+        "enabled"
+      ],
+      "responseData": "ReplyTemplate"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/customer/reply-templates/:id",
+      "auth": true,
+      "requestBody": [
+        "groupKey",
+        "name",
+        "content",
+        "sortOrder",
+        "enabled"
+      ],
+      "responseData": "ReplyTemplate"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/customer/reply-templates/:id",
+      "auth": true,
+      "responseData": "{ ok: boolean }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/customer/reply-templates/reorder",
+      "auth": true,
+      "requestBody": [
+        "groupKey",
+        "ids"
+      ],
+      "responseData": "{ ok: boolean }"
     }
   ]
 }
