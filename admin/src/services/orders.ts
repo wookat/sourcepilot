@@ -186,6 +186,8 @@ export type SalesAmount = {
   currency: string;
   amount: number;
   orders: number;
+  /** 折算为本位币的金额；未配置汇率时缺省（未折算） */
+  baseAmount?: number;
 };
 
 export type SalesWindowStats = {
@@ -194,10 +196,15 @@ export type SalesWindowStats = {
   paidCount: number;
   shippedCount: number;
   paidAmounts: SalesAmount[];
+  /** 已折算入本位币的已付款销售额合计 */
+  paidAmountBase: number;
+  /** 缺少汇率、未折算入合计的币种 */
+  unconvertedCurrencies?: string[];
 };
 
 export type SalesStatsDTO = {
   generatedAt: string;
+  baseCurrency: string;
   windows: SalesWindowStats[];
 };
 
@@ -211,11 +218,16 @@ export type DailyStat = {
   paidCount: number;
   shippedCount: number;
   paidAmounts: SalesAmount[];
+  /** 已折算入本位币的已付款销售额合计 */
+  paidAmountBase: number;
+  /** 缺少汇率、未折算入合计的币种 */
+  unconvertedCurrencies?: string[];
 };
 
 export type DailyStatsDTO = {
   generatedAt: string;
   days: number;
+  baseCurrency: string;
   items: DailyStat[];
 };
 

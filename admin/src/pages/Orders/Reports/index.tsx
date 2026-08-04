@@ -2,7 +2,7 @@ import { DownloadOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { Alert, Button, Col, Row, Segmented, Skeleton, Space, Statistic, Typography, message } from 'antd';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from '@umijs/max';
+import { Link, useSearchParams } from '@umijs/max';
 import { mergeQueryState } from '@/utils/urlState';
 import { EmptyState, TmPageContainer } from '@/components/ui';
 import {
@@ -38,6 +38,7 @@ export function normalizeReportDays(raw: string | null): number {
 
 type CountPoint = { date: string; type: string; value: number };
 type AmountPoint = { date: string; currency: string; amount: number };
+type BaseAmountPoint = { date: string; amount: number };
 
 function toCountPoints(res: DailyStatsDTO): CountPoint[] {
   const out: CountPoint[] = [];
@@ -56,6 +57,10 @@ function toAmountPoints(res: DailyStatsDTO): AmountPoint[] {
     }
   }
   return out;
+}
+
+function toBaseAmountPoints(res: DailyStatsDTO): BaseAmountPoint[] {
+  return (res.items ?? []).map((it) => ({ date: it.date, amount: it.paidAmountBase ?? 0 }));
 }
 
 /** 经营报表：近 N 天按日订单趋势（口径与首页经营概览 stats/sales 一致），支持导出 CSV */
@@ -95,23 +100,38 @@ export default function OrderReports() {
   }, [load]);
 
   const items = data?.items ?? [];
+  const baseCurrency = data?.baseCurrency || 'CNY';
   const totals = useMemo(() => {
     let orders = 0;
     let paid = 0;
+    let base = 0;
     const byCurrency = new Map<string, number>();
+    const unconverted = new Set<string>();
     for (const it of items) {
       orders += it.orderCount;
       paid += it.paidCount;
+      base += it.paidAmountBase ?? 0;
+      for (const cur of it.unconvertedCurrencies ?? []) {
+        unconverted.add(cur);
+      }
       for (const a of it.paidAmounts ?? []) {
         byCurrency.set(a.currency, (byCurrency.get(a.currency) ?? 0) + a.amount);
       }
     }
-    return { orders, paid, byCurrency: [...byCurrency.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1)) };
+    return {
+      orders,
+      paid,
+      base,
+      unconverted: [...unconverted].sort(),
+      byCurrency: [...byCurrency.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1)),
+    };
   }, [items]);
 
   const hasData = totals.orders > 0;
+  const hasPaidAmounts = totals.byCurrency.length > 0;
   const countPoints = useMemo(() => (data ? toCountPoints(data) : []), [data]);
   const amountPoints = useMemo(() => (data ? toAmountPoints(data) : []), [data]);
+  const baseAmountPoints = useMemo(() => (data ? toBaseAmountPoints(data) : []), [data]);
   const makeAxisX = useCallback(
     (dateCount: number) => ({
       ...chartAxisXLabel,
@@ -156,7 +176,21 @@ export default function OrderReports() {
         />
       ) : null}
 
-      <ProCard variant="outlined" style={{ marginBottom: 16 }} title={`近 ${days} 天合计`}>
+      {!loading && totals.unconverted.length > 0 ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={`以下币种未配置汇率，未折算入本位币合计：${totals.unconverted.join('、')}`}
+          description={
+            <span>
+              前往 <Link to="/settings/report-currency">报表本位币与汇率设置</Link> 配置汇率后，该部分金额会计入折算合计。
+            </span>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
+
+      <ProCard variant="outlined" style={{ marginBottom: 16 }} title={`近 ${days} 天合计（本位币 ${baseCurrency}）`}>
         {loading ? (
           <Skeleton active paragraph={{ rows: 2 }} />
         ) : (
@@ -167,9 +201,22 @@ export default function OrderReports() {
             <Col xs={12} sm={8} md={6}>
               <Statistic title="已付款订单" value={totals.paid} valueStyle={tabularNumsStyle} />
             </Col>
+            {hasPaidAmounts ? (
+              <Col xs={12} sm={8} md={6}>
+                <Statistic
+                  title={`销售额折算合计（${baseCurrency}）${totals.unconverted.length > 0 ? '，含未折算币种' : ''}`}
+                  value={formatAmount(totals.base)}
+                  valueStyle={tabularNumsStyle}
+                />
+              </Col>
+            ) : null}
             {totals.byCurrency.map(([currency, amount]) => (
               <Col xs={12} sm={8} md={6} key={currency}>
-                <Statistic title={`销售额（${currency}）`} value={formatAmount(amount)} valueStyle={tabularNumsStyle} />
+                <Statistic
+                  title={`原币销售额（${currency}）${totals.unconverted.includes(currency) ? '，未折算' : ''}`}
+                  value={formatAmount(amount)}
+                  valueStyle={tabularNumsStyle}
+                />
               </Col>
             ))}
             {totals.byCurrency.length === 0 ? (
@@ -213,7 +260,38 @@ export default function OrderReports() {
         )}
       </ProCard>
 
-      <ProCard variant="outlined" style={{ marginBottom: 16 }} title="每日销售额（已付款，按币种）">
+      <ProCard variant="outlined" style={{ marginBottom: 16 }} title={`每日销售额折算（${baseCurrency}，已付款）`}>
+        {loading ? (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        ) : hasPaidAmounts ? (
+          <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
+            <Column
+              data={baseAmountPoints}
+              xField="date"
+              yField="amount"
+              height={chartHeight}
+              autoFit
+              style={{ maxWidth: chartTokens.barMaxWidth }}
+              scale={{ color: { range: [...chartTokens.seriesColors] } }}
+              axis={{
+                x: countAxisX,
+                y: { labelFormatter: (v: number) => formatCount(Number(v)) },
+              }}
+              tooltip={{
+                items: [(d: BaseAmountPoint) => ({ name: baseCurrency, value: formatAmount(d.amount) })],
+              }}
+            />
+          </Suspense>
+        ) : (
+          <EmptyState
+            compact
+            title={`近 ${days} 天暂无已付款订单`}
+            description="订单完成付款后，这里会展示按本位币折算的每日销售额"
+          />
+        )}
+      </ProCard>
+
+      <ProCard variant="outlined" style={{ marginBottom: 16 }} title="每日销售额（原币明细，已付款，按币种）">
         {loading ? (
           <Skeleton active paragraph={{ rows: 6 }} />
         ) : amountPoints.length > 0 ? (

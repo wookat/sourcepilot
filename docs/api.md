@@ -56,6 +56,8 @@
 | `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。item 可选 `clear: true` 强制清空已存值（含加密字段，绕过「空加密值保留旧密钥」语义），用于 AI 配置一键清空等场景。 |
 | `POST` | `/api/v1/settings/test-ai` | 经 **AI Gateway** 测试 `settings.ai`（支持 `openai` / `openai_compatible` / `deepseek` / `qwen`）。各服务商 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`** 独立存储；可选 JSON：`provider`、`base_url`、`model`、`api_key`（写入当前 provider 对应项；`****` 占位则沿用已保存密钥）、`timeout_sec`，用于**未保存前**用当前表单试连；空 body 仅用库内配置。成功 `data`：`ok`、`message`、`provider`、`model`、`latencyMs`。 |
 | `POST` | `/api/v1/settings/test-storage` | 测试 Storage Provider 配置。 |
+| `GET` | `/api/v1/settings/report-currency` | 读取报表本位币与手工汇率表（settings 分组 `report_currency`）：`{provider: "manual", baseCurrency, rates:[{currency, rate}]}`；`rate` 为十进制字符串，含义为「1 单位原币 = rate 本位币」。需 `settings.manage`（readonly 403）。 |
+| `PUT` | `/api/v1/settings/report-currency` | 保存报表本位币与手工汇率表：`{baseCurrency, rates:[{currency, rate}]}`。校验：本位币为 3 位字母代码；汇率为正十进制数；不允许重复币种或给本位币配汇率；最多 50 条。Provider 固定 `manual`（不接实时汇率 API，接口预留 Provider 抽象）。需 `settings.manage`（readonly 403），写操作日志 `settings.report_currency.update`。 |
 | `POST` | `/api/v1/storage/test-public-access` | 上传探针图片并通过匿名 HTTP 验证公网可访问性（HTTPS、`image/*`、无登录跳转）；需 `settings.manage`；失败返回 `STORAGE_PUBLIC_*` 错误码。 |
 | `POST` | `/api/v1/settings/storage/public-check` | 同上（P1 别名） |
 | `GET` | `/api/v1/settings/storage/public-check/latest` | 最近一次公网测试结果（未执行时 `not_run`） |
@@ -698,9 +700,9 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/orders/stats/sales` | 经营概览统计：返回 `{generatedAt, windows:[{key: today|7d|30d, orderCount, paidCount, shippedCount, paidAmounts:[{currency, amount, orders}]}]}`，按创建时间窗口在租户内统计订单数/已付款/已发货与分币种已付款销售额；店铺 scope 与订单列表一致（非 admin 按授权店铺过滤）。 |
-| `GET` | `/api/v1/orders/stats/daily` | 经营报表按日统计：`?days=30`（默认 30，最大 90），返回 `{generatedAt, days, items:[{date: YYYY-MM-DD, orderCount, paidCount, shippedCount, paidAmounts:[{currency, amount, orders}]}]}`；口径与 `stats/sales` 一致（当前租户、软删除订单不计入，已发货口径同 `stats/sales` 的 `shippedCount`），店铺 scope 与订单列表一致（非 admin 按授权店铺过滤）。 |
-| `GET` | `/api/v1/orders/stats/daily/export.csv` | 导出经营报表逐日明细 CSV：`?days=30`（默认 30，最大 90），只读端点（readonly 可用），数据、口径与 scope 与 `stats/daily` 完全一致；UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内出现的每个币种一列「已付款销售额(币种)」（币种字典序），空日期行补 0。 |
+| `GET` | `/api/v1/orders/stats/sales` | 经营概览统计：返回 `{generatedAt, baseCurrency, windows:[{key: today|7d|30d, orderCount, paidCount, shippedCount, paidAmounts:[{currency, amount, orders, baseAmount?}], paidAmountBase, unconvertedCurrencies?}]}`，按创建时间窗口在租户内统计订单数/已付款/已发货与分币种已付款销售额；`paidAmountBase` 为按 `report_currency` 手工汇率表折算入本位币的合计（decimal 精确计算、输出保留两位小数），缺少汇率的币种不计入合计而是列入 `unconvertedCurrencies`（原币桶无 `baseAmount`）；店铺 scope 与订单列表一致（非 admin 按授权店铺过滤）。 |
+| `GET` | `/api/v1/orders/stats/daily` | 经营报表按日统计：`?days=30`（默认 30，最大 90），返回 `{generatedAt, days, baseCurrency, items:[{date: YYYY-MM-DD, orderCount, paidCount, shippedCount, paidAmounts:[{currency, amount, orders, baseAmount?}], paidAmountBase, unconvertedCurrencies?}]}`；口径与本位币折算规则与 `stats/sales` 一致（当前租户、软删除订单不计入，已发货口径同 `stats/sales` 的 `shippedCount`），店铺 scope 与订单列表一致（非 admin 按授权店铺过滤）。 |
+| `GET` | `/api/v1/orders/stats/daily/export.csv` | 导出经营报表逐日明细 CSV：`?days=30`（默认 30，最大 90），只读端点（readonly 可用），数据、口径与 scope 与 `stats/daily` 完全一致；UTF-8 BOM，列为「日期/订单数/已付款数/已发货数」+ 窗口内出现的每个币种两列「已付款销售额(币种)/折算金额(币种→本位币)」（币种字典序；无汇率时折算列留空而非补 0）+「已付款销售额合计(本位币)/未折算币种」，空日期行补 0。 |
 | `GET` | `/api/v1/orders/shipping-list/export.csv?ids=` | 批量导出发货清单 CSV：`ids` 为逗号分隔销售订单 UUID（去重后 ≤50 个），逐单合并明细行（「订单号」列区分来源，含客户名/电话/商品/SKU/数量/币种/金额），「快递单号(回填)」「承运商(回填)」列留空供线下打单后回填批量发货；任一 id 不在租户内返回 404。 |
 | `POST` | `/api/v1/orders/shipments/batch` | 批量发货：`{items:[{orderNo, trackingNo, carrier?, carrierCode?}], defaultCarrierCode?}`（≤200 条），按订单号在租户内匹配销售订单并新增 `shipped` 物流（订单自动流转）；R91 起支持第三列物流商（代码/名称/名称前缀均可，仅限已启用物流商）与 `defaultCarrierCode` 默认物流商；旧两列格式兼容（无物流商时沿用「其他快递」）；命中物流商时按其规则宽松校验运单号并自动补轨迹 URL；未付款/已取消/未找到/重复订单号/运单号校验失败逐行失败，返回 `{succeeded, failed, results[]}`；成功行附 `inventoryDeducted`（该订单是否已有成功库存扣减；发货本身不扣库存，仅提示口径）。 |
 | `POST` | `/api/v1/orders/:id/shipments` | 新增物流记录：`{carrier, carrierCode?, trackingNo?, trackingUrl?, status?, shippedAt?, deliveredAt?}`；`status` 缺省 `pending`；传 `carrierCode` 时关联租户内已启用物流商（回写 `carrierId` 与名称快照，按物流商规则宽松校验运单号、自动补轨迹 URL）；不传保持自由文本承运商兼容。 |

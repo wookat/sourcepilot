@@ -1428,6 +1428,10 @@ Final Production Acceptance Deferred to P10
 - 新增用户改密码：`POST /admin/users/:id/reset-password`（≥6 位、bcrypt、`token_version+1` + 吊销全部 secure 会话/refresh token 使旧会话失效且不可 refresh 复活、操作日志 `user.password.reset`、权限矩阵已登记 admin-only）；Admin 用户管理页新增「改密码」入口；E2E `r83-users-reset-password.spec.ts` + 后端 `reset_password_test.go`。
 - docs/api.md 已同步；权限矩阵契约全量复跑通过。
 
+### 变更记录（2026-08-04）第 94 轮：seed clean/verify 覆盖迁移导入产物
+
+- `seed:demo:full:clean` / `verify`（含 `-prefix` 自定义前缀）扩展覆盖迁移导入产物：`import_jobs` + `import_job_rows` 按「文件名/批次标识带前缀，或导入到前缀（DEMO-）店铺」识别清理；由导入创建的草稿/订单沿用既有前缀口径（标题/SKU 编码/订单号带前缀）删除，真实导入历史不受影响。QA 不再需要手工 SQL 清零。回归测试 `TestCleanupRemovesMigrationImportArtifacts` / `TestCleanupCustomPrefixCoversMigrationImports`；docs/development.md、docs/migration-guide.md 同步。#201（报表多币种）未合并，demo seed USD 订单+汇率样本核对随该 PR 合并后另行处理。
+
 ### 变更记录（2026-08-04）第 93 轮：seed 与文档 Demo 账号口径统一
 
 - `pnpm seed:demo:full`（Go seeddemo）新增幂等保证三个 Demo RBAC 账号（demo_admin / demo_operator / demo_readonly @trademind.local）存在且密码与文档一致；密码漂移时重置回文档值并递增 `token_version` 使旧会话失效。跨平台（不再依赖 PowerShell 的 seed-demo-permissions.ps1 才能拿到三角色账号），仅限非 production（seeder guard）。回归测试 `TestSeedEnsuresDemoAccounts`；docs/development.md、docs/DEMO_SEEDING_GUIDE.md 同步。
@@ -1488,3 +1492,11 @@ Final Production Acceptance Deferred to P10
 - 轨迹 Provider 预留：`providers/tracking`（`TrackingProvider` 接口 + `manual` provider，不接真实 API），`POST /orders/:id/shipments/:shipmentId/refresh-tracking` 端点返回 manual 口径；手工编辑物流状态推动订单在途→送达既有流转不变。
 - 拣货/发货单打印：`GET /api/v1/orders/print/sheets?ids=`（≤50 单，店铺 scope）+ 前端打印页 `/orders/print`（订单+收件人+SKU 明细+物流商+运单号+贴单区，浏览器打印，非电子面单），订单列表勾选后「打印拣货单」入口。
 - 权限矩阵登记 6 条新路由（readonly 写 403、operator 店铺 scope），docs/api.md / module-map / permission-matrix / provider.md 同步；demo seed 补物流商预置与顺丰运单样本；契约测试补 7 端点。回归：carrier `service_test.go`、order `carrier_shipment_test.go`。
+
+### 变更记录（2026-08-04）第 93 轮：报表合规（多币种本位币折算）
+
+- 新增 `providers/fxrate`（报表折算汇率表 Provider 抽象 + `ManualProvider`，不接实时汇率 API）：汇率语义「1 单位原币 = rate 本位币」，`math/big.Rat` decimal 精度、输出两位小数半入舍出。
+- 新增 settings 分组 `report_currency`（provider/base_currency/rates，默认 manual/CNY/空表）与端点 `GET/PUT /api/v1/settings/report-currency`（`settings.manage`，readonly 403，操作日志 `settings.report_currency.update`；校验币种代码、正十进制汇率、去重、≤50 条），启动时幂等种默认值。
+- 报表口径统一：`stats/sales`、`stats/daily` 返回 `baseCurrency`、每窗口/每日 `paidAmountBase` 与 `unconvertedCurrencies`（缺汇率币种不静默计入合计），原币桶补 `baseAmount`；CSV 导出每币种补「折算金额(币种→本位币)」列（无汇率留空）+「已付款销售额合计(本位币)/未折算币种」列。首页经营概览与经营报表共用同一口径。
+- 前端：新设置页 `/settings/report-currency`（本位币 + 手工汇率表）；经营报表页折算合计/每日折算图/原币明细/未折算警示（含设置页跳转）；首页销售窗口卡展示折算合计与未折算标记。异常/待办统计不受影响。
+- 权限矩阵登记 2 条新路由；demo seed 补 2 条 USD 已付款订单样本；docs/api.md、docs/provider.md 同步；后端补 fxrate/report_currency/stats 折算与 CSV 测试，前端补 service 单测与 E2E `round93-report-currency.spec.ts`。

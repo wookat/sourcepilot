@@ -4465,6 +4465,26 @@
   },
   {
     "method": "GET",
+    "path": "/api/v1/settings/report-currency",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "forbid",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/settings/report-currency",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "forbid",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/shops",
     "personas": {
       "admin": "allow",

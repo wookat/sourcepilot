@@ -37,6 +37,31 @@ export async function saveSettingsItems(items: SettingPutItem[]) {
   return putJSON<SettingsListData, { items: SettingPutItem[] }>('/api/v1/settings', { items });
 }
 
+export type ReportCurrencyRate = {
+  currency: string;
+  /** 十进制字符串（1 单位原币 = rate 本位币），后端按 decimal 精确解析 */
+  rate: string;
+};
+
+export type ReportCurrencyDTO = {
+  provider: string;
+  baseCurrency: string;
+  rates: ReportCurrencyRate[];
+};
+
+/** GET /api/v1/settings/report-currency */
+export async function fetchReportCurrencySettings() {
+  return getJSON<ReportCurrencyDTO>('/api/v1/settings/report-currency');
+}
+
+/** PUT /api/v1/settings/report-currency */
+export async function saveReportCurrencySettings(payload: {
+  baseCurrency: string;
+  rates: ReportCurrencyRate[];
+}) {
+  return putJSON<ReportCurrencyDTO, typeof payload>('/api/v1/settings/report-currency', payload);
+}
+
 /** POST /api/v1/settings/test-platform-tiktok */
 export async function testPlatformTikTokConfig() {
   return postJSON<{ ok: boolean }>('/api/v1/settings/test-platform-tiktok', {});

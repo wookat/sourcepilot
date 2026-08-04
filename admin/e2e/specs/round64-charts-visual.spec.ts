@@ -45,10 +45,10 @@ test.describe('@round64-charts-visual R64 报表图表规范', () => {
     await expect(page.getByText('4,134')).toBeVisible();
     await expect(page.getByText('3,320')).toBeVisible();
     // 销售额千分位（Statistic precision=2 分组展示）
-    await expect(page.getByText('销售额（USD）')).toBeVisible();
+    await expect(page.getByText('原币销售额（USD）')).toBeVisible();
     await expect(page.getByText(/12,345\.50/)).toBeVisible();
-    // 两张图表 canvas 均渲染
-    await expect(page.locator('canvas')).toHaveCount(2);
+    // 三张图表 canvas 均渲染（订单数/本位币折算/原币明细）
+    await expect(page.locator('canvas')).toHaveCount(3);
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
 
@@ -62,7 +62,7 @@ test.describe('@round64-charts-visual R64 报表图表规范', () => {
     });
     await admin.goto('/orders/reports');
     await expect(page.getByText('近 30 天暂无订单')).toBeVisible();
-    await expect(page.getByText('近 30 天暂无已付款订单')).toBeVisible();
+    await expect(page.getByText('近 30 天暂无已付款订单').first()).toBeVisible();
     await expect(page.locator('canvas')).toHaveCount(0);
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
@@ -78,7 +78,7 @@ test.describe('@round64-charts-visual R64 报表图表规范', () => {
     });
     await admin.goto('/orders/reports');
     await expect(page.getByText('近 30 天合计')).toBeVisible();
-    await expect(page.locator('canvas')).toHaveCount(2);
+    await expect(page.locator('canvas')).toHaveCount(3);
     await expectNoRootOverflow(page);
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });

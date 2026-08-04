@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/migrationimport"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
@@ -79,6 +80,8 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&selection.SelectionCandidate{},
 		&selection.SelectionSourceMatch{},
 		&selection.SelectionEvaluation{},
+		&migrationimport.ImportJob{},
+		&migrationimport.ImportJobRow{},
 	); err != nil {
 		t.Fatal(err)
 	}

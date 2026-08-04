@@ -596,6 +596,31 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		}
 	}
 
+	// ---- USD sales orders: multi-currency samples so the report base
+	// currency conversion / unconverted hint is verifiable out of the box ----
+	for i, amt := range []float64{129.99, 58.5} {
+		orderedAt := now.Add(-time.Duration(12+i*20) * time.Hour)
+		paidAt := orderedAt.Add(30 * time.Minute)
+		usd := order.Order{TenantID: s.TenantID, Platform: shops[2].Platform, ShopID: &shops[2].ID,
+			OrderNo:      fmt.Sprintf("DEMO-USD-%04d", i+1),
+			CustomerName: fmt.Sprintf("DEMO-海外买家%d", i+1), Status: order.StatusPaid,
+			PaymentStatus: order.PaymentPaid, FulfillmentStatus: order.FulfillmentUnfulfilled,
+			Currency: "USD", TotalAmount: amt, OrderedAt: &orderedAt, PaidAt: &paidAt,
+			Remark: "DEMO- 演示订单（USD 多币种样本）"}
+		if err := tx.Create(&usd).Error; err != nil {
+			return fmt.Errorf("demoseed: usd order: %w", err)
+		}
+		count("orders", 1)
+		sku := skus[i%len(skus)]
+		usdItem := order.OrderItem{OrderID: usd.ID, ProductID: &sku.ProductID, ProductSKUID: &sku.ID,
+			ProductTitle: products[(i%len(skus))/2].Title, SKUName: sku.SKUName, SKUCode: sku.SKUCode,
+			Quantity: 1, UnitPrice: amt, TotalPrice: amt}
+		if err := tx.Create(&usdItem).Error; err != nil {
+			return fmt.Errorf("demoseed: usd order item: %w", err)
+		}
+		count("order_items", 1)
+	}
+
 	// ---- purchase orders via real state machine ----
 	for i, plan := range demoPurchaseOrderPlans() {
 		if err := validatePurchaseChain(plan); err != nil {
@@ -998,6 +1023,9 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 		if err := tx.Model(&shop.Shop{}).Unscoped().Where("shop_code LIKE ?", like).Pluck("id", &shopIDs).Error; err != nil {
 			return err
 		}
+		if err := cleanupMigrationImports(tx, res, like, shopIDs); err != nil {
+			return err
+		}
 		if len(shopIDs) > 0 {
 			if err := del("order_sync_tasks", tx.Unscoped().Where("shop_id IN ? AND error_message LIKE ?", shopIDs, like).Delete(&ordersync.OrderSyncTask{})); err != nil {
 				return err
@@ -1208,6 +1236,9 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		}},
 	}
 	checks = append(checks, operationTaskVerifyChecks(tx, like)...)
+	checks = append(checks, migrationImportVerifyChecks(tx, like, func() *gorm.DB {
+		return tx.Model(&shop.Shop{}).Unscoped().Select("id").Where("shop_code LIKE ?", like)
+	})...)
 	for _, c := range checks {
 		n, err := c.count()
 		if err != nil {

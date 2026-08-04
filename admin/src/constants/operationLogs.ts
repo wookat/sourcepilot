@@ -50,6 +50,7 @@ export const OPERATION_LOG_ACTION_LABEL: Record<string, string> = {
   settings_update: '更新系统设置',
   'settings.alert_notify.update': '更新告警通知设置',
   'settings.pricing.update': '更新定价设置',
+  'settings.report_currency.update': '更新报表本位币与汇率',
   test_ai: '测试 AI 连接',
   test_storage: '测试存储连接',
   test_email: '测试邮件发送',

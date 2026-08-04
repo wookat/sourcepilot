@@ -66,7 +66,7 @@ pnpm dev:reset
 
 ```bash
 pnpm seed:demo:full          # 种子（幂等：先清理旧 DEMO- 数据再重建）
-pnpm seed:demo:full:clean    # 一键清理，默认只删 DEMO- 前缀数据（含测试期在 UI 上基于 DEMO- 供应商/订单创建的采购单）
+pnpm seed:demo:full:clean    # 一键清理，默认只删 DEMO- 前缀数据（含测试期在 UI 上基于 DEMO- 供应商/订单创建的采购单，以及迁移导入产物：前缀文件名/批次或导入到 DEMO- 店铺的 import_jobs、错误行，由导入创建的带前缀草稿/订单）
 pnpm seed:demo:full:verify   # 复核清理后零残留（有残留退出码非 0）
 
 # 清理/复核自定义前缀的测试数据（如 QA-；默认仍只清 DEMO-，seed 不支持自定义前缀）：
