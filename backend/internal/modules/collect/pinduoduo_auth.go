@@ -3,6 +3,8 @@ package collect
 import (
 	"context"
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 // LatestFailedPinduoduoSourceURL returns the most recent failed collect task URL for pinduoduo.
@@ -31,7 +33,7 @@ func (s *Service) ResolvePinduoduoAuthCheckInputs(ctx context.Context, bodyURL s
 		contextURL = s.LatestFailedPinduoduoSourceURL(ctx)
 	}
 	if s != nil && s.Settings != nil {
-		m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+		m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 		if err == nil {
 			settingsTestURL = strings.TrimSpace(m["collect_pinduoduo_auth_check_url"])
 		}

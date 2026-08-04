@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/storagepublic"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -176,7 +177,7 @@ func (s *Service) aiTextItem(ctx context.Context) Item {
 		SettingsURL: "/settings/ai",
 		NextAction:  "前往 AI 设置配置 Provider、Base URL 与 API Key",
 	}
-	ai, err := s.Settings.PlainByGroup(ctx, 0, "ai")
+	ai, err := tenantsettings.AIPlain(ctx, s.Settings)
 	if err != nil {
 		it.Status = StatusConfigError
 		it.Summary = "读取 AI 配置失败"

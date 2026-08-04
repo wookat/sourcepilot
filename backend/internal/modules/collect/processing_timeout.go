@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 const (
@@ -22,7 +23,7 @@ var processingStatuses = []string{StatusPending, StatusRunning, StatusRetrying}
 // ProcessingTimeoutSeconds resolves the stuck-task threshold from settings (group collector).
 func (s *Service) ProcessingTimeoutSeconds(ctx context.Context) int {
 	if s != nil && s.Settings != nil {
-		if m, err := s.Settings.PlainByGroup(ctx, 0, "collector"); err == nil {
+		if m, err := tenantsettings.CollectorPlain(ctx, s.Settings); err == nil {
 			if v := settingsInt(m, ProcessingTimeoutSettingKey); v > 0 {
 				if v < minProcessingTimeoutSeconds {
 					return minProcessingTimeoutSeconds

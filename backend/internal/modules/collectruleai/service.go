@@ -21,6 +21,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/aimodelparse"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/collectdomain"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -125,7 +126,7 @@ func (s *Service) readConfig(ctx context.Context) (enabled bool, digestMax int, 
 	if s == nil || s.Settings == nil {
 		return
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+	m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 	if err != nil {
 		return
 	}
@@ -171,7 +172,7 @@ func (s *Service) isAIConfigured(ctx context.Context) bool {
 	if s == nil || s.Settings == nil {
 		return false
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "ai")
+	m, err := tenantsettings.AIPlain(ctx, s.Settings)
 	if err != nil {
 		return false
 	}

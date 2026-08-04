@@ -3,6 +3,8 @@ package collect
 import (
 	"context"
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 // LatestFailedTaobaoTmallSourceURL returns the most recent failed collect task URL for taobao_tmall.
@@ -31,7 +33,7 @@ func (s *Service) ResolveTaobaoTmallAuthCheckInputs(ctx context.Context, bodyURL
 		contextURL = s.LatestFailedTaobaoTmallSourceURL(ctx)
 	}
 	if s != nil && s.Settings != nil {
-		m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+		m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 		if err == nil {
 			settingsTestURL = strings.TrimSpace(m["collect_taobao_tmall_auth_check_url"])
 		}

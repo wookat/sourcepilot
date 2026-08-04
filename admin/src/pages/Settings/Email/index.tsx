@@ -20,19 +20,18 @@ const { Paragraph, Text } = Typography;
 const GROUP = 'mail';
 
 function buildEmailPutItems(values: Record<string, unknown>): SettingPutItem[] {
-  const tenantId = 0;
   const provider = String(values.provider || 'smtp');
 
   return [
-    { tenantId, groupKey: GROUP, itemKey: 'provider', itemValue: provider, isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'smtp_host', itemValue: String(values.smtp_host ?? ''), isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'smtp_port', itemValue: String(values.smtp_port ?? ''), isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'smtp_username', itemValue: String(values.smtp_username ?? ''), isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'smtp_password', itemValue: String(values.smtp_password ?? ''), isEncrypted: true, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'smtp_from', itemValue: String(values.smtp_from ?? ''), isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'smtp_from_name', itemValue: String(values.smtp_from_name ?? ''), isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'smtp_use_tls', itemValue: String(values.smtp_use_tls ?? 'false'), isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'smtp_use_ssl', itemValue: String(values.smtp_use_ssl ?? 'false'), isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'provider', itemValue: provider, isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'smtp_host', itemValue: String(values.smtp_host ?? ''), isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'smtp_port', itemValue: String(values.smtp_port ?? ''), isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'smtp_username', itemValue: String(values.smtp_username ?? ''), isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'smtp_password', itemValue: String(values.smtp_password ?? ''), isEncrypted: true, remark: '' },
+    { groupKey: GROUP, itemKey: 'smtp_from', itemValue: String(values.smtp_from ?? ''), isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'smtp_from_name', itemValue: String(values.smtp_from_name ?? ''), isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'smtp_use_tls', itemValue: String(values.smtp_use_tls ?? 'false'), isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'smtp_use_ssl', itemValue: String(values.smtp_use_ssl ?? 'false'), isEncrypted: false, remark: '' },
   ];
 }
 

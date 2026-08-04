@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -937,7 +938,7 @@ func (s *Service) providerName(c *gin.Context) string {
 	if s == nil || s.Settings == nil {
 		return "openai_compatible"
 	}
-	m, err := s.Settings.PlainByGroup(c.Request.Context(), 0, "ai")
+	m, err := tenantsettings.AIPlain(c.Request.Context(), s.Settings)
 	if err != nil {
 		return "openai_compatible"
 	}

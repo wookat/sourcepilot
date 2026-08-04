@@ -100,18 +100,14 @@ const STORAGE_KIND_OPTIONS: StorageKindMeta[] = [
   },
 ];
 
-function pushItem(items: SettingPutItem[], item: Omit<SettingPutItem, 'tenantId'> & { tenantId?: number }) {
-  const tenantId = item.tenantId ?? 0;
-  const { tenantId: _omit, ...rest } = item;
-  items.push({ ...rest, tenantId });
+function pushItem(items: SettingPutItem[], item: SettingPutItem) {
+  items.push(item);
 }
 
 function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[] {
-  const tenantId = 0;
   const kind = String(values.kind || 'local');
   const items: SettingPutItem[] = [
     {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'kind',
       itemValue: kind,
@@ -123,7 +119,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
 
   if (kind === 'local') {
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'public_base',
       itemValue: String(values.public_base ?? ''),
@@ -132,7 +127,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'local_root',
       itemValue: String(values.local_root ?? ''),
@@ -146,7 +140,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
   if (isS3CompatibleKind(kind)) {
     const pub = String(values.s3_public_base ?? '');
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'public_base',
       itemValue: pub,
@@ -155,7 +148,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: 'mirrors s3_public_base for compatibility',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 's3_public_base',
       itemValue: pub,
@@ -164,7 +156,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 's3_endpoint',
       itemValue: String(values.s3_endpoint ?? ''),
@@ -173,7 +164,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 's3_region',
       itemValue: String(values.s3_region ?? ''),
@@ -182,7 +172,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 's3_bucket',
       itemValue: String(values.s3_bucket ?? ''),
@@ -191,7 +180,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 's3_access_key_id',
       itemValue: String(values.s3_access_key_id ?? ''),
@@ -200,7 +188,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 's3_secret_access_key',
       itemValue: String(values.s3_secret_access_key ?? ''),
@@ -209,7 +196,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 's3_force_path_style',
       itemValue: String(values.s3_force_path_style ?? 'false'),
@@ -218,7 +204,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 's3_use_ssl',
       itemValue: String(values.s3_use_ssl ?? 'true'),
@@ -227,7 +212,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 's3_presign_enabled',
       itemValue: String(values.s3_presign_enabled ?? 'false'),
@@ -236,7 +220,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 's3_presign_expire_seconds',
       itemValue:
@@ -252,7 +235,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
 
   if (isCOSKind(kind)) {
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'cos_bucket',
       itemValue: String(values.cos_bucket ?? ''),
@@ -261,7 +243,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'cos_region',
       itemValue: String(values.cos_region ?? ''),
@@ -270,7 +251,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'cos_secret_id',
       itemValue: String(values.cos_secret_id ?? ''),
@@ -279,7 +259,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'cos_secret_key',
       itemValue: String(values.cos_secret_key ?? ''),
@@ -288,7 +267,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'cos_app_id',
       itemValue: String(values.cos_app_id ?? ''),
@@ -297,7 +275,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'cos_endpoint',
       itemValue: String(values.cos_endpoint ?? ''),
@@ -306,7 +283,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'cos_public_base',
       itemValue: String(values.cos_public_base ?? ''),
@@ -315,7 +291,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'cos_use_https',
       itemValue: String(values.cos_use_https ?? 'true'),
@@ -328,7 +303,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
 
   if (isOSSKind(kind)) {
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'oss_endpoint',
       itemValue: String(values.oss_endpoint ?? ''),
@@ -337,7 +311,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'oss_bucket',
       itemValue: String(values.oss_bucket ?? ''),
@@ -346,7 +319,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'oss_access_key_id',
       itemValue: String(values.oss_access_key_id ?? ''),
@@ -355,7 +327,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'oss_access_key_secret',
       itemValue: String(values.oss_access_key_secret ?? ''),
@@ -364,7 +335,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'oss_public_base',
       itemValue: String(values.oss_public_base ?? ''),
@@ -373,7 +343,6 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       remark: '',
     });
     pushItem(items, {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'oss_use_https',
       itemValue: String(values.oss_use_https ?? 'true'),

@@ -20,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -55,7 +56,7 @@ func (s *Service) batchMaxSize(ctx context.Context) int {
 	if s == nil || s.Settings == nil {
 		return max
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "ai")
+	m, err := tenantsettings.AIPlain(ctx, s.Settings)
 	if err != nil {
 		return max
 	}
@@ -72,7 +73,7 @@ func (s *Service) batchConcurrency(ctx context.Context) int {
 	if s == nil || s.Settings == nil {
 		return n
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "ai")
+	m, err := tenantsettings.AIPlain(ctx, s.Settings)
 	if err != nil {
 		return n
 	}

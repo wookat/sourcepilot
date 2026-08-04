@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
@@ -141,7 +142,7 @@ func (s *Service) BuildIntegrationOverview(ctx context.Context) (*IntegrationsOv
 		DisclaimerShort: "贸灵开源发行版不包含任何第三方密钥；请在各开放平台与云厂商自助申请，仅在后台填写并由后端加密存储与调用。",
 	}
 
-	ai, err := s.PlainByGroup(ctx, 0, "ai")
+	ai, err := tenantsettings.AIPlain(ctx, s)
 	if err != nil {
 		return nil, err
 	}

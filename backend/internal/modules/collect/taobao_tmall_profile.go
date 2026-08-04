@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 // TaobaoTmallProfileKey is the dedicated collector persistent profile (isolated from 1688/pinduoduo/custom).
@@ -22,7 +24,7 @@ func (s *Service) buildTaobaoTmallRequestOptions(ctx context.Context, _sourceURL
 		opts["profileKey"] = TaobaoTmallProfileKey
 	}
 	if s != nil && s.Settings != nil {
-		m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+		m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 		if err == nil && len(m) > 0 {
 			if v := strings.TrimSpace(m["collect_taobao_tmall_timeout_ms"]); v != "" {
 				if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -74,7 +76,7 @@ func (s *Service) buildTaobaoTmallRequestOptions(ctx context.Context, _sourceURL
 func (s *Service) taobaoTmallMaxRetries(ctx context.Context) int {
 	def := 2
 	if s != nil && s.Settings != nil {
-		m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+		m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 		if err == nil {
 			if v := strings.TrimSpace(m["collect_taobao_tmall_max_retries"]); v != "" {
 				if n, err := strconv.Atoi(v); err == nil && n >= 0 {
@@ -88,7 +90,7 @@ func (s *Service) taobaoTmallMaxRetries(ctx context.Context) int {
 
 func (s *Service) taobaoTmallAutoRetryEnabled(ctx context.Context) bool {
 	if s != nil && s.Settings != nil {
-		m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+		m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 		if err == nil {
 			if v, ok := settingsBool(m, "collect_taobao_tmall_retry_on_failure"); ok {
 				return v
