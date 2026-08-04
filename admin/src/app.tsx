@@ -8,7 +8,8 @@ import BrandLogo from '@/components/BrandLogo';
 import RouteAccessGuard from '@/components/RouteAccessGuard';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { themeTokens } from '@/constants/layoutTokens';
-import { fetchProfileWithToken } from '@/services/auth';
+import { fetchProfileWithTokenDetailed } from '@/services/auth';
+import { isAuthStateUnavailable, retryWhileAuthStateUnavailable } from '@/utils/authStateRetry';
 import { normalizeHttpErrorMessage } from '@/utils/httpErrorCopy';
 import { filterMenuByPermission } from '@/utils/menuAccess';
 import {
@@ -56,12 +57,16 @@ export async function getInitialState(): Promise<{ currentUser?: API.CurrentUser
   if (!token) {
     return {};
   }
-  const user = await fetchProfileWithToken(token);
-  if (!user) {
+  const profile = await fetchProfileWithTokenDetailed(token);
+  if (profile.authStateUnavailable) {
+    // 后端 fail-closed 瞬断：凭证仍有效，不清凭证，恢复后刷新即可续用
+    return {};
+  }
+  if (!profile.user) {
     clearSessionCredentials();
     return {};
   }
-  return { currentUser: user };
+  return { currentUser: profile.user };
 }
 
 function onLoginPage() {
@@ -120,6 +125,11 @@ export const request: RequestConfig = {
         if (status !== 401 || isAuthUrl(reqUrl) || cfg.sessionGuardRetry || onLoginPage()) {
           throw error;
         }
+        // 数据库瞬断 fail-closed（AUTH_STATE_UNAVAILABLE）：会话未失效，不走重登守卫，
+        // 提示后指数退避自动重试，恢复后无感续用
+        if (isAuthStateUnavailable(error)) {
+          return retryWhileAuthStateUnavailable(error);
+        }
         return handleUnauthorizedAndRetry(error);
       },
     ],
@@ -140,6 +150,10 @@ export const request: RequestConfig = {
       }
       const status = error?.response?.status;
       const reqUrl = String(error?.config?.url || '');
+      // AUTH_STATE_UNAVAILABLE 不属于会话失效，重试链路自行处理，绝不跳登录页
+      if (isAuthStateUnavailable(error)) {
+        throw error;
+      }
       // 重放后仍 401（如 token_version 已失效）才兜底跳登录页；首个 401 由 responseInterceptors 处理
       if (status === 401 && error?.config?.sessionGuardRetry && !reqUrl.includes('/auth/login')) {
         redirectToLoginPage();

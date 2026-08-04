@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { COLLECT_TARGET_SHOP_HINT, PAGE_COPY } from '@/constants/copywriting';
 import { layoutTokens } from '@/constants/layoutTokens';
 import { EmptyState, MetricCard, OperationToolbar, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
+import AiConfigBanner from '@/components/AiConfigBanner';
 import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
 import { PinduoduoCollectModal } from '@/pages/Collect/components/PinduoduoCollectModal';
 import { TaobaoTmallCollectModal } from '@/pages/Collect/components/TaobaoTmallCollectModal';
@@ -439,6 +440,7 @@ export default function CollectHubPage() {
       extra={pageExtra}
     >
       <div className="tm-collect-hub">
+        <AiConfigBanner />
         <section className="tm-collect-hub-hero">
           <div className="tm-collect-hub-hero__main">
             <Text className="tm-collect-hub-hero__eyebrow">跨境商品采集入口</Text>

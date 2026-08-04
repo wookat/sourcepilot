@@ -702,6 +702,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-08-04 | **R107 P2 收口（R106 复检后续）**：前端 `AUTH_STATE_UNAVAILABLE` 专门处理（不登出、「服务暂时不可用，正在自动重试」提示 + 指数退避自动重试，恢复后无感续用，与 401 重登守卫区分；覆盖 umi 拦截器 / fetch 守卫 / 启动期 profile 三链路）；UX v5 P2 收口（AI 未配置统一 banner 落地新手入门/采集/AI 工作台、新手入门第 1 步按设置权限降级、`GET /healthz` 别名）；v11 P2 复核（生产写闸门补 `real_credentials_forbidden`/`unsupported_adapter_mode` 中文文案，告警取消标记租户隔离回归通过） |
 | 2026-08-04 | **R106 季度生产复检（部署/升级/语义抽查）**：从零 production+Caddy 部署（全新 VM）275 秒、HTTPS 登录累计 <7 分钟，launch-checklist 14 项验证全过；旧版本（R101/#214）→ 新版本升级演练通过（存量 collect_rules 归 tenant 0、task_alerts 按来源租户回填、租户 settings 归属正确、业务无回退、迁移幂等）；语义抽查通过（tenant0 写闸门、legacy token 拒绝、ORIGIN_NOT_ALLOWED、业务租户 /ops 403、备份 verify/download SHA-256 一致、恢复演练）。修复 P1：secure_session 下 `ValidateSessionAccess` 将数据库瞬断误报为 `AUTH_SESSION_REVOKED`（前端强制登出），改为 30s last-known-good 快照 + `AUTH_STATE_UNAVAILABLE` fail-closed（与 R103 legacy 路径同口径，补 Go 回归）；文档纠偏：恢复命令 `docker compose exec -T` stdin 损坏二进制流改 `docker exec -i`、`--pre-upgrade-check` 非 root 需 `BACKUP_DIR` 覆盖、env.md 补 fail-closed 语义 |
 | 2026-08-04 | **R103 安全 P2 收口（#216 后续）**：`ai_prompts` 读收紧为平台租户专属（矩阵 7 条 forbid/platformAdmin，前端 `/ai/prompts` 与 `/ops/备份/恢复/发布/容灾` 入 `PLATFORM_ADMIN_ROUTES`）；`EnsureAccountActive`/`EnsureTenantActive` 由 fail-open 改为 **30s last-known-good 缓存 + fail-closed**（新增 `AUTH_STATE_UNAVAILABLE`，补 Go 回归）；注册验证码 SMTP 反枚举与 #215 配置引导融合（未配置 SMTP 统一 503 引导、发送失败对未注册地址返回与成功一致的 200）；upgrade-guide 增补 R102 采集规则/profile `tenant_id` 回填指引 + 预检 SQL 与业务租户 `/ops/*` 替代口径；租户级 settings 生效缺口列为遗留 §7-60 |
 | 2026-08-04 | **UX 视觉复核 v4（R76 后三批新页面）**：物流（物流商/批量发货弹窗/打印拣货单）、迁移导入向导（上传→映射→校验→结果/历史）、多币种（汇率设置/报表折算）三视口全走查 + v3 闭环回归无回退；修复 P1×2：报表折算合计卡「含未折算币种」改「不含未折算币种」（与后端未折算不计入口径一致）、打印单「平台」接入 `platformLabel` 中文映射；记录 P1-3：demo 全量环境运营任务中心开箱 403（`operationtask` handler 拒绝 tenant 0 而 demo 落 tenant 0，需后端收口）；报告归档 `docs/ux-review/UX_REVIEW_V4_REPORT.md` |
@@ -1613,3 +1614,17 @@ Final Production Acceptance Deferred to P10
 - 存量迁移口径：image / taskcenter 组均无需数据迁移——租户未配置时回退/继承平台默认，tenant 0 demo 行为逐字节不变；越权口径沿用 #216（`PUT /settings` 一律写调用方租户、显式传别租户 403，`GET /settings` 仅返回本租户行）。
 - 收尾核对：全仓 `PlainByGroup(ctx, 0, ...)` 残留仅剩明确平台级组——storage、mail/email、system、platform_*（平台应用凭据与发布配置 schema 组）、库存同步平台限流、taskcenter 扫描 worker 运行键；清单入 PR 描述。
 - 测试：`tenantsettings` 单测（image 整组回退凭据判定含 ComfyUI、taskcenter 逐 key 合并/平台视图）。
+
+### 变更记录（2026-08-04）第 107 轮：R106 复检 P2 收口——前端 AUTH_STATE_UNAVAILABLE 专门处理 + UX v5 / v11 P2
+
+- **前端 `AUTH_STATE_UNAVAILABLE` 专门处理**（`admin/src/utils/authStateRetry.ts`）：后端 fail-closed 数据库瞬断（#224）返回 401 + `AUTH_STATE_UNAVAILABLE`，与会话失效（`AUTH_SESSION_REVOKED`/token 过期）语义不同。前端不清凭证、不弹重登、不跳登录页，提示「服务暂时不可用，正在自动重试…」（15s 去重）并按 1s/2s/4s/8s 指数退避自动重放，恢复后原样返回响应无感续用；重试中转为普通 401 立即交回重登守卫，耗尽仍不可用按普通失败提示（`errorMessages` 补 `AUTH_STATE_UNAVAILABLE` 中文映射）。覆盖三条链路：umi responseInterceptors（新分支先于 401 重登守卫）、`fetchWithSessionGuard`（CSV 导出/备份下载）、启动期 `getInitialState` profile（`fetchProfileWithTokenDetailed` 标记 `authStateUnavailable`，硬刷新遇瞬断不清凭证）。`errorConfig.errorHandler` 对该错误码直接 throw，绝不兜底跳登录页。单测 `authStateRetry.test.ts` 11 例。
+- **UX v5 P2 收口**：
+  - P2-2 AI 未配置统一提示：新增共享 `AiConfigBanner`（与新手入门同口径探测，仅设置管理权限账号探测避免 403 噪音），落地新手入门卡、采集中心（/collect/hub）、AI 商品运营工作台。
+  - P2-3 新手入门第 1 步权限：无 `settings.manage` 账号不再跳 `/settings/ai`（403 页），改为禁用态 +「需设置管理权限，请联系管理员完成 AI 配置」。
+  - P2-4 `/healthz` 别名：后端补 `GET /healthz`（与 `/health` 同 handler），docs/api.md 同步。
+  - P2-1 告警租户归属：#222/#223 已收口（`UpsertAlertForFailure` 按来源租户落桶），本轮复核无回退，不重复修改。
+  - P2-5 demo seed 采集规则/浏览器 profile 样例：不在本轮修——demoseed 扩表涉及清退零残留不变量与 collect_rules/browser_profiles 样例设计，属独立 seed 迭代，非前端 P2 最小 diff 范围。
+  - P2-6 v4 遗留清单（导入标题别名/部分成功分层/打印页桌面提示/承运商 URL tooltip 等）：R96 已收口（见第 96 轮变更记录），代码抽查在位（`migrationimport/fields.go` 别名、`PrintSheets.tsx` 小屏提示），维持不再重复修。
+- **大回归 v11 P2 复核**：
+  - 生产写闸门文案：`AutomaticPublishGuard`/`CredentialAbsenceGuard`/adapter 模式三道闸门的错误码中，`production_capability_forbidden` 已有中文文案，补齐 `real_credentials_forbidden`、`unsupported_adapter_mode` 中文映射（`constants/operationTasks.ts`），闸门触发时 UI 语义明确；seed 场景 tenant_id=0 重试被 worker 拒绝属 seed 局限（`order_sync_worker_tenant_missing` 仅日志，不产生真实外发），维持观察。
+  - 告警「取消标记」：`TestUnmarkAlertRouteIsTenantScoped` 回归通过（跨租户 unmark 404、本租户正常），无回退。
