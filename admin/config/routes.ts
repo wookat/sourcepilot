@@ -342,6 +342,21 @@ export default [
         component: './Orders/Reports',
       },
       {
+        path: '/orders/reports-profit',
+        name: '利润报表',
+        component: './Reports/Profit',
+      },
+      {
+        path: '/orders/reports-procurement',
+        name: '采购报表',
+        component: './Reports/Procurement',
+      },
+      {
+        path: '/orders/reports-inventory',
+        name: '库存报表',
+        component: './Reports/Inventory',
+      },
+      {
         path: '/orders/sync-tasks',
         name: '同步任务',
         component: './Orders/SyncTasks',

@@ -28,6 +28,9 @@ const ALLOWED_QUERY_KEYS = new Set([
   'includeResolved',
   'includeMarked',
   'timeRange',
+  // round110 — 深度报表
+  'dimension',
+  'slowDays',
   // H1.2 — orders / products / inventory / customer
   'payStatus',
   'skuStatus',
