@@ -1,4 +1,8 @@
 import {
+  isAuthStateUnavailableResponse,
+  retryFetchWhileAuthStateUnavailable,
+} from '@/utils/authStateRetry';
+import {
   AUTH_REFRESH_TOKEN_KEY,
   AUTH_SESSION_LEGACY,
   AUTH_SESSION_MODE_KEY,
@@ -197,6 +201,10 @@ export async function fetchWithSessionGuard(url: string, init: RequestInit = {})
   };
   const resp = await doFetch();
   if (resp.status !== 401 || isAuthUrl(url)) return resp;
+  if (await isAuthStateUnavailableResponse(resp)) {
+    // 数据库瞬断 fail-closed：会话未失效，退避重试而不走重登；耗尽仍不可用则原样返回由调用方按失败提示
+    return retryFetchWhileAuthStateUnavailable(doFetch, resp);
+  }
   let ok = await refreshAccessToken();
   if (!ok) ok = await requireRelogin();
   if (!ok) {

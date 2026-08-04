@@ -20,7 +20,8 @@ import { fetchProducts } from '@/services/products';
 import { fetchSettingsList } from '@/services/settings';
 import { fetchSuppliers } from '@/services/sourcing';
 import { usePermission } from '@/hooks/usePermission';
-import { pickGroup } from '@/utils/settingsForm';
+import AiConfigBanner from '@/components/AiConfigBanner';
+import { aiConfiguredFromSettings } from '@/utils/aiConfigStatus';
 import { appendSourceToUrl } from '@/utils/urlState';
 
 export const ONBOARDING_DISMISSED_KEY = 'tm_dashboard_onboarding_dismissed_v1';
@@ -123,9 +124,7 @@ async function detectDone(canReadSettings: boolean): Promise<Partial<Record<Step
 
   let settingsDone = false;
   if (settings.status === 'fulfilled') {
-    const ai = pickGroup(settings.value.items, 'ai');
-    const provider = (ai.provider || 'openai_compatible').trim();
-    settingsDone = Boolean((ai[`${provider}_api_key`] || ai.api_key || '').trim());
+    settingsDone = aiConfiguredFromSettings(settings.value.items);
   }
 
   return {
@@ -138,15 +137,30 @@ async function detectDone(canReadSettings: boolean): Promise<Partial<Record<Step
   };
 }
 
-function StepCard({ step, index, done }: { step: StepMeta; index: number; done: boolean }) {
+function StepCard({
+  step,
+  index,
+  done,
+  linkDisabled,
+}: {
+  step: StepMeta;
+  index: number;
+  done: boolean;
+  linkDisabled?: boolean;
+}) {
+  const go = () => {
+    if (linkDisabled) return;
+    history.push(appendSourceToUrl(step.link));
+  };
   return (
     <div
       role="button"
       tabIndex={0}
       aria-label={`第 ${index + 1} 步：${step.title}${done ? '（已完成）' : ''}`}
-      onClick={() => history.push(appendSourceToUrl(step.link))}
+      aria-disabled={linkDisabled || undefined}
+      onClick={go}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') history.push(appendSourceToUrl(step.link));
+        if (e.key === 'Enter' || e.key === ' ') go();
       }}
       style={{
         display: 'flex',
@@ -158,7 +172,7 @@ function StepCard({ step, index, done }: { step: StepMeta; index: number; done: 
         borderRadius: 10,
         border: `1px solid ${done ? '#b7eb8f' : 'var(--ant-color-border-secondary, #f0f0f0)'}`,
         background: done ? '#f6ffed' : '#fff',
-        cursor: 'pointer',
+        cursor: linkDisabled ? 'not-allowed' : 'pointer',
         transition: 'border-color 0.2s, box-shadow 0.2s',
       }}
       onMouseEnter={(e) => {
@@ -191,7 +205,7 @@ function StepCard({ step, index, done }: { step: StepMeta; index: number; done: 
           {index + 1}. {step.title}
         </Typography.Text>
         <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>
-          {done ? '已完成，点击可再次进入' : step.description}
+          {done ? '已完成，点击可再次进入' : linkDisabled ? '需设置管理权限，请联系管理员完成 AI 配置' : step.description}
         </Typography.Text>
       </div>
     </div>
@@ -252,6 +266,7 @@ export default function OnboardingGuide() {
         </div>
       }
     >
+      <AiConfigBanner />
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12, fontSize: 13 }}>
         按下面的顺序完成配置与首单流转，即可跑通「采集 → 草稿 / 货源 → 订单 → 采购 → 发货」业务闭环。
       </Typography.Paragraph>
@@ -263,7 +278,12 @@ export default function OnboardingGuide() {
       <Row gutter={[12, 12]}>
         {STEPS.map((step, index) => (
           <Col xs={24} sm={12} md={8} lg={8} xl={4} key={step.key}>
-            <StepCard step={step} index={index} done={Boolean(done[step.key])} />
+            <StepCard
+              step={step}
+              index={index}
+              done={Boolean(done[step.key])}
+              linkDisabled={step.key === 'settings' && !canManageSettings}
+            />
           </Col>
         ))}
       </Row>

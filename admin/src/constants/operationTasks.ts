@@ -111,6 +111,8 @@ export const OPERATION_ERROR_LABELS: Record<string, string> = {
   idempotency_payload_conflict: '该操作请求与之前提交内容不一致，请重新发起操作。',
   retry_limit_exceeded: '已达到最大重试限制。',
   production_capability_forbidden: '生产平台能力未启用，操作已被安全拦截。',
+  real_credentials_forbidden: '当前环境禁止使用真实平台凭证，操作已被安全拦截。',
+  unsupported_adapter_mode: '当前适配器模式不支持该操作，请检查平台执行配置。',
   draft_not_latest: '草稿已更新，请查看最新版本后重新审核。',
   draft_version_mismatch: '草稿版本不一致，请刷新后重试。',
   draft_hash_mismatch: '草稿内容校验不一致，请刷新后重试。',
