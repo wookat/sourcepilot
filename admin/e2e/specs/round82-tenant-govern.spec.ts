@@ -122,7 +122,7 @@ test.describe('@settings 平台租户治理（round82）', () => {
     { name: '非 tenant0 admin', role: 'admin', tenantId: 2 },
     { name: 'tenant0 operator', role: 'operator', tenantId: 0 },
   ]) {
-    test(`${persona.name} 不可见治理入口，直达 URL 显示 403`, async ({ page, admin }) => {
+    test(`${persona.name} 不可见治理入口，直达 URL 显示统一语义页`, async ({ page, admin }) => {
       await page.route('**/api/v1/auth/profile', async (route) => {
         await route.fulfill({
           status: 200,
@@ -131,7 +131,8 @@ test.describe('@settings 平台租户治理（round82）', () => {
         });
       });
       await admin.goto('/settings/platform-tenants');
-      await expect(page.getByText('仅平台管理员可管理平台租户')).toBeVisible();
+      await expect(page.getByText('无法访问该页面')).toBeVisible();
+      await expect(page.getByRole('button', { name: '返回工作台' })).toBeVisible();
       await expect(page.getByRole('button', { name: '改名' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '停用' })).toHaveCount(0);
     });

@@ -64,7 +64,7 @@ test.describe('@settings 平台租户页（round81）', () => {
     { name: 'tenant0 operator', role: 'operator', tenantId: 0 },
     { name: 'tenant0 readonly', role: 'readonly', tenantId: 0 },
   ]) {
-    test(`${persona.name} 不可见平台租户菜单，直达 URL 显示 403`, async ({ page, admin }) => {
+    test(`${persona.name} 不可见平台租户菜单，直达 URL 显示统一语义页`, async ({ page, admin }) => {
       await page.route('**/api/v1/auth/profile', async (route) => {
         await route.fulfill({
           status: 200,
@@ -73,7 +73,8 @@ test.describe('@settings 平台租户页（round81）', () => {
         });
       });
       await admin.goto('/settings/platform-tenants');
-      await expect(page.getByText('仅平台管理员可管理平台租户')).toBeVisible();
+      await expect(page.getByText('无法访问该页面')).toBeVisible();
+      await expect(page.getByRole('button', { name: '返回工作台' })).toBeVisible();
       await expect(page.getByRole('button', { name: '新建租户' })).toHaveCount(0);
       await expect(page.getByRole('menuitem', { name: '平台租户' })).toHaveCount(0);
     });
