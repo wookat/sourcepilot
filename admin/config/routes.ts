@@ -567,6 +567,11 @@ export default [
         component: './Settings/Carriers',
       },
       {
+        path: '/settings/banned-words',
+        name: '违禁词库',
+        component: './Settings/BannedWords',
+      },
+      {
         path: '/settings/pricing',
         name: '商品定价',
         component: './Settings/Pricing',

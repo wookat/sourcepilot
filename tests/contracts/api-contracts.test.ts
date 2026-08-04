@@ -28,6 +28,14 @@ describe('TradeMind API contract registry', () => {
         'POST /api/v1/carriers',
         'PUT /api/v1/carriers/:id',
         'DELETE /api/v1/carriers/:id',
+        'GET /api/v1/banned-words',
+        'POST /api/v1/banned-words',
+        'PUT /api/v1/banned-words/:id',
+        'DELETE /api/v1/banned-words/:id',
+        'GET /api/v1/banned-words/categories',
+        'PUT /api/v1/banned-words/categories/:category',
+        'GET /api/v1/products/:id/banned-words/check',
+        'POST /api/v1/products/banned-words/check-batch',
         'POST /api/v1/orders/shipments/batch',
         'GET /api/v1/orders/print/sheets',
         'POST /api/v1/orders/:id/shipments/:shipmentId/refresh-tracking',
@@ -58,6 +66,20 @@ describe('TradeMind API contract registry', () => {
     expect(listCarriers?.query).toEqual(['enabled', 'keyword']);
     expect(batchShipments?.requestBody).toEqual(['items', 'defaultCarrierCode']);
     expect(printSheets?.query).toEqual(['ids']);
+  });
+
+  it('defines payload/query contracts for banned word compliance APIs', () => {
+    const listWords = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/banned-words');
+    const createWord = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/banned-words');
+    const updateWord = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/banned-words/:id');
+    const toggleCategory = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/banned-words/categories/:category');
+    const batchCheck = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/products/banned-words/check-batch');
+
+    expect(listWords?.query).toEqual(['category', 'level', 'keyword', 'enabled']);
+    expect(createWord?.requestBody).toEqual(['word', 'category', 'level', 'suggestion']);
+    expect(updateWord?.requestBody).toEqual(['enabled', 'level', 'category', 'suggestion']);
+    expect(toggleCategory?.requestBody).toEqual(['enabled']);
+    expect(batchCheck?.requestBody).toEqual(['productIds']);
   });
 
   it('defines payload/query contracts for state-changing publish APIs', () => {
@@ -97,7 +119,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(27);
+    expect(contracts.endpoints).toHaveLength(35);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

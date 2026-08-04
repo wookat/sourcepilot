@@ -3,6 +3,7 @@ import { ok } from '../mocks/envelope';
 import { e2eUser, E2E_TOKEN } from '../mocks/auth';
 import { productsResponse } from '../mocks/products';
 import { readinessResponse } from '../mocks/readiness';
+import { bannedWordsResponse } from '../mocks/banned-words';
 import { publishResponse, skuBindingsResponse } from '../mocks/publish';
 import { inventoryResponse } from '../mocks/inventory';
 import { imageProviderCapabilities } from '../mocks/image-providers';
@@ -37,6 +38,7 @@ export async function routeAdminApi(page: Page) {
       (path === '/api/v1/image/providers' ? ok(imageProviderCapabilities) : null) ??
       productsResponse(path) ??
       readinessResponse(path) ??
+      bannedWordsResponse(path) ??
       publishResponse(path) ??
       inventoryResponse(path) ??
       operationLogsResponse(path, url.searchParams) ??

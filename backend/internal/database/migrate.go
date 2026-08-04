@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
+	"github.com/trademind-ai/trademind/backend/internal/modules/bannedwords"
 	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
@@ -167,6 +168,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&productpublish.ProductPublication{},
 		&productpublish.ProductPublicationSKU{},
 		&carrier.Carrier{},
+		&bannedwords.BannedWord{},
+		&bannedwords.BannedWordCategoryState{},
 		&migrationimport.ImportJob{},
 		&migrationimport.ImportJobRow{},
 		&order.Order{},
