@@ -1541,6 +1541,11 @@ Final Production Acceptance Deferred to P10
 - ProTable `render` 统一口径修复：批量发货 / 订单导入 / 采购批量回填 / 迁移向导 / 安全设置 / 运营任务中心等多处 `render` 参数误用（dom 与 entity 混用）修正，展示值与实体字段一致。
 - antd dev 警告清零：ProTable 缺失/不稳定 `rowKey`、`Spin` 嵌套用法整治；E2E `round98-p2.spec.ts` + `PlatformTag` 单测回归。
 
+### 变更记录（2026-08-04）第 101 轮：R100 回归 P2×2 收口（订单异常徽标口径 + 采购承运商口径）
+
+- **P2-1 订单列表「异常」徽标口径对齐**：徽标计数原为原始聚合（未匹配+歧义+扣减失败），不感知 `order_exception_marks`，已处理/已忽略后仍显示 >0，点进异常工作台却为空。`countOpenExceptionRows` 改为镜像工作台默认打开行口径（sku_unmatched 仅非手工平台、含 skipped/缺 SKU，sku_ambiguous，扣减失败逐条计数，排除 handled/ignored 标记）；首页待办计数走 `ListOrderExceptions` 本就感知标记，无需改动。回归 `list_open_exception_test.go`。
+- **P2-2 采购回填承运商**：当前 main 上单笔/批量/UI 回填「中通」均正常落库与展示（未复现丢失）；根因面为采购侧承运商为自由文本、与发货侧物流商档案口径不一致。采购详情回填弹窗改用共享 `CarrierSelect`（启用中的物流商档案，与发货侧同口径），并修复 `FillLogistics` 未落 `tenant_id` 的隐患；回归 `TestFillLogisticsPersistsCarrierAndTenant`。
+
 ### 变更记录（2026-08-04）第 100 轮：R99 季度复查 P2 收口 + 文档一致性巡检
 
 - **R91–R99 里程碑索引**：R91 物流闭环 → R92 迁移导入 → R93 报表多币种折算 → R94 第二平台预研 + 毛利汇率口径统一 → R95 安全审计复跑 + 迁移预检/升级 SOP → R96 tenant0 运营任务口径 + UX v4 P2 → R97 汇率租户隔离 → R98 前端展示口径/警告清零 → R99 打印路由别名 + 升级演练 P2。各轮明细见上方对应变更记录。
