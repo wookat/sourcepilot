@@ -93,6 +93,8 @@ Douyin Shop Phase 8 adds order sync MVP via existing order sync orchestration (`
 - Lazada
 - Amazon
 
+第二平台（TikTok Shop / Shopee）开放平台商品发布 API 调研（鉴权、必填字段、类目/属性、图片上传、限频、开发者账号申请步骤）见 [`platform-integration.md`](platform-integration.md)。
+
 当前真实平台接入顺序优先跑通抖店，不要把抖店与 TikTok Shop 混用：抖店统一内部标识为 `douyin_shop`，TikTok Shop 仍代表跨境平台。已完成 Phase 1–10.4（Release Candidate）：平台配置、OAuth、Client/签名、类目属性、字段映射、图片上传、平台商品草稿创建、订单同步 MVP、库存同步 MVP、SKU 绑定校准与手动兜底、生产预检/运行状态、可观测性与 E2E 脚本/CI。**真实 E2E 仍为 `blocked_by_real_credentials`**。下一阶段：有凭证环境全链路验收与灰度观察。
 
 主要能力：
