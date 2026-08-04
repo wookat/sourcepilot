@@ -85,9 +85,12 @@ Douyin Shop Phase 8 adds order sync MVP via existing order sync orchestration (`
 
 **Phase 10.4 (Release Candidate observability)** does **not** add Prometheus. Production monitoring reuses `GET /health` queue blocks, task center failures/alerts (`sub:douyin_*`), operation logs, product operations dashboard, and Douyin runtime APIs: `GET /api/v1/platform/douyin/health`, `GET .../metrics-summary` (in-process 24h counters), `GET .../release-gate`, `POST .../run-health-check`, plus `production-preflight` / `runtime-status`. E2E scripts: `scripts/douyin-e2e-*` (exit `3` + `blocked_by_real_credentials` without credentials; write requires `ALLOW_DOUYIN_WRITE_TEST=true`). CI job `backend-race` in `.github/workflows/go.yml`. See [`DOUYIN_RELEASE_GATE.md`](DOUYIN_RELEASE_GATE.md).
 
+Goofish (`goofish`，闲鱼) is a beta publish provider under `backend/internal/providers/platform/goofish`. 闲鱼没有面向个人卖家的官方开放 API，因此发布通过自托管的「发布桥接服务」完成：桥接服务持有已登录的闲鱼浏览器会话并执行浏览器自动化发布与商品 ID 回填，本 Provider 只通过 HTTP 调用桥接服务（`GET /health` 登录态检查、`POST /publish` 发布）。店铺授权字段为 Bridge 服务地址 + Bearer Token（敏感，加密存储）。能力：`product_publish`、`shop_info`。发布为串行互斥、受平台风控约束不并发；桥接服务不在本仓库内维护。
+
 当前重点平台：
 
 - Douyin Shop（抖店，真实平台闭环优先）
+- Goofish（闲鱼，浏览器自动化桥接，首个已验证真实发布通道）
 - TikTok Shop
 - Shopee
 - Lazada

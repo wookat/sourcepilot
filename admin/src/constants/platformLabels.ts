@@ -6,6 +6,7 @@ export const PLATFORM_DISPLAY_LABEL: Record<string, string> = {
   shopee: 'Shopee',
   lazada: 'Lazada',
   amazon: 'Amazon',
+  goofish: '闲鱼',
   mock: '模拟',
   manual: '手动',
   migration: '迁移导入',
