@@ -9,7 +9,8 @@
 ```bash
 cd trademind
 
-# 一键方式：备份 + 预检一步完成（备份目录默认 /var/backups，可用 BACKUP_DIR=... 覆盖）
+# 一键方式：备份 + 预检一步完成
+# 备份目录默认 /var/backups；非 root 账号该目录通常不可创建，需显式 BACKUP_DIR=<可写目录> 运行
 ./scripts/deploy-prod.sh --pre-upgrade-check
 
 # 或手动逐步执行：
@@ -125,7 +126,7 @@ R102 起 `/api/v1/ops/*` 中的备份 / 恢复 / 发布 / 容灾接口收紧为�
 ## 四、回滚路径与已知陷阱
 
 - 常规回滚（迁移未改数据）：`git checkout <旧 commit>` + 重新部署即可，数据卷不动。
-- 迁移已改数据：`stop backend` → `pg_restore --clean --if-exists < 升级前备份` → 部署旧版本。
+- 迁移已改数据：`stop backend` → `pg_restore --clean --if-exists < 升级前备份` → 部署旧版本（恢复时用 `docker exec -i <postgres 容器>` 传 stdin；`docker compose exec -T ... < 文件` 在部分 Compose 版本会损坏二进制流，pg_restore 报 did not find magic string）。
 - **陷阱 1（跨租户订单号 + 回滚到 R95 之前）**：新版本上线后各租户可以使用相同订单号；一旦产生跨租户重复，再回滚到 R95 之前的版本会因旧版本启动时重建全局唯一索引 `idx_orders_order_no` 而无法启动。回滚前先查：
 
   ```sql
@@ -140,3 +141,4 @@ R102 起 `/api/v1/ops/*` 中的备份 / 恢复 / 发布 / 容灾接口收紧为�
 ## 五、演练记录
 
 - 2026-08-04：旧版本（#204）→ 新版本（含 #206/#208）全流程演练通过：存量多租户/订单/运单/导入任务/汇率配置迁移无损，报表数值逐字段一致；同租户重复订单号中断、备份恢复、清理重跑均按本 SOP 复现并收口。演练发现的迁移预检（round95 preflight）已随同批修复合入。
+- 2026-08-04（R106）：旧版本（R101，#214，settings 租户化/collect_rules 租户列之前）→ 新版本（main + #221/#222）全流程演练通过：`--pre-upgrade-check`（备份+预检 SQL 0 行）→ 升级 → 验证：存量 collect_rules 全部归 tenant 0（含业务租户创建的，需人工回填，回填后租户可见）；存量 task_alerts 按来源任务租户回填正确（孤儿来源保留 tenant 0）；租户 settings 写入落自身租户、平台配置仍归 tenant 0；订单/业务数据无回退；迁移重启幂等。

@@ -107,7 +107,9 @@ crontab 示例（每日 03:00，保留 7 天）：
 
 ```bash
 docker compose -f docker-compose.prod.yml stop backend
-docker compose -f docker-compose.prod.yml exec -T postgres \
+# 注意：`docker compose exec -T ... < 文件` 的 stdin 重定向在部分 Compose 版本（实测 2.32）
+# 会损坏二进制流（pg_restore 报 did not find magic string），恢复请用 `docker exec -i` 直连容器：
+docker exec -i "$(docker compose -f docker-compose.prod.yml ps -q postgres)" \
   pg_restore -U trademind -d trademind --clean --if-exists < /var/backups/trademind-<日期>.dump
 docker compose -f docker-compose.prod.yml start backend
 ```
