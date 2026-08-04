@@ -30,6 +30,18 @@ func openMiddlewareTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(&admin.AdminUser{}); err != nil {
 		t.Fatal(err)
 	}
+	// Trusted tenant-state lookups fail closed when the table is missing.
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS tenants (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'active',
+		created_by TEXT,
+		created_at DATETIME,
+		updated_at DATETIME,
+		deleted_at DATETIME
+	)`).Error; err != nil {
+		t.Fatal(err)
+	}
 	return db
 }
 

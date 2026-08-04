@@ -36,6 +36,7 @@ docker compose -f docker-compose.prod.yml exec -T postgres \
 | --- | --- | --- |
 | R95（PR #206） | `orders.order_no` 全局唯一 → 租户内唯一（`idx_orders_tenant_order_no`，随后 drop `idx_orders_order_no`） | 同租户存量重复订单号会中断迁移（预检 SQL 见上）；跨租户重复不受影响 |
 | R97（PR #208） | tenant 0 的 `report_currency` 汇率配置复制到所有尚未自行配置的存量租户 | 无中断风险；幂等，可重复执行 |
+| R102/R103（PR #216 及后续） | `collect_rules`、`collect_browser_profiles` 新增 `tenant_id` 列（默认 0，索引） | 无中断风险；但**存量行全部落在 tenant 0（平台租户）**，业务租户升级后将看不到自己此前创建的采集规则 / 浏览器 profile，需按下方「R102 采集规则租户归属回填」处理 |
 
 ## 二、升级步骤
 
@@ -62,6 +63,40 @@ docker compose -f docker-compose.prod.yml exec -T postgres psql -U trademind -d 
 # 4. 业务口径抽查：升级前后各拉一次报表/统计（GET /api/v1/orders/stats/sales 等），
 #    金额、订单数、折算基准应逐字段一致。
 ```
+
+### R102 采集规则租户归属回填（升级到含 PR #216 的版本后）
+
+R102 起 `collect_rules`、`collect_browser_profiles` 按租户隔离，存量行迁移后默认归属 tenant 0（平台租户），业务租户在页面上将看不到自己升级前创建的规则 / profile。升级后按需回填：
+
+```bash
+# 预检：确认有多少存量行落在 tenant 0，以及部署内有哪些业务租户
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  psql -U trademind -d trademind \
+  -c "SELECT 'collect_rules' AS tbl, tenant_id, COUNT(*) FROM collect_rules GROUP BY tenant_id
+      UNION ALL
+      SELECT 'collect_browser_profiles', tenant_id, COUNT(*) FROM collect_browser_profiles GROUP BY tenant_id;" \
+  -c "SELECT id, name, status FROM tenants WHERE deleted_at IS NULL ORDER BY id;"
+```
+
+- **单业务租户部署**（tenant 0 仅作平台桶、日常采集都在同一个业务租户）：整体回填到该租户，例如租户 id 为 1：
+
+  ```sql
+  UPDATE collect_rules SET tenant_id = 1 WHERE tenant_id = 0;
+  UPDATE collect_browser_profiles SET tenant_id = 1 WHERE tenant_id = 0;
+  ```
+
+- **多业务租户部署**：无法从数据本身推断归属，需按创建人 / 业务线逐条确认后分配（`UPDATE ... SET tenant_id = <目标租户> WHERE id IN (...)`）；确认前保留在 tenant 0 只影响业务租户的可见性，不影响平台租户使用，也不会跨租户泄露。
+- 平台自用的规则 / profile 保留 `tenant_id = 0` 即可。
+- 回填幂等、可分批执行；执行前建议按「一、升级前」做好备份。
+
+### 业务租户 `/ops/*` 关闭后的替代口径（R102）
+
+R102 起 `/api/v1/ops/*` 中的备份 / 恢复 / 发布 / 容灾接口收紧为平台租户（tenant 0 admin）专属：这些操作作用于**整个部署**（如全库备份可导出所有租户数据），不适合暴露给单个业务租户。替代口径：
+
+- **备份 / 恢复**：由平台管理员按本 SOP 统一执行部署级备份；业务租户如需自己数据的导出，走各业务列表的导出能力或由平台管理员代为提取，暂不提供租户级自助备份。
+- **发布 / 容灾演练**：仅平台管理员操作，业务租户无需感知。
+- 业务租户仍可使用的运维页：后台任务监控、任务中心、可观测性、平台运行状态（均按租户隔离数据）。
+- R103 起业务租户 admin 的侧边栏不再展示备份 / 恢复 / 发布 / 容灾入口；直接访问对应 `/ops/*` API 返回 403。
 
 ## 三、迁移中断处置（以同租户重复订单号为例）
 

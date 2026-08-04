@@ -37,13 +37,15 @@ func TestPlatformOnlyOpsRoutesRejectTenantAdmin(t *testing.T) {
 	}
 }
 
-// The shared prompt catalog has no tenant column, so writes are platform only
-// while reads stay available to every tenant.
+// The shared prompt catalog has no tenant column and may carry
+// platform-customized prompt content, so reads and writes are both platform
+// only (round103); tenant AI features consume it server-side.
 func TestAIPromptWritesArePlatformOnly(t *testing.T) {
 	h := sharedHarness(t)
 	admin := h.Personas[personaAdmin].Token
 
-	require.Equal(t, http.StatusOK, h.do(t, http.MethodGet, "/api/v1/ai/prompts", admin).Code)
+	require.Equal(t, http.StatusForbidden, h.do(t, http.MethodGet, "/api/v1/ai/prompts", admin).Code)
+	require.Equal(t, http.StatusOK, h.do(t, http.MethodGet, "/api/v1/ai/prompts", h.Personas[personaPlatformAdmin].Token).Code)
 
 	body := `{"code":"perm-matrix-probe","name":"probe","scene":"title","systemPrompt":"s","userPrompt":"u"}`
 	w := h.doBody(t, http.MethodPost, "/api/v1/ai/prompts", admin, body)

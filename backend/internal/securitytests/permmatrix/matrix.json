@@ -418,11 +418,13 @@
     "method": "GET",
     "path": "/api/v1/ai/prompts",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
-    }
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
+    },
+    "note": "round103: ai_prompts 读也收紧为平台租户专属（目录含平台自定义提示词内容）"
   },
   {
     "method": "POST",
@@ -450,11 +452,13 @@
     "method": "GET",
     "path": "/api/v1/ai/prompts/:id",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
-    }
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
+    },
+    "note": "round103: ai_prompts 读也收紧为平台租户专属（目录含平台自定义提示词内容）"
   },
   {
     "method": "PUT",
@@ -539,6 +543,11 @@
   {
     "method": "POST",
     "path": "/api/v1/auth/refresh",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/auth/register-config",
     "public": true
   },
   {
