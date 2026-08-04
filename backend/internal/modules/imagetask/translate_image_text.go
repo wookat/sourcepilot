@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -595,7 +596,7 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		return err
 	}
 
-	m, _ := s.Settings.PlainByGroup(ctx, 0, "image")
+	m, _ := tenantsettings.ImagePlain(ctx, s.Settings)
 	defaultEraseMode := strings.TrimSpace(m["erase_mode"])
 	renderOpts := parseTranslateRenderOptions(hints, defaultEraseMode)
 	sourceLang, targetLang := resolveTranslateLanguages(hints)

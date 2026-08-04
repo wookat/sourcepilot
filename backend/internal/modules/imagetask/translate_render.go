@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/imagerender"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 )
 
@@ -235,7 +236,7 @@ func (s *Service) executeTranslateAIEdit(
 	if persistErr != nil {
 		return newTranslateErr(errCodeStorageUploadFailed, "翻译结果上传失败："+persistErr.Error())
 	}
-	m, _ := s.Settings.PlainByGroup(ctx, 0, "image")
+	m, _ := tenantsettings.ImagePlain(ctx, s.Settings)
 	defaultEraseMode := strings.TrimSpace(m["erase_mode"])
 	renderOpts := parseTranslateRenderOptions(hints, defaultEraseMode)
 	renderOpts.RenderMode = RenderModeAIEdit

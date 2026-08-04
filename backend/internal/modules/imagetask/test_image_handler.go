@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 	"github.com/trademind-ai/trademind/backend/internal/providers/ocr"
 	"github.com/trademind-ai/trademind/backend/internal/providers/ocr/ocrerror"
@@ -59,7 +60,7 @@ func (h *Handler) TestImage(c *gin.Context) {
 	}
 	var body testImageBody
 	_ = c.ShouldBindJSON(&body)
-	m, err := h.Svc.Settings.PlainByGroup(c.Request.Context(), 0, "image")
+	m, err := tenantsettings.ImagePlain(c.Request.Context(), h.Svc.Settings)
 	if err != nil {
 		response.Fail(c, 500, response.CodeInternalError, err.Error())
 		return
@@ -100,7 +101,7 @@ func (h *Handler) TestOCR(c *gin.Context) {
 	}
 	var body testOCRBody
 	_ = c.ShouldBindJSON(&body)
-	m, err := h.Svc.Settings.PlainByGroup(c.Request.Context(), 0, "image")
+	m, err := tenantsettings.ImagePlain(c.Request.Context(), h.Svc.Settings)
 	if err != nil {
 		response.Fail(c, 500, response.CodeInternalError, err.Error())
 		return

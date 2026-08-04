@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	"github.com/trademind-ai/trademind/backend/internal/providers/ocr"
 	"github.com/trademind-ai/trademind/backend/internal/providers/ocr/ocrerror"
@@ -274,7 +275,7 @@ func (s *Service) runOCROnImage(ctx context.Context, imageURL, sourceLang, targe
 		return nil, newTranslateErr(errCodeOCRFailed, "服务配置异常，无法读取设置")
 	}
 
-	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	m, err := tenantsettings.ImagePlain(ctx, s.Settings)
 	if err != nil {
 		return nil, newTranslateErr(errCodeOCRFailed, "无法读取图片配置，请检查系统设置")
 	}

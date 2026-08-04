@@ -187,3 +187,94 @@ func TestAlertNotifyPlainWholeGroup(t *testing.T) {
 		t.Fatalf("tenant 0 must read platform group, got %q", m0["mail_to"])
 	}
 }
+
+func TestImagePlainFallsBackWholeGroupWithoutOwnCredential(t *testing.T) {
+	r := &fakeReader{byTenant: map[int64]map[string]map[string]string{
+		0: {"image": {"provider": "removebg", "removebg_api_key": "platform-key", "timeout_sec": "120"}},
+		2: {"image": {"timeout_sec": "30"}}, // knobs without own credential must NOT be mixed in
+	}}
+	m, err := ImagePlain(tenantCtx(2), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["removebg_api_key"] != "platform-key" || m["timeout_sec"] != "120" {
+		t.Fatalf("expected whole platform group, got %v", m)
+	}
+}
+
+func TestImagePlainUsesTenantGroupWithOwnAPIKey(t *testing.T) {
+	r := &fakeReader{byTenant: map[int64]map[string]map[string]string{
+		0: {"image": {"provider": "removebg", "removebg_api_key": "platform-key"}},
+		2: {"image": {"provider": "dashscope_image", "dashscope_image_api_key": "tenant-key"}},
+	}}
+	m, err := ImagePlain(tenantCtx(2), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["dashscope_image_api_key"] != "tenant-key" || m["provider"] != "dashscope_image" {
+		t.Fatalf("expected tenant group, got %v", m)
+	}
+	if m["removebg_api_key"] != "" {
+		t.Fatalf("platform credentials must not leak into tenant group: %v", m)
+	}
+}
+
+func TestImagePlainTreatsComfyUIBaseURLAsCredential(t *testing.T) {
+	r := &fakeReader{byTenant: map[int64]map[string]map[string]string{
+		0: {"image": {"provider": "removebg", "removebg_api_key": "platform-key"}},
+		2: {"image": {"provider": "comfyui", "comfyui_base_url": "http://tenant-comfy:8188"}},
+	}}
+	m, err := ImagePlain(tenantCtx(2), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["comfyui_base_url"] != "http://tenant-comfy:8188" || m["removebg_api_key"] != "" {
+		t.Fatalf("expected tenant comfyui group without platform key, got %v", m)
+	}
+}
+
+func TestImagePlainPlatformTenantReadsOwnGroup(t *testing.T) {
+	r := &fakeReader{byTenant: map[int64]map[string]map[string]string{
+		0: {"image": {"removebg_api_key": "platform-key"}},
+	}}
+	for _, ctx := range []context.Context{context.Background(), tenantCtx(0)} {
+		m, err := ImagePlain(ctx, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m["removebg_api_key"] != "platform-key" {
+			t.Fatalf("expected platform group, got %v", m)
+		}
+	}
+}
+
+func TestTaskCenterPlainForTenantMergesPerKey(t *testing.T) {
+	r := &fakeReader{byTenant: map[int64]map[string]map[string]string{
+		0: {"taskcenter": {"enable_task_alerts": "true", "alert_min_severity": "high", "notification_channels": `["mail"]`}},
+		2: {"taskcenter": {"alert_min_severity": "medium", "enable_external_notifications": "true"}},
+	}}
+	m, err := TaskCenterPlainForTenant(context.Background(), r, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["enable_task_alerts"] != "true" || m["notification_channels"] != `["mail"]` {
+		t.Fatalf("expected inherited platform defaults, got %v", m)
+	}
+	if m["alert_min_severity"] != "medium" || m["enable_external_notifications"] != "true" {
+		t.Fatalf("expected tenant overrides, got %v", m)
+	}
+}
+
+func TestTaskCenterPlainForTenantPlatformView(t *testing.T) {
+	r := &fakeReader{byTenant: map[int64]map[string]map[string]string{
+		0: {"taskcenter": {"enable_task_alerts": "true"}},
+		2: {"taskcenter": {"enable_task_alerts": "false"}},
+	}}
+	m, err := TaskCenterPlainForTenant(context.Background(), r, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["enable_task_alerts"] != "true" {
+		t.Fatalf("tenant overrides must not affect platform view, got %v", m)
+	}
+}

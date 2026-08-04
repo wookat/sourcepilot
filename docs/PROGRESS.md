@@ -1594,13 +1594,6 @@ Final Production Acceptance Deferred to P10
 - 测试：`tenantsettings` 单测（回退矩阵/合并/错误传播）、settings 双租户隔离+加密 DB 测试、AI Gateway 租户整组原子性测试、JWT 请求上下文注入回归测试。
 - 剩余组清单与归类见 §7 遗留 60 条目（image/inventory/pricing 残留/告警通知/sourcing 待租户化；storage/mail/system/platform_* 保留平台级）。
 
-### 变更记录（2026-08-04）UX v5 全站走查 P1 修复：全局库存/告警跨租户泄露收口 + 无权限设置读 403 噪音清零
-
-- **P1 跨租户数据泄露收口（后端）**：`GET /inventory/logs`、`GET /inventory/effects` 此前无租户过滤，新注册业务租户可看到 tenant 0 演示数据的库存流水（实测泄露）。现在流水按 `tenant_id` 限定、effects 经 `orders.tenant_id` 子查询限定；`GET /task-center/alerts` 同步按 `tenant_id` 过滤，告警 handle / ignore / unmark / notify 单条操作改为租户内查找（跨租户 404），杜绝按 ID 越权操作。回归测试：`inventory/global_feeds_tenant_scope_test.go`、`taskcenter/alerts_tenant_scope_test.go`。
-- **P1 无权限设置读取 403 噪音清零（前端）**：operator / readonly 打开工作台、订单列表、选品任务、任务中心告警页时不再调用 `GET /settings`、`GET /settings/integrations/overview`（无 `settings.manage` 时跳过，页面正常降级），浏览器控制台不再出现 403 报错；`/settings/report-currency` 登记进 `ROUTE_PERMISSIONS`（需 `settings.manage`），operator / readonly 菜单不再出现该死路入口。
-- **P1 采购单空态缺下一步指引**：`/procurement/orders` 空态此前仅"暂无数据"，与其他模块空态指引不一致；接入统一 `useListEmptyLocale`（新增 `purchaseOrders` 文案：先在订单列表标记已付款再一键生成采购单，含权限提示与"前往订单列表"按钮）。
-- 已知后续观察项（P2）：告警扫描（`ScanAndGenerateTaskAlerts`）目前以平台视角运行、告警行 `tenant_id` 恒为 0，业务租户暂看不到自身任务失败聚合出的告警（失败明细在任务中心仍可见）；如需业务租户级告警需在 Upsert 链路补租户来源。
-
 ### 变更记录（2026-08-04）第 105 轮：settings 租户化第二批——inventory/pricing/sourcing/alert_notify + 告警租户来源闭环（R104 续、#221 P2-1 收口）
 
 - **inventory / pricing / sourcing 逐 key 合并租户化**：`tenantsettings` 新增 `InventoryPlain` / `PricingPlain` / `SourcingPlain`（行为参数组，租户覆盖单项、空值继承平台默认，口径同 collector）。替换读点：inventory 组 8 处（订单扣减策略、库存告警策略、批量任务上限、SKU 默认预警/安全库存 ×3、订单 SKU 匹配、configstatus 库存项）、pricing 组 4 处（定价规则/批量上限、productcheck 保护线、douyin 映射）、sourcing 组 1 处（换源规则）。**保留平台级**：库存同步平台限流（`inventory_sync_platform_rate_limit_*`，Redis 按平台节流保护共享平台 API 配额，租户不得覆盖，代码内注明）。
@@ -1610,3 +1603,12 @@ Final Production Acceptance Deferred to P10
 - 存量迁移口径：settings 组本身无需数据迁移（未配置回退平台默认，tenant 0 demo 行为逐字节不变）；告警数据迁移见上。
 - 测试：`tenantsettings` 合并/整组回退单测、taskcenter `alert_tenant_source_test.go`（Upsert 落租户+自愈、通知审计租户隔离）、PG 集成 `alert_tenant_backfill_test.go`（回填/孤儿/幂等）。
 - 剩余待租户化（下一批）：`image` 组（26 处）、`taskcenter` 组（告警扫描/通知触发策略，扫描 worker 仍平台视角运行）、Storage/Email/System 设置页 `tenantId: 0` 硬编码（对应组保留平台级，暂不动）。
+
+### 变更记录（2026-08-04）第 106 轮：settings 租户化第三批收尾——image 整组回退 + 告警扫描/通知触发策略租户化
+
+- **image 整组回退租户化**：`tenantsettings.ImagePlain`——image 组混存多家图片 Provider 凭据（`*_api_key`）与其配套参数（base_url/model/size/workflow/超时），逐 key 合并会让租户参数跑平台 Key（或反之），故与 ai 组同口径整组回退：租户配置任一自有凭据（任一 `*_api_key`，或无 Key Provider ComfyUI 的 `comfyui_base_url`）则整组以租户配置为准；未配置则整组回退平台（tenant 0）默认。替换读点 26 处：providers/image factory ×6、imagetask ×10（含 test-image、翻译渲染/视觉链路）、aiproductimage ×5、aioperationbatch ×1、configstatus ×3、settings integration-overview ×1。
+- **告警扫描/通知触发策略（taskcenter 组）逐 key 合并租户化**：`TaskCenterPlainForTenant`（行为策略组：告警生成开关/最低等级/分类开关/重复失败阈值、外发通知开关/等级/渠道/触发条件，租户覆盖单项、空值继承平台默认）。`UpsertAlertForFailure` 先解析来源租户再按该租户策略判定是否生成告警；`NotifyGeneratedAlerts` 按告警行归属租户逐租户解析 taskcenter 触发策略与 alert_notify 通知配置（均带批内缓存）。扫描 worker（`ScanAndGenerateTaskAlerts`）继续全局扫描（平台视角），告警按来源租户落桶，租户在告警列表看到自身聚合告警，tenant 0 视图为平台桶。**保留平台级**：扫描 worker 运行键 `enable_alert_scan_worker` / `alert_scan_interval_seconds`（单进程 worker 基础设施，仅平台管理员可配）。
+- **前端对齐**：系统设置页（system + taskcenter）站点信息与「后台定时扫描」仅平台管理员可见可存；业务租户 admin 保存告警策略落自己租户（页面此前已省略 `tenantId`）。
+- 存量迁移口径：image / taskcenter 组均无需数据迁移——租户未配置时回退/继承平台默认，tenant 0 demo 行为逐字节不变；越权口径沿用 #216（`PUT /settings` 一律写调用方租户、显式传别租户 403，`GET /settings` 仅返回本租户行）。
+- 收尾核对：全仓 `PlainByGroup(ctx, 0, ...)` 残留仅剩明确平台级组——storage、mail/email、system、platform_*（平台应用凭据与发布配置 schema 组）、库存同步平台限流、taskcenter 扫描 worker 运行键；清单入 PR 描述。
+- 测试：`tenantsettings` 单测（image 整组回退凭据判定含 ComfyUI、taskcenter 逐 key 合并/平台视图）。

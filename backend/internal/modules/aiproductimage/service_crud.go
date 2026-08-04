@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 func (s *Service) GetBatchByID(ctx context.Context, id uuid.UUID) (*AIProductImageBatch, error) {
@@ -178,7 +179,7 @@ func (s *Service) GetBatchDetail(ctx context.Context, id uuid.UUID, statusFilter
 
 	provReady := ProviderReadiness{Status: "unknown", StatusLabel: "未知"}
 	if s.Settings != nil {
-		if img, err := s.Settings.PlainByGroup(ctx, 0, "image"); err == nil {
+		if img, err := tenantsettings.ImagePlain(ctx, s.Settings); err == nil {
 			provReady = EvaluateProviderReadiness(s.configuredImageProvider(ctx), img)
 		}
 	}

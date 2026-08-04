@@ -192,3 +192,9 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 告警行 `tenant_id` 自 round105 起由来源任务行归属租户写入（`resolveSourceTenant`），历史 tenant-0 行由 `migrateRound105AlertTenant` 回填；round104 的 `GET /task-center/alerts` 租户过滤由此对业务租户真正生效。
 - settings 写侧（`PUT /api/v1/settings`）口径不变（一律写调用方租户、显式传别租户 403）；前端 Inventory / AlertNotify / Pricing / AI 设置页移除硬编码 `tenantId: 0`，业务租户 admin 保存自己的租户配置不再 403。
 - 回归证据：`taskcenter` `alert_tenant_source_test.go`（Upsert 落租户 + 通知审计租户隔离）、`tenantsettings` 单测（inventory/pricing/sourcing 逐 key 合并、alert_notify 整组回退）、集成 `alert_tenant_backfill_test.go`。
+
+## round106 settings 租户化第三批收尾（image + 告警扫描/通知触发策略）
+
+- `image` 组整组回退租户化（口径同 ai）：租户配置任一自有凭据（任一 `*_api_key` 或 ComfyUI 的 `comfyui_base_url`）则整组以租户配置为准，否则整组回退平台默认；平台凭据不与租户参数混流。读写路由与角色登记不变（`GET/PUT /api/v1/settings` 沿用 #216 口径：写一律落调用方租户、显式传别租户 403；读仅返回本租户行）。
+- `taskcenter` 告警策略组逐 key 合并租户化：告警生成与外发通知触发策略按告警来源/归属租户解析，租户在 `GET /task-center/alerts` 看到自身聚合告警（round104/105 已按 `tenant_id` 过滤），tenant 0 为平台桶。扫描 worker 运行键（`enable_alert_scan_worker` / `alert_scan_interval_seconds`）保留平台级，系统设置页仅平台管理员可见可存。
+- 残留平台级 `PlainByGroup(ctx, 0, ...)` 保留项：storage、mail/email、system、platform_*（平台应用凭据/发布配置 schema）、inventory 平台限流键、taskcenter 扫描 worker 运行键。

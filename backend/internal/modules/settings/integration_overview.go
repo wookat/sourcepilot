@@ -154,7 +154,7 @@ func (s *Service) BuildIntegrationOverview(ctx context.Context) (*IntegrationsOv
 	out.AI.Model = aigate.ResolveProviderModel(ai, pname, "")
 	out.AI.Configured = aigate.ResolveProviderAPIKey(ai, pname) != "" && aigate.ResolveProviderBaseURL(ai, pname) != ""
 
-	img, err := s.PlainByGroup(ctx, 0, "image")
+	img, err := tenantsettings.ImagePlain(ctx, s)
 	if err != nil {
 		return nil, err
 	}

@@ -21,6 +21,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -66,7 +67,7 @@ func settingInt(ctx context.Context, svc *settings.Service, key string, def, max
 	if svc == nil {
 		return def
 	}
-	m, err := svc.PlainByGroup(ctx, 0, "image")
+	m, err := tenantsettings.ImagePlain(ctx, svc)
 	if err != nil {
 		return def
 	}
@@ -82,7 +83,7 @@ func (s *Service) configuredImageProvider(ctx context.Context) string {
 	if s == nil || s.Settings == nil {
 		return ""
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	m, err := tenantsettings.ImagePlain(ctx, s.Settings)
 	if err != nil {
 		return ""
 	}
@@ -97,7 +98,7 @@ func (s *Service) imageConfigured(ctx context.Context) bool {
 	if s == nil || s.Settings == nil {
 		return false
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	m, err := tenantsettings.ImagePlain(ctx, s.Settings)
 	if err != nil {
 		return false
 	}
@@ -332,7 +333,7 @@ func (s *Service) CheckBatch(ctx context.Context, req CheckBatchRequest) (*Check
 	imageOK := s.imageConfigured(ctx)
 	readiness := ProviderReadiness{Status: "missing", StatusLabel: "未配置"}
 	if s.Settings != nil {
-		if img, err := s.Settings.PlainByGroup(ctx, 0, "image"); err == nil {
+		if img, err := tenantsettings.ImagePlain(ctx, s.Settings); err == nil {
 			readiness = EvaluateProviderReadiness(s.configuredImageProvider(ctx), img)
 		}
 	}
