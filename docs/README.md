@@ -42,6 +42,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | --- | --- |
 | [docker-deployment.md](docker-deployment.md) | `docker-compose.full.yml` 完整部署、端口、日志、数据卷 |
 | [production-deployment.md](production-deployment.md) | 生产部署 SOP：Caddy HTTPS、一键部署、升级/回滚、备份恢复 |
+| [upgrade-guide.md](upgrade-guide.md) | 带数据迁移的版本升级 SOP：备份、预检 SQL、迁移中断处置、回滚路径 |
 | [env.md](env.md) | 环境变量清单、敏感配置、安全规则与同步要求 |
 | [ENVIRONMENT_PROFILE_GUIDE.md](ENVIRONMENT_PROFILE_GUIDE.md) | 环境 profile 与配置组合 |
 | [DEPLOYMENT_PRECHECK.md](DEPLOYMENT_PRECHECK.md) | 部署前检查清单 |

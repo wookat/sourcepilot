@@ -69,6 +69,8 @@ cd trademind
 
 升级不会清空数据：PostgreSQL / Redis / 上传文件 / 证书均在命名数据卷中持久化。
 
+目标版本包含数据库迁移（发布说明标注「数据库」影响）时，先按 [upgrade-guide.md](upgrade-guide.md) 执行备份与预检，再升级。
+
 ## 四、回滚
 
 ```bash
