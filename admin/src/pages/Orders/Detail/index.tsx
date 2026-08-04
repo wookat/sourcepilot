@@ -238,7 +238,7 @@ export default function OrderDetailPage() {
       loading={loading}
       onBack={() => {
         if (window.history.length > 1) {
-          history.goBack();
+          history.back();
           return;
         }
         history.push('/orders/list');
@@ -338,7 +338,7 @@ export default function OrderDetailPage() {
               <Button danger>删除订单</Button>
             </Popconfirm>
           ) : null}
-          <Button type="link" onClick={() => history.goBack()}>
+          <Button type="link" onClick={() => history.back()}>
             返回列表
           </Button>
         </Space>

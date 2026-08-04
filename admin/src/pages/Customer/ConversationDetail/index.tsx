@@ -343,7 +343,7 @@ export default function CustomerConversationDetailPage() {
   const readOnly = conv?.canWrite === false;
 
   return (
-    <TmPageContainer title="AI 客服工作台" onBack={() => history.goBack()}>
+    <TmPageContainer title="AI 客服工作台" onBack={() => history.back()}>
       <Spin spinning={loading}>
         {conv && (
           <>
