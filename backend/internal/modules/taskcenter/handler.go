@@ -519,6 +519,10 @@ func (h *Handler) GenerateAlertFromFailure(c *gin.Context) {
 	}
 	al, err := h.Svc.GenerateAlertForFailure(c, tid, id)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "failure not found")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -564,14 +568,20 @@ func (h *Handler) ListAlertNotifications(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid end time (RFC3339)")
 		return
 	}
+	callerTid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	p := ListAlertNotificationsParams{
-		AlertID: alertIDPtr,
-		Channel: strings.TrimSpace(c.Query("channel")),
-		Status:  strings.TrimSpace(c.Query("status")),
-		Start:   startPtr,
-		End:     endPtr,
-		Page:    atoiQ(1, c.DefaultQuery("page", "1"), 1),
-		PageSz:  atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
+		TenantID: callerTid,
+		AlertID:  alertIDPtr,
+		Channel:  strings.TrimSpace(c.Query("channel")),
+		Status:   strings.TrimSpace(c.Query("status")),
+		Start:    startPtr,
+		End:      endPtr,
+		Page:     atoiQ(1, c.DefaultQuery("page", "1"), 1),
+		PageSz:   atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
 	}
 	res, err := h.Svc.ListAlertNotifications(c.Request.Context(), p)
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/httppublic"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/gorm"
 )
@@ -334,7 +335,7 @@ func (s *Service) pricingProtection(ctx context.Context, platform string) (float
 	if s == nil || s.Settings == nil {
 		return 0, 0
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "pricing")
+	m, err := tenantsettings.PricingPlain(ctx, s.Settings)
 	if err != nil {
 		return 0, 0
 	}

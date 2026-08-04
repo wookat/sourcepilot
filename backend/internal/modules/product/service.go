@@ -23,6 +23,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
@@ -903,7 +904,7 @@ func (s *Service) importDraftCore(ctx context.Context, adminID *uuid.UUID, p Imp
 			}
 			warn, safe := 5, 0
 			if s.Settings != nil {
-				if m, e := s.Settings.PlainByGroup(ctx, 0, "inventory"); e == nil {
+				if m, e := tenantsettings.InventoryPlain(ctx, s.Settings); e == nil {
 					warn = settings.DefaultWarningStockFromMap(m)
 					safe = settings.DefaultSafetyStockFromMap(m)
 					warn, safe = settings.CoalesceDefaultStockLines(warn, safe)

@@ -10,6 +10,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"gorm.io/gorm"
 )
 
@@ -26,7 +27,7 @@ func (s *Service) defaultRule(ctx context.Context, platform string, override Rul
 		r := RuleFromSettingsMap(nil)
 		return MergeRule(r, override), curr, nil
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "pricing")
+	m, err := tenantsettings.PricingPlain(ctx, s.Settings)
 	if err != nil {
 		return Rule{}, curr, err
 	}
@@ -41,7 +42,7 @@ func (s *Service) batchMax(ctx context.Context) int {
 	if s == nil || s.Settings == nil {
 		return 500
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "pricing")
+	m, err := tenantsettings.PricingPlain(ctx, s.Settings)
 	if err != nil {
 		return 500
 	}

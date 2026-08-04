@@ -4,6 +4,8 @@ import (
 	"context"
 	"strconv"
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 type inventoryAlertPolicy struct {
@@ -35,7 +37,7 @@ func (s *Service) loadInventoryAlertPolicy(ctx context.Context) (inventoryAlertP
 	if s == nil || s.Settings == nil {
 		return pol, nil
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "inventory")
+	m, err := tenantsettings.InventoryPlain(ctx, s.Settings)
 	if err != nil {
 		return pol, err
 	}

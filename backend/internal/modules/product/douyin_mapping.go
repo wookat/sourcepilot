@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -496,7 +497,7 @@ func (s *Service) douyinPricingProtection(ctx context.Context) float64 {
 	if s == nil || s.Settings == nil {
 		return 0
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "pricing")
+	m, err := tenantsettings.PricingPlain(ctx, s.Settings)
 	if err != nil {
 		return 0
 	}

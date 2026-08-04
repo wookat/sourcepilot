@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"gorm.io/gorm"
 )
 
@@ -426,7 +427,7 @@ func (s *Service) readOrderSKUSettings(ctx context.Context) (OrderSKUSettings, e
 	if s == nil || s.Settings == nil {
 		return def, nil
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "inventory")
+	m, err := tenantsettings.InventoryPlain(ctx, s.Settings)
 	if err != nil {
 		return def, err
 	}
