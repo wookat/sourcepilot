@@ -115,6 +115,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("auto migrate: db is nil")
 	}
+	if err := preflightOrderNoTenantUnique(db); err != nil {
+		return err
+	}
 	if err := migrateLegacyPublicationSKUColumns(db); err != nil {
 		return err
 	}

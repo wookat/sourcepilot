@@ -1524,3 +1524,8 @@ Final Production Acceptance Deferred to P10
 - 报表口径统一：`stats/sales`、`stats/daily` 返回 `baseCurrency`、每窗口/每日 `paidAmountBase` 与 `unconvertedCurrencies`（缺汇率币种不静默计入合计），原币桶补 `baseAmount`；CSV 导出每币种补「折算金额(币种→本位币)」列（无汇率留空）+「已付款销售额合计(本位币)/未折算币种」列。首页经营概览与经营报表共用同一口径。
 - 前端：新设置页 `/settings/report-currency`（本位币 + 手工汇率表）；经营报表页折算合计/每日折算图/原币明细/未折算警示（含设置页跳转）；首页销售窗口卡展示折算合计与未折算标记。异常/待办统计不受影响。
 - 权限矩阵登记 2 条新路由；demo seed 补 2 条 USD 已付款订单样本；docs/api.md、docs/provider.md 同步；后端补 fxrate/report_currency/stats 折算与 CSV 测试，前端补 service 单测与 E2E `round93-report-currency.spec.ts`。
+
+### 变更记录（2026-08-04）升级演练收口：R95 迁移预检 + 升级 SOP
+
+- 生产升级路径演练（旧版本 #204 → 含 #206/#208 新版本，存量多租户/订单/运单/导入任务/汇率配置）暴露：同租户重复订单号会让升级在 GORM AutoMigrate 建 `idx_orders_tenant_order_no` 时以裸 `SQLSTATE 23505` 中断且全站不可用。新增 `preflightOrderNoTenantUnique`（AutoMigrate 最先执行）：检测到同租户重复订单号时输出可操作报错（列出 tenant_id/order_no 组合并指向清理指引），数据零改动；集成回归 `order_no_preflight_test.go`。
+- 新增 `docs/upgrade-guide.md`：带数据迁移的版本升级 SOP（备份、预检 SQL、迁移中断处置、回滚路径与已知陷阱——含跨租户重复订单号出现后不可回滚到 R95 之前版本的陷阱）；docs/README.md、production-deployment.md 挂链接。
