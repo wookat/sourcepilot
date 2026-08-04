@@ -595,6 +595,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Idempotency: idempotencySvc,
 	}
 	if dep.Config != nil {
+		productPublishSvc.AllowTenantZeroTasks = dep.Config.EnableDemoSeed && !config.IsProduction(dep.Config.AppEnv)
 		productPublishSvc.QueueEnabled = dep.Config.ProductPublishQueueEnabled
 		if strings.TrimSpace(dep.Config.ProductPublishQueueName) != "" {
 			productPublishSvc.QueueName = strings.TrimSpace(dep.Config.ProductPublishQueueName)

@@ -66,13 +66,21 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 			return
 		}
 		if sessions != nil && sessID != uuid.Nil {
-			if err := sessions.ValidateSessionAccess(c.Request.Context(), sessID, uid, claims.TokenVersion); err != nil {
+			bridged, err := sessions.ValidateSessionAccessDetailed(c.Request.Context(), sessID, uid, claims.TokenVersion)
+			if bridged {
+				c.Set(ctxkey.AuthStateBridged, true)
+			}
+			if err != nil {
 				response.Fail(c, 401, response.CodeUnauthorized, err.Error())
 				c.Abort()
 				return
 			}
 		} else if db != nil {
-			if err := auth.EnsureTenantActive(c.Request.Context(), db, claims.TenantID); err != nil {
+			bridged, err := auth.EnsureTenantActiveDetailed(c.Request.Context(), db, claims.TenantID)
+			if bridged {
+				c.Set(ctxkey.AuthStateBridged, true)
+			}
+			if err != nil {
 				response.Fail(c, 401, response.CodeUnauthorized, err.Error())
 				c.Abort()
 				return
@@ -106,7 +114,11 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 			}
 		}
 		if db != nil {
-			if err := auth.EnsureAccountActive(c.Request.Context(), db, uid, claims.TokenVersion); err != nil {
+			bridged, err := auth.EnsureAccountActiveDetailed(c.Request.Context(), db, uid, claims.TokenVersion)
+			if bridged {
+				c.Set(ctxkey.AuthStateBridged, true)
+			}
+			if err != nil {
 				response.Fail(c, 401, response.CodeUnauthorized, err.Error())
 				c.Abort()
 				return

@@ -6,6 +6,9 @@ import { message as antdMessage } from 'antd';
  * 会话本身并未失效，与 401 重登守卫（AUTH_SESSION_REVOKED / token 过期）区分——
  * 不清凭证、不弹重登、不跳登录页，提示「服务暂时不可用」并按指数退避自动重试，
  * 后端恢复后原样返回响应，用户无感续用。
+ *
+ * 两种形态同口径：401（认证层无新鲜快照拒绝）与 503（认证经快照放行、
+ * 业务查询仍失败时后端统一改写的 AUTH_STATE_UNAVAILABLE/503）。
  */
 
 export const AUTH_STATE_UNAVAILABLE = 'AUTH_STATE_UNAVAILABLE';
@@ -18,17 +21,19 @@ type HttpErrorLike = {
   config?: Record<string, unknown> & { url?: string; method?: string };
 };
 
-/** umi request 错误对象是否为 401 + AUTH_STATE_UNAVAILABLE */
+/** umi request 错误对象是否为 401/503 + AUTH_STATE_UNAVAILABLE */
 export function isAuthStateUnavailable(error: unknown): boolean {
   const err = (error || {}) as HttpErrorLike;
+  const status = err.response?.status;
   return (
-    err.response?.status === 401 && err.response?.data?.message === AUTH_STATE_UNAVAILABLE
+    (status === 401 || status === 503) &&
+    err.response?.data?.message === AUTH_STATE_UNAVAILABLE
   );
 }
 
-/** 原生 fetch Response 是否为 401 + AUTH_STATE_UNAVAILABLE（clone 后读 body，不消费原响应） */
+/** 原生 fetch Response 是否为 401/503 + AUTH_STATE_UNAVAILABLE（clone 后读 body，不消费原响应） */
 export async function isAuthStateUnavailableResponse(resp: Response): Promise<boolean> {
-  if (resp.status !== 401) return false;
+  if (resp.status !== 401 && resp.status !== 503) return false;
   try {
     const body = (await resp.clone().json()) as { message?: unknown } | null;
     return body?.message === AUTH_STATE_UNAVAILABLE;

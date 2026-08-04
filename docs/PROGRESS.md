@@ -1615,6 +1615,12 @@ Final Production Acceptance Deferred to P10
 - 收尾核对：全仓 `PlainByGroup(ctx, 0, ...)` 残留仅剩明确平台级组——storage、mail/email、system、platform_*（平台应用凭据与发布配置 schema 组）、库存同步平台限流、taskcenter 扫描 worker 运行键；清单入 PR 描述。
 - 测试：`tenantsettings` 单测（image 整组回退凭据判定含 ComfyUI、taskcenter 逐 key 合并/平台视图）。
 
+### 变更记录（2026-08-04）第 108 轮：R107 遗留三小项收口（多账号切换误弹 / tenant0 演示重试 / 停库快照 500）
+
+- **多账号切换旧 token 误弹「登录已过期」收敛**：切换账号动线中，旧账号 token 的在飞请求返回 401 时本地凭证已是新会话，此前仍走静默续期→重登弹窗。前端两条 401 链路（umi responseInterceptors `handleUnauthorizedAndRetry`、`fetchWithSessionGuard`）新增 stale 凭证判定（`sessionGuard.isStaleAuthHeader`/`hasNoCredentials`）：发送时所用 Authorization 与当前 localStorage token 不一致 → 直接用当前凭证重放一次，不弹重登；凭证已清（登出动线）→ 静默跳登录页不弹窗。当前 token 的真实过期 401 行为不变（续期→重登守卫）。单测 + `round108-auth-p2` E2E 覆盖。
+- **tenant0 演示刊登任务重试不再被 worker 静默拒绝**：选择「修 worker」而非仅提示——tenant0 demo 口径已在 API 侧存在（`EnableDemoSeed && !production` 允许演示能力），worker 侧同口径补齐更一致，且演示任务本身是 local_draft_only 本地草稿链路、不触真实平台。`productpublish.Service` 新增 `AllowTenantZeroTasks`（router 按 `EnableDemoSeed && !IsProduction` 注入），worker 对 tenant0 任务在允许时以显式 tenant0 worker 上下文处理；不允许（生产等）时不再静默 continue 留任务永久 pending，而是 `failTaskTenantGate` 将任务落 `failed/task_tenant_missing` 并带中文可见错误信息，UI 可见可判。通用 `tasktenant.RequireTaskTenant` 拒绝 tenant0 的全局口径不变。
+- **停库快照过期首请求 500 统一为 AUTH_STATE_UNAVAILABLE/503**：认证经新鲜快照放行（bridged）但业务查询失败时，此前返回普通 500。auth 侧新增 detailed 校验 API（`ValidateSessionAccessDetailed`/`EnsureAccountActiveDetailed`/`EnsureTenantActiveDetailed`）上报 bridged 状态，JWT 中间件置 `ctxkey.AuthStateBridged`，response 层对 bridged 请求的 5xx 统一改写为 503 + `AUTH_STATE_UNAVAILABLE`（业务码 50301）；非 bridged 500 与非 5xx 不受影响。前端 `authStateRetry` 同口径识别 401/503 两种形态走指数退避重试。回归测试：response 改写范围、bridged 上报、worker 租户闸门落败。
+
 ### 变更记录（2026-08-04）第 107 轮：R106 复检 P2 收口——前端 AUTH_STATE_UNAVAILABLE 专门处理 + UX v5 / v11 P2
 
 - **前端 `AUTH_STATE_UNAVAILABLE` 专门处理**（`admin/src/utils/authStateRetry.ts`）：后端 fail-closed 数据库瞬断（#224）返回 401 + `AUTH_STATE_UNAVAILABLE`，与会话失效（`AUTH_SESSION_REVOKED`/token 过期）语义不同。前端不清凭证、不弹重登、不跳登录页，提示「服务暂时不可用，正在自动重试…」（15s 去重）并按 1s/2s/4s/8s 指数退避自动重放，恢复后原样返回响应无感续用；重试中转为普通 401 立即交回重登守卫，耗尽仍不可用按普通失败提示（`errorMessages` 补 `AUTH_STATE_UNAVAILABLE` 中文映射）。覆盖三条链路：umi responseInterceptors（新分支先于 401 重登守卫）、`fetchWithSessionGuard`（CSV 导出/备份下载）、启动期 `getInitialState` profile（`fetchProfileWithTokenDetailed` 标记 `authStateUnavailable`，硬刷新遇瞬断不清凭证）。`errorConfig.errorHandler` 对该错误码直接 throw，绝不兜底跳登录页。单测 `authStateRetry.test.ts` 11 例。

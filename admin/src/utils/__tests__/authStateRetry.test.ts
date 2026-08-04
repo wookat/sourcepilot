@@ -75,10 +75,23 @@ describe('authStateRetry', () => {
       ).toBe(false);
     });
 
-    it('非 401 不命中', () => {
+    it('503 + AUTH_STATE_UNAVAILABLE 命中（快照放行后业务失败的统一改写口径）', () => {
       expect(
         isAuthStateUnavailable({
-          response: { status: 503, data: { message: AUTH_STATE_UNAVAILABLE } },
+          response: { status: 503, data: { code: 50301, message: AUTH_STATE_UNAVAILABLE } },
+        }),
+      ).toBe(true);
+    });
+
+    it('其他状态码不命中', () => {
+      expect(
+        isAuthStateUnavailable({
+          response: { status: 500, data: { message: AUTH_STATE_UNAVAILABLE } },
+        }),
+      ).toBe(false);
+      expect(
+        isAuthStateUnavailable({
+          response: { status: 503, data: { message: 'service unavailable' } },
         }),
       ).toBe(false);
     });
