@@ -131,6 +131,7 @@ import {
   updateProductSkuStockSettings,
   type AITaskRow,
   type GenerateDescriptionResult,
+  type AIBannedWordHit,
   type OptimizeTitleResult,
   type ProductOperationProgress,
   type ProductOperationIssue,
@@ -446,6 +447,33 @@ function aiTextPreview(text?: string | null, fallback = '暂无内容'): ReactNo
   const value = String(text || '').trim();
   if (!value) return <Typography.Text type="secondary">{fallback}</Typography.Text>;
   return <Typography.Paragraph className="product-draft-ai__preview-text">{value}</Typography.Paragraph>;
+}
+
+function aiBannedWordAlert(hits?: AIBannedWordHit[]): ReactNode {
+  if (!hits || hits.length === 0) return null;
+  const hasForbidden = hits.some((h) => h.level === 'forbidden');
+  return (
+    <Alert
+      type={hasForbidden ? 'error' : 'warning'}
+      showIcon
+      className="product-draft-ai-modal__banned-words"
+      message={hasForbidden ? 'AI 结果仍含禁止级违禁词，建议修改后再应用' : 'AI 结果含警告级违禁词，请确认后再应用'}
+      description={
+        <Space wrap size={4}>
+          {hits.map((h, index) => (
+            <Tooltip
+              key={`${h.word}-${index}`}
+              title={h.suggestion ? `${h.categoryLabel}：${h.suggestion}` : h.categoryLabel}
+            >
+              <Tag color={h.level === 'forbidden' ? 'error' : 'warning'}>
+                {h.word}（{h.levelLabel}）
+              </Tag>
+            </Tooltip>
+          ))}
+        </Space>
+      }
+    />
+  );
 }
 
 function attrsToText(attrs?: Record<string, unknown>): string {
@@ -5979,6 +6007,7 @@ export default function ProductDraftDetailPage() {
               </div>
               <Tag color="processing">AI 建议未应用</Tag>
             </div>
+            {aiBannedWordAlert(aiResult.bannedWordHits)}
             <div className="product-draft-ai-modal__compare">
               <div className="product-draft-ai-modal__compare-box">
                 <span>原文</span>
@@ -6145,6 +6174,7 @@ export default function ProductDraftDetailPage() {
               </div>
               <Tag color="processing">AI 建议未应用</Tag>
             </div>
+            {aiBannedWordAlert(descResult.bannedWordHits)}
             <div className="product-draft-ai-modal__compare product-draft-ai-modal__compare--description">
               <div className="product-draft-ai-modal__compare-box">
                 <span>原文</span>

@@ -139,6 +139,9 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 
 	sys := aiprompt.ReplaceVariables(promptRow.SystemPrompt, vars)
 	user := aiprompt.ReplaceVariables(promptRow.UserPrompt, vars)
+	if instr := buildAvoidWordsInstruction(s.complianceAvoidWords(c.Request.Context(), p.TenantID)); instr != "" {
+		sys = sys + "\n\n" + instr
+	}
 
 	msgs := []aigate.Message{
 		{Role: "system", Content: sys},
@@ -256,6 +259,7 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 		Notes:           parsed.Notes,
 		Reason:          parsed.Reason,
 		TaskID:          taskID.String(),
+		BannedWordHits:  s.complianceRecheck(c.Request.Context(), p.TenantID, descriptionRecheckText(parsed)),
 	}, nil
 }
 
