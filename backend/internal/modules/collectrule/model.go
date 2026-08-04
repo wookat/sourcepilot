@@ -14,6 +14,7 @@ const StatusDisabled = "disabled"
 // CollectRule stores declarative scraping rules for the custom collector Provider.
 type CollectRule struct {
 	model.Base
+	TenantID     int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	Name         string         `gorm:"size:255;not null" json:"name"`
 	Source       string         `gorm:"size:64;not null;default:custom;index" json:"source"`
 	Domain       string         `gorm:"size:512;not null;index" json:"domain"`

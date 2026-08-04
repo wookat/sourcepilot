@@ -428,20 +428,22 @@
     "method": "POST",
     "path": "/api/v1/ai/prompts",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "forbid"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "DELETE",
     "path": "/api/v1/ai/prompts/:id",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "forbid"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
@@ -458,30 +460,33 @@
     "method": "PUT",
     "path": "/api/v1/ai/prompts/:id",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "forbid"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "POST",
     "path": "/api/v1/ai/prompts/:id/disable",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "forbid"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "POST",
     "path": "/api/v1/ai/prompts/:id/enable",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "forbid"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
@@ -539,6 +544,11 @@
   {
     "method": "POST",
     "path": "/api/v1/auth/register",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/auth/register-config",
     "public": true
   },
   {
@@ -2107,50 +2117,55 @@
     "method": "GET",
     "path": "/api/v1/ops/backups",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "POST",
     "path": "/api/v1/ops/backups",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
       "operator": "forbid",
-      "readonly": "forbid"
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "DELETE",
     "path": "/api/v1/ops/backups/:id",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
       "operator": "forbid",
-      "readonly": "forbid"
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "GET",
     "path": "/api/v1/ops/backups/:id",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "GET",
     "path": "/api/v1/ops/backups/:id/download",
     "personas": {
-      "admin": "allow",
+      "admin": "forbid",
       "operator": "forbid",
-      "crossTenantAdmin": "allow",
-      "readonly": "forbid"
+      "crossTenantAdmin": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     },
     "note": "backup.download 仅 admin（round: 备份下载 #107）"
   },
@@ -2158,130 +2173,143 @@
     "method": "POST",
     "path": "/api/v1/ops/backups/:id/hold",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
       "operator": "forbid",
-      "readonly": "forbid"
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "POST",
     "path": "/api/v1/ops/backups/:id/verify",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
       "operator": "forbid",
-      "readonly": "forbid"
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "POST",
     "path": "/api/v1/ops/dr/drills",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
       "operator": "forbid",
-      "readonly": "forbid"
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "GET",
     "path": "/api/v1/ops/dr/status",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "GET",
     "path": "/api/v1/ops/releases",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "POST",
     "path": "/api/v1/ops/releases",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
       "operator": "forbid",
-      "readonly": "forbid"
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "GET",
     "path": "/api/v1/ops/releases/:id",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "POST",
     "path": "/api/v1/ops/releases/:id/execute",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
       "operator": "forbid",
-      "readonly": "forbid"
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "POST",
     "path": "/api/v1/ops/releases/:id/rollback",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
       "operator": "forbid",
-      "readonly": "forbid"
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "GET",
     "path": "/api/v1/ops/restores",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "POST",
     "path": "/api/v1/ops/restores",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
       "operator": "forbid",
-      "readonly": "forbid"
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "GET",
     "path": "/api/v1/ops/restores/:id",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
-      "operator": "allow",
-      "readonly": "allow"
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {
     "method": "POST",
     "path": "/api/v1/ops/restores/:id/verify",
     "personas": {
-      "admin": "allow",
-      "crossTenantAdmin": "allow",
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
       "operator": "forbid",
-      "readonly": "forbid"
+      "readonly": "forbid",
+      "platformAdmin": "allow"
     }
   },
   {

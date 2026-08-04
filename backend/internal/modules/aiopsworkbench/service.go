@@ -327,7 +327,7 @@ func (s *Service) GetSummary(ctx context.Context, q Query) (SummaryDTO, error) {
 		End:      q.End,
 	})
 	sum := buildSummaryFromTodos(filtered)
-	resolved, err := s.countTodayResolved(ctx)
+	resolved, err := s.countTodayResolved(ctx, q.TenantID)
 	if err != nil {
 		return SummaryDTO{}, err
 	}
@@ -415,9 +415,17 @@ func (s *Service) collectAllTodos(ctx context.Context, q Query) ([]TodoItem, err
 	return col.list(), nil
 }
 
+// tenantProductIDs is a sub-query of the tenant's product ids. AI text/image
+// items carry no tenant column, so they are scoped through their product.
+func (s *Service) tenantProductIDs(ctx context.Context, tenantID int64) *gorm.DB {
+	return s.DB.WithContext(ctx).Table("products").
+		Select("id").Where("tenant_id = ? AND deleted_at IS NULL", tenantID)
+}
+
 func (s *Service) collectAITextTodos(ctx context.Context, col *todoCollector, q Query) error {
 	var rows []aiproducttext.AIProductTextItem
 	tx := s.DB.WithContext(ctx).Model(&aiproducttext.AIProductTextItem{}).
+		Where("product_id IN (?)", s.tenantProductIDs(ctx, q.TenantID)).
 		Where(`status IN ? OR status = ?`,
 			[]string{aiproducttext.ItemPendingReview, aiproducttext.ItemSuccess},
 			aiproducttext.ItemConflict).
@@ -516,6 +524,7 @@ func (s *Service) collectAITextTodos(ctx context.Context, col *todoCollector, q 
 func (s *Service) collectAIImageTodos(ctx context.Context, col *todoCollector, q Query) error {
 	var rows []aiproductimage.AIProductImageItem
 	tx := s.DB.WithContext(ctx).Model(&aiproductimage.AIProductImageItem{}).
+		Where("product_id IN (?)", s.tenantProductIDs(ctx, q.TenantID)).
 		Where(`status IN ? OR status = ?`,
 			[]string{aiproductimage.ItemPendingReview, aiproductimage.ItemSuccess},
 			aiproductimage.ItemConflict).
@@ -609,6 +618,7 @@ func (s *Service) collectPublishCheckTodos(ctx context.Context, col *todoCollect
 	}
 	tx := s.DB.WithContext(ctx).Model(&product.Product{}).
 		Select("id").
+		Where("tenant_id = ?", q.TenantID).
 		Where("status NOT IN ?", []string{product.StatusArchived})
 	if kw := strings.TrimSpace(q.Keyword); kw != "" {
 		like := "%" + kw + "%"
@@ -712,6 +722,7 @@ func (s *Service) collectPublishCheckTodos(ctx context.Context, col *todoCollect
 
 func (s *Service) collectPublishBatchTodos(ctx context.Context, col *todoCollector, q Query) error {
 	tx := s.DB.WithContext(ctx).Model(&productpublish.ProductPublishBatch{}).
+		Where("tenant_id = ?", q.TenantID).
 		Where("status IN ?", []string{productpublish.BatchFailed, productpublish.BatchPartialSuccess})
 	if q.Start != nil {
 		tx = tx.Where("updated_at >= ?", *q.Start)
@@ -793,6 +804,7 @@ func (s *Service) collectTaskCenterTodos(ctx context.Context, col *todoCollector
 		return nil
 	}
 	p := taskcenter.ListFailureParams{
+		TenantID:        q.TenantID,
 		Platform:        strings.TrimSpace(q.Platform),
 		ShopID:          strings.TrimSpace(q.ShopID),
 		Keyword:         strings.TrimSpace(q.Keyword),
@@ -887,30 +899,35 @@ func (s *Service) collectTaskCenterTodos(ctx context.Context, col *todoCollector
 	return nil
 }
 
-func (s *Service) countTodayResolved(ctx context.Context) (int64, error) {
+func (s *Service) countTodayResolved(ctx context.Context, tenantID int64) (int64, error) {
 	start := todayStartUTC()
 	var total int64
+	products := s.tenantProductIDs(ctx, tenantID)
 
 	var textApplied int64
 	_ = s.DB.WithContext(ctx).Model(&aiproducttext.AIProductTextItem{}).
+		Where("product_id IN (?)", products).
 		Where("status IN ? AND applied_at >= ?", []string{aiproducttext.ItemApplied, aiproducttext.ItemRejected}, start).
 		Count(&textApplied).Error
 	total += textApplied
 
 	var imageApplied int64
 	_ = s.DB.WithContext(ctx).Model(&aiproductimage.AIProductImageItem{}).
+		Where("product_id IN (?)", products).
 		Where("status IN ? AND applied_at >= ?", []string{aiproductimage.ItemApplied, aiproductimage.ItemRejected}, start).
 		Count(&imageApplied).Error
 	total += imageApplied
 
 	var handled int64
 	_ = s.DB.WithContext(ctx).Model(&taskcenter.TaskFailureMark{}).
+		Where("tenant_id = ?", tenantID).
 		Where("mark_type = ? AND created_at >= ?", taskcenter.MarkHandled, start).
 		Count(&handled).Error
 	total += handled
 
 	var batchFixed int64
 	_ = s.DB.WithContext(ctx).Model(&productpublish.ProductPublishBatch{}).
+		Where("tenant_id = ?", tenantID).
 		Where("status = ? AND updated_at >= ?", productpublish.BatchSuccess, start).
 		Count(&batchFixed).Error
 	total += batchFixed

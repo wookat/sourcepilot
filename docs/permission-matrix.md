@@ -173,3 +173,14 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - docs/api.md 「只读账号写操作 403」：修复前部分写端点对 readonly 返回 400/404（bind/查找先于守卫）或直接放行（test-image/test-ocr）。现按文档口径 + 安全原则统一为路由级 403。
 - 纯计算类 POST（`pricing/calculate`、各 `*/check`、`batch-preview`、`cost-estimates/batch`、`douyin_shop/validate`）按现网行为保留 readonly 可用，属「读语义但用 POST 传参」端点，已在允许清单集中登记。
 - collector 登录探测 `POST */check-login` 会触发外部浏览器自动化，按安全原则划为写操作（readonly 403），与修复前行为不同。
+
+## round102 注册/租户生命周期安全复验（tenant 0 平台数据隔离收口）
+
+- 自助注册（`POST /api/v1/auth/register`）为每个注册账号新建独立租户（#214）已复验：Docker 双租户实测注册落 `tenant_id = 5`（非 0），账号与租户 1:1，无 tenant 0 归属。
+- 平台级运维路由 `/api/v1/ops/backups|restores|releases|dr/*`（共 18 条）由「租户角色 + 运维权限位」改为**平台租户专属**：这些操作作用于整个部署（全库备份可导出所有租户数据、恢复/发布可改写全库），任何业务租户 admin 一律 403。矩阵四常规角色全部改为 `forbid`，`platformAdmin: allow`。
+- 共享提示词目录 `ai_prompts` 无 `tenant_id`（按 `code` 全局唯一），写操作（`POST /ai/prompts`、`PUT/DELETE /ai/prompts/:id`、`enable`/`disable`，共 5 条）收紧为平台租户专属，读（`GET`）保持四角色 allow（各租户 AI 能力依赖该目录）。矩阵登记：四常规角色 `forbid`，`platformAdmin: allow`。
+- `GET /api/v1/settings` 由「本租户 + tenant 0 平台默认值」改为**仅返回本租户行**：tenant 0 存放平台凭据（平台应用 key、存储、邮件），业务租户不得读取；平台默认值继续由服务端 `PlainByGroup(ctx, 0, ...)` 内部消费。`PUT /api/v1/settings` 忽略请求体 `tenantId`，一律写当前租户；显式传其他租户（含 0）返回 403。
+- `collect_rules` / `collect_browser_profiles` 新增 `tenant_id`（默认 0，索引），列表、详情、创建、更新、删除、启停、规则测试、自定义采集规则解析（`ResolveEnabledRuleForCustom`）与浏览器 profile 注入全部按可信租户限定，跨租户统一 404（不泄露存在性）。
+- 商品子资源统一租户守卫：`adminperm.ProductRouteTenantGuard` 在 authed 组对所有 `/products/:id` 前缀路由校验商品租户归属，跨租户 404；`product-skus/search` 联表补 `products.tenant_id` 限定；AI 运营工作台与客服仪表盘聚合改为按可信租户（无 `tenant_id` 的子表经商品/会话关联限定）。
+- legacy JWT 请求期账号校验：`auth.EnsureAccountActive` 在每次请求校验账号存在、未软删、状态 active 且 `token_version` 未被提升，使改密码/停用/删除账号对旧 access token 立即生效（此前仅 secure_session 模式生效）。
+- 契约与回归证据：`permmatrix` 新增 `tenant_zero_test.go`（平台专属运维路由、提示词写、settings tenant 0 读写、采集规则/profile 跨租户、商品子资源守卫）；`middleware` 新增 `jwt_account_state_test.go`（停用 / 缺失 / `token_version` 提升三类旧 token 401）。

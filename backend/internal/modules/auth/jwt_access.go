@@ -155,17 +155,23 @@ func ParseAccessToken(cfg *config.Config, ks *KeySet, tokenStr string) (*AccessC
 }
 
 // LegacyMintToken issues JWT without session binding (legacy_local_storage mode).
-func LegacyMintToken(cfg *config.Config, adminID uuid.UUID, username string, tenantID int64) (string, time.Time, error) {
+// tokenVersion must be the account's current admin_users.token_version: request
+// time validation rejects tokens minted below it, so a hardcoded version would
+// lock out every account whose password was reset or role changed.
+func LegacyMintToken(cfg *config.Config, adminID uuid.UUID, username string, tenantID int64, tokenVersion int) (string, time.Time, error) {
 	ks, err := BuildKeySet(cfg)
 	if err != nil {
 		return "", time.Time{}, err
+	}
+	if tokenVersion <= 0 {
+		tokenVersion = 1
 	}
 	return MintAccessToken(cfg, ks, MintAccessInput{
 		UserID:       adminID,
 		Username:     username,
 		TenantID:     tenantID,
 		SessionID:    uuid.Nil,
-		TokenVersion: 1,
+		TokenVersion: tokenVersion,
 	})
 }
 

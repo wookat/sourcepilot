@@ -624,6 +624,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed := v1.Group("")
 	authed.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
 	authed.Use(adminperm.ReadonlyWriteGuard(dep.DB))
+	authed.Use(adminperm.ProductRouteTenantGuard(dep.DB))
 	authed.GET("/auth/profile", authH.Profile)
 	authed.POST("/auth/logout", authH.Logout)
 	authed.GET("/auth/sessions", sessionH.ListSessions)
@@ -648,7 +649,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.GET("/files", fileH.List)
 	authed.DELETE("/files/:id", fileH.Delete)
 
-	aiprompt.Register(authed, promptH)
+	aiprompt.Register(authed, promptH, adminperm.RequirePlatformAdminMW(dep.DB))
 	aioperationbatch.Register(authed, aiBatchH)
 	aitask.Register(authed, aiTaskH)
 	imagetask.Register(authed, imageTaskH)
@@ -852,16 +853,19 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	backupSvc := &backup.Service{DB: dep.DB, Cfg: dep.Config, Enc: dep.Encrypter, OpLog: opLogSvc, Metrics: metricCatalog}
 	backupH := &backup.Handler{Svc: backupSvc}
-	backup.Register(authed, backupH)
+	// /ops/* operates on the whole deployment (database backups, restores,
+	// releases, DR drills), so it is platform-tenant only.
+	opsPlatform := authed.Group("", adminperm.RequirePlatformAdminMW(dep.DB))
+	backup.Register(opsPlatform, backupH)
 	restoreSvc := &restore.Service{DB: dep.DB, Cfg: dep.Config, Enc: dep.Encrypter, Backup: backupSvc, OpLog: opLogSvc}
 	restoreH := &restore.Handler{Svc: restoreSvc}
-	restore.Register(authed, restoreH)
+	restore.Register(opsPlatform, restoreH)
 	releaseSvc := &release.Service{DB: dep.DB, Cfg: dep.Config, Backup: backupSvc, OpLog: opLogSvc}
 	releaseH := &release.Handler{Svc: releaseSvc}
-	release.Register(authed, releaseH)
+	release.Register(opsPlatform, releaseH)
 	drSvc := &disasterrecovery.Service{DB: dep.DB, Cfg: dep.Config, Backup: backupSvc}
 	drH := &disasterrecovery.Handler{Svc: drSvc}
-	disasterrecovery.Register(authed, drH)
+	disasterrecovery.Register(opsPlatform, drH)
 
 	alertSvc := alerting.NewService(dep.DB, alertCooldown, alertRecovery)
 	obsH := &observabilitymod.Handler{DB: dep.DB, Cfg: dep.Config, Obs: dep.Obs, Alert: alertSvc}
