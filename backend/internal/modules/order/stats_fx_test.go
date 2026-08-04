@@ -11,14 +11,14 @@ import (
 	"gorm.io/gorm"
 )
 
-func seedReportCurrency(t *testing.T, db *gorm.DB, base, ratesJSON string) {
+func seedReportCurrency(t *testing.T, db *gorm.DB, tenantID int64, base, ratesJSON string) {
 	t.Helper()
 	if err := db.AutoMigrate(&settings.Setting{}); err != nil {
 		t.Fatal(err)
 	}
 	rows := []settings.Setting{
-		{TenantID: 0, GroupKey: fxrate.SettingsGroup, ItemKey: fxrate.KeyBaseCurrency, ItemValue: base, ValueType: "string"},
-		{TenantID: 0, GroupKey: fxrate.SettingsGroup, ItemKey: fxrate.KeyRates, ItemValue: ratesJSON, ValueType: "string"},
+		{TenantID: tenantID, GroupKey: fxrate.SettingsGroup, ItemKey: fxrate.KeyBaseCurrency, ItemValue: base, ValueType: "string"},
+		{TenantID: tenantID, GroupKey: fxrate.SettingsGroup, ItemKey: fxrate.KeyRates, ItemValue: ratesJSON, ValueType: "string"},
 	}
 	for _, r := range rows {
 		if err := db.Create(&r).Error; err != nil {
@@ -29,7 +29,7 @@ func seedReportCurrency(t *testing.T, db *gorm.DB, base, ratesJSON string) {
 
 func TestDailyStatsBaseCurrencyConversion(t *testing.T) {
 	db := openImportTestDB(t)
-	seedReportCurrency(t, db, "CNY", `{"USD":"7.13"}`)
+	seedReportCurrency(t, db, 1, "CNY", `{"USD":"7.13"}`)
 	svc := &order.Service{DB: db, Settings: &settings.Service{DB: db}}
 
 	// paid today: 12.5 USD (rate 7.13 → 89.125 → 89.13), 30 CNY, 7.5 EUR (no rate)
@@ -115,7 +115,7 @@ func TestDailyStatsWithoutRatesDefaultsToCNYUnconverted(t *testing.T) {
 
 func TestSalesStatsBaseCurrencyConversion(t *testing.T) {
 	db := openImportTestDB(t)
-	seedReportCurrency(t, db, "CNY", `{"USD":"7"}`)
+	seedReportCurrency(t, db, 1, "CNY", `{"USD":"7"}`)
 	svc := &order.Service{DB: db, Settings: &settings.Service{DB: db}}
 	created := createFlowTestOrder(t, svc, "SO-FX-SALES")
 	if err := db.Model(&order.Order{}).Where("id = ?", created.ID).
@@ -147,7 +147,7 @@ func TestSalesStatsBaseCurrencyConversion(t *testing.T) {
 
 func TestExportDailyStatsCSVConvertedColumns(t *testing.T) {
 	db := openImportTestDB(t)
-	seedReportCurrency(t, db, "CNY", `{"USD":"7.13"}`)
+	seedReportCurrency(t, db, 1, "CNY", `{"USD":"7.13"}`)
 	svc := &order.Service{DB: db, Settings: &settings.Service{DB: db}}
 	for _, o := range []struct {
 		no, cur string

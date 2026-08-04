@@ -1429,6 +1429,14 @@ Final Production Acceptance Deferred to P10
 - 新增用户改密码：`POST /admin/users/:id/reset-password`（≥6 位、bcrypt、`token_version+1` + 吊销全部 secure 会话/refresh token 使旧会话失效且不可 refresh 复活、操作日志 `user.password.reset`、权限矩阵已登记 admin-only）；Admin 用户管理页新增「改密码」入口；E2E `r83-users-reset-password.spec.ts` + 后端 `reset_password_test.go`。
 - docs/api.md 已同步；权限矩阵契约全量复跑通过。
 
+### 变更记录（2026-08-04）第 97 轮：报表本位币/手工汇率表按租户隔离（R95 审计 P2 收口）
+
+- `PUT/GET /settings/report-currency` 由固定读写 tenant 0 平台级设置改为当前租户（`adminperm.TenantIDFromGin`，缺租户上下文 403）：每个租户配置自己的本位币与手工汇率表，互不影响；`fxrate.ManualProvider` 移除「租户无配置回退 tenant 0」语义，未配置租户回默认口径（本位币 CNY、空汇率表、外币列 `unconvertedCurrencies`）。报表/首页经营概览/CSV 导出/毛利估算读取本就按当前租户（或订单租户）传入，随 Provider 收口自动隔离。
+- 存量迁移 `migrateRound97ReportCurrencyTenant`：启动迁移把既有 tenant 0 `report_currency` 配置复制到所有尚无该分组配置的现存租户（保持既有租户折算口径不变），tenant 0 自身保留（仍是合法的单租户/demo 租户）；新租户默认未配置。幂等（NOT EXISTS 判重）。
+- 毛利估算兜底 `settings.pricing.default_exchange_rate` 的 tenant 0 回退保留：pricing 分组是平台级刊登定价默认值（settings 页写 tenant 0），非本轮报表汇率面；报表手工汇率表优先级更高且已按租户隔离。
+- 回归测试：settings `TestReportCurrencyIsTenantScoped` / `TestReportCurrencyRequiresTenantContext`（双租户 PUT/GET 互不影响、无 tenant 0 写入、缺租户上下文 403）、fxrate `TestManualProviderTenantIsolation`（未配置租户不继承他租户/tenant 0 汇率）、Postgres 集成 `TestRound97ReportCurrencyBackfill`（迁移复制/不覆盖已配置租户/幂等）；order stats 测试种子改按租户写入。docs/api.md 已同步。
+- R95（#206）P2 清单其余项：前端跨大版本依赖升级（vite/vitest/axios/immer/esbuild 等，均构建期依赖）仍按 dependabot major 封禁保留不动，理由与 R78/R95 一致（跨大版本升级风险大于构建期依赖的实际暴露面）。
+
 ### 变更记录（2026-08-04）第 94 轮：seed clean/verify 覆盖迁移导入产物
 
 - `seed:demo:full:clean` / `verify`（含 `-prefix` 自定义前缀）扩展覆盖迁移导入产物：`import_jobs` + `import_job_rows` 按「文件名/批次标识带前缀，或导入到前缀（DEMO-）店铺」识别清理；由导入创建的草稿/订单沿用既有前缀口径（标题/SKU 编码/订单号带前缀）删除，真实导入历史不受影响。QA 不再需要手工 SQL 清零。回归测试 `TestCleanupRemovesMigrationImportArtifacts` / `TestCleanupCustomPrefixCoversMigrationImports`；docs/development.md、docs/migration-guide.md 同步。#201（报表多币种）未合并，demo seed USD 订单+汇率样本核对随该 PR 合并后另行处理。

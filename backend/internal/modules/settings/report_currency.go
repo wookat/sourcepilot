@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"github.com/trademind-ai/trademind/backend/internal/providers/fxrate"
 	"gorm.io/gorm"
@@ -63,7 +64,12 @@ func (h *Handler) GetReportCurrency(c *gin.Context) {
 	if !h.requireSettingsManage(c) {
 		return
 	}
-	m, err := h.Svc.PlainByGroup(c.Request.Context(), 0, fxrate.SettingsGroup)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 403, response.CodePermissionDenied, "tenant context missing")
+		return
+	}
+	m, err := h.Svc.PlainByGroup(c.Request.Context(), tenantID, fxrate.SettingsGroup)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -103,6 +109,11 @@ type putReportCurrencyBody struct {
 // PutReportCurrency PUT /api/v1/settings/report-currency
 func (h *Handler) PutReportCurrency(c *gin.Context) {
 	if !h.requireSettingsManage(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 403, response.CodePermissionDenied, "tenant context missing")
 		return
 	}
 	var body putReportCurrencyBody
@@ -146,9 +157,9 @@ func (h *Handler) PutReportCurrency(c *gin.Context) {
 		return
 	}
 	items := []PutItem{
-		{TenantID: 0, GroupKey: fxrate.SettingsGroup, ItemKey: fxrate.KeyProvider, ItemValue: fxrate.ProviderManual, ValueType: "string"},
-		{TenantID: 0, GroupKey: fxrate.SettingsGroup, ItemKey: fxrate.KeyBaseCurrency, ItemValue: base, ValueType: "string"},
-		{TenantID: 0, GroupKey: fxrate.SettingsGroup, ItemKey: fxrate.KeyRates, ItemValue: string(raw), ValueType: "string"},
+		{TenantID: tenantID, GroupKey: fxrate.SettingsGroup, ItemKey: fxrate.KeyProvider, ItemValue: fxrate.ProviderManual, ValueType: "string"},
+		{TenantID: tenantID, GroupKey: fxrate.SettingsGroup, ItemKey: fxrate.KeyBaseCurrency, ItemValue: base, ValueType: "string"},
+		{TenantID: tenantID, GroupKey: fxrate.SettingsGroup, ItemKey: fxrate.KeyRates, ItemValue: string(raw), ValueType: "string"},
 	}
 	if err := h.Svc.PutBulk(c.Request.Context(), items); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -162,7 +173,7 @@ func (h *Handler) PutReportCurrency(c *gin.Context) {
 			Message:  fmt.Sprintf("base=%s rates=%d", base, len(rates)),
 		})
 	}
-	m, err := h.Svc.PlainByGroup(c.Request.Context(), 0, fxrate.SettingsGroup)
+	m, err := h.Svc.PlainByGroup(c.Request.Context(), tenantID, fxrate.SettingsGroup)
 	if err != nil {
 		response.HandleError(c, err)
 		return

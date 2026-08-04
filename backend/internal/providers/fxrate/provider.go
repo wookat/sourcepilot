@@ -144,7 +144,8 @@ type SettingsReader interface {
 }
 
 // ManualProvider reads the manual rate table from settings group
-// report_currency (tenant-scoped first, then tenant 0 global defaults).
+// report_currency. Configuration is strictly per tenant: one tenant's base
+// currency / rates never leak into another tenant's reports.
 type ManualProvider struct {
 	Settings SettingsReader
 }
@@ -156,23 +157,16 @@ func (p *ManualProvider) Table(ctx context.Context, tenantID int64) (*Table, err
 	if p == nil || p.Settings == nil {
 		return NewTable(DefaultBaseCurrency, nil), nil
 	}
-	tenants := []int64{tenantID}
-	if tenantID != 0 {
-		tenants = append(tenants, 0)
+	m, err := p.Settings.PlainByGroup(ctx, tenantID, SettingsGroup)
+	if err != nil || len(m) == 0 {
+		return NewTable(DefaultBaseCurrency, nil), nil
 	}
-	for _, tid := range tenants {
-		m, err := p.Settings.PlainByGroup(ctx, tid, SettingsGroup)
-		if err != nil || len(m) == 0 {
-			continue
-		}
-		base := strings.TrimSpace(m[KeyBaseCurrency])
-		rates := ParseRatesJSON(m[KeyRates])
-		if base == "" && len(rates) == 0 {
-			continue
-		}
-		return NewTable(base, rates), nil
+	base := strings.TrimSpace(m[KeyBaseCurrency])
+	rates := ParseRatesJSON(m[KeyRates])
+	if base == "" && len(rates) == 0 {
+		return NewTable(DefaultBaseCurrency, nil), nil
 	}
-	return NewTable(DefaultBaseCurrency, nil), nil
+	return NewTable(base, rates), nil
 }
 
 // ParseRatesJSON parses the stored rates JSON object ({"USD":"7.10"});
