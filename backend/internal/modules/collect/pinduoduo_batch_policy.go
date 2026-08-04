@@ -3,6 +3,8 @@ package collect
 import (
 	"context"
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 func (s *Service) envPinduoduoBatchPolicy() BatchSourcePolicy {
@@ -26,7 +28,7 @@ func (s *Service) pinduoduoBatchEnabled(ctx context.Context) bool {
 	if s == nil || s.Settings == nil {
 		return true
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+	m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 	if err != nil || len(m) == 0 {
 		return true
 	}
@@ -42,7 +44,7 @@ func (s *Service) pinduoduoBatchPolicyFromSettings(ctx context.Context) BatchSou
 	if s == nil || s.Settings == nil {
 		return p
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+	m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 	if err != nil || len(m) == 0 {
 		return p
 	}

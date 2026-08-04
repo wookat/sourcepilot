@@ -7,6 +7,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	"github.com/trademind-ai/trademind/backend/internal/providers/ai/errmap"
 	"gorm.io/gorm"
@@ -181,7 +182,7 @@ func (h *Handler) TestAI(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "ai gateway unavailable")
 		return
 	}
-	plain, err := h.Svc.PlainByGroup(c.Request.Context(), 0, "ai")
+	plain, err := tenantsettings.AIPlain(c.Request.Context(), h.Svc)
 	if err != nil {
 		response.Fail(c, 500, response.CodeInternalError, err.Error())
 		return

@@ -3,6 +3,8 @@ package collect
 import (
 	"context"
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 const (
@@ -31,7 +33,7 @@ func (s *Service) taobaoTmallBatchEnabled(ctx context.Context) bool {
 	if s == nil || s.Settings == nil {
 		return true
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+	m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 	if err != nil || len(m) == 0 {
 		return true
 	}
@@ -47,7 +49,7 @@ func (s *Service) taobaoTmallBatchMaxItems(ctx context.Context) int {
 	if s == nil || s.Settings == nil {
 		return def
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+	m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 	if err != nil || len(m) == 0 {
 		return def
 	}
@@ -64,7 +66,7 @@ func (s *Service) taobaoTmallBatchPauseOnLogin(ctx context.Context) bool {
 	if s == nil || s.Settings == nil {
 		return true
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+	m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 	if err != nil || len(m) == 0 {
 		return true
 	}
@@ -79,7 +81,7 @@ func (s *Service) taobaoTmallBatchPauseOnVerify(ctx context.Context) bool {
 	if s == nil || s.Settings == nil {
 		return true
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+	m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 	if err != nil || len(m) == 0 {
 		return true
 	}
@@ -95,7 +97,7 @@ func (s *Service) taobaoTmallBatchPolicyFromSettings(ctx context.Context) BatchS
 	if s == nil || s.Settings == nil {
 		return p
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+	m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 	if err != nil || len(m) == 0 {
 		return p
 	}

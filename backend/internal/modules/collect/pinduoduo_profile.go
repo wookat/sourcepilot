@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 )
 
 // PinduoduoProfileKey is the dedicated collector persistent profile (not 1688/custom).
@@ -31,7 +33,7 @@ func (s *Service) buildPinduoduoRequestOptions(ctx context.Context, sourceURL st
 		opts["profileKey"] = PinduoduoProfileKey
 	}
 	if s != nil && s.Settings != nil {
-		m, err := s.Settings.PlainByGroup(ctx, 0, "collector")
+		m, err := tenantsettings.CollectorPlain(ctx, s.Settings)
 		if err == nil && len(m) > 0 {
 			if v := strings.TrimSpace(m["collect_pinduoduo_timeout_ms"]); v != "" {
 				if n, err := strconv.Atoi(v); err == nil && n > 0 {

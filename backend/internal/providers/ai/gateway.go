@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"github.com/trademind-ai/trademind/backend/internal/providers/ai/errmap"
 )
 
@@ -48,7 +49,7 @@ func (g *Gateway) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 	if g == nil || g.Settings == nil {
 		return nil, fmt.Errorf("ai gateway: not configured")
 	}
-	plain, err := g.Settings.PlainByGroup(ctx, 0, "ai")
+	plain, err := tenantsettings.AIPlain(ctx, g.Settings)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +116,7 @@ func (g *Gateway) TestConnection(ctx context.Context) (*ConnectionTestResult, er
 	if g == nil || g.Settings == nil {
 		return nil, fmt.Errorf("ai gateway: not configured")
 	}
-	plain, err := g.Settings.PlainByGroup(ctx, 0, "ai")
+	plain, err := tenantsettings.AIPlain(ctx, g.Settings)
 	if err != nil {
 		return nil, err
 	}

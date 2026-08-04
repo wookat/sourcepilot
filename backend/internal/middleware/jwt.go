@@ -119,6 +119,10 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 		tc := security.BuildTenantContext(c, tenantID, uid, sessID, "", nil, nil)
 		tc.AuthSource = authSource
 		security.SetGin(c, tc)
+		// Also attach to the request context so services and providers that
+		// only receive a context.Context can resolve the trusted tenant
+		// (e.g. tenant-scoped settings resolution).
+		c.Request = c.Request.WithContext(security.WithTenantContext(c.Request.Context(), tc))
 		c.Next()
 	}
 }
