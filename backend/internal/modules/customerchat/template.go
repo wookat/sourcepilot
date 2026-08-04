@@ -40,12 +40,14 @@ func IsValidTemplateGroup(g string) bool {
 // the current conversation context before inserting into the reply box.
 type CustomerReplyTemplate struct {
 	model.Base
-	TenantID  int64      `gorm:"not null;default:0;index" json:"tenantId"`
-	GroupKey  string     `gorm:"size:32;index;not null" json:"groupKey"`
-	Name      string     `gorm:"size:255;not null" json:"name"`
-	Content   string     `gorm:"type:text;not null" json:"content"`
-	SortOrder int        `gorm:"not null;default:0;index" json:"sortOrder"`
-	Enabled   bool       `gorm:"not null;default:true;index" json:"enabled"`
+	TenantID  int64  `gorm:"not null;default:0;index" json:"tenantId"`
+	GroupKey  string `gorm:"size:32;index;not null" json:"groupKey"`
+	Name      string `gorm:"size:255;not null" json:"name"`
+	Content   string `gorm:"type:text;not null" json:"content"`
+	SortOrder int    `gorm:"not null;default:0;index" json:"sortOrder"`
+	// 无 default tag：带 default 时 GORM 会在 Create 时跳过零值 false 导致落库为 true；
+	// 默认启用语义由 service 层（Create 未传 enabled 时置 true）保证。
+	Enabled   bool       `gorm:"not null;index" json:"enabled"`
 	CreatedBy *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 }
 

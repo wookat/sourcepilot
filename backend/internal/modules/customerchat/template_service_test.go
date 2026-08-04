@@ -77,6 +77,25 @@ func TestTemplateCRUDStampsTenantAndValidates(t *testing.T) {
 		t.Fatalf("append sortOrder: got %d, want 2", row2.SortOrder)
 	}
 
+	// create with enabled=false must persist false（回归：GORM default tag 会吞 bool 零值）
+	offCreate := false
+	rowOff, err := svc.CreateTemplate(c, TemplateUpsertBody{
+		GroupKey: TemplateGroupOther, Name: "e2e-停用样例", Content: "停用内容", Enabled: &offCreate,
+	}, nil)
+	if err != nil {
+		t.Fatalf("CreateTemplate(enabled=false): %v", err)
+	}
+	var storedOff CustomerReplyTemplate
+	if err := svc.DB.First(&storedOff, "id = ?", rowOff.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if rowOff.Enabled || storedOff.Enabled {
+		t.Fatalf("enabled=false must persist: row=%v stored=%v", rowOff.Enabled, storedOff.Enabled)
+	}
+	if err := svc.DeleteTemplate(c, rowOff.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+
 	// update toggles enabled and renames
 	off := false
 	upd, err := svc.UpdateTemplate(c, row.ID, TemplateUpsertBody{Name: "e2e-售前-欢迎V2", Enabled: &off}, nil)
