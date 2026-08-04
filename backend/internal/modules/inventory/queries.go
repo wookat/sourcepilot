@@ -239,7 +239,7 @@ func (s *Service) ListGlobalLogs(ctx context.Context, q GlobalLogsQuery) (*Pagin
 	if ps < 1 || ps > 100 {
 		ps = 20
 	}
-	tx := s.DB.WithContext(ctx).Model(&InventoryChangeLog{})
+	tx := repository.ScopeTenant(s.DB.WithContext(ctx).Model(&InventoryChangeLog{}), q.TenantID)
 	if q.ProductID != nil && *q.ProductID != uuid.Nil {
 		tx = tx.Where("product_id = ?", *q.ProductID)
 	}

@@ -5,6 +5,7 @@ import { formatDateTime } from '@/utils/formatTime';
 import { Button, Drawer, message, Modal, Table, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePermission } from '@/hooks/usePermission';
 import { fetchSettingsList } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
 import type { TaskAlertDTO, TaskAlertNotificationDTO } from '@/services/taskCenter';
@@ -69,8 +70,13 @@ export default function TaskCenterAlertsPage() {
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifRows, setNotifRows] = useState<TaskAlertNotificationDTO[]>([]);
   const [configuredNotifyChannels, setConfiguredNotifyChannels] = useState<string[]>([]);
+  const { canManageSettings } = usePermission();
 
   const loadNotifyChannelConfig = useCallback(async () => {
+    if (!canManageSettings) {
+      setConfiguredNotifyChannels([]);
+      return;
+    }
     try {
       const { items } = await fetchSettingsList();
       const tc = pickGroup(items, 'taskcenter');
@@ -78,7 +84,7 @@ export default function TaskCenterAlertsPage() {
     } catch {
       setConfiguredNotifyChannels([]);
     }
-  }, []);
+  }, [canManageSettings]);
 
   useEffect(() => {
     loadNotifyChannelConfig();

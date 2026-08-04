@@ -244,7 +244,13 @@ func (h *Handler) ListGlobalLogs(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 403, response.CodePermissionDenied, "tenant context missing")
+		return
+	}
 	q := GlobalLogsQuery{
+		TenantID:   tid,
 		Page:       atoiQ(c, "page", 1),
 		PageSize:   atoiQ(c, "pageSize", 20),
 		ChangeType: c.Query("changeType"),
@@ -296,7 +302,13 @@ func (h *Handler) ListGlobalOrderEffects(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 403, response.CodePermissionDenied, "tenant context missing")
+		return
+	}
 	q := OrderEffectsQuery{
+		TenantID:   tid,
 		Page:       atoiQ(c, "page", 1),
 		PageSize:   atoiQ(c, "pageSize", 20),
 		EffectType: c.Query("effectType"),

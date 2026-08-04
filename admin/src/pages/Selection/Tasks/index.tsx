@@ -68,7 +68,7 @@ function parseItems(text?: string) {
 
 export default function SelectionTasksPage() {
   const actionRef = useRef<ActionType>();
-  const { readonly } = usePermission();
+  const { readonly, canManageSettings } = usePermission();
   const [createOpen, setCreateOpen] = useState(false);
   const emptyLocaleOpts = useMemo(() => ({ onAction: () => setCreateOpen(true) }), []);
   const emptyLocale = useListEmptyLocale('selectionTasks', emptyLocaleOpts);
@@ -76,10 +76,11 @@ export default function SelectionTasksPage() {
   const [polling, setPolling] = useState<number | undefined>(undefined);
 
   useEffect(() => {
+    if (!canManageSettings) return;
     fetchIntegrationsOverview()
       .then((data) => setAiConfigured(data.ai?.configured))
       .catch(() => setAiConfigured(undefined));
-  }, []);
+  }, [canManageSettings]);
 
   useEffect(() => {
     const sync = () => {

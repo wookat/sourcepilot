@@ -126,6 +126,7 @@ type PublicationSkuListingRow struct {
 
 // GlobalLogsQuery optional filters for audit feed.
 type GlobalLogsQuery struct {
+	TenantID     int64
 	Page         int
 	PageSize     int
 	ProductID    *uuid.UUID
