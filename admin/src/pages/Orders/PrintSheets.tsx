@@ -16,6 +16,12 @@ const sheetStyles = `
 @media print {
   .print-toolbar { display: none !important; }
   body { background: #fff; }
+  .ant-layout-sider, .ant-pro-sider, .ant-pro-global-header, .ant-layout-header,
+  .ant-pro-layout-watermark, .ant-back-top { display: none !important; }
+  .ant-layout, .ant-pro-layout .ant-layout { margin: 0 !important; }
+  .ant-pro-layout-content, .ant-layout-content, .ant-pro-layout-container { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  .print-sheet { border: none; max-width: none; margin: 0; padding: 0; }
+  .print-sheet:last-child { page-break-after: auto; }
 }
 `;
 
