@@ -57,6 +57,7 @@ docker compose -f docker-compose.full.yml up -d --build
 
 - **现网升级路径**：从旧版本（或从 `legacy_local_storage` 切到 `secure_session`）升级后，存量 legacy token 首次请求即被 401 拒绝，前端会话守卫会弹出「登录已过期」引导重新登录；重新登录后即获得 session 绑定 token，无需额外迁移操作。
 - **开发/遗留部署**：`APP_ENV=development` 下默认 `legacy_local_storage`，legacy token 行为不变；显式设 `AUTH_SESSION_MODE=secure_session` 时与生产同口径。
+- **CSRF Origin 校验**：`secure_session` 下写请求校验 `Origin`/`Referer`，必须同时设置 `ADMIN_PUBLIC_URL` 为管理端对外地址（如 `http://localhost:8000`），否则登录等写请求返回 `403 ORIGIN_NOT_ALLOWED`（Docker 部署同理，见 `.env.docker.example`）。
 
 ### 无 SMTP 部署的注册降级（AUTH_REGISTER_SKIP_EMAIL_VERIFY）
 

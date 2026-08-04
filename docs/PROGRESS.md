@@ -1571,6 +1571,13 @@ Final Production Acceptance Deferred to P10
 - **P1 注册接口枚举防护**：`POST /auth/send-email-code` 对已注册与未注册邮箱返回一致的 `200 {ok:true}`（已注册不下发验证码，写 `status=skipped` 操作日志）并消耗同样限流额度；叠加单 IP 每小时 20 次限流以钝化批量注册。
 - 回归证据：`permmatrix` 新增 `tenant_zero_test.go`（平台专属运维路由 / 提示词写 / settings tenant 0 读写 / 采集规则与 profile 跨租户 / 商品子资源守卫）、matrix.json 登记 23 条新口径；`middleware/jwt_account_state_test.go`（停用 / 缺失 / `token_version` 提升三类旧 token 401）、`auth/jwt_access_test.go` 补 token_version 携带断言。测试库全量 `go test ./...` + 权限矩阵契约通过（Actions CI 不作依据）。
 
+### 变更记录（2026-08-04）第 103 轮：合并前集成大回归（#213–#216）P1 收口
+
+- **P1 反枚举补口**：无 SMTP 配置时 `POST /auth/send-email-code`（scene=register）对已注册邮箱返回 200、未注册返回 503，仍可枚举。现将邮件配置检查（`checkEmailSettings`）前移到注册状态查询之前，无 SMTP 时对所有邮箱统一 503/50301 中文引导；SMTP 齐全时保持 #216 反枚举口径（均 200）。回归测试 `email_code_settings_test.go`。
+- **P1 平台专属 /ops 路由前端对齐**：`/ops/backups|restores|releases|disaster-recovery` 加入 `PLATFORM_ADMIN_ROUTES`，业务租户菜单隐藏、直达显示统一语义页，与后端 `opsPlatform` 收口一致；前端权限单测补断言。
+- `docs/env.md` 补充 secure_session 模式必须配置 `ADMIN_PUBLIC_URL`（否则写请求 403 `ORIGIN_NOT_ALLOWED`）。
+- 集成回归结论：#213–#217 叠加后全量门禁（go/contracts/frontend/build/ui-copy/E2E 160 通过）与 docker 全栈动态回归（R57 主链路、双租户三角色、legacy/secure_session 生命周期、采集规则租户迁移、清退零残留、硬指标全零）通过；375px 视口受浏览器最小宽度限制以 500px 替代，demo seed 暂无采集规则/浏览器 profile 样例数据（P2 观察项）。
+
 ### 变更记录（2026-08-04）UX v5 全站走查 P1 修复：全局库存/告警跨租户泄露收口 + 无权限设置读 403 噪音清零
 
 - **P1 跨租户数据泄露收口（后端）**：`GET /inventory/logs`、`GET /inventory/effects` 此前无租户过滤，新注册业务租户可看到 tenant 0 演示数据的库存流水（实测泄露）。现在流水按 `tenant_id` 限定、effects 经 `orders.tenant_id` 子查询限定；`GET /task-center/alerts` 同步按 `tenant_id` 过滤，告警 handle / ignore / unmark / notify 单条操作改为租户内查找（跨租户 404），杜绝按 ID 越权操作。回归测试：`inventory/global_feeds_tenant_scope_test.go`、`taskcenter/alerts_tenant_scope_test.go`。
