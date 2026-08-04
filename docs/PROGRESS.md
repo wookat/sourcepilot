@@ -1426,6 +1426,10 @@ Final Production Acceptance Deferred to P10
 - 新增用户改密码：`POST /admin/users/:id/reset-password`（≥6 位、bcrypt、`token_version+1` + 吊销全部 secure 会话/refresh token 使旧会话失效且不可 refresh 复活、操作日志 `user.password.reset`、权限矩阵已登记 admin-only）；Admin 用户管理页新增「改密码」入口；E2E `r83-users-reset-password.spec.ts` + 后端 `reset_password_test.go`。
 - docs/api.md 已同步；权限矩阵契约全量复跑通过。
 
+### 变更记录（2026-08-04）第 94 轮：seed clean/verify 覆盖迁移导入产物
+
+- `seed:demo:full:clean` / `verify`（含 `-prefix` 自定义前缀）扩展覆盖迁移导入产物：`import_jobs` + `import_job_rows` 按「文件名/批次标识带前缀，或导入到前缀（DEMO-）店铺」识别清理；由导入创建的草稿/订单沿用既有前缀口径（标题/SKU 编码/订单号带前缀）删除，真实导入历史不受影响。QA 不再需要手工 SQL 清零。回归测试 `TestCleanupRemovesMigrationImportArtifacts` / `TestCleanupCustomPrefixCoversMigrationImports`；docs/development.md、docs/migration-guide.md 同步。#201（报表多币种）未合并，demo seed USD 订单+汇率样本核对随该 PR 合并后另行处理。
+
 ### 变更记录（2026-08-04）第 93 轮：seed 与文档 Demo 账号口径统一
 
 - `pnpm seed:demo:full`（Go seeddemo）新增幂等保证三个 Demo RBAC 账号（demo_admin / demo_operator / demo_readonly @trademind.local）存在且密码与文档一致；密码漂移时重置回文档值并递增 `token_version` 使旧会话失效。跨平台（不再依赖 PowerShell 的 seed-demo-permissions.ps1 才能拿到三角色账号），仅限非 production（seeder guard）。回归测试 `TestSeedEnsuresDemoAccounts`；docs/development.md、docs/DEMO_SEEDING_GUIDE.md 同步。
