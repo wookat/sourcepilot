@@ -14,3 +14,9 @@ const TenantID = "tenant_id"
 
 // SessionID holds the authenticated session id (*gin.Context key).
 const SessionID = "session_id"
+
+// AuthStateBridged marks a request whose authentication passed through the
+// last-known-good snapshot because the database was unreachable
+// (*gin.Context key, bool). Handler-level 5xx failures on such requests are
+// rewritten to the AUTH_STATE_UNAVAILABLE/503 retryable contract.
+const AuthStateBridged = "auth_state_bridged"

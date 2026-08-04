@@ -26,6 +26,10 @@ const ERROR_MAP: Record<string, UserErrorMessage> = {
     title: '账号已被停用',
     detail: '请联系管理员启用账号后再登录。',
   },
+  AUTH_STATE_UNAVAILABLE: {
+    title: '服务暂时不可用',
+    detail: '系统正在自动重试，请稍候片刻再操作；若持续出现请联系管理员。',
+  },
   AUTH_TENANT_DISABLED: {
     title: '租户已被停用',
     detail: '该租户已被平台管理员停用，请联系平台管理员启用后再登录。',

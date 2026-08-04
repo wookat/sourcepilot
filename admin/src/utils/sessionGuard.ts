@@ -1,4 +1,8 @@
 import {
+  isAuthStateUnavailableResponse,
+  retryFetchWhileAuthStateUnavailable,
+} from '@/utils/authStateRetry';
+import {
   AUTH_REFRESH_TOKEN_KEY,
   AUTH_SESSION_LEGACY,
   AUTH_SESSION_MODE_KEY,
@@ -126,6 +130,21 @@ export function resetRefreshFailureCooldown() {
   lastRefreshFailureAt = 0;
 }
 
+/**
+ * 触发 401 的请求所用 Authorization 是否已不是当前凭证（切换账号后旧 token
+ * 的迟到 401 / 静默续期竞态）：此时应直接用当前凭证重放，不弹「登录已过期」。
+ */
+export function isStaleAuthHeader(sentAuthorization?: string): boolean {
+  const current = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (!current || !sentAuthorization) return false;
+  return sentAuthorization !== `Bearer ${current}`;
+}
+
+/** 当前是否已无登录凭证（退出登录/切换账号动线中，旧请求的 401 不应弹重登） */
+export function hasNoCredentials(): boolean {
+  return !localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
 type ReloginHandler = () => Promise<boolean>;
 
 let reloginHandler: ReloginHandler | null = null;
@@ -185,8 +204,10 @@ export async function fetchWithSessionGuard(url: string, init: RequestInit = {})
   if (!isAuthUrl(url) && shouldRefreshSoon()) {
     await refreshAccessToken();
   }
+  let lastTokenUsed: string | null = null;
   const doFetch = () => {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    lastTokenUsed = token;
     return fetch(url, {
       ...init,
       headers: {
@@ -196,7 +217,23 @@ export async function fetchWithSessionGuard(url: string, init: RequestInit = {})
     });
   };
   const resp = await doFetch();
-  if (resp.status !== 401 || isAuthUrl(url)) return resp;
+  if (isAuthUrl(url)) return resp;
+  if ((resp.status === 401 || resp.status === 503) && (await isAuthStateUnavailableResponse(resp))) {
+    // 数据库瞬断 fail-closed（401 无快照 / 503 快照放行后业务失败）：会话未失效，
+    // 退避重试而不走重登；耗尽仍不可用则原样返回由调用方按失败提示
+    return retryFetchWhileAuthStateUnavailable(doFetch, resp);
+  }
+  if (resp.status !== 401) return resp;
+  const currentToken = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (currentToken && lastTokenUsed && currentToken !== lastTokenUsed) {
+    // 凭证已更换（切换账号/续期竞态）：直接用当前凭证重放，不弹旧会话过期提示
+    return doFetch();
+  }
+  if (!currentToken) {
+    // 已登出（切换账号动线）：旧请求的 401 不弹重登，交给登录页接管
+    redirectToLoginPage();
+    return new Promise<never>(() => {});
+  }
   let ok = await refreshAccessToken();
   if (!ok) ok = await requireRelogin();
   if (!ok) {

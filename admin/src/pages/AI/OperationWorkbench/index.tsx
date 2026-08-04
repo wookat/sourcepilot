@@ -16,6 +16,7 @@ import {
   TechnicalDetails,
   TmProTable as ProTable,
 } from '@/components/ui';
+import AiConfigBanner from '@/components/AiConfigBanner';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import {
@@ -466,6 +467,7 @@ export default function AIOperationWorkbenchPage() {
       }
     >
       <div className="tm-ai-workbench">
+        <AiConfigBanner />
         <KeywordSafetyHint visible={keywordSensitive} />
 
         <div className="tm-ai-workbench__metric-grid">

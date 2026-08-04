@@ -9,7 +9,9 @@ import {
   canAttemptRefresh,
   fetchWithSessionGuard,
   clearSessionCredentials,
+  hasNoCredentials,
   isAuthUrl,
+  isStaleAuthHeader,
   resetRefreshFailureCooldown,
   refreshAccessToken,
   registerReloginHandler,
@@ -269,6 +271,81 @@ describe('sessionGuard', () => {
       const resp = await fetchWithSessionGuard('/api/v1/auth/refresh');
       expect(resp.status).toBe(401);
       expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('切换账号后旧 token 的 401：直接用当前凭证重放，不弹重登', async () => {
+      localStorage.setItem(AUTH_TOKEN_KEY, 'old-account-token');
+      const handler = vi.fn(() => Promise.resolve(true));
+      registerReloginHandler(handler);
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+        if (fetchMock.mock.calls.length === 1) {
+          // 旧 token 请求在飞行中时用户完成了账号切换
+          localStorage.setItem(AUTH_TOKEN_KEY, 'new-account-token');
+          return { status: 401, ok: false } as Response;
+        }
+        return { status: 200, ok: true } as Response;
+      });
+      const resp = await fetchWithSessionGuard('/api/v1/orders/stats/daily/export.csv');
+      expect(resp.status).toBe(200);
+      expect(handler).not.toHaveBeenCalled();
+      const retryHeaders = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
+      expect(retryHeaders.Authorization).toBe('Bearer new-account-token');
+    });
+
+    it('凭证已清（登出/切换动线）时旧请求的 401 不弹重登', async () => {
+      localStorage.setItem(AUTH_TOKEN_KEY, 'stale-token');
+      const handler = vi.fn(() => Promise.resolve(true));
+      registerReloginHandler(handler);
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        return { status: 401, ok: false } as Response;
+      });
+      const result = await Promise.race([
+        fetchWithSessionGuard('/api/v1/orders/stats/daily/export.csv'),
+        new Promise((resolve) => {
+          setTimeout(() => resolve('suspended'), 50);
+        }),
+      ]);
+      expect(result).toBe('suspended');
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('503 + AUTH_STATE_UNAVAILABLE 走退避重试而非重登', async () => {
+      localStorage.setItem(AUTH_TOKEN_KEY, 't1');
+      const handler = vi.fn(() => Promise.resolve(true));
+      registerReloginHandler(handler);
+      const unavailable = {
+        status: 503,
+        ok: false,
+        clone() {
+          return this;
+        },
+        json: async () => ({ code: 50301, message: 'AUTH_STATE_UNAVAILABLE' }),
+      } as unknown as Response;
+      const fetchMock = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(unavailable)
+        .mockResolvedValue({ status: 200, ok: true } as Response);
+      const resp = await fetchWithSessionGuard('/api/v1/orders/stats/daily/export.csv');
+      expect(resp.status).toBe(200);
+      expect(handler).not.toHaveBeenCalled();
+      expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    }, 20000);
+  });
+
+  describe('isStaleAuthHeader / hasNoCredentials', () => {
+    it('当前 token 与请求所用 Authorization 不一致时为 stale', () => {
+      localStorage.setItem(AUTH_TOKEN_KEY, 'now');
+      expect(isStaleAuthHeader('Bearer old')).toBe(true);
+      expect(isStaleAuthHeader('Bearer now')).toBe(false);
+    });
+
+    it('无当前凭证或无发送头时不判 stale', () => {
+      expect(isStaleAuthHeader('Bearer old')).toBe(false);
+      expect(hasNoCredentials()).toBe(true);
+      localStorage.setItem(AUTH_TOKEN_KEY, 'now');
+      expect(isStaleAuthHeader(undefined)).toBe(false);
+      expect(hasNoCredentials()).toBe(false);
     });
   });
 });

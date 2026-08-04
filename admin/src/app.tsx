@@ -8,12 +8,15 @@ import BrandLogo from '@/components/BrandLogo';
 import RouteAccessGuard from '@/components/RouteAccessGuard';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { themeTokens } from '@/constants/layoutTokens';
-import { fetchProfileWithToken } from '@/services/auth';
+import { fetchProfileWithTokenDetailed } from '@/services/auth';
+import { isAuthStateUnavailable, retryWhileAuthStateUnavailable } from '@/utils/authStateRetry';
 import { normalizeHttpErrorMessage } from '@/utils/httpErrorCopy';
 import { filterMenuByPermission } from '@/utils/menuAccess';
 import {
   clearSessionCredentials,
+  hasNoCredentials,
   isAuthUrl,
+  isStaleAuthHeader,
   redirectToLoginPage,
   refreshAccessToken,
   requireRelogin,
@@ -56,12 +59,16 @@ export async function getInitialState(): Promise<{ currentUser?: API.CurrentUser
   if (!token) {
     return {};
   }
-  const user = await fetchProfileWithToken(token);
-  if (!user) {
+  const profile = await fetchProfileWithTokenDetailed(token);
+  if (profile.authStateUnavailable) {
+    // 后端 fail-closed 瞬断：凭证仍有效，不清凭证，恢复后刷新即可续用
+    return {};
+  }
+  if (!profile.user) {
     clearSessionCredentials();
     return {};
   }
-  return { currentUser: user };
+  return { currentUser: profile.user };
 }
 
 function onLoginPage() {
@@ -69,11 +76,43 @@ function onLoginPage() {
   return path === '/user/login' || path.startsWith('/user/login');
 }
 
+type UnauthorizedErrorConfig = Record<string, unknown> & {
+  url?: string;
+  method?: string;
+  headers?: unknown;
+};
+
+/** 用当前凭证原样重放一次请求（Authorization 由请求拦截器按当前 token 重新附带） */
+function replayWithCurrentCredentials(cfg: UnauthorizedErrorConfig) {
+  const headers = { ...((cfg.headers as Record<string, string>) || {}) };
+  delete headers.Authorization;
+  return umiRequest(String(cfg.url || ''), {
+    method: (cfg.method as string) || 'GET',
+    data: cfg.data,
+    params: cfg.params as Record<string, string | number | boolean | undefined> | undefined,
+    headers,
+    sessionGuardRetry: true,
+    skipErrorHandler: true,
+    getResponse: true,
+  });
+}
+
 /** 401 时先静默续期、失败再弹「登录已过期」重登弹窗，成功后原样重放请求，避免整页跳转丢表单 */
-async function handleUnauthorizedAndRetry(error: {
-  config?: Record<string, unknown> & { url?: string; method?: string; headers?: unknown };
-}) {
+async function handleUnauthorizedAndRetry(error: { config?: UnauthorizedErrorConfig }) {
   const cfg = error?.config || {};
+  const sentAuth = String(
+    ((cfg.headers as Record<string, string> | undefined) || {}).Authorization || '',
+  );
+  if (isStaleAuthHeader(sentAuth)) {
+    // 切换账号后旧 token 的迟到 401（或静默续期竞态）：当前凭证已是新会话，
+    // 直接重放，不弹旧会话的「登录已过期」提示
+    return replayWithCurrentCredentials(cfg);
+  }
+  if (hasNoCredentials()) {
+    // 退出登录/切换账号动线中凭证已清：旧请求的 401 不弹重登，交给登录页接管
+    redirectToLoginPage();
+    return new Promise<never>(() => {});
+  }
   let ok = await refreshAccessToken();
   if (!ok) ok = await requireRelogin();
   if (!ok) {
@@ -81,15 +120,7 @@ async function handleUnauthorizedAndRetry(error: {
     // 整页跳登录页已接管：悬挂该请求的 Promise，避免页面代码未 catch 时触发 Unhandled Rejection 遮罩
     return new Promise<never>(() => {});
   }
-  return umiRequest(String(cfg.url || ''), {
-    method: (cfg.method as string) || 'GET',
-    data: cfg.data,
-    params: cfg.params as Record<string, string | number | boolean | undefined> | undefined,
-    headers: { ...((cfg.headers as Record<string, string>) || {}) },
-    sessionGuardRetry: true,
-    skipErrorHandler: true,
-    getResponse: true,
-  });
+  return replayWithCurrentCredentials(cfg);
 }
 
 export const request: RequestConfig = {
@@ -117,7 +148,15 @@ export const request: RequestConfig = {
         const status = error?.response?.status;
         const cfg = error?.config || {};
         const reqUrl = String(cfg.url || '');
-        if (status !== 401 || isAuthUrl(reqUrl) || cfg.sessionGuardRetry || onLoginPage()) {
+        if (isAuthUrl(reqUrl) || cfg.sessionGuardRetry || onLoginPage()) {
+          throw error;
+        }
+        // 数据库瞬断 fail-closed（AUTH_STATE_UNAVAILABLE，401 无快照 / 503 快照放行后
+        // 业务失败）：会话未失效，不走重登守卫，提示后指数退避自动重试，恢复后无感续用
+        if (isAuthStateUnavailable(error)) {
+          return retryWhileAuthStateUnavailable(error);
+        }
+        if (status !== 401) {
           throw error;
         }
         return handleUnauthorizedAndRetry(error);
@@ -140,6 +179,10 @@ export const request: RequestConfig = {
       }
       const status = error?.response?.status;
       const reqUrl = String(error?.config?.url || '');
+      // AUTH_STATE_UNAVAILABLE 不属于会话失效，重试链路自行处理，绝不跳登录页
+      if (isAuthStateUnavailable(error)) {
+        throw error;
+      }
       // 重放后仍 401（如 token_version 已失效）才兜底跳登录页；首个 401 由 responseInterceptors 处理
       if (status === 401 && error?.config?.sessionGuardRetry && !reqUrl.includes('/auth/login')) {
         redirectToLoginPage();
