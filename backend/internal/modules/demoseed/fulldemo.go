@@ -2,6 +2,7 @@ package demoseed
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"regexp"
 	"strings"
@@ -28,6 +29,15 @@ import (
 
 // DemoPrefix marks every seeded row so cleanup can target demo data only.
 const DemoPrefix = "DEMO-"
+
+// demoImageDataURI returns an inline SVG placeholder (neutral background +
+// "DEMO-n" label) so demo product images render offline without external
+// image requests. Loading paths that reject data: URLs (e.g. Douyin image
+// upload) skip these the same way they skip other non-fetchable sources.
+func demoImageDataURI(n int) string {
+	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="#f0f2f5"/><rect x="40" y="50" width="120" height="90" rx="8" fill="none" stroke="#bfbfbf" stroke-width="4"/><circle cx="70" cy="80" r="9" fill="#bfbfbf"/><path d="M52 128l30-30 22 22 22-26 22 34" fill="none" stroke="#bfbfbf" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><text x="100" y="172" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#8c8c8c">DEMO-%d</text></svg>`, n)
+	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(svg))
+}
 
 // cleanPrefixPattern constrains custom cleanup prefixes to a safe shape:
 // alphanumeric segments ending with "-", no SQL LIKE wildcards (% _).
@@ -310,7 +320,7 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		}
 		products = append(products, p)
 		img := product.ProductImage{ProductID: p.ID, ImageType: product.ImageTypeMain,
-			Source: product.ImageSourceCollect, OriginURL: fmt.Sprintf("https://img.demo.trademind.local/DEMO-%d-main.jpg", i+1), SortOrder: 0}
+			Source: product.ImageSourceCollect, OriginURL: demoImageDataURI(i + 1), SortOrder: 0}
 		if err := tx.Create(&img).Error; err != nil {
 			return fmt.Errorf("demoseed: product image: %w", err)
 		}
