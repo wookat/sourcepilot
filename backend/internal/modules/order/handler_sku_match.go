@@ -1,6 +1,7 @@
 package order
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
@@ -26,6 +28,10 @@ func (h *Handler) GetOrderSKUMatches(c *gin.Context) {
 		return
 	}
 	if _, err := h.Svc.Get(c, oid); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
