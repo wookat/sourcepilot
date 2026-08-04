@@ -14,10 +14,14 @@ import { Alert, Button, Empty, Grid, Select, Space, Spin, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 // 尺寸相关样式：100×180 / 100×150 使用毫米宽度模拟标签纸，A4 一联单保持整页宽。
-const SIZE_STYLES: Record<WaybillTemplateRow['sizeCode'], { maxWidth: string; page: string }> = {
-  '100x180': { maxWidth: '100mm', page: 'size: 100mm 180mm; margin: 4mm;' },
-  '100x150': { maxWidth: '100mm', page: 'size: 100mm 150mm; margin: 4mm;' },
-  a4_list: { maxWidth: '720px', page: 'size: A4; margin: 12mm;' },
+// printWidth = 页面内容宽（纸张宽度 - 左右边距），打印时锁定单据宽度，避免浏览器按视口宽度缩放。
+const SIZE_STYLES: Record<
+  WaybillTemplateRow['sizeCode'],
+  { maxWidth: string; printWidth: string; page: string }
+> = {
+  '100x180': { maxWidth: '100mm', printWidth: '92mm', page: 'size: 100mm 180mm; margin: 4mm;' },
+  '100x150': { maxWidth: '100mm', printWidth: '92mm', page: 'size: 100mm 150mm; margin: 4mm;' },
+  a4_list: { maxWidth: '720px', printWidth: '186mm', page: 'size: A4; margin: 12mm;' },
 };
 
 const buildStyles = (sizeCode: WaybillTemplateRow['sizeCode']) => `
@@ -33,13 +37,23 @@ const buildStyles = (sizeCode: WaybillTemplateRow['sizeCode']) => `
 @media print {
   @page { ${SIZE_STYLES[sizeCode].page} }
   .print-toolbar { display: none !important; }
-  body { background: #fff; }
+  html, body { width: auto !important; height: auto !important; overflow: visible !important; background: #fff; }
+  #root, .ant-app, .ant-layout, .ant-pro-layout, .ant-layout-content,
+  .ant-pro-layout-content, .ant-pro-layout-container {
+    display: block !important; overflow: visible !important;
+    height: auto !important; min-height: 0 !important; width: auto !important;
+  }
   .ant-layout-sider, .ant-pro-sider, .ant-pro-global-header, .ant-layout-header,
   .ant-pro-layout-watermark, .ant-back-top { display: none !important; }
   .ant-layout, .ant-pro-layout .ant-layout { margin: 0 !important; }
   .ant-pro-layout-content, .ant-layout-content, .ant-pro-layout-container { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-  .print-sheet { border: none; max-width: none; margin: 0; padding: 0; }
-  .print-sheet:last-child { page-break-after: auto; }
+  .print-sheet {
+    border: none; border-radius: 0; padding: 0; margin: 0 auto;
+    width: ${SIZE_STYLES[sizeCode].printWidth}; max-width: ${SIZE_STYLES[sizeCode].printWidth};
+    page-break-after: always; break-after: page;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  .print-sheet:last-child { page-break-after: auto; break-after: auto; }
 }
 `;
 
