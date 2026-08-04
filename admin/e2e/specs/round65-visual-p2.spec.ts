@@ -148,7 +148,7 @@ test.describe('@round65-visual-p2 R65 视觉 P2 收口', () => {
       });
     });
     await admin.goto('/orders/reports');
-    await expect(page.locator('canvas')).toHaveCount(2);
+    await expect(page.locator('canvas')).toHaveCount(3);
     const heights = await page
       .locator('canvas')
       .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
