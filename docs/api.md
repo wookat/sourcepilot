@@ -45,8 +45,9 @@
 | `POST` | `/api/v1/auth/login` | 管理员登录，支持邮箱或手机号。 |
 | `POST` | `/api/v1/auth/logout` | 退出登录，客户端丢弃 token。 |
 | `GET` | `/api/v1/auth/profile` | 当前管理员信息（含 `role` / `permissions` / `tenantId`，前端据此判定平台管理员可见性）。 |
-| `POST` | `/api/v1/auth/send-email-code` | 注册验证码（`scene: register`）。**反枚举**：邮箱是否已注册返回完全一致的 `200 {ok:true}`（已注册不再下发验证码，仅写操作日志 `email_code.send` / `status=skipped`）；限流为「单邮箱 60s 冷却 + 每小时 5 次」叠加「单客户端 IP 每小时 20 次」，超限统一 `429`。 |
-| `POST` | `/api/v1/auth/register` | 自助注册：校验邮箱验证码后**为该账号新建独立租户**并将其设为该租户 admin（不会落入 tenant 0 平台桶）。 |
+| `GET` | `/api/v1/auth/register-config` | 注册行为配置（公开）：`{emailVerifyRequired}`。`AUTH_REGISTER_SKIP_EMAIL_VERIFY=true` 且非 staging/production 时为 `false`，登录页据此隐藏验证码输入。 |
+| `POST` | `/api/v1/auth/send-email-code` | 注册验证码（`scene: register`）。**反枚举**：邮箱是否已注册返回完全一致的 `200 {ok:true}`（已注册不再下发验证码，仅写操作日志 `email_code.send` / `status=skipped`）；限流为「单邮箱 60s 冷却 + 每小时 5 次」叠加「单客户端 IP 每小时 20 次」，超限统一 `429`。SMTP 未配置返回 503 + 中文引导；注册免验证开关开启时返回 400 提示无需验证码。 |
+| `POST` | `/api/v1/auth/register` | 自助注册：校验邮箱验证码后**为该账号新建独立租户**并将其设为该租户 admin（不会落入 tenant 0 平台桶）。默认要求 `code`（6 位邮箱验证码）；`emailVerifyRequired=false` 时 `code` 可省略。 |
 
 `legacy_local_storage` 模式下，access token 携带账号当前 `token_version`，每次请求校验账号存在 / 未软删 / 状态 active / `token_version` 未被提升：改密码、改角色、停用、删除后旧 token 立即 `401`（`AUTH_SESSION_REVOKED` / `AUTH_USER_DISABLED`）。
 

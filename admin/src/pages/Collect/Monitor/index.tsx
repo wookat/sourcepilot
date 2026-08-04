@@ -6,6 +6,7 @@ import { Link } from '@umijs/renderer-react';
 import { Badge, Button, Card, Col, Progress, Row, Space, Statistic, Tag, Tooltip, Typography } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
+import { localizeCollectErrorMessage } from '@/constants/collectErrors';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
 import { type CollectMonitorData, getCollectMonitor } from '@/services/collectMonitor';
 
@@ -99,13 +100,16 @@ export default function CollectMonitorPage() {
       title: '错误原因',
       dataIndex: 'errorMessage',
       ellipsis: true,
-      render: (_, row) => (
-        <Tooltip title={row.errorMessage}>
-          <Typography.Text ellipsis style={{ maxWidth: 320 }}>
-            {row.errorMessage || '—'}
-          </Typography.Text>
-        </Tooltip>
-      ),
+      render: (_, row) => {
+        const text = localizeCollectErrorMessage(row.errorMessage, row.source);
+        return (
+          <Tooltip title={text}>
+            <Typography.Text ellipsis style={{ maxWidth: 320 }}>
+              {text || '—'}
+            </Typography.Text>
+          </Tooltip>
+        );
+      },
     },
     {
       title: '操作',
@@ -170,13 +174,16 @@ export default function CollectMonitorPage() {
       title: '错误摘要',
       dataIndex: 'errorMessage',
       ellipsis: true,
-      render: (_, row) => (
-        <Tooltip title={row.errorMessage}>
-          <Typography.Text ellipsis style={{ maxWidth: 280 }}>
-            {row.errorMessage || '—'}
-          </Typography.Text>
-        </Tooltip>
-      ),
+      render: (_, row) => {
+        const text = localizeCollectErrorMessage(row.errorMessage, row.source);
+        return (
+          <Tooltip title={text}>
+            <Typography.Text ellipsis style={{ maxWidth: 280 }}>
+              {text || '—'}
+            </Typography.Text>
+          </Tooltip>
+        );
+      },
     },
     {
       title: '操作',

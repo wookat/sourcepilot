@@ -14,6 +14,7 @@ import {
 import { useEffect, useState } from 'react';
 import { COLLECT_TASK_STATUS, collectTaskEventLabel, collectTaskStatusTransition } from '@/constants/status';
 import {
+  localizeCollectErrorMessage,
   mapCollectorErrorCodeDetail,
   mapCollectorErrorCodeLabel,
   resolveCollectFailureHint,
@@ -137,7 +138,9 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
             </Descriptions.Item>
             <Descriptions.Item label="当前错误">
               {task.errorMessage ? (
-                <Typography.Text type="danger">{task.errorMessage}</Typography.Text>
+                <Typography.Text type="danger">
+                  {localizeCollectErrorMessage(task.errorMessage, task.source)}
+                </Typography.Text>
               ) : (
                 '—'
               )}
@@ -203,7 +206,7 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                     )}
                     {ev.errorMessage ? (
                       <Typography.Text type="danger" style={{ display: 'block', marginBottom: 6 }}>
-                        {ev.errorMessage}
+                        {localizeCollectErrorMessage(ev.errorMessage, task?.source)}
                       </Typography.Text>
                     ) : null}
                     {ev.payload !== undefined &&

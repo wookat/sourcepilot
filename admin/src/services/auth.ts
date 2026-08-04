@@ -1,4 +1,4 @@
-import { postJSON } from '@/services/request';
+import { getJSON, postJSON } from '@/services/request';
 
 export type LoginUser = {
   id: string;
@@ -41,9 +41,14 @@ export async function sendEmailCode(email: string, scene: 'register' = 'register
   });
 }
 
-/** POST /api/v1/auth/register */
-export async function register(params: { email: string; code: string; password: string; confirmPassword: string }) {
+/** POST /api/v1/auth/register（emailVerifyRequired=false 时 code 可为空） */
+export async function register(params: { email: string; code?: string; password: string; confirmPassword: string }) {
   return postJSON<LoginResult>('/api/v1/auth/register', params);
+}
+
+/** GET /api/v1/auth/register-config */
+export async function getRegisterConfig() {
+  return getJSON<{ emailVerifyRequired: boolean }>('/api/v1/auth/register-config');
 }
 
 export type ProfileUser = LoginUser & {

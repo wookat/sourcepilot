@@ -111,7 +111,7 @@ func (h *Handler) Publish(c *gin.Context) {
 			response.Fail(c, 400, response.CodeBadRequest, err.Error())
 			return
 		default:
-			msg := err.Error()
+			msg := localizePublishError(err)
 			if strings.Contains(msg, "platform config incomplete") || strings.Contains(msg, "platform publish config incomplete") ||
 				strings.Contains(msg, "shop is not authorized") {
 				response.Fail(c, 400, response.CodeBadRequest, msg)
@@ -163,7 +163,7 @@ func (h *Handler) CheckPublishTargets(c *gin.Context) {
 	}
 	out, err := h.Svc.CheckPublishTargets(c, pid, body)
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		response.Fail(c, 400, response.CodeBadRequest, localizePublishError(err))
 		return
 	}
 	response.OK(c, out)
@@ -191,7 +191,7 @@ func (h *Handler) CreatePublishTargetDrafts(c *gin.Context) {
 			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
 			return
 		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		response.Fail(c, 400, response.CodeBadRequest, localizePublishError(err))
 		return
 	}
 	response.OK(c, out)
@@ -367,7 +367,7 @@ func (h *Handler) CreateDouyinDraft(c *gin.Context) {
 			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
 			return
 		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		response.Fail(c, 400, response.CodeBadRequest, localizePublishError(err))
 		return
 	}
 	response.OK(c, out)
@@ -558,7 +558,7 @@ func (h *Handler) CheckBatchTargets(c *gin.Context) {
 			})
 			return
 		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		response.Fail(c, 400, response.CodeBadRequest, localizePublishError(err))
 		return
 	}
 	if h.Svc.OpLog != nil {
@@ -596,7 +596,7 @@ func (h *Handler) CreateBatchTargetDrafts(c *gin.Context) {
 			})
 			return
 		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		response.Fail(c, 400, response.CodeBadRequest, localizePublishError(err))
 		return
 	}
 	response.OK(c, out)

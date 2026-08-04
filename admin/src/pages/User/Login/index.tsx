@@ -19,7 +19,7 @@ import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
 import { saveSessionCredentials } from '@/utils/sessionGuard';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
-import { login, register, resolveSessionUser, sendEmailCode } from '@/services/auth';
+import { getRegisterConfig, login, register, resolveSessionUser, sendEmailCode } from '@/services/auth';
 import './index.less';
 
 const FEATURE_TAGS = [
@@ -54,6 +54,13 @@ export default function LoginPage() {
 
   const [countdown, setCountdown] = useState(0);
   const countdownTimer = useRef<NodeJS.Timeout | null>(null);
+  const [emailVerifyRequired, setEmailVerifyRequired] = useState(true);
+
+  useEffect(() => {
+    getRegisterConfig()
+      .then((cfg) => setEmailVerifyRequired(cfg.emailVerifyRequired !== false))
+      .catch(() => setEmailVerifyRequired(true));
+  }, []);
 
   const loggedIn = Boolean(initialState?.currentUser);
   useEffect(() => {
@@ -88,7 +95,7 @@ export default function LoginPage() {
     try {
       const data = await register({
         email: values.email,
-        code: values.code,
+        code: emailVerifyRequired ? values.code : undefined,
         password: values.password,
         confirmPassword: values.confirmPassword,
       });
@@ -327,28 +334,30 @@ export default function LoginPage() {
                   <Input placeholder="请输入邮箱" prefix={<MailOutlined />} autoComplete="email" />
                 </Form.Item>
 
-                <Form.Item label="邮箱验证码" required>
-                  <Row gutter={8}>
-                    <Col span={15}>
-                      <Form.Item
-                        name="code"
-                        noStyle
-                        rules={[{ required: true, message: '请输入验证码' }]}
-                      >
-                        <Input placeholder="6位验证码" />
-                      </Form.Item>
-                    </Col>
-                    <Col span={9}>
-                      <Button
-                        className="code-btn"
-                        onClick={handleSendCode}
-                        disabled={countdown > 0}
-                      >
-                        {countdown > 0 ? `${countdown}s 后重发` : '获取验证码'}
-                      </Button>
-                    </Col>
-                  </Row>
-                </Form.Item>
+                {emailVerifyRequired ? (
+                  <Form.Item label="邮箱验证码" required>
+                    <Row gutter={8}>
+                      <Col span={15}>
+                        <Form.Item
+                          name="code"
+                          noStyle
+                          rules={[{ required: true, message: '请输入验证码' }]}
+                        >
+                          <Input placeholder="6位验证码" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={9}>
+                        <Button
+                          className="code-btn"
+                          onClick={handleSendCode}
+                          disabled={countdown > 0}
+                        >
+                          {countdown > 0 ? `${countdown}s 后重发` : '获取验证码'}
+                        </Button>
+                      </Col>
+                    </Row>
+                  </Form.Item>
+                ) : null}
 
                 <Form.Item
                   name="password"
