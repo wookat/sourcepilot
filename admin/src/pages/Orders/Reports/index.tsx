@@ -204,7 +204,7 @@ export default function OrderReports() {
             {hasPaidAmounts ? (
               <Col xs={12} sm={8} md={6}>
                 <Statistic
-                  title={`销售额折算合计（${baseCurrency}）${totals.unconverted.length > 0 ? '，含未折算币种' : ''}`}
+                  title={`销售额折算合计（${baseCurrency}）${totals.unconverted.length > 0 ? '，不含未折算币种' : ''}`}
                   value={formatAmount(totals.base)}
                   valueStyle={tabularNumsStyle}
                 />
