@@ -97,7 +97,7 @@ func (h *Handler) Register(c *gin.Context) {
 					Message:  "invalid verification code",
 				})
 			}
-			response.Fail(c, 400, response.CodeBadRequest, "invalid verification code")
+			response.Fail(c, 400, response.CodeBadRequest, "验证码错误或已过期，请重新获取验证码")
 			return
 		}
 	}
