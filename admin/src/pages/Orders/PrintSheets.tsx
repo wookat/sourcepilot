@@ -74,7 +74,9 @@ export default function OrderPrintSheetsPage() {
       </div>
       {loading ? (
         <div style={{ textAlign: 'center', padding: 48 }}>
-          <Spin tip="加载拣货/发货单…" />
+          <Spin tip="加载拣货/发货单…">
+            <div style={{ minHeight: 48 }} />
+          </Spin>
         </div>
       ) : error ? (
         <Alert type="error" showIcon message="加载失败" description={error} style={{ maxWidth: 720, margin: '0 auto' }} />

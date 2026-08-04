@@ -2348,7 +2348,7 @@ export default function ProductDraftDetailPage() {
         title: '评分',
         dataIndex: 'score',
         width: 72,
-        render: (v) => (typeof v === 'number' ? v.toFixed(1) : '—'),
+        render: (_, r) => (typeof r.score === 'number' ? r.score.toFixed(1) : '—'),
       },
       {
         title: PRODUCT_IMAGE_SORT_ORDER_LABEL,
@@ -3304,7 +3304,7 @@ export default function ProductDraftDetailPage() {
                           title: '时间',
                           dataIndex: 'createdAt',
                           width: 176,
-                          render: (v) => formatDateTime(v as string),
+                          render: (_, row) => formatDateTime(row.createdAt),
                         },
                       ]}
                       size="small"
