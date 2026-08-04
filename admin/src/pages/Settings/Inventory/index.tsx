@@ -31,8 +31,6 @@ function truthyStored(v: string | undefined): boolean {
 }
 
 function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
-  // tenantId omitted: backend writes to the caller tenant.
-  const tenantId = undefined;
   const boolStr = (b: unknown) => (b ? 'true' : 'false');
   const syncAfter = boolStr(values.inventory_sync_after_deduct);
   const defWarn = parseIntField(values.default_warning_stock, 5);
@@ -45,24 +43,23 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
   const rlLazada = parseIntField(values.inventory_sync_platform_rate_limit_per_minute_lazada, 60);
   const rlAmazon = parseIntField(values.inventory_sync_platform_rate_limit_per_minute_amazon, 30);
   const rows: SettingPutItem[] = [
-    { tenantId, groupKey: GROUP, itemKey: 'default_warning_stock', itemValue: String(defWarn), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'default_safety_stock', itemValue: String(defSafe), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'enable_inventory_alerts', itemValue: boolStr(values.enable_inventory_alerts), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'alert_out_of_stock', itemValue: boolStr(values.alert_out_of_stock), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'alert_platform_stock_mismatch', itemValue: boolStr(values.alert_platform_stock_mismatch), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'platform_stock_mismatch_threshold', itemValue: String(mismatchTh), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'auto_match_order_skus', itemValue: boolStr(values.auto_match_order_skus), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'auto_deduct_after_sku_match', itemValue: boolStr(values.auto_deduct_after_sku_match), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'auto_deduct_manual_orders', itemValue: boolStr(values.auto_deduct_manual_orders), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'auto_deduct_platform_orders', itemValue: boolStr(values.auto_deduct_platform_orders), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'auto_restore_cancelled_orders', itemValue: boolStr(values.auto_restore_cancelled_orders), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'auto_sync_inventory_after_order_deduct', itemValue: syncAfter, valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'auto_sync_platform_inventory_after_deduct', itemValue: syncAfter, valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'allow_manual_sku_bind_after_deduct', itemValue: boolStr(values.allow_manual_sku_bind_after_deduct), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'allow_negative_stock', itemValue: boolStr(values.allow_negative_stock), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: GROUP, itemKey: 'inventory_sync_batch_max_size', itemValue: String(batchMax), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'default_warning_stock', itemValue: String(defWarn), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'default_safety_stock', itemValue: String(defSafe), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'enable_inventory_alerts', itemValue: boolStr(values.enable_inventory_alerts), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'alert_out_of_stock', itemValue: boolStr(values.alert_out_of_stock), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'alert_platform_stock_mismatch', itemValue: boolStr(values.alert_platform_stock_mismatch), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'platform_stock_mismatch_threshold', itemValue: String(mismatchTh), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'auto_match_order_skus', itemValue: boolStr(values.auto_match_order_skus), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'auto_deduct_after_sku_match', itemValue: boolStr(values.auto_deduct_after_sku_match), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'auto_deduct_manual_orders', itemValue: boolStr(values.auto_deduct_manual_orders), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'auto_deduct_platform_orders', itemValue: boolStr(values.auto_deduct_platform_orders), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'auto_restore_cancelled_orders', itemValue: boolStr(values.auto_restore_cancelled_orders), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'auto_sync_inventory_after_order_deduct', itemValue: syncAfter, valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'auto_sync_platform_inventory_after_deduct', itemValue: syncAfter, valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'allow_manual_sku_bind_after_deduct', itemValue: boolStr(values.allow_manual_sku_bind_after_deduct), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'allow_negative_stock', itemValue: boolStr(values.allow_negative_stock), valueType: 'string', isEncrypted: false, remark: '' },
+    { groupKey: GROUP, itemKey: 'inventory_sync_batch_max_size', itemValue: String(batchMax), valueType: 'string', isEncrypted: false, remark: '' },
     {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'inventory_stock_settings_batch_max_size',
       itemValue: String(batchWarn),
@@ -71,7 +68,6 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'inventory_sync_platform_rate_limit_enabled',
       itemValue: boolStr(values.inventory_sync_platform_rate_limit_enabled),
@@ -80,7 +76,6 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'inventory_sync_platform_rate_limit_per_minute_tiktok',
       itemValue: String(rlTiktok),
@@ -89,7 +84,6 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'inventory_sync_platform_rate_limit_per_minute_shopee',
       itemValue: String(rlShopee),
@@ -98,7 +92,6 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'inventory_sync_platform_rate_limit_per_minute_lazada',
       itemValue: String(rlLazada),
@@ -107,7 +100,6 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
       remark: '',
     },
     {
-      tenantId,
       groupKey: GROUP,
       itemKey: 'inventory_sync_platform_rate_limit_per_minute_amazon',
       itemValue: String(rlAmazon),

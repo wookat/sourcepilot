@@ -27,8 +27,6 @@ function boolStr(b: unknown): string {
 }
 
 function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
-  // tenantId omitted: backend writes to the caller tenant.
-  const tenantId = undefined;
   const rows: Array<{ key: string; val: string }> = [
     { key: 'default_markup_type', val: String(values.default_markup_type ?? 'percent') },
     { key: 'default_markup_percent', val: String(parseNum(values.default_markup_percent, 30)) },
@@ -50,7 +48,6 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
     { key: 'batch_max_size', val: String(parseNum(values.batch_max_size, 500)) },
   ];
   return rows.map((r) => ({
-    tenantId,
     groupKey: GROUP,
     itemKey: r.key,
     itemValue: r.val,
