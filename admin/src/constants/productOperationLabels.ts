@@ -34,6 +34,7 @@ export const READINESS_GROUP_LABEL: Record<string, string> = {
   platform: '平台配置',
   pricing: '价格',
   attribute: '商品参数',
+  compliance: '合规检测',
 };
 
 export function readinessStatusLabel(status?: string | null): string {

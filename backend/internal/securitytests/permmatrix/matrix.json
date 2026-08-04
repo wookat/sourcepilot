@@ -2678,6 +2678,86 @@
   },
   {
     "method": "GET",
+    "path": "/api/v1/banned-words",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/banned-words",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/banned-words/categories",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/banned-words/categories/:category",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/banned-words/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/banned-words/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/products/:id/banned-words/check",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/products/banned-words/check-batch",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/orders/print/sheets",
     "personas": {
       "admin": "allow",

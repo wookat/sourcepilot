@@ -8,6 +8,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/bannedwords"
 	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
@@ -82,6 +83,8 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&selection.SelectionEvaluation{},
 		&migrationimport.ImportJob{},
 		&migrationimport.ImportJobRow{},
+		&bannedwords.BannedWord{},
+		&bannedwords.BannedWordCategoryState{},
 	); err != nil {
 		t.Fatal(err)
 	}

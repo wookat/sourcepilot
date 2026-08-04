@@ -121,6 +121,78 @@
       "responseData": "{ ok: boolean }"
     },
     {
+      "method": "GET",
+      "path": "/api/v1/banned-words",
+      "auth": true,
+      "query": [
+        "category",
+        "level",
+        "keyword",
+        "enabled"
+      ],
+      "responseData": "{ items: BannedWord[] }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/banned-words",
+      "auth": true,
+      "requestBody": [
+        "word",
+        "category",
+        "level",
+        "suggestion"
+      ],
+      "responseData": "BannedWord"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/banned-words/:id",
+      "auth": true,
+      "requestBody": [
+        "enabled",
+        "level",
+        "category",
+        "suggestion"
+      ],
+      "responseData": "BannedWord"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/banned-words/:id",
+      "auth": true,
+      "responseData": "{ ok: boolean }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/banned-words/categories",
+      "auth": true,
+      "responseData": "{ items: BannedWordCategory[] }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/banned-words/categories/:category",
+      "auth": true,
+      "requestBody": [
+        "enabled"
+      ],
+      "responseData": "BannedWordCategory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/:id/banned-words/check",
+      "auth": true,
+      "responseData": "BannedWordScanResult"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/products/banned-words/check-batch",
+      "auth": true,
+      "requestBody": [
+        "productIds"
+      ],
+      "responseData": "{ list: BannedWordScanResult[] }"
+    },
+    {
       "method": "POST",
       "path": "/api/v1/orders/shipments/batch",
       "auth": true,
