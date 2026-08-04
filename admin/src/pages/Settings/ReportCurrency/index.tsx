@@ -22,7 +22,7 @@ type FormValues = { baseCurrency: string; rates: ReportCurrencyRate[] };
 
 export default function ReportCurrencySettingsPage() {
   const [form] = Form.useForm<FormValues>();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -146,11 +146,18 @@ export default function ReportCurrencySettingsPage() {
                         type="text"
                         icon={<MinusCircleOutlined />}
                         aria-label="删除该汇率"
+                        disabled={loading}
                         onClick={() => remove(name)}
                       />
                     </Space>
                   ))}
-                  <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ currency: '', rate: '' })}>
+                  {/* 加载中禁用：加载完成时 setFieldsValue 会重置 rates，提前新增的行会被覆盖 */}
+                  <Button
+                    type="dashed"
+                    icon={<PlusOutlined />}
+                    disabled={loading}
+                    onClick={() => add({ currency: '', rate: '' })}
+                  >
                     添加币种汇率
                   </Button>
                 </>

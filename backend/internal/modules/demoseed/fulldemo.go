@@ -211,7 +211,7 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return fmt.Errorf("demoseed: sf carrier: %w", err)
 	}
 
-	// ---- shops ×3（抖店 / 手工渠道 / TikTok 降级刊登演示）----
+	// ---- shops ×4（抖店 / 手工渠道 / TikTok / 虾皮降级刊登演示）----
 	shops := []shop.Shop{
 		{TenantID: s.TenantID, Platform: "douyin_shop", ShopName: "DEMO-抖店旗舰店", ShopCode: "DEMO-SHOP-1",
 			Status: "active", AuthStatus: "authorized", Region: "CN", Currency: "CNY", Remark: "DEMO- 演示店铺（种子数据）"},
@@ -219,6 +219,8 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 			Status: "active", AuthStatus: "authorized", Currency: "CNY", Remark: "DEMO- 演示店铺（种子数据）"},
 		{TenantID: s.TenantID, Platform: "tiktok", ShopName: "DEMO-TikTok 演示店", ShopCode: "DEMO-SHOP-3",
 			Status: "active", AuthStatus: "authorized", Region: "SG", Currency: "USD", Remark: "DEMO- 演示店铺（种子数据）"},
+		{TenantID: s.TenantID, Platform: "shopee", ShopName: "DEMO-虾皮演示店", ShopCode: "DEMO-SHOP-4",
+			Status: "active", AuthStatus: "authorized", Region: "SG", Currency: "SGD", Remark: "DEMO- 演示店铺（种子数据）"},
 	}
 	for i := range shops {
 		if err := tx.Create(&shops[i]).Error; err != nil {
