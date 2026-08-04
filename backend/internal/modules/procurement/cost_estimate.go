@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
+	"github.com/trademind-ai/trademind/backend/internal/providers/fxrate"
 	"gorm.io/gorm"
 )
 
@@ -28,8 +30,9 @@ type CostEstimateLine struct {
 
 // OrderCostEstimateDTO is GET /procurement/cost-estimates/:id (id = sales order).
 // Costs are reference procurement prices in CNY; gross profit is only
-// computed when the order currency is CNY or settings.pricing.exchangeRate
-// (CNY → order currency) is configured.
+// computed when the order currency is CNY, the report currency manual rate
+// table (settings group report_currency) can convert CNY→order currency, or
+// settings.pricing.exchangeRate (CNY → order currency) is configured.
 type OrderCostEstimateDTO struct {
 	OrderID          string             `json:"orderId"`
 	OrderNo          string             `json:"orderNo"`
@@ -412,14 +415,20 @@ func (s *Service) resolveLineCost(ctx context.Context, it order.OrderItem) (*flo
 	return expected, supplierName, "", "", nil
 }
 
-// resolveExchangeRate returns the CNY→order-currency rate: 1 for CNY orders,
-// settings.pricing.exchangeRate otherwise (false when not configured).
+// resolveExchangeRate returns the CNY→order-currency rate: 1 for CNY orders.
+// Other currencies resolve through the report currency manual rate table
+// first (same rates the sales reports use: CNY→currency =
+// rate(CNY→base) / rate(currency→base)), then fall back to the legacy
+// single settings.pricing.exchangeRate (false when neither is configured).
 func (s *Service) resolveExchangeRate(ctx context.Context, tenantID int64, currency string) (float64, bool) {
 	if strings.EqualFold(strings.TrimSpace(currency), "CNY") {
 		return 1, true
 	}
 	if s.Settings == nil {
 		return 0, false
+	}
+	if rate, ok := s.reportTableRate(ctx, tenantID, currency); ok {
+		return rate, true
 	}
 	// Tenant-scoped settings first, then tenant 0 (global defaults, where the
 	// pricing settings page writes).
@@ -442,6 +451,30 @@ func (s *Service) resolveExchangeRate(ctx context.Context, tenantID int64, curre
 		}
 	}
 	return 0, false
+}
+
+// reportTableRate derives the CNY→currency rate from the report currency
+// manual rate table so cost estimates share the report conversion口径. Both
+// legs (CNY→base and currency→base) must be resolvable.
+func (s *Service) reportTableRate(ctx context.Context, tenantID int64, currency string) (float64, bool) {
+	p := &fxrate.ManualProvider{Settings: s.Settings}
+	tab, err := p.Table(ctx, tenantID)
+	if err != nil || tab == nil {
+		return 0, false
+	}
+	rCur, ok := tab.Rate(currency)
+	if !ok || rCur.Sign() <= 0 {
+		return 0, false
+	}
+	rCNY, ok := tab.Rate("CNY")
+	if !ok || rCNY.Sign() <= 0 {
+		return 0, false
+	}
+	f, _ := new(big.Rat).Quo(rCNY, rCur).Float64()
+	if f <= 0 {
+		return 0, false
+	}
+	return f, true
 }
 
 func roundMoney2(v float64) float64 {

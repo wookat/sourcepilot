@@ -2,6 +2,7 @@ package procurement
 
 import (
 	"context"
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -92,6 +93,58 @@ func TestEstimateOrderCostFallbackDefaultExchangeRateKey(t *testing.T) {
 	}
 	if out.EstimatedCost == nil || *out.EstimatedCost != 4.16 {
 		t.Fatalf("expected converted cost 4.16, got %+v", out.EstimatedCost)
+	}
+}
+
+type groupSettings map[string]map[string]string
+
+func (m groupSettings) PlainByGroup(_ context.Context, _ int64, groupKey string) (map[string]string, error) {
+	return m[groupKey], nil
+}
+
+func TestEstimateOrderCostPrefersReportCurrencyTable(t *testing.T) {
+	f := setupFixture(t)
+	// Report table USD→CNY=7.15 must win over legacy pricing rate 0.5 so the
+	// gross margin estimate shares the sales report conversion rates.
+	f.svc.Settings = groupSettings{
+		"report_currency": {"base_currency": "CNY", "rates": `{"USD":"7.15"}`},
+		"pricing":         {"exchangeRate": "0.5"},
+	}
+	if err := f.svc.DB.Model(&order.Order{}).Where("id = ?", f.orderID).
+		Update("total_amount", 30.0).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := f.svc.EstimateOrderCost(context.Background(), f.orderID)
+	if err != nil {
+		t.Fatalf("estimate: %v", err)
+	}
+	if out.ExchangeRate == nil || math.Abs(*out.ExchangeRate-1/7.15) > 1e-12 {
+		t.Fatalf("expected report-table rate 1/7.15, got %+v", out.ExchangeRate)
+	}
+	// 29.7 CNY / 7.15 = 4.1538… → 4.15 USD
+	if out.EstimatedCost == nil || *out.EstimatedCost != 4.15 {
+		t.Fatalf("expected converted cost 4.15, got %+v", out.EstimatedCost)
+	}
+	if out.GrossProfit == nil || *out.GrossProfit != 25.85 {
+		t.Fatalf("expected gross profit 25.85, got %+v", out.GrossProfit)
+	}
+}
+
+func TestEstimateOrderCostReportTableWithoutCurrencyFallsBack(t *testing.T) {
+	f := setupFixture(t)
+	// Table has no USD rate → legacy pricing exchangeRate still applies.
+	f.svc.Settings = groupSettings{
+		"report_currency": {"base_currency": "CNY", "rates": `{"EUR":"7.8"}`},
+		"pricing":         {"exchangeRate": "0.14"},
+	}
+
+	out, err := f.svc.EstimateOrderCost(context.Background(), f.orderID)
+	if err != nil {
+		t.Fatalf("estimate: %v", err)
+	}
+	if out.ExchangeRate == nil || *out.ExchangeRate != 0.14 {
+		t.Fatalf("expected fallback rate 0.14, got %+v", out.ExchangeRate)
 	}
 }
 
