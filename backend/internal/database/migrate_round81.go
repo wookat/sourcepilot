@@ -28,7 +28,7 @@ func migrateRound81PublishBatchTenant(db *gorm.DB) error {
 		// SQLite dev may not support UPDATE FROM; skip non-fatal
 		// (ensureBatchVisible falls back to creator derivation for
 		// tenant-0 rows with a creator).
-		_ = err
+		warnMigrateSkipped("migrateRound81PublishBatchTenant", err)
 	}
 	idx := `CREATE INDEX IF NOT EXISTS idx_publish_batches_tenant_created ON product_publish_batches (tenant_id, created_at)`
 	if err := db.Exec(idx).Error; err != nil {

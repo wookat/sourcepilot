@@ -66,7 +66,7 @@ func backfillP42TenantIDs(db *gorm.DB) error {
 	for _, sql := range stmts {
 		if err := db.Exec(sql).Error; err != nil {
 			// SQLite dev may not support UPDATE FROM; skip non-fatal.
-			_ = err
+			warnMigrateSkipped("backfillP42TenantIDs", err)
 		}
 	}
 	return nil

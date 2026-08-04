@@ -363,6 +363,11 @@ export default [
         component: './Orders/PrintSheets',
       },
       {
+        path: '/orders/print-sheets',
+        hideInMenu: true,
+        component: './Orders/PrintSheetsRedirect',
+      },
+      {
         path: '/orders/:id',
         name: '订单详情',
         hideInMenu: true,

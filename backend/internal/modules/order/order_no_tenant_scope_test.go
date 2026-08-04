@@ -1,6 +1,7 @@
 package order_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -36,6 +37,28 @@ func TestOrderNoUniquePerTenantNotGlobally(t *testing.T) {
 	}
 	if err := db.Create(&dup).Error; err == nil {
 		t.Fatal("order number must stay unique inside a single tenant")
+	}
+}
+
+// Creating an order whose number already exists in the tenant must return a
+// readable business message instead of the raw SQL unique-violation error.
+func TestCreateDuplicateOrderNoReturnsReadableError(t *testing.T) {
+	db := openImportTestDB(t)
+	svc := &order.Service{DB: db}
+
+	if _, err := svc.Create(importTestCtx(1), importOrderBody("DUP-0001"), nil); err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	_, err := svc.Create(importTestCtx(1), importOrderBody("DUP-0001"), nil)
+	if err == nil {
+		t.Fatal("duplicate order number in one tenant must be rejected")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "订单号「DUP-0001」已存在") {
+		t.Fatalf("error must carry a readable business message, got: %v", err)
+	}
+	if strings.Contains(strings.ToLower(msg), "sqlstate") || strings.Contains(strings.ToLower(msg), "constraint") {
+		t.Fatalf("raw SQL error must not leak to the caller: %v", err)
 	}
 }
 

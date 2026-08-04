@@ -907,7 +907,7 @@ export default function ProductDraftsPage() {
                   description={
                     <span>
                       发布检查需要选择店铺。请先到{' '}
-                      <Typography.Link href="/store/list">店铺管理</Typography.Link>
+                      <Typography.Link href="/shops/manage">店铺管理</Typography.Link>
                       完成授权，或切换其他平台。
                     </span>
                   }
