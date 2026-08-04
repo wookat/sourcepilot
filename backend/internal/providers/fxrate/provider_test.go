@@ -61,16 +61,34 @@ func (f *fakeSettings) PlainByGroup(_ context.Context, tenantID int64, _ string)
 	return f.byTenant[tenantID], nil
 }
 
-func TestManualProviderTenantFallback(t *testing.T) {
+func TestManualProviderTenantIsolation(t *testing.T) {
 	p := &ManualProvider{Settings: &fakeSettings{byTenant: map[int64]map[string]string{
 		0: {KeyBaseCurrency: "CNY", KeyRates: `{"USD":"7.10"}`},
+		2: {KeyBaseCurrency: "USD", KeyRates: `{"CNY":"0.14"}`},
 	}}}
+	// Tenant without configuration gets the default base and empty table —
+	// never another tenant's (or tenant 0's) rates.
 	tab, err := p.Table(context.Background(), 5)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, ok := tab.Rate("USD"); ok || tab.Base != DefaultBaseCurrency {
+		t.Fatalf("unconfigured tenant must not inherit other tenants' rates: %+v", tab)
+	}
+	// Each configured tenant reads its own table.
+	tab, err = p.Table(context.Background(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := tab.Rate("USD"); !ok || tab.Base != "CNY" {
-		t.Fatalf("tenant fallback to global defaults failed: %+v", tab)
+		t.Fatalf("tenant 0 own table: %+v", tab)
+	}
+	tab, err = p.Table(context.Background(), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := tab.Rate("CNY"); !ok || tab.Base != "USD" {
+		t.Fatalf("tenant 2 own table: %+v", tab)
 	}
 
 	empty := &ManualProvider{}
