@@ -541,11 +541,21 @@ export async function deleteProduct(id: string) {
   return deleteJSON<{ ok: boolean }>(`/api/v1/products/${id}`);
 }
 
+export type AIBannedWordHit = {
+  word: string;
+  category: string;
+  categoryLabel: string;
+  level: 'forbidden' | 'warning';
+  levelLabel: string;
+  suggestion?: string;
+};
+
 export type OptimizeTitleResult = {
   optimizedTitle: string;
   keywords: string[];
   reason: string;
   taskId: string;
+  bannedWordHits?: AIBannedWordHit[];
 };
 
 export async function optimizeProductTitle(
@@ -577,6 +587,7 @@ export type GenerateDescriptionResult = {
   notes: string;
   reason: string;
   taskId: string;
+  bannedWordHits?: AIBannedWordHit[];
 };
 
 export async function generateDescription(

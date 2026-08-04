@@ -554,6 +554,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	bannedWordsSvc := &bannedwords.Service{DB: dep.DB, OpLog: opLogSvc}
 	bannedWordsH := &bannedwords.Handler{Svc: bannedWordsSvc, OpLog: opLogSvc}
+	productSvc.Compliance = &bannedwords.AIComplianceAdvisor{Svc: bannedWordsSvc}
 
 	readinessSvc := &productcheck.Service{
 		DB:       dep.DB,

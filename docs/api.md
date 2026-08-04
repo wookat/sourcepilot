@@ -233,6 +233,11 @@
 
 客服 AI 回复建议见 **`POST /api/v1/customer/conversations/:id/ai/generate-reply`**（非 legacy `/ai/chat`）。
 
+**AI 优化联动违禁词（依赖违禁词模块）**
+
+- `POST /api/v1/products/:id/ai/optimize-title` 与 `POST /api/v1/products/:id/ai/generate-description` 在调用模型前，会将当前租户启用的**禁止级**违禁词注入 system prompt，要求模型规避（最多注入 200 个词，词库读取失败不阻断生成）。
+- 生成成功后自动用租户启用词库复检输出文本；如有残留命中，响应新增可选字段 `bannedWordHits`（数组，元素含 `word`、`category`、`categoryLabel`、`level`（`forbidden`/`warning`）、`levelLabel`、`suggestion`），无命中时省略。仅提示，不阻断返回，也不改变既有字段。
+
 ### 客服会话子资源 scope 口径（round70）
 
 - 会话全部子资源读写路径（`/customer/conversations/:id/messages` 读写、`/customer/conversations/:id/ai-suggestions` 读写、`mark-replied`、`ai/generate-reply`、`send-platform-message`，以及 `reply-suggestions/:id` 与 `ai-suggestions/:id` 的建议操作）先按父会话的 **tenant + 店铺 scope** 校验归属，与会话详情接口口径一致（同订单/采购/运营任务）。

@@ -175,6 +175,9 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	}
 	sys := aiprompt.ReplaceVariables(promptRow.SystemPrompt, vars)
 	user := aiprompt.ReplaceVariables(promptRow.UserPrompt, vars)
+	if instr := buildAvoidWordsInstruction(s.complianceAvoidWords(c.Request.Context(), p.TenantID)); instr != "" {
+		sys = sys + "\n\n" + instr
+	}
 
 	msgs := []aigate.Message{
 		{Role: "system", Content: sys},
@@ -309,6 +312,7 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 		Keywords:       parsed.Keywords,
 		Reason:         parsed.Reason,
 		TaskID:         taskID.String(),
+		BannedWordHits: s.complianceRecheck(c.Request.Context(), p.TenantID, parsed.OptimizedTitle),
 	}, nil
 }
 
