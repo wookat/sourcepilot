@@ -31,6 +31,18 @@ func newLoginAuditTestHandler(t *testing.T, tenantID int64) (*Handler, *gorm.DB,
 	if err := db.AutoMigrate(&admin.AdminUser{}, &operationlog.OperationLog{}); err != nil {
 		t.Fatal(err)
 	}
+	// Trusted tenant-state lookups fail closed when the table is missing.
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS tenants (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'active',
+		created_by TEXT,
+		created_at DATETIME,
+		updated_at DATETIME,
+		deleted_at DATETIME
+	)`).Error; err != nil {
+		t.Fatal(err)
+	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte("test-password-123"), bcrypt.DefaultCost)
 	email := fmt.Sprintf("tenant-audit-%s@example.com", testID)
 	if err := db.Create(&admin.AdminUser{

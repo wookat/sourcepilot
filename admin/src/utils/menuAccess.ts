@@ -69,7 +69,14 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
 };
 
 /** 仅平台管理员（tenant 0 admin）可见的路由。 */
-export const PLATFORM_ADMIN_ROUTES = new Set(['/settings/platform-tenants']);
+export const PLATFORM_ADMIN_ROUTES = new Set([
+  '/settings/platform-tenants',
+  '/ai/prompts',
+  '/ops/backups',
+  '/ops/restores',
+  '/ops/releases',
+  '/ops/disaster-recovery',
+]);
 
 function routePerm(path?: string): PermissionKey | PermissionKey[] | undefined {
   if (!path) return undefined;
