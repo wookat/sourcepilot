@@ -5012,5 +5012,65 @@
     "method": "GET",
     "path": "/static/*filepath",
     "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/imports",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/imports/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/imports/:id/errors.csv",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/imports/commit",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/imports/parse",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/imports/validate",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
   }
 ]

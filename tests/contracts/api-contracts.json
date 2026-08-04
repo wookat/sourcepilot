@@ -144,6 +144,71 @@
       "path": "/api/v1/orders/:id/shipments/:shipmentId/refresh-tracking",
       "auth": true,
       "responseData": "{ provider, supported, message, shipment }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/parse",
+      "auth": true,
+      "requestBody": [
+        "kind",
+        "file"
+      ],
+      "responseData": "ImportParseResult"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/validate",
+      "auth": true,
+      "requestBody": [
+        "kind",
+        "shopId",
+        "columns",
+        "rows",
+        "mapping",
+        "fileName",
+        "fileHash",
+        "sourceFormat"
+      ],
+      "responseData": "ImportValidateResult"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/commit",
+      "auth": true,
+      "requestBody": [
+        "kind",
+        "shopId",
+        "columns",
+        "rows",
+        "mapping",
+        "fileName",
+        "fileHash",
+        "sourceFormat"
+      ],
+      "responseData": "ImportCommitResult"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports",
+      "auth": true,
+      "query": [
+        "page",
+        "pageSize",
+        "kind"
+      ],
+      "responseData": "ImportJobList"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/:id",
+      "auth": true,
+      "responseData": "ImportJobDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/:id/errors.csv",
+      "auth": true,
+      "responseData": "CSV"
     }
   ]
 }

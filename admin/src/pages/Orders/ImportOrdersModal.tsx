@@ -107,6 +107,17 @@ export default function ImportOrdersModal({
         showIcon
         style={{ marginBottom: 12 }}
         message="店铺未接入前，可把平台后台导出的订单粘贴到这里批量建单；订单号已存在的会自动跳过，不会重复建单。"
+        action={
+          <Button
+            size="small"
+            onClick={() => {
+              onClose();
+              history.push('/settings/migration?kind=order');
+            }}
+          >
+            上传店小秘 / 马帮文件导入
+          </Button>
+        }
       />
       {!results && (
         <>

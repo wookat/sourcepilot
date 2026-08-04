@@ -58,6 +58,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [development.md](development.md) | 本地开发环境、`pnpm dev`、分服务启动、调试与故障排查 |
 | [architecture.md](architecture.md) | Go backend、React admin、Node collector、PostgreSQL、Redis 的整体关系 |
 | [api.md](api.md) | `/api/v1` API 契约、统一返回、鉴权与前后端同步要求 |
+| [migration-guide.md](migration-guide.md) | 店小秘 / 马帮迁移导入指南：向导流程、字段别名、状态映射与格式假设 |
 | [provider.md](provider.md) / [provider-template.md](provider-template.md) | Provider 抽象、扩展建议与新增 Provider 模板 |
 | [module-map.md](module-map.md) | 模块关联索引，避免代码、配置、文档、CI 漏同步 |
 | [roadmap.md](roadmap.md) | 版本路线图与阶段目标 |

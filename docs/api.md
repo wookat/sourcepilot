@@ -752,6 +752,23 @@ Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_nega
 
 `GET /api/v1/orders/exceptions` 查询参数除 `handled=true`（只看已处理标记）、`ignored=true`（只看已忽略标记）外，支持 `all=true`：同时返回未处理、已处理与已忽略的行（`summary` 口径不变，仍只统计未处理）。默认（不带三者）只返回未处理行。
 
+## 迁移导入（migrationimport，round92）
+
+从店小秘 / 马帮导出文件迁移存量商品与历史订单的导入向导 API。统一 JWT 鉴权与统一返回结构；写操作（parse/validate/commit）readonly 返回 403。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/imports/parse` | multipart 上传（`kind=product|order`、`file`，CSV/XLSX ≤10MB）；返回 `columns / rows / totalRows / fileHash / sourceFormat（dianxiaomi|mabang|custom，按表头自动识别）/ mapping（自动猜列，字段 key → 列下标，-1 表示未映射）/ fields（目标字段定义，含 required）`。单批 ≤1000 数据行，超限 400。 |
+| `POST` | `/api/v1/imports/validate` | 请求体 `kind / shopId / columns / rows / mapping / fileName / fileHash / sourceFormat`；只校验不落库。返回 `totalRows / validRows / errorRows / groupCount（商品数或订单数）/ errors[]（rowNumber/field/message，逐行必填缺失、重复、非法值）`。`shopId` 必填且必须是当前账号可操作的店铺（operator 越权返回 404/403）。 |
+| `POST` | `/api/v1/imports/commit` | 与 validate 同请求体；确认导入。商品按「商品名称」聚合创建草稿（status=draft，行=SKU，已存在的 SKU 编码按重复跳过）；订单按「订单号」聚合创建（platform=migration，来源状态映射到内部枚举，收件人地址存入 `rawData.receiver` 与备注）。**幂等**：同租户同 kind 同 `fileHash`（文件 sha256）只提交一次，重传原样返回首个批次结果（`replayed=true`）。返回 `jobId / status（success|partial_success|failed）/ totalRows / successRows / failedRows / duplicateRows / replayed`。 |
+| `GET` | `/api/v1/imports?kind=&page=&pageSize=` | 导入历史（租户隔离，倒序）；返回 `list[]（ImportJob + errorRowCount）/ total / page / pageSize`。 |
+| `GET` | `/api/v1/imports/:id` | 单批详情：`job` + `errorRows[]`（仅持久化失败/重复行：rowNumber/status(failed|duplicate)/field/message/rawValues）。 |
+| `GET` | `/api/v1/imports/:id/errors.csv` | 错误行报告下载（UTF-8 BOM CSV：行号/状态/字段/错误信息/原始数据）。 |
+
+订单状态映射（店小秘/马帮 → 内部枚举）：未付款/待付款→`pending`；已付款→`paid`；待处理/待审核/待打单/已打单/配货中→`processing`；已发货→`shipped`；已完成/已签收→`delivered`；已作废/已取消→`cancelled`；已退款→`refunded`；无法识别的状态逐行报错不入库。格式假设与字段别名详见 `docs/migration-guide.md`。
+
+`POST /api/v1/orders` 请求体新增可选字段 `remark`（备注）与 `rawData`（JSON 原始数据），向后兼容。
+
 ## 权限矩阵契约（round52）
 
 - 全部已注册路由的「路由 × {admin, operator, readonly, 跨租户}」授权预期登记在

@@ -31,6 +31,12 @@ describe('TradeMind API contract registry', () => {
         'POST /api/v1/orders/shipments/batch',
         'GET /api/v1/orders/print/sheets',
         'POST /api/v1/orders/:id/shipments/:shipmentId/refresh-tracking',
+        'POST /api/v1/imports/parse',
+        'POST /api/v1/imports/validate',
+        'POST /api/v1/imports/commit',
+        'GET /api/v1/imports',
+        'GET /api/v1/imports/:id',
+        'GET /api/v1/imports/:id/errors.csv',
       ]),
     );
   });
@@ -59,8 +65,19 @@ describe('TradeMind API contract registry', () => {
     expect(readiness?.query).toEqual(['platform', 'shopId', 'mode']);
   });
 
+  it('defines payload/query contracts for migration import wizard APIs', () => {
+    const validate = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/imports/validate');
+    const commit = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/imports/commit');
+    const list = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/imports');
+
+    const wizardBody = ['kind', 'shopId', 'columns', 'rows', 'mapping', 'fileName', 'fileHash', 'sourceFormat'];
+    expect(validate?.requestBody).toEqual(wizardBody);
+    expect(commit?.requestBody).toEqual(wizardBody);
+    expect(list?.query).toEqual(['page', 'pageSize', 'kind']);
+  });
+
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(16);
+    expect(contracts.endpoints).toHaveLength(22);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

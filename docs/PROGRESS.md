@@ -1466,6 +1466,14 @@ Final Production Acceptance Deferred to P10
 - 前端新建草稿弹窗增加「归属店铺」选择（operator 必填含中文引导、下拉由后端店铺 scope 只列授权店铺；admin 可选）。
 - 权限矩阵 operator=allow 已登记并复跑契约测试；回归测试 `product/create_scope_test.go` 全场景重写（含零脏数据断言）；E2E 补 operator 建草稿动线。docs/api.md、docs/permission-matrix.md 已同步。
 
+### 变更记录（2026-08-03）第 92 轮：迁移通道（店小秘/马帮 商品与历史订单导入向导）
+
+- 新增 `migrationimport` 模块（`import_jobs`/`import_job_rows` 表）：`POST /imports/parse|validate|commit`、`GET /imports`、`GET /imports/:id`、`GET /imports/:id/errors.csv`。CSV（UTF-8/GBK）与 XLSX（标准库 zip+xml 解析，无新依赖）上传，单批 ≤1000 行、文件 ≤10MB；表头别名自动猜列（中英文）+ 来源格式识别（店小秘/马帮/自定义）+ 手工映射；逐行校验（必填缺失/批内重复/非法值）不入库。
+- 商品导入：按商品名称聚合创建**草稿**（行=SKU，复用 product service 的店铺归属与 operator scope 校验；已存在 SKU 编码按重复跳过）。订单导入：按订单号聚合创建（platform=migration，来源状态映射内部枚举，收件人信息入 rawData/备注；已存在订单号重复跳过）；`POST /orders` CreateBody 新增可选 `remark`/`rawData`。幂等：同租户同 kind 同文件 sha256 只提交一次，重传返回原批次结果（replayed）。
+- 导入历史批次化：每批记录总数/成功/失败/重复与错误行明细，错误行报告 CSV 下载（UTF-8 BOM）。
+- 前端：新设置页 `/settings/migration`（上传→列映射→校验报告→导入结果四步向导 + 导入历史 Tab），商品草稿页「迁移导入」入口、订单批量粘贴弹窗升级为可跳转文件导入向导；readonly 只读提示。
+- 权限矩阵登记 6 条路由（readonly 写 403）；契约测试补 6 端点；E2E `round92-migration.spec.ts` + 合成样例文件（店小秘/马帮风格，无真实数据）；docs/api.md 与 `docs/migration-guide.md`（含公开格式假设说明）同步。回归：`migrationimport` parse/service 测试全绿。
+
 ### 变更记录（2026-08-03）第 91 轮：打单发货物流闭环（物流商 / 运单 / 轨迹 Provider 预留 / 拣货单打印）
 
 - 物流商管理：新增 `carriers` 表与 `carrier` 模块（租户隔离，`GET/POST/PUT/DELETE /api/v1/carriers`），按租户幂等预置国内常用快递（顺丰/京东/中通/圆通/申通/韵达/邮政EMS/极兔/德邦/其他，含轨迹 URL 模板），支持自定义新增与启停；预置不可删除只可停用。前端新增设置页 `/settings/carriers`。

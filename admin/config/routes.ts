@@ -507,6 +507,11 @@ export default [
         component: './Settings/System',
       },
       {
+        path: '/settings/migration',
+        name: '迁移导入',
+        component: './Settings/Migration',
+      },
+      {
         path: '/settings/security',
         name: '安全设置',
         component: './Settings/Security',
