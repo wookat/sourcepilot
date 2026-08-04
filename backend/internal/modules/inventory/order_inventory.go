@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -38,7 +39,7 @@ func (s *Service) InventoryPolicy(ctx context.Context) (StockOrderPolicy, error)
 	if s == nil || s.Settings == nil {
 		return def, nil
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "inventory")
+	m, err := tenantsettings.InventoryPlain(ctx, s.Settings)
 	if err != nil {
 		return def, err
 	}

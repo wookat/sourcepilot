@@ -47,7 +47,8 @@ function truthyStored(v: string | undefined): boolean {
 }
 
 function buildTcNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
-  const tenantId = 0;
+  // tenantId omitted: backend writes to the caller tenant.
+  const tenantId = undefined;
   const channels = Array.isArray(values.notification_channels)
     ? stringifyNotificationChannels(values.notification_channels as string[])
     : String(values.notification_channels ?? '[]');
@@ -110,7 +111,8 @@ function buildTcNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
 }
 
 function buildAlertNotifyItems(values: Record<string, unknown>): SettingPutItem[] {
-  const tenantId = 0;
+  // tenantId omitted: backend writes to the caller tenant.
+  const tenantId = undefined;
   const g = GROUP_AN;
   const displayChannels = Array.isArray(values.an_channels)
     ? stringifyNotificationChannels(values.an_channels as string[])

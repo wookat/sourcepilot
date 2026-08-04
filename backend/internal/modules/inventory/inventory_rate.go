@@ -64,6 +64,9 @@ func (s *Service) inventoryPlatformRateLimit(ctx context.Context, platform strin
 	if s == nil || s.Settings == nil {
 		return enabled, limit
 	}
+	// Platform-level read on purpose: the per-platform sync rate limit
+	// protects shared platform API quota (redis throttle key is per
+	// platform, not per tenant), so tenants may not override it.
 	m, err := s.Settings.PlainByGroup(ctx, 0, "inventory")
 	if err != nil {
 		return enabled, limit

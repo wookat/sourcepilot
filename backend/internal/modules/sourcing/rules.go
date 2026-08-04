@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"gorm.io/datatypes"
 )
 
@@ -32,7 +33,7 @@ func (s *Service) ruleConfig(ctx context.Context) (RuleConfig, error) {
 	if s.Settings == nil {
 		return cfg, nil
 	}
-	plain, err := s.Settings.PlainByGroup(ctx, 0, "sourcing")
+	plain, err := tenantsettings.SourcingPlain(ctx, s.Settings)
 	if err != nil {
 		return cfg, nil // missing group falls back to defaults
 	}

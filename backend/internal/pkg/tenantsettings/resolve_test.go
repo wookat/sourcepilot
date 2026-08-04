@@ -127,3 +127,63 @@ func TestResolversPropagateReaderErrors(t *testing.T) {
 		t.Fatal("CollectorPlain must propagate reader errors")
 	}
 }
+
+func TestInventoryPlainPerKeyMerge(t *testing.T) {
+	r := &fakeReader{byTenant: map[int64]map[string]map[string]string{
+		0: {"inventory": {"default_warning_stock": "5", "enable_inventory_alerts": "true", "allow_negative_stock": "false"}},
+		2: {"inventory": {"default_warning_stock": "9", "allow_negative_stock": ""}},
+	}}
+	m, err := InventoryPlain(tenantCtx(2), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["default_warning_stock"] != "9" {
+		t.Fatalf("tenant override must win, got %q", m["default_warning_stock"])
+	}
+	if m["enable_inventory_alerts"] != "true" {
+		t.Fatalf("unset key must inherit platform default, got %q", m["enable_inventory_alerts"])
+	}
+	if m["allow_negative_stock"] != "false" {
+		t.Fatalf("empty tenant value must be treated as unset, got %q", m["allow_negative_stock"])
+	}
+	// Platform (tenant 0) callers keep reading the platform group untouched.
+	m0, err := InventoryPlain(tenantCtx(0), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m0["default_warning_stock"] != "5" {
+		t.Fatalf("tenant 0 must read platform values, got %q", m0["default_warning_stock"])
+	}
+}
+
+func TestAlertNotifyPlainWholeGroup(t *testing.T) {
+	r := &fakeReader{byTenant: map[int64]map[string]map[string]string{
+		0: {"alert_notify": {"enabled": "true", "mail_enabled": "true", "mail_to": "ops@platform.example", "webhook_secret": "platform-secret"}},
+		2: {"alert_notify": {"enabled": "true", "webhook_enabled": "true", "webhook_url": "https://t2.example/hook"}},
+		3: {"alert_notify": {"mail_to": ""}}, // all-empty own group -> platform fallback
+	}}
+	m2, err := AlertNotifyPlainForTenant(context.Background(), r, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m2["webhook_url"] != "https://t2.example/hook" {
+		t.Fatalf("tenant with own config must use it, got %q", m2["webhook_url"])
+	}
+	if m2["mail_to"] != "" || m2["webhook_secret"] != "" {
+		t.Fatalf("platform recipients/secrets must NOT leak into a configured tenant group: %v", m2)
+	}
+	m3, err := AlertNotifyPlainForTenant(context.Background(), r, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m3["mail_to"] != "ops@platform.example" {
+		t.Fatalf("unconfigured tenant must fall back to the whole platform group, got %q", m3["mail_to"])
+	}
+	m0, err := AlertNotifyPlainForTenant(context.Background(), r, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m0["mail_to"] != "ops@platform.example" {
+		t.Fatalf("tenant 0 must read platform group, got %q", m0["mail_to"])
+	}
+}

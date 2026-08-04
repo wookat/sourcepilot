@@ -207,6 +207,7 @@ func (s *Service) UpsertAlertForFailure(ctx context.Context, dto UnifiedTaskDTO,
 	}
 	platform := strings.TrimSpace(dto.Platform)
 	msg := truncateRunes(strings.TrimSpace(class.Reason)+" · "+strings.TrimSpace(dto.ErrorMessage), 1200)
+	tenantID := s.resolveSourceTenant(ctx, dto.TaskType, dto.SourceID)
 
 	var cur TaskAlert
 	errFind := s.DB.WithContext(ctx).
@@ -216,6 +217,7 @@ func (s *Service) UpsertAlertForFailure(ctx context.Context, dto UnifiedTaskDTO,
 	if errors.Is(errFind, gorm.ErrRecordNotFound) {
 		a := TaskAlert{
 			ID:              newTaskAlertID(),
+			TenantID:        tenantID,
 			TaskType:        dto.TaskType,
 			SourceID:        dto.SourceID,
 			SourceTable:     dto.SourceTable,
@@ -257,6 +259,9 @@ func (s *Service) UpsertAlertForFailure(ctx context.Context, dto UnifiedTaskDTO,
 			"handled_by":       nil,
 			"alert_count":      gorm.Expr("alert_count + 1"),
 		}
+		if tenantID > 0 && cur.TenantID != tenantID {
+			up["tenant_id"] = tenantID
+		}
 		if err := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where("id = ?", cur.ID).Updates(up).Error; err != nil {
 			return false, false, err
 		}
@@ -266,18 +271,22 @@ func (s *Service) UpsertAlertForFailure(ctx context.Context, dto UnifiedTaskDTO,
 	if strings.EqualFold(cur.Status, TaskAlertStatusIgnored) || strings.EqualFold(cur.Status, TaskAlertStatusHandled) {
 		return false, false, nil
 	}
+	bump := map[string]any{
+		"last_seen_at":     now,
+		"updated_at":       now,
+		"alert_count":      gorm.Expr("alert_count + 1"),
+		"severity":         class.Severity,
+		"message":          msg,
+		"suggested_action": class.SuggestedAction,
+		"title":            alertTitle(dto.TaskType, platform),
+		"platform":         platform,
+		"source_table":     dto.SourceTable,
+	}
+	if tenantID > 0 && cur.TenantID != tenantID {
+		bump["tenant_id"] = tenantID
+	}
 	if err := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where("id = ?", cur.ID).
-		Updates(map[string]any{
-			"last_seen_at":     now,
-			"updated_at":       now,
-			"alert_count":      gorm.Expr("alert_count + 1"),
-			"severity":         class.Severity,
-			"message":          msg,
-			"suggested_action": class.SuggestedAction,
-			"title":            alertTitle(dto.TaskType, platform),
-			"platform":         platform,
-			"source_table":     dto.SourceTable,
-		}).Error; err != nil {
+		Updates(bump).Error; err != nil {
 		return false, false, err
 	}
 	return false, true, nil
@@ -455,6 +464,13 @@ func (s *Service) GenerateAlertForFailure(c *gin.Context, taskTypeRaw string, id
 		return nil, err
 	}
 	class := applyClassification(&base)
+	callerTid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if srcTid := s.resolveSourceTenant(c.Request.Context(), base.TaskType, base.SourceID); srcTid != callerTid {
+		return nil, gorm.ErrRecordNotFound
+	}
 	now := time.Now().UTC()
 	gen, bumped, err := s.UpsertAlertForFailure(c.Request.Context(), base, class, now, true, adminFromGin(c))
 	if err != nil {

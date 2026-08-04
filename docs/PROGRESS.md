@@ -1593,3 +1593,13 @@ Final Production Acceptance Deferred to P10
 - **P1 无权限设置读取 403 噪音清零（前端）**：operator / readonly 打开工作台、订单列表、选品任务、任务中心告警页时不再调用 `GET /settings`、`GET /settings/integrations/overview`（无 `settings.manage` 时跳过，页面正常降级），浏览器控制台不再出现 403 报错；`/settings/report-currency` 登记进 `ROUTE_PERMISSIONS`（需 `settings.manage`），operator / readonly 菜单不再出现该死路入口。
 - **P1 采购单空态缺下一步指引**：`/procurement/orders` 空态此前仅"暂无数据"，与其他模块空态指引不一致；接入统一 `useListEmptyLocale`（新增 `purchaseOrders` 文案：先在订单列表标记已付款再一键生成采购单，含权限提示与"前往订单列表"按钮）。
 - 已知后续观察项（P2）：告警扫描（`ScanAndGenerateTaskAlerts`）目前以平台视角运行、告警行 `tenant_id` 恒为 0，业务租户暂看不到自身任务失败聚合出的告警（失败明细在任务中心仍可见）；如需业务租户级告警需在 Upsert 链路补租户来源。
+
+### 变更记录（2026-08-04）第 105 轮：settings 租户化第二批——inventory/pricing/sourcing/alert_notify + 告警租户来源闭环（R104 续、#221 P2-1 收口）
+
+- **inventory / pricing / sourcing 逐 key 合并租户化**：`tenantsettings` 新增 `InventoryPlain` / `PricingPlain` / `SourcingPlain`（行为参数组，租户覆盖单项、空值继承平台默认，口径同 collector）。替换读点：inventory 组 8 处（订单扣减策略、库存告警策略、批量任务上限、SKU 默认预警/安全库存 ×3、订单 SKU 匹配、configstatus 库存项）、pricing 组 4 处（定价规则/批量上限、productcheck 保护线、douyin 映射）、sourcing 组 1 处（换源规则）。**保留平台级**：库存同步平台限流（`inventory_sync_platform_rate_limit_*`，Redis 按平台节流保护共享平台 API 配额，租户不得覆盖，代码内注明）。
+- **alert_notify 整组回退租户化**：`AlertNotifyPlainForTenant`——租户配置过任一 alert_notify 值则整组用租户配置（收件人/webhook 密钥不与平台混流），否则整组回退平台默认。通知发送（`NotifyGeneratedAlerts`）按**告警行归属租户**解析通知配置；SMTP 发信服务器（mail/email 组）仍为平台级基础设施。
+- **#221 P2-1 告警租户来源闭环**：`UpsertAlertForFailure` 经 `resolveSourceTenant`（按 source 表直查 tenant_id，image/ai_text/ai_image/customer_failure 经商品/批次/店铺关联）落 `tenant_id`，bump 时自愈历史 tenant-0 行；新增 `migrateRound105AlertTenant` 回填历史告警（source 行已删的留在 tenant 0 桶，幂等）；`GET /task-center/alert-notifications` 补租户过滤（经告警归属，此前泄露其他租户通知目标/错误详情）；`POST /failures/:taskType/:id/generate-alert` 跨租户来源统一 404。
+- **settings 写侧前端对齐**：`PUT /settings` 自 #216 起忽略/校验 `tenantId`（显式传别租户 403），但 Inventory/AlertNotify/Pricing/AI 设置页仍硬编码 `tenantId: 0`，业务租户保存必 403；改为省略 `tenantId`（后端落调用方租户），`toPutItems` 默认不再传 0。
+- 存量迁移口径：settings 组本身无需数据迁移（未配置回退平台默认，tenant 0 demo 行为逐字节不变）；告警数据迁移见上。
+- 测试：`tenantsettings` 合并/整组回退单测、taskcenter `alert_tenant_source_test.go`（Upsert 落租户+自愈、通知审计租户隔离）、PG 集成 `alert_tenant_backfill_test.go`（回填/孤儿/幂等）。
+- 剩余待租户化（下一批）：`image` 组（26 处）、`taskcenter` 组（告警扫描/通知触发策略，扫描 worker 仍平台视角运行）、Storage/Email/System 设置页 `tenantId: 0` 硬编码（对应组保留平台级，暂不动）。

@@ -31,7 +31,8 @@ function truthyStored(v: string | undefined): boolean {
 }
 
 function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
-  const tenantId = 0;
+  // tenantId omitted: backend writes to the caller tenant.
+  const tenantId = undefined;
   const boolStr = (b: unknown) => (b ? 'true' : 'false');
   const syncAfter = boolStr(values.inventory_sync_after_deduct);
   const defWarn = parseIntField(values.default_warning_stock, 5);

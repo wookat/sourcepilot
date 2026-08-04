@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/notify"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -24,11 +25,13 @@ type alertNotifyCandidate struct {
 	IsNew bool
 }
 
-func (s *Service) alertNotifyPlain(ctx context.Context) (map[string]string, error) {
+// alertNotifyPlain resolves the alert_notify group for one tenant
+// (whole-group fallback to platform when the tenant configured nothing).
+func (s *Service) alertNotifyPlain(ctx context.Context, tenantID int64) (map[string]string, error) {
 	if s == nil || s.Settings == nil {
 		return map[string]string{}, nil
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "alert_notify")
+	m, err := tenantsettings.AlertNotifyPlainForTenant(ctx, s.Settings, tenantID)
 	if err != nil || m == nil {
 		return map[string]string{}, err
 	}
@@ -306,14 +309,26 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 	}
 
 	minSev := strings.TrimSpace(tc["notification_min_severity"])
-	an, err := s.alertNotifyPlain(ctx)
-	if err != nil || len(an) == 0 {
-		an = map[string]string{}
+	// alert_notify is tenant-owned: resolve per owning tenant of each alert
+	// so a tenant's alerts go to its own recipients/webhooks (whole-group
+	// fallback to platform config when the tenant configured nothing).
+	anByTenant := map[int64]map[string]string{}
+	alertNotifyFor := func(tid int64) map[string]string {
+		if m, ok := anByTenant[tid]; ok {
+			return m
+		}
+		m, err := s.alertNotifyPlain(ctx, tid)
+		if err != nil || m == nil {
+			m = map[string]string{}
+		}
+		anByTenant[tid] = m
+		return m
 	}
 	detailBase := strings.TrimSpace(tc["alert_detail_public_base"])
 
 	for _, cand := range candidates {
 		alert := cand.Alert
+		an := alertNotifyFor(alert.TenantID)
 		if !manual && minSev != "" && !s.notifySeverityOK(alert, minSev) {
 			continue
 		}
@@ -427,13 +442,14 @@ func channelEnabled(an map[string]string, ch string) bool {
 
 // ListAlertNotificationsParams binds GET /alert-notifications.
 type ListAlertNotificationsParams struct {
-	AlertID *uuid.UUID
-	Channel string
-	Status  string
-	Start   *time.Time
-	End     *time.Time
-	Page    int
-	PageSz  int
+	TenantID int64
+	AlertID  *uuid.UUID
+	Channel  string
+	Status   string
+	Start    *time.Time
+	End      *time.Time
+	Page     int
+	PageSz   int
 }
 
 // TaskAlertNotificationDTO is API shape for one notify audit row.
@@ -476,7 +492,8 @@ func (s *Service) ListAlertNotifications(ctx context.Context, p ListAlertNotific
 		return out, fmt.Errorf("taskcenter: no db")
 	}
 	page, ps := clampPageNotif(p.Page, p.PageSz)
-	q := s.DB.WithContext(ctx).Model(&TaskAlertNotification{})
+	q := s.DB.WithContext(ctx).Model(&TaskAlertNotification{}).
+		Where("alert_id IN (SELECT id FROM task_alerts WHERE tenant_id = ?)", p.TenantID)
 	if p.AlertID != nil && *p.AlertID != uuid.Nil {
 		q = q.Where("alert_id = ?", *p.AlertID)
 	}

@@ -27,7 +27,8 @@ function boolStr(b: unknown): string {
 }
 
 function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
-  const tenantId = 0;
+  // tenantId omitted: backend writes to the caller tenant.
+  const tenantId = undefined;
   const rows: Array<{ key: string; val: string }> = [
     { key: 'default_markup_type', val: String(values.default_markup_type ?? 'percent') },
     { key: 'default_markup_percent', val: String(parseNum(values.default_markup_percent, 30)) },

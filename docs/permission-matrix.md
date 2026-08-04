@@ -184,3 +184,11 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 商品子资源统一租户守卫：`adminperm.ProductRouteTenantGuard` 在 authed 组对所有 `/products/:id` 前缀路由校验商品租户归属，跨租户 404；`product-skus/search` 联表补 `products.tenant_id` 限定；AI 运营工作台与客服仪表盘聚合改为按可信租户（无 `tenant_id` 的子表经商品/会话关联限定）。
 - legacy JWT 请求期账号校验：`auth.EnsureAccountActive` 在每次请求校验账号存在、未软删、状态 active 且 `token_version` 未被提升，使改密码/停用/删除账号对旧 access token 立即生效（此前仅 secure_session 模式生效）。
 - 契约与回归证据：`permmatrix` 新增 `tenant_zero_test.go`（平台专属运维路由、提示词写、settings tenant 0 读写、采集规则/profile 跨租户、商品子资源守卫）；`middleware` 新增 `jwt_account_state_test.go`（停用 / 缺失 / `token_version` 提升三类旧 token 401）。
+
+## round105 settings 租户化第二批 + 告警租户来源闭环
+
+- `GET /task-center/alert-notifications` 补租户过滤：通知审计行经 `alert_id IN (SELECT id FROM task_alerts WHERE tenant_id = 调用方租户)` 限定，业务租户不再能读取其他租户/平台的通知目标（邮箱、webhook）与错误详情。路由与角色登记不变。
+- `POST /task-center/failures/:taskType/:id/generate-alert` 补来源租户校验：来源任务行归属租户与调用方租户不一致时统一 404（不泄露存在性），与 round104 告警单条操作口径一致。
+- 告警行 `tenant_id` 自 round105 起由来源任务行归属租户写入（`resolveSourceTenant`），历史 tenant-0 行由 `migrateRound105AlertTenant` 回填；round104 的 `GET /task-center/alerts` 租户过滤由此对业务租户真正生效。
+- settings 写侧（`PUT /api/v1/settings`）口径不变（一律写调用方租户、显式传别租户 403）；前端 Inventory / AlertNotify / Pricing / AI 设置页移除硬编码 `tenantId: 0`，业务租户 admin 保存自己的租户配置不再 403。
+- 回归证据：`taskcenter` `alert_tenant_source_test.go`（Upsert 落租户 + 通知审计租户隔离）、`tenantsettings` 单测（inventory/pricing/sourcing 逐 key 合并、alert_notify 整组回退）、集成 `alert_tenant_backfill_test.go`。
