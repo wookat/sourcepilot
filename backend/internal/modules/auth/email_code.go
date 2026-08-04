@@ -83,6 +83,18 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 		return
 	}
 
+	// Missing SMTP configuration must be reported before the registration
+	// lookup: otherwise registered addresses (200) and unregistered ones
+	// (503) would be distinguishable whenever mail is unconfigured.
+	if err := h.checkEmailSettings(c.Request.Context()); err != nil {
+		if errors.Is(err, errEmailSettingsIncomplete) {
+			response.Fail(c, 503, response.CodeServiceUnavailable, msgEmailSettingsIncomplete)
+			return
+		}
+		response.Fail(c, 500, response.CodeInternalError, msgEmailSendFailed)
+		return
+	}
+
 	// Registered addresses must not be distinguishable from new ones: the
 	// budget is consumed and the response is byte-identical to a real send,
 	// only no code is generated or stored (registration would reject it
@@ -164,6 +176,23 @@ func (h *Handler) consumeEmailCodeBudget(c *gin.Context, cooldownKey, hourlyKey,
 	} else {
 		h.Redis.Incr(ctx, ipKey)
 	}
+}
+
+// checkEmailSettings reports whether a usable mail configuration exists,
+// without sending anything.
+func (h *Handler) checkEmailSettings(ctx context.Context) error {
+	m, err := h.Settings.PlainMailSettings(ctx)
+	if err != nil {
+		return err
+	}
+	providerStr := strings.TrimSpace(m["provider"])
+	if providerStr == "" || providerStr == "smtp" {
+		if m["smtp_host"] == "" || m["smtp_from"] == "" {
+			return errEmailSettingsIncomplete
+		}
+		return nil
+	}
+	return fmt.Errorf("unsupported email provider %q", providerStr)
 }
 
 func (h *Handler) sendCodeEmail(ctx context.Context, to, code string) error {

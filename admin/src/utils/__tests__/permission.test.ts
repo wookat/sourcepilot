@@ -17,6 +17,14 @@ describe('isPlatformAdmin / 平台租户路由', () => {
     expect(canAccessPath('/settings/platform-tenants', 'operator', undefined, 0)).toBe(false);
     expect(canAccessPath('/settings/platform-tenants', 'readonly', undefined, 0)).toBe(false);
   });
+
+  it('备份/恢复/发布/容灾仅平台管理员可访问', () => {
+    for (const path of ['/ops/backups', '/ops/restores', '/ops/releases', '/ops/disaster-recovery']) {
+      expect(canAccessPath(path, 'admin', undefined, 0)).toBe(true);
+      expect(canAccessPath(path, 'admin', undefined, 2)).toBe(false);
+      expect(canAccessPath(path, 'operator', undefined, 0)).toBe(false);
+    }
+  });
 });
 
 describe('canReviewOperationTasks', () => {

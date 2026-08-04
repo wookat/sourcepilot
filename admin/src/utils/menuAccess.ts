@@ -68,8 +68,14 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/settings/users': PERMISSIONS.USER_MANAGE,
 };
 
-/** 仅平台管理员（tenant 0 admin）可见的路由。 */
-export const PLATFORM_ADMIN_ROUTES = new Set(['/settings/platform-tenants']);
+/** 仅平台管理员（tenant 0 admin）可见的路由。备份/恢复/发布/容灾作用于整个部署，与后端 opsPlatform 分组对齐。 */
+export const PLATFORM_ADMIN_ROUTES = new Set([
+  '/settings/platform-tenants',
+  '/ops/backups',
+  '/ops/restores',
+  '/ops/releases',
+  '/ops/disaster-recovery',
+]);
 
 function routePerm(path?: string): PermissionKey | PermissionKey[] | undefined {
   if (!path) return undefined;
