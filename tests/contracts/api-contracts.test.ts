@@ -54,6 +54,17 @@ describe('TradeMind API contract registry', () => {
         'PUT /api/v1/customer/reply-templates/:id',
         'DELETE /api/v1/customer/reply-templates/:id',
         'POST /api/v1/customer/reply-templates/reorder',
+        'GET /api/v1/waybill-templates',
+        'POST /api/v1/waybill-templates',
+        'PUT /api/v1/waybill-templates/:id',
+        'DELETE /api/v1/waybill-templates/:id',
+        'GET /api/v1/shipping-rules',
+        'POST /api/v1/shipping-rules',
+        'POST /api/v1/shipping-rules/recommend',
+        'PUT /api/v1/shipping-rules/:id',
+        'DELETE /api/v1/shipping-rules/:id',
+        'POST /api/v1/orders/print/mark',
+        'POST /api/v1/orders/shipping-recommendations',
       ]),
     );
   });
@@ -69,7 +80,52 @@ describe('TradeMind API contract registry', () => {
     expect(updateCarrier?.requestBody).toEqual(['name', 'enabled', 'trackingUrlTemplate', 'sortOrder']);
     expect(listCarriers?.query).toEqual(['enabled', 'keyword']);
     expect(batchShipments?.requestBody).toEqual(['items', 'defaultCarrierCode']);
-    expect(printSheets?.query).toEqual(['ids']);
+    expect(printSheets?.query).toEqual(['ids', 'templateId']);
+  });
+
+  it('defines payload/query contracts for waybill template and shipping rule APIs', () => {
+    const createTemplate = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/waybill-templates');
+    const updateTemplate = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/waybill-templates/:id');
+    const createRule = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/shipping-rules');
+    const updateRule = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/shipping-rules/:id');
+    const recommend = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/shipping-rules/recommend');
+    const markPrinted = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/orders/print/mark');
+    const orderRecs = contracts.endpoints.find(
+      (item) => routeKey(item) === 'POST /api/v1/orders/shipping-recommendations',
+    );
+
+    const templateBody = [
+      'name',
+      'sizeCode',
+      'showRecipient',
+      'showSender',
+      'showItems',
+      'showRemark',
+      'showCarrierLogo',
+      'headerText',
+      'footerText',
+      'isDefault',
+      'sortOrder',
+    ];
+    const ruleBody = [
+      'name',
+      'priority',
+      'enabled',
+      'provinces',
+      'platforms',
+      'minWeightKg',
+      'maxWeightKg',
+      'minAmount',
+      'maxAmount',
+      'carrierCode',
+    ];
+    expect(createTemplate?.requestBody).toEqual(templateBody);
+    expect(updateTemplate?.requestBody).toEqual(templateBody);
+    expect(createRule?.requestBody).toEqual(ruleBody);
+    expect(updateRule?.requestBody).toEqual(ruleBody);
+    expect(recommend?.requestBody).toEqual(['province', 'platform', 'weightKg', 'amount']);
+    expect(markPrinted?.requestBody).toEqual(['ids']);
+    expect(orderRecs?.requestBody).toEqual(['items']);
   });
 
   it('defines payload/query contracts for banned word compliance APIs', () => {
@@ -142,7 +198,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(39);
+    expect(contracts.endpoints).toHaveLength(50);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

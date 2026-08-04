@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/waybill"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
@@ -33,6 +34,7 @@ type Service struct {
 	Settings    *settings.Service
 	Idempotency *idempotency.Service
 	Carriers    *carrier.Service
+	Waybill     *waybill.Service
 }
 
 // AIContext holds serializable subsets for Prompt / ai_tasks audit (minimal PII).
@@ -121,6 +123,7 @@ type ListOrderRow struct {
 	CreatedAt             time.Time  `json:"createdAt"`
 	UpdatedAt             time.Time  `json:"updatedAt"`
 	LatestShipmentStatus  string     `json:"latestShipmentStatus,omitempty"`
+	WaybillPrintedAt      *time.Time `json:"waybillPrintedAt,omitempty"`
 }
 
 // ListResult pagination bundle.
@@ -612,6 +615,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 			OrderedAt:            r.OrderedAt,
 			CreatedAt:            r.CreatedAt,
 			LatestShipmentStatus: latest[r.ID],
+			WaybillPrintedAt:     r.WaybillPrintedAt,
 		}
 		if r.ShopID != nil && sm != nil {
 			if ssum, ok := sm[*r.ShopID]; ok {

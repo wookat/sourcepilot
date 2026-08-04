@@ -56,6 +56,7 @@ import {
   type OrderSkuMatchRow,
 } from '@/services/orders';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
+import { recommendForOrders } from '@/services/waybill';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
 import CarrierSelect, { matchCarrier, useEnabledCarriers } from '@/components/CarrierSelect';
 import { PRODUCT_COPY } from '@/constants/copywriting';
@@ -116,6 +117,7 @@ export default function OrderDetailPage() {
     open: false,
   });
   const [shipForm] = Form.useForm();
+  const [shipRecommending, setShipRecommending] = useState(false);
   const [itemModal, setItemModal] = useState<{ open: boolean; row?: OrderItemRow | null }>({
     open: false,
   });
@@ -1052,7 +1054,41 @@ export default function OrderDetailPage() {
             name="carrier"
             label="物流商"
             rules={[{ required: true, message: '请选择或填写物流商' }]}
-            extra="选择预置物流商可按其规则校验运单号；也可直接输入自定义承运商名称"
+            extra={
+              <Space direction="vertical" size={0}>
+                <span>选择预置物流商可按其规则校验运单号；也可直接输入自定义承运商名称</span>
+                <Button
+                  size="small"
+                  type="link"
+                  style={{ padding: 0 }}
+                  loading={shipRecommending}
+                  onClick={async () => {
+                    if (!detail) return;
+                    setShipRecommending(true);
+                    try {
+                      const recs = await recommendForOrders([
+                        { key: detail.orderNo, orderId: detail.id },
+                      ]);
+                      const rec = recs[0];
+                      if (rec?.matched && rec.carrierCode) {
+                        shipForm.setFieldValue('carrier', rec.carrierCode);
+                        message.success(
+                          `已按规则推荐：${rec.carrierName || rec.carrierCode}（命中规则：${rec.ruleName}，可手动修改）`,
+                        );
+                      } else {
+                        message.info(rec?.message || '没有命中任何发货规则，可手动选择物流商');
+                      }
+                    } catch (e) {
+                      message.error((e as Error).message || '按规则推荐失败');
+                    } finally {
+                      setShipRecommending(false);
+                    }
+                  }}
+                >
+                  按规则推荐物流商
+                </Button>
+              </Space>
+            }
           >
             <CarrierSelect carriers={carriers} loading={carriersLoading} />
           </Form.Item>

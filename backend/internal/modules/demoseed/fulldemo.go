@@ -3,6 +3,7 @@ package demoseed
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -25,6 +26,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
+	"github.com/trademind-ai/trademind/backend/internal/modules/waybill"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -62,6 +65,12 @@ type FullDemoSeeder struct {
 	// Prefix optionally overrides the row prefix targeted by Cleanup and
 	// VerifyClean (default DemoPrefix). Seed always writes DemoPrefix rows.
 	Prefix string
+}
+
+// mustJSONStrings marshals a string list into a JSON column value.
+func mustJSONStrings(items ...string) datatypes.JSON {
+	b, _ := json.Marshal(items)
+	return datatypes.JSON(b)
 }
 
 // cleanPrefix returns the prefix targeted by Cleanup/VerifyClean.
@@ -230,6 +239,36 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return fmt.Errorf("demoseed: carriers count: %w", err)
 	}
 	count("carriers", carrierCount)
+
+	// ---- waybill templates：预置三种尺寸打印模板（幂等，供打单演示）----
+	if err := waybill.EnsureTemplatePresets(context.Background(), tx, s.TenantID); err != nil {
+		return fmt.Errorf("demoseed: waybill templates: %w", err)
+	}
+	var waybillTplCount int64
+	if err := tx.Model(&waybill.Template{}).Where("tenant_id = ?", s.TenantID).Count(&waybillTplCount).Error; err != nil {
+		return fmt.Errorf("demoseed: waybill templates count: %w", err)
+	}
+	count("waybill_templates", waybillTplCount)
+
+	// ---- shipping rules：DEMO- 发货规则样本（省份/平台/金额段 → 物流商）----
+	minHeavy, maxStd := 5.0, 5.0
+	minAmt := 500.0
+	shippingRules := []waybill.ShippingRule{
+		{TenantID: s.TenantID, Name: "DEMO-江浙沪标准件走中通", Priority: 10, Enabled: true,
+			Provinces: mustJSONStrings("上海", "江苏", "浙江"), MaxWeightKg: &maxStd, CarrierCode: "zto"},
+		{TenantID: s.TenantID, Name: "DEMO-高客单价订单走顺丰", Priority: 20, Enabled: true,
+			MinAmount: &minAmt, CarrierCode: "sf"},
+		{TenantID: s.TenantID, Name: "DEMO-重货走德邦", Priority: 30, Enabled: true,
+			MinWeightKg: &minHeavy, CarrierCode: "deppon"},
+		{TenantID: s.TenantID, Name: "DEMO-抖店订单默认韵达", Priority: 40, Enabled: true,
+			Platforms: mustJSONStrings("douyin_shop"), CarrierCode: "yunda"},
+	}
+	for i := range shippingRules {
+		if err := tx.Create(&shippingRules[i]).Error; err != nil {
+			return fmt.Errorf("demoseed: shipping rule: %w", err)
+		}
+	}
+	count("shipping_rules", int64(len(shippingRules)))
 	var sfCarrier carrier.Carrier
 	if err := tx.First(&sfCarrier, "tenant_id = ? AND code = ?", s.TenantID, "sf").Error; err != nil {
 		return fmt.Errorf("demoseed: sf carrier: %w", err)
@@ -1110,6 +1149,13 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 		if err := del("order_exception_marks", tx.Unscoped().Where("remark LIKE ?", like).Delete(&orderexception.OrderExceptionMark{})); err != nil {
 			return err
 		}
+
+		if err := del("shipping_rules", tx.Unscoped().Where("name LIKE ?", like).Delete(&waybill.ShippingRule{})); err != nil {
+			return err
+		}
+		if err := del("waybill_templates", tx.Unscoped().Where("is_preset = ? AND name LIKE ?", false, like).Delete(&waybill.Template{})); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -1243,6 +1289,16 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 			var n int64
 			return n, tx.Model(&customerchat.CustomerReplyTemplate{}).Unscoped().
 				Where("name LIKE ? OR content LIKE ?", like, like).Count(&n).Error
+		}},
+		{"shipping_rules", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&waybill.ShippingRule{}).
+				Where("name LIKE ?", like).Count(&n).Error
+		}},
+		{"waybill_templates", func() (int64, error) {
+			var n int64
+			return n, tx.Model(&waybill.Template{}).
+				Where("is_preset = ? AND name LIKE ?", false, like).Count(&n).Error
 		}},
 		{"customer_message_sync_tasks", func() (int64, error) {
 			var n int64

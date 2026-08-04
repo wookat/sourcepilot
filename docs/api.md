@@ -755,6 +755,26 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 首页待办新增 `order_await_shipment`「订单待发货」（已付款且 `fulfillmentStatus=unfulfilled` 且未发货/关闭的订单数），链接 `/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled`。
 
+### 面单模板与发货规则（waybill，round111）
+
+自定义打印模板 + 按条件推荐物流商的纯产品能力；**不接真实电子面单 API**，模板打印仍是浏览器打印（人工贴单），凭证到位后可替换为真实面单渠道。写端点要求 `settings.manage` 且非 readonly；全部按租户隔离，越权/不存在返回 404；写操作记录 operation log（resource=`waybill`，action=`waybill_template.*` / `shipping_rule.*`）。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/waybill-templates` | 面单模板列表（租户隔离）：首次访问自动幂等预置三个模板（`标准面单 100×180`（默认）/ `小号面单 100×150` / `A4 一联单`）；返回 `{items:[{id, name, sizeCode, showRecipient, showSender, showItems, showRemark, showCarrierLogo, headerText, footerText, isDefault, isPreset, sortOrder}]}`；`sizeCode` ∈ `100x180` / `100x150` / `a4_list`。 |
+| `POST` | `/api/v1/waybill-templates` | 新增自定义模板：`{name, sizeCode, showRecipient?, showSender?, showItems?, showRemark?, showCarrierLogo?, headerText?, footerText?, isDefault?, sortOrder?}`；`isDefault=true` 时自动取消租户内其他默认。 |
+| `PUT` | `/api/v1/waybill-templates/:id` | 更新模板（名称/尺寸/显示字段/页眉页脚/默认/排序）；`isDefault=true` 时自动取消其他默认。 |
+| `DELETE` | `/api/v1/waybill-templates/:id` | 删除自定义模板；预置模板不可删除（400）；删除默认模板后打印页回退到排序最前的模板。 |
+| `GET` | `/api/v1/shipping-rules` | 发货规则列表（租户隔离，按优先级升序）：返回 `{items:[{id, name, priority, enabled, provinces[], platforms[], minWeightKg?, maxWeightKg?, minAmount?, maxAmount?, carrierCode, carrierName}]}`。 |
+| `POST` | `/api/v1/shipping-rules` | 新增规则：`{name, priority?, enabled?, provinces?, platforms?, minWeightKg?, maxWeightKg?, minAmount?, maxAmount?, carrierCode}`；`carrierCode` 必须是租户内已启用物流商；数值区间闭区间、非负且 min≤max；空省份/平台条件表示不限。 |
+| `PUT` | `/api/v1/shipping-rules/:id` | 更新规则（同上字段）。 |
+| `DELETE` | `/api/v1/shipping-rules/:id` | 删除规则。 |
+| `POST` | `/api/v1/shipping-rules/recommend` | 按属性推荐：`{province?, platform?, weightKg?, amount?}` → `{matched, ruleId?, ruleName?, carrierCode?, carrierName?}`；按优先级升序取首个命中且物流商仍启用的规则；未命中 `matched=false`（可解释、可手动覆盖、不强制）。 |
+| `POST` | `/api/v1/orders/shipping-recommendations` | 按订单批量推荐：`{items:[{key, orderId?, orderNo?, province?, weightKg?}]}`（≤200 条）→ `{items:[{key, matched, ruleId?, ruleName?, carrierCode?, carrierName?, message?}]}`；订单存在时自动取平台/金额，省份/重量可由请求补充；找不到订单逐行返回未命中说明。 |
+| `POST` | `/api/v1/orders/print/mark` | 标记打单状态：`{ids:[订单UUID]}`（≤50）→ `{marked}`；仅更新订单 `waybillPrintedAt`，**不改变发货流程语义**（不动订单/物流状态、不扣库存）。 |
+
+`GET /api/v1/orders/print/sheets` round111 起支持 `&templateId=`，返回增加 `template`（所选模板；缺省为租户默认模板），打印页按模板尺寸/显示字段/页眉页脚渲染并适配浏览器打印分页边距。
+
 ### 违禁词合规检测（banned-words，round109）
 
 | 方法 | 路径 | 说明 |

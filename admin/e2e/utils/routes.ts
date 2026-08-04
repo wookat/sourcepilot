@@ -9,6 +9,7 @@ import { inventoryResponse } from '../mocks/inventory';
 import { imageProviderCapabilities } from '../mocks/image-providers';
 import { operationLogsResponse } from '../mocks/operation-logs';
 import { selectionResponse } from '../mocks/selection';
+import { waybillResponse } from '../mocks/waybill';
 
 export async function seedAdminAuth(page: Page) {
   await page.addInitScript(([key, token]) => {
@@ -43,6 +44,7 @@ export async function routeAdminApi(page: Page) {
       inventoryResponse(path) ??
       operationLogsResponse(path, url.searchParams) ??
       selectionResponse(path, url.searchParams.get('status')) ??
+      waybillResponse(path, url.searchParams) ??
       (path.includes('/product-publications/') && path.endsWith('/douyin/sku-bindings') ? skuBindingsResponse(path.split('/').at(-3) || undefined) : null) ??
       ok({ list: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 1 } });
 

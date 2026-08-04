@@ -41,6 +41,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/modules/waybill"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"gorm.io/gorm"
 )
@@ -168,6 +169,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&productpublish.ProductPublication{},
 		&productpublish.ProductPublicationSKU{},
 		&carrier.Carrier{},
+		&waybill.Template{},
+		&waybill.ShippingRule{},
 		&bannedwords.BannedWord{},
 		&bannedwords.BannedWordCategoryState{},
 		&migrationimport.ImportJob{},

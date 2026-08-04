@@ -33,6 +33,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	o.GET("/shipping-list/export.csv", h.ExportShippingListCSV)
 	o.POST("/shipments/batch", w, h.PostBatchShipments)
 	o.GET("/print/sheets", h.GetPrintSheets)
+	o.POST("/print/mark", w, h.PostMarkPrinted)
+	o.POST("/shipping-recommendations", h.PostShippingRecommendations)
 	o.POST("/:id/shipments", w, h.PostShipment)
 	o.PUT("/:id/shipments/:shipmentId", w, h.PutShipment)
 	o.DELETE("/:id/shipments/:shipmentId", w, h.DeleteShipment)

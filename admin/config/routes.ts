@@ -582,6 +582,16 @@ export default [
         component: './Settings/Carriers',
       },
       {
+        path: '/settings/waybill-templates',
+        name: '面单模板',
+        component: './Settings/WaybillTemplates',
+      },
+      {
+        path: '/settings/shipping-rules',
+        name: '发货规则',
+        component: './Settings/ShippingRules',
+      },
+      {
         path: '/settings/banned-words',
         name: '违禁词库',
         component: './Settings/BannedWords',
