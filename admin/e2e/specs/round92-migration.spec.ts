@@ -174,7 +174,7 @@ test.describe('R92 迁移导入向导', () => {
 
     // 确认导入
     await page.getByRole('button', { name: '确认导入 2 行' }).click();
-    await expect(page.getByText('导入完成：成功 2 行')).toBeVisible();
+    await expect(page.getByText('部分成功：成功 2 行，失败 1 行')).toBeVisible();
     await expect(page.getByRole('button', { name: '下载错误行报告' })).toBeVisible();
 
     await writeGuard.expectRequestCount('import-parse', 1);

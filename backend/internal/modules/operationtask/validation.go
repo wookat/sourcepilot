@@ -139,7 +139,7 @@ func validateOperationTask(t *OperationTask) error {
 	}
 	normalizeOperationTask(t)
 	switch {
-	case t.TenantID <= 0:
+	case t.TenantID < 0:
 		return ErrValidation
 	case !allowedOperationTaskSources[t.SourceType]:
 		return ErrValidation
@@ -169,7 +169,7 @@ func validatePlatformDraft(d *PlatformDraft) error {
 	}
 	normalizePlatformDraft(d)
 	switch {
-	case d.TenantID <= 0:
+	case d.TenantID < 0:
 		return ErrValidation
 	case d.OperationTaskID.String() == "00000000-0000-0000-0000-000000000000":
 		return ErrValidation
@@ -197,7 +197,7 @@ func validateApprovalRecord(a *ApprovalRecord) error {
 	}
 	normalizeApprovalRecord(a)
 	switch {
-	case a.TenantID <= 0:
+	case a.TenantID < 0:
 		return ErrValidation
 	case a.OperationTaskID == uuidNil:
 		return ErrValidation
@@ -225,7 +225,7 @@ func validateExecutionAttempt(a *ExecutionAttempt) error {
 	}
 	normalizeExecutionAttempt(a)
 	switch {
-	case a.TenantID <= 0:
+	case a.TenantID < 0:
 		return ErrValidation
 	case a.OperationTaskID == uuidNil:
 		return ErrValidation
@@ -267,7 +267,7 @@ func validateExecutionError(e *ExecutionError) error {
 	}
 	normalizeExecutionError(e)
 	switch {
-	case e.TenantID <= 0:
+	case e.TenantID < 0:
 		return ErrValidation
 	case e.ExecutionAttemptID == uuidNil:
 		return ErrValidation
@@ -297,7 +297,7 @@ func validateOperationTaskEvent(e *OperationTaskEvent) error {
 	}
 	normalizeOperationTaskEvent(e)
 	switch {
-	case e.TenantID <= 0:
+	case e.TenantID < 0:
 		return ErrValidation
 	case e.OperationTaskID == uuidNil:
 		return ErrValidation

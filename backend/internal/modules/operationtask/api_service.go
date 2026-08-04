@@ -44,7 +44,7 @@ func (s *APIService) CreateTask(ctx context.Context, actor APIActor, req CreateT
 	if err := s.ready(); err != nil {
 		return nil, err
 	}
-	if actor.TenantID <= 0 || actor.ActorID == uuid.Nil || strings.TrimSpace(requestID) == "" || strings.TrimSpace(idemKey) == "" {
+	if actor.TenantID < 0 || actor.ActorID == uuid.Nil || strings.TrimSpace(requestID) == "" || strings.TrimSpace(idemKey) == "" {
 		return nil, ErrValidation
 	}
 	if err := s.Authorizer.CanCreate(ctx, actor.TenantID, actor.ActorID); err != nil {

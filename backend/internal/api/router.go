@@ -780,7 +780,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
 	worker.Register(authed, workerH)
 
-	operationTaskH := &operationtask.Handler{Svc: operationtask.NewAPIService(dep.DB)}
+	operationTaskH := &operationtask.Handler{
+		Svc:                   operationtask.NewAPIService(dep.DB),
+		AllowTenantZeroWrites: dep.Config != nil && dep.Config.EnableDemoSeed && !config.IsProduction(dep.Config.AppEnv),
+	}
 	operationtask.Register(authed, operationTaskH)
 	inventorySyncP9H := &inventorysyncp9.Handler{Svc: inventorysyncp9.NewAPIService(dep.DB)}
 	inventorysyncp9.Register(authed, inventorySyncP9H)

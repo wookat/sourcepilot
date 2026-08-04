@@ -60,7 +60,7 @@ func (a *RBACAuthorizer) CanRetry(ctx context.Context, tenantID int64, actorID u
 }
 
 func (a *RBACAuthorizer) require(ctx context.Context, tenantID int64, actorID uuid.UUID, permission string) error {
-	if a == nil || a.DB == nil || tenantID <= 0 || actorID == uuid.Nil || strings.TrimSpace(permission) == "" {
+	if a == nil || a.DB == nil || tenantID < 0 || actorID == uuid.Nil || strings.TrimSpace(permission) == "" {
 		return ErrPermissionDenied
 	}
 	var user admin.AdminUser

@@ -191,7 +191,7 @@ func (s *ExecutionOrchestrator) execute(ctx context.Context, in ExecutionInput, 
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("execution orchestrator: db is nil")
 	}
-	if in.TenantID <= 0 || in.OperationTaskID == uuid.Nil || in.ActorID == uuid.Nil ||
+	if in.TenantID < 0 || in.OperationTaskID == uuid.Nil || in.ActorID == uuid.Nil ||
 		strings.TrimSpace(in.RequestID) == "" || strings.TrimSpace(executionIdempotencyKey(in)) == "" {
 		return nil, ErrValidation
 	}

@@ -1494,6 +1494,11 @@ Final Production Acceptance Deferred to P10
 - 拣货/发货单打印：`GET /api/v1/orders/print/sheets?ids=`（≤50 单，店铺 scope）+ 前端打印页 `/orders/print`（订单+收件人+SKU 明细+物流商+运单号+贴单区，浏览器打印，非电子面单），订单列表勾选后「打印拣货单」入口。
 - 权限矩阵登记 6 条新路由（readonly 写 403、operator 店铺 scope），docs/api.md / module-map / permission-matrix / provider.md 同步；demo seed 补物流商预置与顺丰运单样本；契约测试补 7 端点。回归：carrier `service_test.go`、order `carrier_shipment_test.go`。
 
+### 变更记录（2026-08-04）第 96 轮：tenant 0 运营任务口径修复 + UX v4 P2 收口
+
+- **tenant 0 语义理清**：读接口不再被 R85 #185「tenant 0 误建业务数据闸门」拦截（operationtask 各层 `tenantID <= 0` 改为 `< 0`，读仍严格按 `tenant_id` 隔离）；写接口保留生产闸门，新增 `Handler.AllowTenantZeroWrites`（router 按 `EnableDemoSeed && !IsProduction` 注入），demo/dev 全量环境 tenant 0 演示租户可完整使用运营任务中心，production tenant 0 写入仍 403 且零落库。回归测试 `tenant0_gate_test.go` 覆盖两种口径 + 三角色 + 跨租户隔离。
+- **UX v4 P2 批次**：迁移向导「标题/宝贝标题/商品名/产品名」列名别名扩充（商品+订单）；导入结果页按成功/部分成功/失败视觉分层（部分成功明确失败行未入库可下载修正）；导入历史空态引导（跳导入向导按钮）；批量发货「手工扣库存」长说明改为单行可展开；打印页小屏提示建议桌面端打印；物流商轨迹 URL 模板列悬浮完整显示；demoseed 空汇率表时幂等补 USD 手工汇率（已配置不覆盖），报表演示不再出现未折算提示。v3 遗留 P2-7：订单列表批量工具栏移除 `alwaysShowAlert` 占位，选中行才出现。
+
 ### 变更记录（2026-08-04）第 93 轮：报表合规（多币种本位币折算）
 
 - 新增 `providers/fxrate`（报表折算汇率表 Provider 抽象 + `ManualProvider`，不接实时汇率 API）：汇率语义「1 单位原币 = rate 本位币」，`math/big.Rat` decimal 精度、输出两位小数半入舍出。
