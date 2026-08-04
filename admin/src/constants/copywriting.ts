@@ -279,6 +279,13 @@ export const LIST_EMPTY_COPY = {
     actionPath: '/shops/manage',
     permissionHint: PERM_HINT,
   },
+  purchaseOrders: {
+    title: '暂无采购单',
+    description: '订单标记已付款后，可在订单列表按已付款订单一键生成采购单。',
+    action: '前往订单列表',
+    actionPath: '/orders/list',
+    permissionHint: PERM_HINT,
+  },
   orderExceptions: {
     title: '暂无订单异常',
     description: '订单同步或 SKU 匹配出现问题时会在此展示；当前没有需要处理的异常。',

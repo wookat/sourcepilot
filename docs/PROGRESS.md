@@ -1578,6 +1578,13 @@ Final Production Acceptance Deferred to P10
 - `docs/env.md` 补充 secure_session 模式必须配置 `ADMIN_PUBLIC_URL`（否则写请求 403 `ORIGIN_NOT_ALLOWED`）。
 - 集成回归结论：#213–#217 叠加后全量门禁（go/contracts/frontend/build/ui-copy/E2E 160 通过）与 docker 全栈动态回归（R57 主链路、双租户三角色、legacy/secure_session 生命周期、采集规则租户迁移、清退零残留、硬指标全零）通过；375px 视口受浏览器最小宽度限制以 500px 替代，demo seed 暂无采集规则/浏览器 profile 样例数据（P2 观察项）。
 
+### 变更记录（2026-08-04）UX v5 全站走查 P1 修复：全局库存/告警跨租户泄露收口 + 无权限设置读 403 噪音清零
+
+- **P1 跨租户数据泄露收口（后端）**：`GET /inventory/logs`、`GET /inventory/effects` 此前无租户过滤，新注册业务租户可看到 tenant 0 演示数据的库存流水（实测泄露）。现在流水按 `tenant_id` 限定、effects 经 `orders.tenant_id` 子查询限定；`GET /task-center/alerts` 同步按 `tenant_id` 过滤，告警 handle / ignore / unmark / notify 单条操作改为租户内查找（跨租户 404），杜绝按 ID 越权操作。回归测试：`inventory/global_feeds_tenant_scope_test.go`、`taskcenter/alerts_tenant_scope_test.go`。
+- **P1 无权限设置读取 403 噪音清零（前端）**：operator / readonly 打开工作台、订单列表、选品任务、任务中心告警页时不再调用 `GET /settings`、`GET /settings/integrations/overview`（无 `settings.manage` 时跳过，页面正常降级），浏览器控制台不再出现 403 报错；`/settings/report-currency` 登记进 `ROUTE_PERMISSIONS`（需 `settings.manage`），operator / readonly 菜单不再出现该死路入口。
+- **P1 采购单空态缺下一步指引**：`/procurement/orders` 空态此前仅"暂无数据"，与其他模块空态指引不一致；接入统一 `useListEmptyLocale`（新增 `purchaseOrders` 文案：先在订单列表标记已付款再一键生成采购单，含权限提示与"前往订单列表"按钮）。
+- 已知后续观察项（P2）：告警扫描（`ScanAndGenerateTaskAlerts`）目前以平台视角运行、告警行 `tenant_id` 恒为 0，业务租户暂看不到自身任务失败聚合出的告警（失败明细在任务中心仍可见）；如需业务租户级告警需在 Upsert 链路补租户来源。
+
 ### 变更记录（2026-08-04）第 104 轮：settings 租户化第一批——AI 配置 + 采集配置（R102 P2-2 收口开工）
 
 - 新增 `internal/pkg/tenantsettings`：按可信租户上下文（`security.TenantContext`）解析生效 settings，两种回退口径——**ai 整组回退**（租户配置任一自有 `api_key`/`*_api_key` 则整组以租户配置为准，杜绝租户模型跑平台 Key 的混流；未配置则整组回退平台默认）、**collector 逐 key 合并**（行为参数：租户覆盖单项，空值视为未设置继承平台默认）。

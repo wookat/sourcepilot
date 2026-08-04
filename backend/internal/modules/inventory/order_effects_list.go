@@ -10,6 +10,7 @@ import (
 
 // OrderEffectsQuery paginates inventory effects scoped to orders.
 type OrderEffectsQuery struct {
+	TenantID     int64
 	Page         int
 	PageSize     int
 	OrderID      *uuid.UUID
@@ -79,7 +80,8 @@ func (s *Service) ListOrderEffectsGlobal(ctx context.Context, q OrderEffectsQuer
 	if ps < 1 || ps > 200 {
 		ps = 20
 	}
-	tx := s.DB.WithContext(ctx).Model(&OrderInventoryEffect{})
+	tx := s.DB.WithContext(ctx).Model(&OrderInventoryEffect{}).
+		Where("order_id IN (SELECT id FROM orders WHERE tenant_id = ?)", q.TenantID)
 	if q.OrderID != nil && *q.OrderID != uuid.Nil {
 		tx = tx.Where("order_id = ?", *q.OrderID)
 	}

@@ -17,6 +17,7 @@ import {
   type PurchaseOrder,
 } from '@/services/procurement';
 import { queryOrders, type OrderListRow } from '@/services/orders';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { isReadonly } from '@/utils/permission';
 import { formatDateTime } from '@/utils/formatTime';
 import { Link, useModel, useSearchParams } from '@umijs/max';
@@ -103,6 +104,7 @@ export default function ProcurementOrdersPage() {
     initialState?: { currentUser?: API.CurrentUser };
   };
   const writable = !isReadonly(initialState?.currentUser?.role);
+  const emptyLocale = useListEmptyLocale('purchaseOrders', { permissionScoped: true });
   const [rows, setRows] = useState<PurchaseOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -334,6 +336,7 @@ export default function ProcurementOrdersPage() {
       <Table<PurchaseOrder>
         rowKey="id"
         loading={loading}
+        locale={emptyLocale}
         rowSelection={
           writable
             ? {

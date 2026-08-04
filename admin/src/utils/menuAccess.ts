@@ -65,6 +65,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/settings/platform-publish': PERMISSIONS.SETTINGS_MANAGE,
   '/settings/integrations': PERMISSIONS.SETTINGS_MANAGE,
   '/settings/config-status': PERMISSIONS.SETTINGS_MANAGE,
+  '/settings/report-currency': PERMISSIONS.SETTINGS_MANAGE,
   '/settings/users': PERMISSIONS.USER_MANAGE,
 };
 
