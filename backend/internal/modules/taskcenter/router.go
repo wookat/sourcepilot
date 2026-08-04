@@ -15,7 +15,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	tc.POST("/alerts/:id/notify", h.NotifyAlert)
 	tc.POST("/alerts/:id/handle", h.HandleAlert)
 	tc.POST("/alerts/:id/ignore", h.IgnoreAlert)
-	tc.DELETE("/alerts/:id/mark", h.Unmark)
+	tc.DELETE("/alerts/:id/mark", h.UnmarkAlert)
 	tc.GET("/failures", h.ListFailures)
 	tc.GET("/summary", h.Summary)
 	tc.POST("/failures/batch-retry", h.BatchRetry)
