@@ -62,6 +62,10 @@ func main() {
 	if tenantID < 0 {
 		tenantID = resolveTenant(db, cfg)
 		fmt.Fprintf(os.Stderr, "seeddemo: auto-resolved tenant id %d\n", tenantID)
+		if tenantID <= 0 && *mode == "seed" {
+			tenantID = 1
+			fmt.Fprintln(os.Stderr, "seeddemo: resolved tenant is not positive; task workers reject tenant_id<=0 rows, falling back to tenant 1 (override with -tenant)")
+		}
 	}
 
 	seeder := &demoseed.FullDemoSeeder{DB: db, TenantID: tenantID, AppEnv: cfg.AppEnv, Prefix: *prefix}
