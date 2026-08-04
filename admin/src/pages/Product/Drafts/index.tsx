@@ -57,6 +57,7 @@ import {
   type ProductListRow,
 } from '@/services/products';
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
+import { batchCheckBannedWords, type BannedWordScanResult } from '@/services/bannedWords';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import PricingApplyModal from '@/components/PricingApplyModal';
 import { usePermission } from '@/hooks/usePermission';
@@ -504,6 +505,29 @@ export default function ProductDraftsPage() {
       (s.platform || '').toLowerCase() === batchPlat.toLowerCase() && s.authStatus === 'authorized',
   );
 
+  const [bannedOpen, setBannedOpen] = useState(false);
+  const [bannedLoading, setBannedLoading] = useState(false);
+  const [bannedResult, setBannedResult] = useState<BannedWordScanResult[]>([]);
+
+  const openBannedDrawer = () => {
+    if (!ensureBatchSelection()) return;
+    setBannedOpen(true);
+    setBannedResult([]);
+  };
+
+  const runBatchBannedWords = async () => {
+    setBannedLoading(true);
+    try {
+      const { list } = await batchCheckBannedWords(selectedRowKeys);
+      setBannedResult(Array.isArray(list) ? list : []);
+      message.success('检测完成');
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '检测失败');
+    } finally {
+      setBannedLoading(false);
+    }
+  };
+
   const openBatchDrawer = async () => {
     if (!ensureBatchSelection()) {
       return;
@@ -683,6 +707,9 @@ export default function ProductDraftsPage() {
             onClick={() => void openBatchDrawer()}
           >
             批量发布检查
+          </Button>
+          <Button icon={<SafetyCertificateOutlined />} onClick={() => openBannedDrawer()}>
+            批量违禁词检测
           </Button>
           {readonly ? null : (
             <>
@@ -957,6 +984,76 @@ export default function ProductDraftsPage() {
               { title: '警', dataIndex: 'warningCount', width: 56 },
             ]}
           />
+        </Space>
+      </Drawer>
+
+      <Drawer
+        title="批量违禁词检测"
+        width="min(720px, calc(100vw - 32px))"
+        className="product-drafts-drawer"
+        open={bannedOpen}
+        onClose={() => setBannedOpen(false)}
+        destroyOnHidden
+        extra={
+          <Button type="primary" loading={bannedLoading} onClick={() => void runBatchBannedWords()}>
+            开始检测
+          </Button>
+        }
+      >
+        <Space direction="vertical" className="product-drafts-drawer__body" size="large">
+          <Typography.Paragraph type="secondary" className="product-drafts-drawer__hint">
+            已选 {selectedRowKeys.length} 个商品；单次最多 100 个。扫描标题、卖点与详情文案中的违禁词，禁止级命中会在发布检查中阻断刊登；词库可在「设置 → 违禁词库」维护。
+          </Typography.Paragraph>
+          {!bannedLoading && bannedResult.length === 0 ? (
+            <EmptyState compact title="尚未执行检测" description="点击右上角「开始检测」扫描已勾选的商品。" />
+          ) : (
+            <Table<BannedWordScanResult>
+              size="small"
+              rowKey="productId"
+              dataSource={bannedResult}
+              loading={bannedLoading}
+              pagination={false}
+              columns={[
+                {
+                  title: '商品 ID',
+                  dataIndex: 'productId',
+                  ellipsis: true,
+                  render: (v: string) => (
+                    <Typography.Link href={`/product/drafts/${v}?tab=readiness`}>{v}</Typography.Link>
+                  ),
+                },
+                {
+                  title: '状态',
+                  width: 110,
+                  render: (_, r) => {
+                    if (r.status === 'blocked') return <Tag color="red">禁止级命中</Tag>;
+                    if (r.status === 'warning') return <Tag color="orange">警告级命中</Tag>;
+                    return <Tag color="green">通过</Tag>;
+                  },
+                },
+                { title: '禁止', dataIndex: 'forbiddenCount', width: 64 },
+                { title: '警告', dataIndex: 'warningCount', width: 64 },
+                {
+                  title: '命中词',
+                  render: (_, r) =>
+                    r.hits.length === 0 ? (
+                      <Typography.Text type="secondary">—</Typography.Text>
+                    ) : (
+                      <Space size={4} wrap>
+                        {r.hits.slice(0, 8).map((h, i) => (
+                          <Tag key={`${h.field}-${h.word}-${i}`} color={h.level === 'forbidden' ? 'red' : 'orange'}>
+                            {h.word}
+                          </Tag>
+                        ))}
+                        {r.hits.length > 8 ? (
+                          <Typography.Text type="secondary">等 {r.hits.length} 项</Typography.Text>
+                        ) : null}
+                      </Space>
+                    ),
+                },
+              ]}
+            />
+          )}
         </Space>
       </Drawer>
 

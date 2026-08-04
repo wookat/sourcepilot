@@ -24,6 +24,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/alerting"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
+	"github.com/trademind-ai/trademind/backend/internal/modules/bannedwords"
 	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
@@ -554,10 +555,14 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	customerSyncH := &customersync.Handler{Svc: customerSyncSvc}
 
+	bannedWordsSvc := &bannedwords.Service{DB: dep.DB, OpLog: opLogSvc}
+	bannedWordsH := &bannedwords.Handler{Svc: bannedWordsSvc, OpLog: opLogSvc}
+
 	readinessSvc := &productcheck.Service{
 		DB:       dep.DB,
 		Settings: settingsSvc,
 		Shops:    shopSvc,
+		Banned:   bannedWordsSvc,
 	}
 	productSvc.Readiness = func(ctx context.Context, req product.OperationReadinessRequest) (*product.OperationReadinessResult, error) {
 		res, err := readinessSvc.CheckProductReadiness(ctx, productcheck.CheckProductReadinessRequest{
@@ -718,6 +723,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	migrationImportSvc := &migrationimport.Service{DB: dep.DB, Products: productSvc, Orders: orderSvc, OpLog: opLogSvc}
 	migrationimport.Register(authed, &migrationimport.Handler{Svc: migrationImportSvc})
 	carrier.Register(authed, carrierH)
+	bannedwords.Register(authed, bannedWordsH)
 	sourcingSvc := &sourcing.Service{DB: dep.DB, Settings: settingsSvc, OpLog: opLogSvc, Provider: &sourceinfo.Mock{}}
 	sourcingH := &sourcing.Handler{Svc: sourcingSvc}
 	sourcing.Register(authed, sourcingH)

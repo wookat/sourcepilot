@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/bannedwords"
 	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
@@ -209,6 +210,16 @@ func (s *FullDemoSeeder) guard() error {
 func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	now := time.Now().UTC()
 	count := func(table string, n int64) { res.Counts[table] += n }
+
+	// ---- banned words：预置违禁词基础库（幂等，供合规检测演示）----
+	if err := bannedwords.EnsurePresets(context.Background(), tx, s.TenantID); err != nil {
+		return fmt.Errorf("demoseed: banned words: %w", err)
+	}
+	var bannedCount int64
+	if err := tx.Model(&bannedwords.BannedWord{}).Where("tenant_id = ?", s.TenantID).Count(&bannedCount).Error; err != nil {
+		return fmt.Errorf("demoseed: banned words count: %w", err)
+	}
+	count("banned_words", bannedCount)
 
 	// ---- carriers：预置国内常用物流商（幂等，供发货/打印演示）----
 	if err := carrier.EnsurePresets(context.Background(), tx, s.TenantID); err != nil {

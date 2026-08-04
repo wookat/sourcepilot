@@ -19,6 +19,7 @@ import { commonStatusLabel, publishModeLabel, readinessLevelLabel } from '@/cons
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import { layoutTokens } from '@/constants/layoutTokens';
 import MultiPlatformPublishCenter from '@/components/MultiPlatformPublishCenter';
+import BannedWordsCheckPanel from '@/components/BannedWordsCheckPanel';
 import {
   localizeCollectWarningCode,
   localizeNextActionLabel,
@@ -639,6 +640,7 @@ const READINESS_GROUP_LABEL: Record<string, string> = {
   platform: '平台配置',
   pricing: '价格',
   attribute: '商品参数',
+  compliance: '合规检测',
 };
 
 function readinessCheckDisplay(c: ReadinessCheckItem) {
@@ -4359,6 +4361,7 @@ export default function ProductDraftDetailPage() {
               key: 'readiness',
               label: tabLabels.readiness,
               children: (
+                <Space direction="vertical" size="large" style={{ width: '100%' }}>
                 <SectionCard
                   title="发布检查"
                   description="检查当前草稿在所选平台下的完整性。检查通过不代表已经刊登，重新检查也不会自动修复商品字段。"
@@ -4600,6 +4603,8 @@ export default function ProductDraftDetailPage() {
                     )}
                   </Space>
                 </SectionCard>
+                {id ? <BannedWordsCheckPanel productId={id} /> : null}
+                </Space>
               ),
             },
             {

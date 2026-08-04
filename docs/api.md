@@ -750,6 +750,21 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 首页待办新增 `order_await_shipment`「订单待发货」（已付款且 `fulfillmentStatus=unfulfilled` 且未发货/关闭的订单数），链接 `/orders/list?payStatus=paid&fulfillmentStatus=unfulfilled`。
 
+### 违禁词合规检测（banned-words，round109）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/banned-words` | 违禁词列表（租户隔离）：`?category=&level=&keyword=&enabled=1`；首次访问自动为租户幂等预置基础库（广告法极限词 / 通用违禁词 / 医疗功效词 / 品牌侵权词）；返回 `{items:[{id, word, category, level, isPreset, enabled, suggestion}]}`。 |
+| `POST` | `/api/v1/banned-words` | 新增租户自定义违禁词：`{word, category?, level, suggestion?}`；`level` 为 `forbidden`（禁止，阻断刊登）或 `warning`（警告，仅提示）；词在租户内唯一。 |
+| `PUT` | `/api/v1/banned-words/:id` | 更新违禁词；预置词仅可改 `enabled`（启停），词面/类别/级别/建议只读。 |
+| `DELETE` | `/api/v1/banned-words/:id` | 删除自定义违禁词；预置词不可删除（400），只能停用。 |
+| `GET` | `/api/v1/banned-words/categories` | 分类列表：`{items:[{category, categoryLabel, enabled, wordCount}]}`。 |
+| `PUT` | `/api/v1/banned-words/categories/:category` | 分类启停：`{enabled}`；停用后该分类词不参与扫描。 |
+| `GET` | `/api/v1/products/:id/banned-words/check` | 扫描单个商品草稿（标题 / AI 标题 / 详情 / AI 描述），返回 `{productId, status(blocked|warning|passed), statusLabel, forbiddenCount, warningCount, hits:[{word, field, fieldLabel, category, categoryLabel, level, levelLabel, suggestion, positions:[{start,end}]}], fields:[{field,label,text}]}`；`positions` 为 Unicode 码点偏移，用于前端高亮。 |
+| `POST` | `/api/v1/products/banned-words/check-batch` | 批量扫描：`{productIds}`（单次最多 100），返回 `{list: ScanResult[]}`。 |
+
+租户隔离与权限：越权访问返回 404；写操作（POST/PUT/DELETE）readonly 角色返回 403。发布检查（`/products/:id/readiness`）已接入 `compliance` 分组：禁止级命中产生 `error`（`compliance.banned_word_forbidden`，阻断 `canPublish`），警告级产生 `warning`（`compliance.banned_word_warning`，不阻断）。
+
 ### 订单异常工作台：采购受阻（procurement_blocked）
 
 `GET /api/v1/orders/exceptions` 新增聚合异常类型 `procurement_blocked`：已付款、未发货且未取消/退款/关闭的销售订单行，若已绑定本地 SKU 但商品缺可用主货源（`source_missing`）或主货源缺该 SKU 映射（`mapping_missing`），且未被任何未取消/未失败的采购单行覆盖，则以 `sourceType=order_item` 进入工作台。返回体：

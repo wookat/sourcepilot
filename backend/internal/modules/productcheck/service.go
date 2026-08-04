@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/bannedwords"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -35,6 +36,8 @@ type Service struct {
 	DB       *gorm.DB
 	Settings *settings.Service
 	Shops    *shop.Service
+	// Banned scans draft copy against the tenant banned-word library when set.
+	Banned *bannedwords.Service
 }
 
 // CheckProductReadiness runs all applicable checks for one product.
@@ -72,6 +75,7 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 	checks = append(checks, checkTaobaoTmallCollectHints(prod)...)
 	checks = append(checks, checkTaobaoTmallExternalImages(prod)...)
 	checks = append(checks, checkCollectWarnings(prod)...)
+	checks = append(checks, s.checkBannedWords(ctx, prod)...)
 
 	imgChecks, mainURLs := checkImages(prod, plat)
 	checks = append(checks, imgChecks...)
@@ -640,6 +644,51 @@ func collectWarningsFromRaw(raw []byte) []string {
 		for _, k := range []string{"collectWarnings", "warnings", "qualityWarnings"} {
 			addFrom(rawObj[k])
 		}
+	}
+	return out
+}
+
+// checkBannedWords maps banned-word hits to readiness items: forbidden-level
+// hits block publishing (error), warning-level hits only hint.
+func (s *Service) checkBannedWords(ctx context.Context, prod product.Product) []CheckItem {
+	if s == nil || s.Banned == nil {
+		return nil
+	}
+	res, err := s.Banned.ScanProduct(ctx, prod)
+	if err != nil || res == nil {
+		return []CheckItem{{
+			Group:      "compliance",
+			Code:       "compliance.banned_words_unavailable",
+			Level:      levelWarning,
+			Message:    "违禁词检测暂不可用",
+			Suggestion: "请稍后重试或在设置中检查违禁词库。",
+		}}
+	}
+	out := make([]CheckItem, 0, len(res.Hits))
+	for _, h := range res.Hits {
+		level := levelWarning
+		suggestion := h.Suggestion
+		if suggestion == "" {
+			suggestion = "请修改或删除该词后再刊登。"
+		}
+		if h.Level == bannedwords.LevelForbidden {
+			level = levelError
+		}
+		out = append(out, CheckItem{
+			Group:      "compliance",
+			Code:       "compliance.banned_word_" + h.Level,
+			Title:      fmt.Sprintf("%s命中违禁词「%s」", h.FieldLabel, h.Word),
+			Level:      level,
+			Message:    fmt.Sprintf("%s包含%s（%s级）违禁词「%s」，共 %d 处", h.FieldLabel, h.CategoryLabel, h.LevelLabel, h.Word, len(h.Positions)),
+			Suggestion: suggestion,
+			TechnicalDetails: map[string]any{
+				"word":      h.Word,
+				"field":     h.Field,
+				"category":  h.Category,
+				"level":     h.Level,
+				"positions": h.Positions,
+			},
+		})
 	}
 	return out
 }
