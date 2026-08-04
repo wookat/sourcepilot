@@ -631,6 +631,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.POST("/auth/logout-all", sessionH.LogoutAll)
 	authed.GET("/settings", setH.List)
 	authed.PUT("/settings", setH.Put)
+	authed.GET("/settings/report-currency", setH.GetReportCurrency)
+	authed.PUT("/settings/report-currency", setH.PutReportCurrency)
 	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)
 	authed.GET("/settings/integrations/overview", setH.IntegrationOverview)
 	authed.POST("/settings/test-ai", setH.TestAI)

@@ -83,8 +83,9 @@ const SALES_WINDOW_LABELS: Record<string, string> = {
   last30d: '近 30 日',
 };
 
-function SalesWindowCard({ win }: { win: SalesWindowStats }) {
+function SalesWindowCard({ win, baseCurrency }: { win: SalesWindowStats; baseCurrency: string }) {
   const amounts = win.paidAmounts ?? [];
+  const unconverted = win.unconvertedCurrencies ?? [];
   return (
     <ProCard variant="outlined" bodyStyle={{ padding: '12px 16px' }}>
       <Typography.Text type="secondary">{SALES_WINDOW_LABELS[win.key] || win.key}</Typography.Text>
@@ -101,18 +102,28 @@ function SalesWindowCard({ win }: { win: SalesWindowStats }) {
       </Space>
       <div style={{ marginTop: 8 }}>
         {amounts.length > 0 ? (
-          amounts.map((a) => (
-            <Typography.Text
-              key={a.currency}
-              strong
-              style={{ marginRight: 12, fontSize: 16, ...tabularNumsStyle }}
-            >
-              {formatAmount(a.amount, a.currency)}
+          <>
+            <Typography.Text strong style={{ marginRight: 12, fontSize: 16, ...tabularNumsStyle }}>
+              {formatAmount(win.paidAmountBase ?? 0, baseCurrency)}
             </Typography.Text>
-          ))
+            {amounts.map((a) => (
+              <Typography.Text
+                key={a.currency}
+                type="secondary"
+                style={{ marginRight: 12, ...tabularNumsStyle }}
+              >
+                {formatAmount(a.amount, a.currency)}
+              </Typography.Text>
+            ))}
+          </>
         ) : (
           <Typography.Text type="secondary">暂无已付款销售额</Typography.Text>
         )}
+        {unconverted.length > 0 ? (
+          <div style={{ marginTop: 4 }}>
+            <Tag color="warning">未折算：{unconverted.join('、')}</Tag>
+          </div>
+        ) : null}
       </div>
     </ProCard>
   );
@@ -1086,7 +1097,7 @@ export default function ProductOperationsDashboardPage() {
               <Row gutter={[16, 16]}>
                 {(salesStats.windows ?? []).map((w) => (
                   <Col xs={24} sm={12} md={8} key={w.key}>
-                    <SalesWindowCard win={w} />
+                    <SalesWindowCard win={w} baseCurrency={salesStats.baseCurrency || 'CNY'} />
                   </Col>
                 ))}
               </Row>
