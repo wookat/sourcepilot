@@ -227,6 +227,13 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	}
 	count("shops", int64(len(shops)))
 
+	// ---- demo RBAC accounts (admin / operator / readonly): guarantee they
+	// exist with the documented passwords on every platform (the PowerShell
+	// seed script is not required) and reset drifted passwords idempotently.
+	if err := s.ensureDemoAccounts(tx, count); err != nil {
+		return err
+	}
+
 	// ---- operator / readonly demo accounts: grant the manual DEMO shop so
 	// scoped positive paths are testable out of the box (readonly gets view
 	// scope to exercise the read-visible / write-denied permission boundary).
