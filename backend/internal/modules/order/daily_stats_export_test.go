@@ -43,15 +43,16 @@ func TestExportDailyStatsCSV(t *testing.T) {
 	if len(lines) != 8 { // header + 7 days
 		t.Fatalf("expected 8 lines, got %d", len(lines))
 	}
-	if lines[0] != "日期,订单数,已付款数,已发货数,已付款销售额(EUR),已付款销售额(USD)" {
+	if lines[0] != "日期,订单数,已付款数,已发货数,已付款销售额(EUR),折算金额(EUR→CNY),已付款销售额(USD),折算金额(USD→CNY),已付款销售额合计(CNY),未折算币种" {
 		t.Fatalf("unexpected header %q", lines[0])
 	}
 	last := lines[len(lines)-1]
-	if last != today+",3,2,1,7.50,12.50" {
+	// no manual rates configured: converted columns blank, total 0, hint lists both
+	if last != today+",3,2,1,7.50,,12.50,,0.00,EUR USD" {
 		t.Fatalf("unexpected today row %q", last)
 	}
-	// empty days are zero-filled
-	if lines[1] != strings.Split(lines[1], ",")[0]+",0,0,0,0.00,0.00" {
+	// empty days are zero-filled (converted column blank for rate-less currencies)
+	if lines[1] != strings.Split(lines[1], ",")[0]+",0,0,0,0.00,,0.00,,0.00," {
 		t.Fatalf("unexpected empty row %q", lines[1])
 	}
 }
@@ -68,7 +69,7 @@ func TestExportDailyStatsCSVNoPaid(t *testing.T) {
 	if len(lines) != 31 {
 		t.Fatalf("default expected 31 lines, got %d", len(lines))
 	}
-	if lines[0] != "日期,订单数,已付款数,已发货数" {
+	if lines[0] != "日期,订单数,已付款数,已发货数,已付款销售额合计(CNY),未折算币种" {
 		t.Fatalf("unexpected header %q", lines[0])
 	}
 }

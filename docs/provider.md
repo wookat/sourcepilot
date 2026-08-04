@@ -145,6 +145,7 @@ Douyin Shop Phase 8 adds order sync MVP via existing order sync orchestration (`
   - `open1688`：官方 API 空壳，凭证可用前始终 `ErrUnavailable`。
 - **FX Provider**（`providers/fx`）：汇率，默认内置固定表，可由 settings `selection` 分组（`fx_rate_usd` 等）覆盖。
 - **Logistics Provider**（`providers/logistics`）：物流报价，线性模型 `base + perKG × weight`，参数可配置。
+- **FX Rate Provider（报表折算）**（`providers/fxrate`，round93）：报表本位币折算的汇率表抽象 `Provider{Table(ctx, tenantID) (*Table, error)}`，`Table` 含本位币与「1 单位原币 = rate 本位币」的汇率映射（`math/big.Rat` decimal 精度，输出保留两位小数半入舍出）。当前实现：`ManualProvider`（读取 settings `report_currency` 分组的手工汇率表，不接实时汇率 API）；后续接入实时汇率源时新增 Provider 实现即可，报表聚合逻辑无需改动。与选品用 `providers/fx` 相互独立（方向与用途不同）。
 - **Tracking Provider**（`providers/tracking`，round91 预留）：物流轨迹抓取抽象 `Provider{Name, SupportsFetch, Fetch(carrierCode, trackingNo)}`；当前仅内置 `manual` provider（`SupportsFetch=false`，不调真实快递 API），轨迹状态由人工编辑物流记录推动订单在途→送达既有流转；后续接入快递100/17TRACK 等真实 API 时实现 `Fetch` 并通过 `orders/:id/shipments/:shipmentId/refresh-tracking` 端点回写。
 
 ## 扩展建议

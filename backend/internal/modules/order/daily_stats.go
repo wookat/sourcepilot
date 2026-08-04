@@ -14,19 +14,25 @@ const (
 )
 
 // DailyStat summarizes orders created on one local calendar day.
+// PaidAmountBase sums paid amounts converted to the report base currency;
+// currencies without a manual rate are listed in UnconvertedCurrencies and
+// excluded from the converted total.
 type DailyStat struct {
-	Date         string        `json:"date"`
-	OrderCount   int64         `json:"orderCount"`
-	PaidCount    int64         `json:"paidCount"`
-	ShippedCount int64         `json:"shippedCount"`
-	PaidAmounts  []SalesAmount `json:"paidAmounts"`
+	Date                  string        `json:"date"`
+	OrderCount            int64         `json:"orderCount"`
+	PaidCount             int64         `json:"paidCount"`
+	ShippedCount          int64         `json:"shippedCount"`
+	PaidAmounts           []SalesAmount `json:"paidAmounts"`
+	PaidAmountBase        float64       `json:"paidAmountBase"`
+	UnconvertedCurrencies []string      `json:"unconvertedCurrencies,omitempty"`
 }
 
 // DailyStatsDTO is GET /orders/stats/daily.
 type DailyStatsDTO struct {
-	GeneratedAt string      `json:"generatedAt"`
-	Days        int         `json:"days"`
-	Items       []DailyStat `json:"items"`
+	GeneratedAt  string      `json:"generatedAt"`
+	Days         int         `json:"days"`
+	BaseCurrency string      `json:"baseCurrency"`
+	Items        []DailyStat `json:"items"`
 }
 
 // DailyStats aggregates per-day order counts, paid counts and paid sales
@@ -45,7 +51,7 @@ func (s *Service) DailyStats(c *gin.Context, days int) (*DailyStatsDTO, error) {
 	since := todayStart.AddDate(0, 0, -(days - 1))
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&Order{}).Where("created_at >= ?", since)
-	tx, _, err := adminperm.ApplyTenantScope(c, tx)
+	tx, tenantID, err := adminperm.ApplyTenantScope(c, tx)
 	if err != nil {
 		return nil, err
 	}
@@ -65,10 +71,12 @@ func (s *Service) DailyStats(c *gin.Context, days int) (*DailyStatsDTO, error) {
 		return nil, err
 	}
 
+	fxTab := s.fxTable(c.Request.Context(), tenantID)
 	orderCounts := make(map[string]int64, days)
 	paidCounts := make(map[string]int64, days)
 	shippedCounts := make(map[string]int64, days)
 	paidAmounts := make(map[string]map[string]*SalesAmount, days)
+	fxByDay := make(map[string]*fxAccumulator, days)
 	for _, r := range rows {
 		d := r.CreatedAt.In(now.Location()).Format("2006-01-02")
 		orderCounts[d]++
@@ -92,12 +100,25 @@ func (s *Service) DailyStats(c *gin.Context, days int) (*DailyStatsDTO, error) {
 		}
 		a.Amount += r.TotalAmount
 		a.Orders++
+		acc := fxByDay[d]
+		if acc == nil {
+			acc = newFxAccumulator(fxTab)
+			fxByDay[d] = acc
+		}
+		acc.Add(r.Currency, r.TotalAmount)
 	}
 
-	out := &DailyStatsDTO{GeneratedAt: now.UTC().Format(time.RFC3339), Days: days, Items: make([]DailyStat, 0, days)}
+	out := &DailyStatsDTO{GeneratedAt: now.UTC().Format(time.RFC3339), Days: days, BaseCurrency: fxTab.Base, Items: make([]DailyStat, 0, days)}
 	for i := 0; i < days; i++ {
 		d := since.AddDate(0, 0, i).Format("2006-01-02")
 		st := DailyStat{Date: d, OrderCount: orderCounts[d], PaidCount: paidCounts[d], ShippedCount: shippedCounts[d], PaidAmounts: []SalesAmount{}}
+		if acc := fxByDay[d]; acc != nil {
+			st.PaidAmountBase = acc.Total()
+			st.UnconvertedCurrencies = acc.Unconverted()
+			for _, a := range paidAmounts[d] {
+				a.BaseAmount = acc.BaseAmount(a.Currency)
+			}
+		}
 		for _, a := range paidAmounts[d] {
 			st.PaidAmounts = append(st.PaidAmounts, *a)
 		}

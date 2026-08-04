@@ -8,26 +8,35 @@ import (
 	"gorm.io/gorm"
 )
 
-// SalesAmount is one currency bucket of paid sales in a window.
+// SalesAmount is one currency bucket of paid sales in a window. BaseAmount
+// is the bucket converted to the report base currency (nil when no manual
+// rate is configured for the currency).
 type SalesAmount struct {
-	Currency string  `json:"currency"`
-	Amount   float64 `json:"amount"`
-	Orders   int64   `json:"orders"`
+	Currency   string   `json:"currency"`
+	Amount     float64  `json:"amount"`
+	Orders     int64    `json:"orders"`
+	BaseAmount *float64 `json:"baseAmount,omitempty"`
 }
 
 // SalesWindowStats summarizes orders created within one time window.
+// PaidAmountBase sums paid amounts converted to the report base currency;
+// currencies without a manual rate are listed in UnconvertedCurrencies and
+// excluded from the converted total.
 type SalesWindowStats struct {
-	Key          string        `json:"key"`
-	OrderCount   int64         `json:"orderCount"`
-	PaidCount    int64         `json:"paidCount"`
-	ShippedCount int64         `json:"shippedCount"`
-	PaidAmounts  []SalesAmount `json:"paidAmounts"`
+	Key                   string        `json:"key"`
+	OrderCount            int64         `json:"orderCount"`
+	PaidCount             int64         `json:"paidCount"`
+	ShippedCount          int64         `json:"shippedCount"`
+	PaidAmounts           []SalesAmount `json:"paidAmounts"`
+	PaidAmountBase        float64       `json:"paidAmountBase"`
+	UnconvertedCurrencies []string      `json:"unconvertedCurrencies,omitempty"`
 }
 
 // SalesStatsDTO is GET /orders/stats/sales.
 type SalesStatsDTO struct {
-	GeneratedAt string             `json:"generatedAt"`
-	Windows     []SalesWindowStats `json:"windows"`
+	GeneratedAt  string             `json:"generatedAt"`
+	BaseCurrency string             `json:"baseCurrency"`
+	Windows      []SalesWindowStats `json:"windows"`
 }
 
 // SalesStats aggregates order counts and paid sales amounts (grouped by
@@ -45,7 +54,12 @@ func (s *Service) SalesStats(c *gin.Context) (*SalesStatsDTO, error) {
 		{"7d", todayStart.AddDate(0, 0, -6)},
 		{"30d", todayStart.AddDate(0, 0, -29)},
 	}
-	out := &SalesStatsDTO{GeneratedAt: now.UTC().Format(time.RFC3339), Windows: []SalesWindowStats{}}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	fxTab := s.fxTable(c.Request.Context(), tenantID)
+	out := &SalesStatsDTO{GeneratedAt: now.UTC().Format(time.RFC3339), BaseCurrency: fxTab.Base, Windows: []SalesWindowStats{}}
 	for _, w := range windows {
 		base := func() (*gorm.DB, error) {
 			tx := s.DB.WithContext(c.Request.Context()).Model(&Order{}).Where("created_at >= ?", w.since)
@@ -90,6 +104,13 @@ func (s *Service) SalesStats(c *gin.Context) (*SalesStatsDTO, error) {
 		if rows != nil {
 			st.PaidAmounts = rows
 		}
+		acc := newFxAccumulator(fxTab)
+		for i := range st.PaidAmounts {
+			acc.Add(st.PaidAmounts[i].Currency, st.PaidAmounts[i].Amount)
+			st.PaidAmounts[i].BaseAmount = acc.BaseAmount(st.PaidAmounts[i].Currency)
+		}
+		st.PaidAmountBase = acc.Total()
+		st.UnconvertedCurrencies = acc.Unconverted()
 		out.Windows = append(out.Windows, st)
 	}
 	return out, nil

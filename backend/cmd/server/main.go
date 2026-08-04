@@ -269,6 +269,14 @@ func main() {
 	}
 	pricingSeedCancel()
 
+	reportCurrencySeedCtx, reportCurrencySeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := settings.EnsureReportCurrencyDefaults(reportCurrencySeedCtx, db); err != nil {
+		reportCurrencySeedCancel()
+		log.Error("report_currency_settings_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	reportCurrencySeedCancel()
+
 	bootCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := admin.EnsureBootstrapAdmin(bootCtx, db, cfg, log); err != nil {
 		cancel()

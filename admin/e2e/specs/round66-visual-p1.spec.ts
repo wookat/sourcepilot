@@ -65,7 +65,7 @@ test.describe('@round66-visual-p1 R66 视觉 P1 收口', () => {
     });
     await admin.goto('/orders/reports');
     await expect(page.getByText('近 30 天合计')).toBeVisible();
-    await expect(page.locator('canvas')).toHaveCount(2);
+    await expect(page.locator('canvas')).toHaveCount(3);
     await expectNoRootOverflow(page);
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });

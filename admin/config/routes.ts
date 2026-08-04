@@ -562,6 +562,11 @@ export default [
         component: './Settings/Pricing',
       },
       {
+        path: '/settings/report-currency',
+        name: '报表本位币与汇率',
+        component: './Settings/ReportCurrency',
+      },
+      {
         path: '/settings/platforms',
         name: '平台接入设置',
         component: './Settings/Platforms',
