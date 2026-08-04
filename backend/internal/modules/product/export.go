@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/csvsafe"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -191,7 +192,7 @@ func (s *Service) ExportListingListCSV(c *gin.Context, ids []uuid.UUID) ([]byte,
 			strings.TrimSpace(p.SourceURL),
 			strings.TrimSpace(p.Status),
 		}
-		if err := w.Write(row); err != nil {
+		if err := w.Write(csvsafe.Row(row)); err != nil {
 			return nil, "", err
 		}
 	}

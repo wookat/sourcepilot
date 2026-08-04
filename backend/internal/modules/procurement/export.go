@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/csvsafe"
 )
 
 // csvHeader is the manual purchase list header (1688 link included so the
@@ -47,7 +48,7 @@ func writePORows(w *csv.Writer, po *PurchaseOrder) error {
 			fmt.Sprintf("%.2f", price*float64(it.Quantity)),
 			po.Status,
 		}
-		if err := w.Write(row); err != nil {
+		if err := w.Write(csvsafe.Row(row)); err != nil {
 			return err
 		}
 	}

@@ -1368,6 +1368,15 @@ Final Production Acceptance Deferred to P10
 - 销售额舍入口径统一（v3 P2-1）：报表合计卡销售额由 antd Statistic `precision`（截断）改为与首页经营概览相同的 `formatAmount`（四舍五入），消除 171.40 vs 171.39 展示差；后端数据与 DTO 不变。
 - UX 复核 v3 报告归档至 `docs/ux-review/UX_REVIEW_V3_REPORT.md`（响应 v3 流程建议：走查报告入仓可追溯）。
 
+### 变更记录（2026-08-04）第 95 轮：安全审计复跑（R95）店铺授权/订单号/导入 跨租户收口
+
+- 店铺授权面按租户+店铺 scope 收口（`shop/service.go` 新增 `findScopedShop`/`ensureShopScoped`）：`PUT /shops/:id/auth`、`POST /shops/:id/test-connection` 与各平台 OAuth（amazon/lazada/shopee/tiktok/douyin 的 authorize-url、callback、refresh、revoke、test、sync）此前按裸 ID 查店铺，跨租户可覆写他租户平台凭证；现统一 404（`PUT /auth` 的 record not found 也由 400 改 404，与既有越权口径一致）。worker 路径（nil gin context）不变。
+- 订单号唯一键由全局改按租户（`idx_orders_tenant_order_no`，migrate_round95）：全局唯一索引让 duplicate key 成为他租户订单号的存在性探针，并可被跨租户抢占号段导致迁移导入失败；手工导入与迁移导入的重复判定同步补租户过滤。
+- 迁移导入任务列表/详情补店铺 scope（`ApplyStoreScope` + `EnsureStoreVisible`），错误行 CSV 与商品/订单/采购/日销导出统一经 `pkg/csvsafe` 中和公式注入（`=`/`+`/`-`/`@`/Tab/CR 前缀加 `'`，纯数值不误伤）。
+- 租户清退补 `import_job_rows`（按 `import_jobs.id` 级联）与残留校验表，双租户实测清退报告 total=0。
+- 前端构建链 `pnpm.overrides` 补 `@babel/core ^7.29.7`、`@babel/runtime ^7.29.7`、`path-to-regexp@1 1.9.0` / `@8 8.4.0`（同大版本补丁）：pnpm audit 55→49，其余需跨大版本（vite/vitest/axios/immer/esbuild，均构建期依赖）列入 P2；govulncheck 0 命中。
+- 回归单测：order `TestOrderSubresourceCrossTenant404`、`TestOrderNoUniquePerTenantNotGlobally`、`TestManualImportDuplicateIsTenantScoped`，shop `TestShopAuthRoutesAreTenantScoped`，`pkg/csvsafe` 单测；权限矩阵契约全量复跑通过。
+
 ### 变更记录（2026-08-03）第 78 轮：安全审计复跑（R73）跨租户越权收口 + Go 补丁工具链
 
 - sourcing 写/列路径改按请求租户收口（`scope.go`：supplier/source/sourceSKU/switchEvent/product 可见性校验；service 方法改收 `*gin.Context`）：跨租户 supplier 改删、source 改删/设主/刷新、SKU 映射保存删除、切换建议采纳/忽略统一 404；`GET /suppliers`、`/product-source-alerts`、`/product-sources/orphans`、`/source-switch-events` 补租户过滤（此前返回全量）；新建 supplier/source/SKU/价格历史写入 `tenant_id`。
