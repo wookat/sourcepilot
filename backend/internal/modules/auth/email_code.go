@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -17,6 +18,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// errEmailSettingsIncomplete marks a send attempt with no usable SMTP
+// configuration, so the handler can return actionable guidance instead of a
+// generic send failure.
+var errEmailSettingsIncomplete = errors.New("email settings incomplete")
+
+const (
+	msgEmailVerifyDisabled     = "当前部署已关闭注册邮箱验证，无需获取验证码，直接提交注册即可。"
+	msgEmailSettingsIncomplete = "邮件服务未配置，无法发送注册验证码。请管理员在「设置 → 邮件设置」完成 SMTP 配置；本地/自托管部署可通过环境变量 AUTH_REGISTER_SKIP_EMAIL_VERIFY=true 显式关闭注册邮箱验证（仅限非生产环境）。"
+	msgEmailSendFailed         = "验证码邮件发送失败，请稍后重试，或联系管理员检查「设置 → 邮件设置」。"
+)
+
 type sendEmailCodeBody struct {
 	Email string `json:"email" binding:"required,email"`
 	Scene string `json:"scene" binding:"required,oneof=register"`
@@ -25,6 +37,10 @@ type sendEmailCodeBody struct {
 func (h *Handler) SendEmailCode(c *gin.Context) {
 	if h.Redis == nil {
 		response.Fail(c, 503, response.CodeInternalError, "redis unavailable")
+		return
+	}
+	if h.Cfg != nil && h.Cfg.RegisterEmailVerifyDisabled() {
+		response.Fail(c, 400, response.CodeBadRequest, msgEmailVerifyDisabled)
 		return
 	}
 	var body sendEmailCodeBody
@@ -81,7 +97,11 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 				Message:  "failed to send email",
 			})
 		}
-		response.Fail(c, 500, response.CodeInternalError, "failed to send email")
+		if errors.Is(err, errEmailSettingsIncomplete) {
+			response.Fail(c, 503, response.CodeServiceUnavailable, msgEmailSettingsIncomplete)
+			return
+		}
+		response.Fail(c, 500, response.CodeInternalError, msgEmailSendFailed)
 		return
 	}
 
@@ -127,7 +147,7 @@ func (h *Handler) sendCodeEmail(ctx context.Context, to, code string) error {
 			UseSSL:   m["smtp_use_ssl"] == "true",
 		}
 		if cfg.Host == "" || cfg.From == "" {
-			return fmt.Errorf("email settings incomplete")
+			return errEmailSettingsIncomplete
 		}
 		p := smtp.NewProvider(cfg)
 		return p.Send(ctx, email.SendEmailRequest{

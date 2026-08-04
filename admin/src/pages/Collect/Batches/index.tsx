@@ -7,6 +7,7 @@ import { Link } from '@umijs/renderer-react';
 import { Button, Drawer, Form, Input, message, Space, Tag, Alert, Select, Typography } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
+import { localizeCollectErrorMessage, resolveCollectFailureHint } from '@/constants/collectErrors';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
 import {
   createCollectBatch,
@@ -390,7 +391,12 @@ export default function CollectBatchesPage() {
       ellipsis: true,
       search: false,
       render: (_, row) => {
-        const text = [row.errorMessage, row.failureHint].filter(Boolean).join(' · ');
+        const text = [
+          localizeCollectErrorMessage(row.errorMessage, row.source),
+          resolveCollectFailureHint(row.failureHint, true),
+        ]
+          .filter(Boolean)
+          .join(' · ');
         if (!text) return '—';
         return (
           <Typography.Text ellipsis={{ tooltip: text }} style={{ maxWidth: 188 }}>

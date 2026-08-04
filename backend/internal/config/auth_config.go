@@ -31,6 +31,7 @@ type AuthConfig struct {
 	RefreshRateLimit             int
 	PasswordMinLength            int
 	PasswordRequireChangeOnReset bool
+	RegisterSkipEmailVerify      bool
 	JWTActiveKeyID               string
 	JWTActiveSecret              string
 	JWTPreviousKeyID             string
@@ -102,6 +103,16 @@ func (c *Config) AuthAccountLockMinutes() int {
 	return c.Auth.AccountLockMinutes
 }
 
+// RegisterEmailVerifyDisabled reports whether self-registration skips the
+// email verification code (explicit opt-in for local / self-hosted setups
+// without SMTP; never allowed in staging/production).
+func (c *Config) RegisterEmailVerifyDisabled() bool {
+	if c == nil {
+		return false
+	}
+	return c.Auth.RegisterSkipEmailVerify && !IsStagingOrProduction(c.AppEnv)
+}
+
 func (c *Config) AuthPasswordMinLength() int {
 	if c == nil || c.Auth.PasswordMinLength <= 0 {
 		return 8
@@ -132,6 +143,7 @@ func loadAuthConfig(appEnv string) AuthConfig {
 		RefreshRateLimit:             atoiOrDefault(os.Getenv("AUTH_REFRESH_RATE_LIMIT"), 60),
 		PasswordMinLength:            atoiOrDefault(os.Getenv("AUTH_PASSWORD_MIN_LENGTH"), 8),
 		PasswordRequireChangeOnReset: envBool(os.Getenv("AUTH_PASSWORD_REQUIRE_CHANGE_ON_ADMIN_RESET"), true),
+		RegisterSkipEmailVerify:      envBool(os.Getenv("AUTH_REGISTER_SKIP_EMAIL_VERIFY"), false),
 		JWTActiveKeyID:               strings.TrimSpace(os.Getenv("JWT_ACTIVE_KEY_ID")),
 		JWTActiveSecret:              strings.TrimSpace(os.Getenv("JWT_ACTIVE_SECRET")),
 		JWTPreviousKeyID:             strings.TrimSpace(os.Getenv("JWT_PREVIOUS_KEY_ID")),
@@ -161,6 +173,9 @@ func (c *Config) validateAuthSecurity() error {
 		}
 		if c.Auth.AccessTokenTTLMinutes <= 0 || c.Auth.AccessTokenTTLMinutes > 24*60 {
 			return fmt.Errorf("%s: AUTH_ACCESS_TOKEN_TTL_MINUTES must be between 1 and 1440", ErrCodeInsecureAuthConfig)
+		}
+		if c.Auth.RegisterSkipEmailVerify {
+			return fmt.Errorf("%s: AUTH_REGISTER_SKIP_EMAIL_VERIFY=true forbidden in staging/production", ErrCodeInsecureAuthConfig)
 		}
 	}
 	activeKey := strings.TrimSpace(c.Auth.AppMasterActiveKey)
