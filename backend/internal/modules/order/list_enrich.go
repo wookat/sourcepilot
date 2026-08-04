@@ -82,6 +82,8 @@ func enrichListRows(ctx context.Context, db *gorm.DB, rows []Order, out []ListOr
 		}
 	}
 
+	openExc := countOpenExceptionRows(ctx, db, ids)
+
 	invAgg := map[uuid.UUID]invAggRow{}
 	if db.Migrator().HasTable("order_inventory_effects") {
 		var ia []invAggRow
@@ -111,7 +113,7 @@ func enrichListRows(ctx context.Context, db *gorm.DB, rows []Order, out []ListOr
 
 		ia := invAgg[r.ID]
 		out[i].InventoryDeductStatus = deriveInvDeductStatus(ia, out[i].SkuMatchStatus)
-		out[i].OpenExceptionCount = countOpenExceptions(sa, ia)
+		out[i].OpenExceptionCount = openExc[r.ID]
 		out[i].SyncStatus = deriveSyncStatus(r)
 	}
 }
@@ -153,12 +155,86 @@ func deriveInvDeductStatus(ia invAggRow, skuStatus string) string {
 	return ListInvDeductNone
 }
 
-func countOpenExceptions(sa skuAggRow, ia invAggRow) int {
-	n := sa.Unmatched + sa.Ambiguous
-	if ia.FailedCnt > 0 {
-		n++
+// countOpenExceptionRows mirrors the exception workbench's default (open-only)
+// row semantics for the per-order categories surfaced on the list badge:
+// sku_unmatched (non-manual platforms only), sku_ambiguous and failed
+// inventory deductions, excluding rows marked handled/ignored in
+// order_exception_marks. Keeping both sides on the same semantics guarantees
+// a positive badge always lands on a non-empty workbench view.
+func countOpenExceptionRows(ctx context.Context, db *gorm.DB, ids []uuid.UUID) map[uuid.UUID]int {
+	out := map[uuid.UUID]int{}
+	if len(ids) == 0 {
+		return out
 	}
-	return n
+	hasMatches := db.Migrator().HasTable(&OrderItemSKUMatch{})
+	hasEffects := db.Migrator().HasTable("order_inventory_effects")
+	hasMarks := db.Migrator().HasTable("order_exception_marks")
+
+	var branches []string
+	var args []any
+	if hasMatches {
+		branches = append(branches, `
+			SELECT oi.order_id AS order_id,
+				'sku_unmatched' AS exception_type,
+				CASE WHEN m.id IS NULL THEN 'order_item' ELSE 'order_item_sku_match' END AS source_type,
+				COALESCE(m.id, oi.id) AS source_id
+			FROM order_items oi
+			JOIN orders o ON o.id = oi.order_id AND o.deleted_at IS NULL
+			LEFT JOIN order_item_sku_matches m ON m.order_item_id = oi.id
+			WHERE oi.order_id IN ?
+				AND LOWER(TRIM(o.platform)) NOT IN ('', 'manual')
+				AND (
+					(oi.product_sku_id IS NULL OR oi.product_sku_id = '00000000-0000-0000-0000-000000000000')
+					OR m.match_status IN ('unmatched','skipped')
+				)
+				AND (m.id IS NULL OR m.match_status <> 'ambiguous')`)
+		args = append(args, ids)
+		branches = append(branches, `
+			SELECT m.order_id AS order_id,
+				'sku_ambiguous' AS exception_type,
+				'order_item_sku_match' AS source_type,
+				m.id AS source_id
+			FROM order_item_sku_matches m
+			JOIN orders o ON o.id = m.order_id AND o.deleted_at IS NULL
+			WHERE m.order_id IN ? AND m.match_status = 'ambiguous'`)
+		args = append(args, ids)
+	}
+	if hasEffects {
+		branches = append(branches, `
+			SELECT e.order_id AS order_id,
+				'inventory_deduct_failed' AS exception_type,
+				'order_inventory_effect' AS source_type,
+				e.id AS source_id
+			FROM order_inventory_effects e
+			WHERE e.order_id IN ? AND e.effect_type = 'deduct' AND e.status = 'failed'`)
+		args = append(args, ids)
+	}
+	if len(branches) == 0 {
+		return out
+	}
+
+	q := `SELECT t.order_id, COUNT(*) AS cnt FROM (` + strings.Join(branches, "\n\t\t\tUNION ALL\n") + `) t`
+	if hasMarks {
+		q += `
+			WHERE NOT EXISTS (
+				SELECT 1 FROM order_exception_marks x
+				WHERE x.source_type = t.source_type
+					AND x.source_id = t.source_id
+					AND x.mark_type IN ('handled','ignored')
+					AND (
+						x.exception_type = t.exception_type
+						OR (t.exception_type = 'inventory_deduct_failed' AND x.exception_type = 'insufficient_stock')
+					)
+			)`
+	}
+	q += ` GROUP BY t.order_id`
+
+	var rows []itemCountRow
+	_ = db.WithContext(ctx).Raw(q, args...).Scan(&rows).Error
+	for _, r := range rows {
+		out[r.OrderID] = r.Cnt
+	}
+	return out
 }
 
 func deriveSyncStatus(o Order) string {

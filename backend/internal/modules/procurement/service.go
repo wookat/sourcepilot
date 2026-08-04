@@ -724,6 +724,7 @@ func (s *Service) FillLogistics(ctx context.Context, id uuid.UUID, body Logistic
 	}
 	po, err := s.transition(ctx, id, StatusShipped, EventSourceManual, map[string]any{"trackingNo": tn}, func(tx *gorm.DB, po *PurchaseOrder) error {
 		lg := PurchaseLogistics{
+			TenantID:        po.TenantID,
 			PurchaseOrderID: po.ID,
 			TrackingNo:      tn,
 			Carrier:         strings.TrimSpace(body.Carrier),

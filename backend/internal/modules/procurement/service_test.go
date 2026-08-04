@@ -285,6 +285,12 @@ func TestManualFlowHappyPath(t *testing.T) {
 	if len(detail.Logistics) != 1 || detail.Logistics[0].TrackingNo != "SF123" || detail.Logistics[0].Status != "delivered" {
 		t.Fatalf("unexpected logistics %+v", detail.Logistics)
 	}
+	if detail.Logistics[0].Carrier != "SF" {
+		t.Fatalf("carrier not persisted: %+v", detail.Logistics[0])
+	}
+	if detail.Logistics[0].TenantID != detail.TenantID {
+		t.Fatalf("logistics tenant %d != po tenant %d", detail.Logistics[0].TenantID, detail.TenantID)
+	}
 	// mock provider knows the manual order
 	pay, err := f.svc.Provider.GetPayStatus(ctx, "1688-ORDER-1")
 	if err != nil || pay.Status != "paid" {
@@ -293,6 +299,38 @@ func TestManualFlowHappyPath(t *testing.T) {
 	lg, err := f.svc.Provider.GetLogistics(ctx, "1688-ORDER-1")
 	if err != nil || lg.TrackingNo != "SF123" {
 		t.Fatalf("mock logistics: %v %+v", err, lg)
+	}
+}
+
+// FillLogistics must persist the operator-entered carrier and stamp the
+// purchase order's tenant on the logistics row so tenant-scoped reads see it.
+func TestFillLogisticsPersistsCarrierAndTenant(t *testing.T) {
+	db := openTestDB(t)
+	svc := &Service{DB: db, Provider: trade.NewMock1688()}
+	po := PurchaseOrder{
+		TenantID: 7, SupplierID: uuid.New(), SupplierName: "supplier-b",
+		SourcePlatform: "1688", Status: StatusPaid, Currency: "CNY",
+		IdempotencyKey: "key-carrier", ExternalOrderID: "1688-ORDER-C",
+	}
+	if err := db.Create(&po).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.FillLogistics(context.Background(), po.ID, LogisticsBody{TrackingNo: "ZT123", Carrier: " 中通 "}, nil); err != nil {
+		t.Fatalf("fill logistics: %v", err)
+	}
+	detail, err := svc.Detail(context.Background(), po.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(detail.Logistics) != 1 {
+		t.Fatalf("expected 1 logistics row, got %d", len(detail.Logistics))
+	}
+	lg := detail.Logistics[0]
+	if lg.Carrier != "中通" {
+		t.Fatalf("carrier = %q, want 中通", lg.Carrier)
+	}
+	if lg.TenantID != 7 {
+		t.Fatalf("logistics tenant = %d, want 7", lg.TenantID)
 	}
 }
 
