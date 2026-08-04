@@ -95,18 +95,17 @@ async function routeAiBatches(page: Page) {
 }
 
 test.describe('R86 P2 readonly 写入口 UI 收口', () => {
-  test('失败中心 readonly 隐藏批量与行内写操作', async ({ page, admin }) => {
+  test('失败中心 readonly 直达 URL 显示统一语义页，无写操作入口', async ({ page, admin }) => {
     await useReadonlyProfile(page);
     await routeFailures(page);
     await admin.goto('/ops/task-center/failures');
-    await expect(page.getByText('e2e 采集失败任务')).toBeVisible();
-    await expect(page.getByText('只读账号不可执行批量写操作')).toBeVisible();
+    await expect(page.getByText('无法访问该页面')).toBeVisible();
+    await expect(page.getByRole('button', { name: '返回工作台' })).toBeVisible();
     await expect(page.getByRole('button', { name: '批量重试' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '批量忽略' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '生成告警' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '更多' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '详情', exact: true }).first()).toBeVisible();
   });
 
   test('失败中心 admin 仍显示批量与行内写操作', async ({ page, admin }) => {
