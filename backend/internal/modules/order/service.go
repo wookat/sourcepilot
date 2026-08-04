@@ -265,6 +265,8 @@ type CreateBody struct {
 	DeliveredAt       *time.Time           `json:"deliveredAt,omitempty"`
 	Items             []OrderItemInput     `json:"items,omitempty"`
 	Shipments         []OrderShipmentInput `json:"shipments,omitempty"`
+	Remark            string               `json:"remark,omitempty"`
+	RawData           json.RawMessage      `json:"rawData,omitempty"`
 
 	DeductInventory bool `json:"deductInventory"`
 	SyncInventory   bool `json:"syncInventory"`
@@ -406,6 +408,10 @@ func (s *Service) normalizedCreate(body CreateBody) (*Order, []OrderItem, []Orde
 		OrderedAt:         body.OrderedAt,
 		ShippedAt:         body.ShippedAt,
 		DeliveredAt:       body.DeliveredAt,
+		Remark:            strings.TrimSpace(body.Remark),
+	}
+	if len(body.RawData) > 0 && json.Valid(body.RawData) {
+		o.RawData = datatypes.JSON(body.RawData)
 	}
 
 	var items []OrderItem

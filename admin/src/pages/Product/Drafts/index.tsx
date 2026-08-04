@@ -619,6 +619,9 @@ export default function ProductDraftsPage() {
             新建草稿
           </Button>
         ) : null}
+        {canCreateDraft ? (
+          <Button onClick={() => history.push('/settings/migration?kind=product')}>迁移导入</Button>
+        ) : null}
         {readonly ? null : (
           <Dropdown
             menu={{ items: moreActionItems, onClick: onMoreActionClick }}

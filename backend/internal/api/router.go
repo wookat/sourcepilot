@@ -42,6 +42,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventorysyncp9"
+	"github.com/trademind-ai/trademind/backend/internal/modules/migrationimport"
 	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
@@ -704,6 +705,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
+	migrationImportSvc := &migrationimport.Service{DB: dep.DB, Products: productSvc, Orders: orderSvc, OpLog: opLogSvc}
+	migrationimport.Register(authed, &migrationimport.Handler{Svc: migrationImportSvc})
 	carrier.Register(authed, carrierH)
 	sourcingSvc := &sourcing.Service{DB: dep.DB, Settings: settingsSvc, OpLog: opLogSvc, Provider: &sourceinfo.Mock{}}
 	sourcingH := &sourcing.Handler{Svc: sourcingSvc}
