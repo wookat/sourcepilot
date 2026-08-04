@@ -207,9 +207,10 @@
       "path": "/api/v1/orders/print/sheets",
       "auth": true,
       "query": [
-        "ids"
+        "ids",
+        "templateId"
       ],
-      "responseData": "{ items: PrintSheet[] }"
+      "responseData": "{ items: PrintSheet[], template?: WaybillTemplate | null }"
     },
     {
       "method": "POST",
@@ -334,6 +335,134 @@
         "ids"
       ],
       "responseData": "{ ok: boolean }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/waybill-templates",
+      "auth": true,
+      "responseData": "{ items: WaybillTemplate[] }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/waybill-templates",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "sizeCode",
+        "showRecipient",
+        "showSender",
+        "showItems",
+        "showRemark",
+        "showCarrierLogo",
+        "headerText",
+        "footerText",
+        "isDefault",
+        "sortOrder"
+      ],
+      "responseData": "WaybillTemplate"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/waybill-templates/:id",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "sizeCode",
+        "showRecipient",
+        "showSender",
+        "showItems",
+        "showRemark",
+        "showCarrierLogo",
+        "headerText",
+        "footerText",
+        "isDefault",
+        "sortOrder"
+      ],
+      "responseData": "WaybillTemplate"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/waybill-templates/:id",
+      "auth": true,
+      "responseData": "{ ok: boolean }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/shipping-rules",
+      "auth": true,
+      "responseData": "{ items: ShippingRule[] }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/shipping-rules",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "priority",
+        "enabled",
+        "provinces",
+        "platforms",
+        "minWeightKg",
+        "maxWeightKg",
+        "minAmount",
+        "maxAmount",
+        "carrierCode"
+      ],
+      "responseData": "ShippingRule"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/shipping-rules/recommend",
+      "auth": true,
+      "requestBody": [
+        "province",
+        "platform",
+        "weightKg",
+        "amount"
+      ],
+      "responseData": "{ matched: boolean, ruleId?, ruleName?, carrierCode?, carrierName? }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/shipping-rules/:id",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "priority",
+        "enabled",
+        "provinces",
+        "platforms",
+        "minWeightKg",
+        "maxWeightKg",
+        "minAmount",
+        "maxAmount",
+        "carrierCode"
+      ],
+      "responseData": "ShippingRule"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/shipping-rules/:id",
+      "auth": true,
+      "responseData": "{ ok: boolean }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/print/mark",
+      "auth": true,
+      "requestBody": [
+        "ids"
+      ],
+      "responseData": "{ marked: number }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/shipping-recommendations",
+      "auth": true,
+      "requestBody": [
+        "items"
+      ],
+      "responseData": "{ items: OrderShippingRecommendation[] }"
     }
   ]
 }

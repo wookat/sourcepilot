@@ -3,6 +3,7 @@ import {
   type BatchShipmentLineResult,
 } from '@/services/orders';
 import { listCarriers, type CarrierRow } from '@/services/carriers';
+import { recommendForOrders, type OrderShippingRecommendation } from '@/services/waybill';
 import { Alert, Button, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { ORDER_STATUS } from '@/constants/status';
@@ -51,12 +52,15 @@ export default function BatchShipModal({
   const [carriers, setCarriers] = useState<CarrierRow[]>([]);
   const [carriersLoading, setCarriersLoading] = useState(false);
   const [defaultCarrierCode, setDefaultCarrierCode] = useState<string | undefined>();
+  const [recommending, setRecommending] = useState(false);
+  const [recommendations, setRecommendations] = useState<OrderShippingRecommendation[] | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setText('');
     setResults(null);
     setDefaultCarrierCode(undefined);
+    setRecommendations(null);
     setCarriersLoading(true);
     listCarriers({ enabled: true })
       .then(setCarriers)
@@ -67,6 +71,48 @@ export default function BatchShipModal({
   const parsed = useMemo(() => parseShipText(text), [text]);
   const validCount = parsed.filter((p) => !p.error).length;
   const errorLines = parsed.filter((p) => p.error);
+
+  const recommend = async () => {
+    const targets = parsed.filter((p) => !p.error && !p.carrier);
+    if (targets.length === 0) {
+      message.info('所有有效行都已填写物流商，无需推荐');
+      return;
+    }
+    setRecommending(true);
+    try {
+      const recs = await recommendForOrders(
+        targets.map((p) => ({ key: p.orderNo as string, orderNo: p.orderNo as string })),
+      );
+      setRecommendations(recs);
+      const matched = recs.filter((r) => r.matched).length;
+      if (matched === 0) message.info('没有命中任何发货规则，可手动选择物流商');
+      else message.success(`已按规则推荐 ${matched} 单物流商，可在下方逐单查看（可手动覆盖，不强制）`);
+    } catch (e) {
+      message.error((e as Error).message || '按规则推荐失败');
+    } finally {
+      setRecommending(false);
+    }
+  };
+
+  const applyRecommendations = () => {
+    if (!recommendations) return;
+    const byOrderNo = new Map(
+      recommendations.filter((r) => r.matched && r.carrierCode).map((r) => [r.key, r.carrierCode as string]),
+    );
+    const nextText = text
+      .split(/\r?\n/)
+      .map((raw) => {
+        const trimmed = raw.trim();
+        if (!trimmed) return raw;
+        const parts = trimmed.split(/[\s,，\t]+/).filter(Boolean);
+        if (parts.length !== 2) return raw;
+        const code = byOrderNo.get(parts[0]);
+        return code ? `${raw} ${code}` : raw;
+      })
+      .join('\n');
+    setText(nextText);
+    message.success('已将推荐物流商填入缺失行，提交前可手动修改');
+  };
 
   const submit = async () => {
     if (validCount === 0) {
@@ -163,6 +209,39 @@ export default function BatchShipModal({
               '每行一条：订单号 快递单号 [物流商]\n物流商列可填名称或代码（如：顺丰 / sf），缺省时使用上方默认物流商\n例如：\nSO-2026-0001 SF1234567890123 顺丰\nSO-2026-0002 YT9876543210'
             }
           />
+          <Space style={{ marginTop: 12 }} wrap>
+            <Button loading={recommending} onClick={() => void recommend()}>
+              按规则推荐物流商
+            </Button>
+            {recommendations?.some((r) => r.matched) ? (
+              <Button onClick={applyRecommendations}>将推荐填入缺失行</Button>
+            ) : null}
+          </Space>
+          {recommendations && (
+            <Table<OrderShippingRecommendation & { __rowKey: string }>
+              style={{ marginTop: 12 }}
+              rowKey="__rowKey"
+              size="small"
+              dataSource={recommendations.map((r, i) => ({ ...r, __rowKey: `${r.key}-${i}` }))}
+              pagination={recommendations.length > 5 ? { pageSize: 5 } : false}
+              locale={{ emptyText: '没有需要推荐的行' }}
+              columns={[
+                { title: '订单号', dataIndex: 'key', width: 200, ellipsis: true },
+                {
+                  title: '推荐结果',
+                  render: (_, r) =>
+                    r.matched ? (
+                      <Space size={4} wrap>
+                        <Tag color="blue">{r.carrierName || r.carrierCode}</Tag>
+                        <span style={{ color: '#888' }}>命中规则：{r.ruleName}</span>
+                      </Space>
+                    ) : (
+                      <span style={{ color: '#888' }}>{r.message || '没有命中任何发货规则，可手动选择物流商'}</span>
+                    ),
+                },
+              ]}
+            />
+          )}
           {errorLines.length > 0 && (
             <Alert
               style={{ marginTop: 12 }}

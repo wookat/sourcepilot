@@ -108,6 +108,7 @@ export type OrderListRow = {
   createdAt: string;
   updatedAt?: string;
   latestShipmentStatus?: string;
+  waybillPrintedAt?: string;
   externalOrderId?: string;
 };
 
@@ -352,6 +353,19 @@ export async function getOrderPrintSheets(ids: string[]): Promise<PrintSheet[]> 
     ids: ids.join(','),
   });
   return data.items || [];
+}
+
+export async function getOrderPrintSheetsWithTemplate(
+  ids: string[],
+  templateId?: string,
+): Promise<{ items: PrintSheet[]; template?: import('@/services/waybill').WaybillTemplateRow | null }> {
+  const params: Record<string, string> = { ids: ids.join(',') };
+  if (templateId) params.templateId = templateId;
+  const data = await getWithParams<{
+    items: PrintSheet[];
+    template?: import('@/services/waybill').WaybillTemplateRow | null;
+  }>('/api/v1/orders/print/sheets', params);
+  return { items: data.items || [], template: data.template };
 }
 
 export async function refreshShipmentTracking(

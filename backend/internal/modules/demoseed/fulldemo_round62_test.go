@@ -25,6 +25,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
+	"github.com/trademind-ai/trademind/backend/internal/modules/waybill"
 	"gorm.io/gorm"
 )
 
@@ -43,6 +44,8 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 	sqlDB.SetMaxOpenConns(1)
 	if err := db.AutoMigrate(
 		&carrier.Carrier{},
+		&waybill.Template{},
+		&waybill.ShippingRule{},
 		&shop.Shop{},
 		&product.Product{},
 		&product.ProductImage{},

@@ -61,6 +61,7 @@ import {
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
 import ImportOrdersModal from '@/pages/Orders/ImportOrdersModal';
 import BatchShipModal from '@/pages/Orders/BatchShipModal';
+import { recommendForOrders } from '@/services/waybill';
 import CarrierSelect, { matchCarrier, useEnabledCarriers } from '@/components/CarrierSelect';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import {
@@ -173,6 +174,7 @@ export default function OrdersPage() {
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
   const [importOpen, setImportOpen] = useState(false);
   const [batchShipOpen, setBatchShipOpen] = useState(false);
+  const [shipRecommending, setShipRecommending] = useState(false);
   const { search: ordersSearch } = useLocation();
   const [createInvDefaults, setCreateInvDefaults] = useState<{ deduct: boolean; sync: boolean }>({
     deduct: false,
@@ -661,6 +663,21 @@ export default function OrdersPage() {
         responsive: DESKTOP_ONLY,
         render: (_, r) =>
           r.latestShipmentStatus ? statusTag(r.latestShipmentStatus, ORDER_SHIPMENT_STATUS) : '—',
+      },
+      {
+        title: '打单',
+        dataIndex: 'waybillPrintedAt',
+        search: false,
+        width: 88,
+        responsive: DESKTOP_ONLY,
+        render: (_, r) =>
+          r.waybillPrintedAt ? (
+            <Tooltip title={`打单时间：${formatDateTime(r.waybillPrintedAt)}`}>
+              <Tag color="green">已打单</Tag>
+            </Tooltip>
+          ) : (
+            <Tag>未打单</Tag>
+          ),
       },
       {
         title: '下单时间',
@@ -1409,7 +1426,41 @@ export default function OrdersPage() {
         }}
       >
         <Form form={shipForm} layout="vertical">
-          <Form.Item name="carrier" label="物流商" rules={[{ required: true, message: '请选择或填写物流商' }]}>
+          <Form.Item
+            name="carrier"
+            label="物流商"
+            rules={[{ required: true, message: '请选择或填写物流商' }]}
+            extra={
+              <Button
+                size="small"
+                type="link"
+                style={{ padding: 0 }}
+                loading={shipRecommending}
+                onClick={async () => {
+                  if (!detail) return;
+                  setShipRecommending(true);
+                  try {
+                    const recs = await recommendForOrders([{ key: detail.orderNo, orderId: detail.id }]);
+                    const rec = recs[0];
+                    if (rec?.matched && rec.carrierCode) {
+                      shipForm.setFieldValue('carrier', rec.carrierCode);
+                      message.success(
+                        `已按规则推荐：${rec.carrierName || rec.carrierCode}（命中规则：${rec.ruleName}，可手动修改）`,
+                      );
+                    } else {
+                      message.info(rec?.message || '没有命中任何发货规则，可手动选择物流商');
+                    }
+                  } catch (e) {
+                    message.error((e as Error).message || '按规则推荐失败');
+                  } finally {
+                    setShipRecommending(false);
+                  }
+                }}
+              >
+                按规则推荐物流商
+              </Button>
+            }
+          >
             <CarrierSelect carriers={carriers} loading={carriersLoading} />
           </Form.Item>
           <Form.Item name="trackingNo" label="运单号">

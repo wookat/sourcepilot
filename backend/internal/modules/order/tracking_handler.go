@@ -2,15 +2,34 @@ package order
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/waybill"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"github.com/trademind-ai/trademind/backend/internal/providers/tracking"
 	"gorm.io/gorm"
 )
+
+// resolvePrintTemplate loads the template for ?templateId= (tenant scoped),
+// falling back to the tenant default; nil when the waybill module is not
+// wired (legacy print keeps working without template metadata).
+func (h *Handler) resolvePrintTemplate(c *gin.Context) (*waybill.Template, error) {
+	if h.Svc.Waybill == nil {
+		return nil, nil
+	}
+	if raw := strings.TrimSpace(c.Query("templateId")); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid templateId")
+		}
+		return h.Svc.Waybill.GetTemplate(c, id)
+	}
+	return h.Svc.Waybill.DefaultTemplate(c)
+}
 
 // GetPrintSheets GET /orders/print/sheets?ids=a,b,c — picking/shipping
 // documents for manual label attachment (no e-waybill integration).
@@ -41,7 +60,16 @@ func (h *Handler) GetPrintSheets(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
-	response.OK(c, gin.H{"items": sheets})
+	tpl, err := h.resolvePrintTemplate(c)
+	if err != nil {
+		if errors.Is(err, waybill.ErrTemplateNotFound) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "面单模板不存在")
+			return
+		}
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"items": sheets, "template": tpl})
 }
 
 // PostRefreshShipmentTracking POST /orders/:id/shipments/:shipmentId/refresh-tracking.

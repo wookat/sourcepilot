@@ -67,6 +67,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/modules/waybill"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
@@ -478,7 +479,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	carrierSvc := &carrier.Service{DB: dep.DB, OpLog: opLogSvc}
 	carrierH := &carrier.Handler{Svc: carrierSvc}
 
-	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Carriers: carrierSvc}
+	waybillSvc := &waybill.Service{DB: dep.DB, OpLog: opLogSvc, Carriers: carrierSvc}
+	waybillH := &waybill.Handler{Svc: waybillSvc}
+
+	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Carriers: carrierSvc, Waybill: waybillSvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
 
 	orderSyncSvc := &ordersync.Service{
@@ -722,6 +726,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	migrationImportSvc := &migrationimport.Service{DB: dep.DB, Products: productSvc, Orders: orderSvc, OpLog: opLogSvc}
 	migrationimport.Register(authed, &migrationimport.Handler{Svc: migrationImportSvc})
 	carrier.Register(authed, carrierH)
+	waybill.Register(authed, waybillH)
 	bannedwords.Register(authed, bannedWordsH)
 	sourcingSvc := &sourcing.Service{DB: dep.DB, Settings: settingsSvc, OpLog: opLogSvc, Provider: &sourceinfo.Mock{}}
 	sourcingH := &sourcing.Handler{Svc: sourcingSvc}

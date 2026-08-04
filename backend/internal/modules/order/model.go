@@ -17,18 +17,21 @@ type Order struct {
 	ExternalOrderID *string    `gorm:"size:255;index" json:"externalOrderId,omitempty"`
 	// OrderNo is unique per tenant, never globally: a global unique index
 	// leaks (and lets a tenant squat) other tenants' order numbers.
-	OrderNo           string         `gorm:"size:128;uniqueIndex:idx_orders_tenant_order_no,priority:2;not null" json:"orderNo"`
-	CustomerName      string         `gorm:"size:255;index;not null" json:"customerName"`
-	CustomerEmail     string         `gorm:"size:255" json:"customerEmail,omitempty"`
-	CustomerPhone     string         `gorm:"size:64" json:"customerPhone,omitempty"`
-	Status            string         `gorm:"size:32;index;not null" json:"status"`
-	PaymentStatus     string         `gorm:"size:32;index;not null" json:"paymentStatus"`
-	FulfillmentStatus string         `gorm:"size:32;index;not null" json:"fulfillmentStatus"`
-	Currency          string         `gorm:"size:16;not null" json:"currency"`
-	TotalAmount       float64        `gorm:"type:decimal(18,4);default:0" json:"totalAmount"`
-	PaidAt            *time.Time     `json:"paidAt,omitempty"`
-	OrderedAt         *time.Time     `json:"orderedAt,omitempty"`
-	ShippedAt         *time.Time     `json:"shippedAt,omitempty"`
+	OrderNo           string     `gorm:"size:128;uniqueIndex:idx_orders_tenant_order_no,priority:2;not null" json:"orderNo"`
+	CustomerName      string     `gorm:"size:255;index;not null" json:"customerName"`
+	CustomerEmail     string     `gorm:"size:255" json:"customerEmail,omitempty"`
+	CustomerPhone     string     `gorm:"size:64" json:"customerPhone,omitempty"`
+	Status            string     `gorm:"size:32;index;not null" json:"status"`
+	PaymentStatus     string     `gorm:"size:32;index;not null" json:"paymentStatus"`
+	FulfillmentStatus string     `gorm:"size:32;index;not null" json:"fulfillmentStatus"`
+	Currency          string     `gorm:"size:16;not null" json:"currency"`
+	TotalAmount       float64    `gorm:"type:decimal(18,4);default:0" json:"totalAmount"`
+	PaidAt            *time.Time `json:"paidAt,omitempty"`
+	OrderedAt         *time.Time `json:"orderedAt,omitempty"`
+	ShippedAt         *time.Time `json:"shippedAt,omitempty"`
+	// WaybillPrintedAt marks when picking/waybill sheets were last printed
+	// (打单状态); it never gates the shipping flow.
+	WaybillPrintedAt  *time.Time     `gorm:"index" json:"waybillPrintedAt,omitempty"`
 	DeliveredAt       *time.Time     `json:"deliveredAt,omitempty"`
 	PlatformUpdatedAt *time.Time     `gorm:"index" json:"platformUpdatedAt,omitempty"`
 	PlatformRevision  string         `gorm:"size:128;index" json:"platformRevision,omitempty"`

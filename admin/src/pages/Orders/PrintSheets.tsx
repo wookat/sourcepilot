@@ -1,20 +1,37 @@
-import { getOrderPrintSheets, type PrintSheet } from '@/services/orders';
+import { getOrderPrintSheetsWithTemplate, type PrintSheet } from '@/services/orders';
+import {
+  listWaybillTemplates,
+  markOrdersPrinted,
+  WAYBILL_SIZE_LABELS,
+  type WaybillTemplateRow,
+} from '@/services/waybill';
 import { ORDER_SHIPMENT_STATUS } from '@/constants/status';
 import { platformLabel } from '@/constants/userFriendly';
+import { isReadonly } from '@/utils/permission';
 import { formatDateTime } from '@/utils/formatTime';
-import { Alert, Button, Empty, Grid, Space, Spin } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from '@umijs/max';
+import { useModel, useSearchParams } from '@umijs/max';
+import { Alert, Button, Empty, Grid, Select, Space, Spin, message } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-const sheetStyles = `
-.print-sheet { border: 1px solid #999; border-radius: 4px; padding: 16px 20px; margin: 0 auto 16px; max-width: 720px; background: #fff; color: #000; page-break-after: always; }
-.print-sheet h3 { margin: 0 0 4px; font-size: 18px; }
-.print-sheet .meta { color: #444; font-size: 12px; margin-bottom: 8px; }
-.print-sheet table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
-.print-sheet th, .print-sheet td { border: 1px solid #bbb; padding: 4px 8px; text-align: left; }
-.print-sheet .section-title { font-weight: 600; margin-top: 12px; }
-.print-sheet .label-box { border: 1px dashed #888; padding: 8px 12px; margin-top: 12px; font-size: 12px; color: #555; }
+// 尺寸相关样式：100×180 / 100×150 使用毫米宽度模拟标签纸，A4 一联单保持整页宽。
+const SIZE_STYLES: Record<WaybillTemplateRow['sizeCode'], { maxWidth: string; page: string }> = {
+  '100x180': { maxWidth: '100mm', page: 'size: 100mm 180mm; margin: 4mm;' },
+  '100x150': { maxWidth: '100mm', page: 'size: 100mm 150mm; margin: 4mm;' },
+  a4_list: { maxWidth: '720px', page: 'size: A4; margin: 12mm;' },
+};
+
+const buildStyles = (sizeCode: WaybillTemplateRow['sizeCode']) => `
+.print-sheet { border: 1px solid #999; border-radius: 4px; padding: 12px 14px; margin: 0 auto 16px; max-width: ${SIZE_STYLES[sizeCode].maxWidth}; background: #fff; color: #000; page-break-after: always; }
+.print-sheet h3 { margin: 0 0 4px; font-size: ${sizeCode === 'a4_list' ? '18px' : '14px'}; }
+.print-sheet .meta { color: #444; font-size: 11px; margin-bottom: 6px; }
+.print-sheet table { width: 100%; border-collapse: collapse; font-size: ${sizeCode === 'a4_list' ? '13px' : '11px'}; margin-top: 6px; }
+.print-sheet th, .print-sheet td { border: 1px solid #bbb; padding: 3px 6px; text-align: left; }
+.print-sheet .section-title { font-weight: 600; margin-top: 10px; font-size: ${sizeCode === 'a4_list' ? '14px' : '12px'}; }
+.print-sheet .header-text, .print-sheet .footer-text { font-size: 12px; color: #333; text-align: center; margin: 4px 0; }
+.print-sheet .logo-box { border: 1px dashed #aaa; padding: 6px 10px; margin-bottom: 6px; font-size: 11px; color: #888; text-align: center; }
+.print-sheet .label-box { border: 1px dashed #888; padding: 8px 12px; margin-top: 10px; font-size: 11px; color: #555; }
 @media print {
+  @page { ${SIZE_STYLES[sizeCode].page} }
   .print-toolbar { display: none !important; }
   body { background: #fff; }
   .ant-layout-sider, .ant-pro-sider, .ant-pro-global-header, .ant-layout-header,
@@ -27,15 +44,29 @@ const sheetStyles = `
 `;
 
 export default function OrderPrintSheetsPage() {
-  const [searchParams] = useSearchParams();
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: API.CurrentUser };
+  };
+  const readonly = isReadonly(initialState?.currentUser?.role);
+  const [searchParams, setSearchParams] = useSearchParams();
   const ids = useMemo(
     () => (searchParams.get('ids') || '').split(',').map((s) => s.trim()).filter(Boolean),
     [searchParams],
   );
+  const templateIdParam = searchParams.get('templateId') || '';
   const [sheets, setSheets] = useState<PrintSheet[]>([]);
+  const [template, setTemplate] = useState<WaybillTemplateRow | null>(null);
+  const [templates, setTemplates] = useState<WaybillTemplateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [marking, setMarking] = useState(false);
   const screens = Grid.useBreakpoint();
+
+  useEffect(() => {
+    listWaybillTemplates()
+      .then(setTemplates)
+      .catch(() => setTemplates([]));
+  }, []);
 
   useEffect(() => {
     if (ids.length === 0) {
@@ -44,27 +75,79 @@ export default function OrderPrintSheetsPage() {
     }
     setLoading(true);
     setError('');
-    getOrderPrintSheets(ids)
-      .then(setSheets)
+    getOrderPrintSheetsWithTemplate(ids, templateIdParam || undefined)
+      .then((res) => {
+        setSheets(res.items);
+        setTemplate(res.template || null);
+      })
       .catch((e) => setError((e as Error).message || '加载拣货/发货单失败'))
       .finally(() => setLoading(false));
-  }, [ids]);
+  }, [ids, templateIdParam]);
+
+  const switchTemplate = useCallback(
+    (tid: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set('templateId', tid);
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const markPrinted = async () => {
+    setMarking(true);
+    try {
+      const res = await markOrdersPrinted(ids);
+      message.success(`已标记 ${res.marked} 单为已打单（不影响发货状态）`);
+    } catch (e) {
+      message.error((e as Error).message || '标记打单状态失败');
+    } finally {
+      setMarking(false);
+    }
+  };
+
+  const sizeCode = template?.sizeCode || 'a4_list';
+  const show = {
+    recipient: template ? template.showRecipient : true,
+    sender: template ? template.showSender : false,
+    items: template ? template.showItems : true,
+    remark: template ? template.showRemark : true,
+    logo: template ? template.showCarrierLogo : false,
+  };
 
   return (
     <div style={{ padding: 16 }}>
-      <style>{sheetStyles}</style>
+      <style>{buildStyles(sizeCode)}</style>
       <div className="print-toolbar" style={{ maxWidth: 720, margin: '0 auto 16px' }}>
         {!screens.md && (
           <Alert
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message="当前为小屏设备，建议在桌面端浏览器打印以保证 A4 版式效果"
+            message="当前为小屏设备，建议在桌面端浏览器打印以保证版式效果"
           />
         )}
         <Space wrap>
+          <span>面单模板：</span>
+          <Select
+            style={{ minWidth: 220 }}
+            value={template?.id}
+            loading={loading && !template}
+            options={templates.map((t) => ({
+              value: t.id,
+              label: `${t.name}（${WAYBILL_SIZE_LABELS[t.sizeCode] || t.sizeCode}）`,
+            }))}
+            onChange={switchTemplate}
+            placeholder="选择打印模板"
+          />
           <Button type="primary" disabled={loading || sheets.length === 0} onClick={() => window.print()}>
             打印
+          </Button>
+          <Button
+            disabled={loading || sheets.length === 0 || readonly}
+            loading={marking}
+            onClick={() => void markPrinted()}
+          >
+            标记已打单
           </Button>
           <Button onClick={() => window.history.back()}>返回</Button>
           <span style={{ color: '#888' }}>
@@ -87,63 +170,98 @@ export default function OrderPrintSheetsPage() {
       ) : (
         sheets.map((s) => (
           <div className="print-sheet" key={s.orderId}>
+            {show.logo ? <div className="logo-box">物流商 logo 位（接入电子面单后展示）</div> : null}
+            {template?.headerText ? <div className="header-text">{template.headerText}</div> : null}
             <h3>拣货 / 发货单 · {s.orderNo}</h3>
             <div className="meta">
               平台：{platformLabel(s.platform)}
               {s.shopName ? ` ｜ 店铺：${s.shopName}` : ''}
               {s.orderedAt ? ` ｜ 下单时间：${formatDateTime(s.orderedAt)}` : ''}
             </div>
-            <div className="section-title">收件人</div>
-            <table>
-              <tbody>
-                <tr>
-                  <th style={{ width: 90 }}>姓名</th>
-                  <td>{s.customerName || '—'}</td>
-                  <th style={{ width: 90 }}>电话</th>
-                  <td>{s.customerPhone || '—'}</td>
-                </tr>
-                <tr>
-                  <th>邮箱</th>
-                  <td>{s.customerEmail || '—'}</td>
-                  <th>备注</th>
-                  <td>{s.remark || '—'}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div className="section-title">商品明细（拣货）</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>商品</th>
-                  <th style={{ width: 140 }}>规格</th>
-                  <th style={{ width: 110 }}>规格编码</th>
-                  <th style={{ width: 60 }}>数量</th>
-                </tr>
-              </thead>
-              <tbody>
-                {s.items.length === 0 ? (
-                  <tr>
-                    <td colSpan={4}>—</td>
-                  </tr>
-                ) : (
-                  s.items.map((it, i) => (
-                    <tr key={i}>
-                      <td>{it.productTitle}</td>
-                      <td>{it.skuName || '—'}</td>
-                      <td>{it.skuCode || it.sellerSku || '—'}</td>
-                      <td>{it.quantity}</td>
+            {show.sender ? (
+              <>
+                <div className="section-title">发件人</div>
+                <table>
+                  <tbody>
+                    <tr>
+                      <th style={{ width: 90 }}>店铺</th>
+                      <td>{s.shopName || '—'}</td>
+                      <th style={{ width: 90 }}>平台</th>
+                      <td>{platformLabel(s.platform)}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  </tbody>
+                </table>
+              </>
+            ) : null}
+            {show.recipient ? (
+              <>
+                <div className="section-title">收件人</div>
+                <table>
+                  <tbody>
+                    <tr>
+                      <th style={{ width: 90 }}>姓名</th>
+                      <td>{s.customerName || '—'}</td>
+                      <th style={{ width: 90 }}>电话</th>
+                      <td>{s.customerPhone || '—'}</td>
+                    </tr>
+                    <tr>
+                      <th>邮箱</th>
+                      <td colSpan={3}>{s.customerEmail || '—'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </>
+            ) : null}
+            {show.remark ? (
+              <>
+                <div className="section-title">备注</div>
+                <table>
+                  <tbody>
+                    <tr>
+                      <td>{s.remark || '—'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </>
+            ) : null}
+            {show.items ? (
+              <>
+                <div className="section-title">商品明细（拣货）</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>商品</th>
+                      <th style={{ width: 120 }}>规格</th>
+                      <th style={{ width: 100 }}>规格编码</th>
+                      <th style={{ width: 50 }}>数量</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {s.items.length === 0 ? (
+                      <tr>
+                        <td colSpan={4}>—</td>
+                      </tr>
+                    ) : (
+                      s.items.map((it, i) => (
+                        <tr key={i}>
+                          <td>{it.productTitle}</td>
+                          <td>{it.skuName || '—'}</td>
+                          <td>{it.skuCode || it.sellerSku || '—'}</td>
+                          <td>{it.quantity}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </>
+            ) : null}
             <div className="section-title">物流（发货）</div>
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: 160 }}>物流商</th>
+                  <th style={{ width: 140 }}>物流商</th>
                   <th>运单号</th>
-                  <th style={{ width: 100 }}>状态</th>
+                  <th style={{ width: 90 }}>状态</th>
                 </tr>
               </thead>
               <tbody>
@@ -166,6 +284,7 @@ export default function OrderPrintSheetsPage() {
               </tbody>
             </table>
             <div className="label-box">面单粘贴处：请将快递面单贴于此处（本单为拣货/发货单，非电子面单）</div>
+            {template?.footerText ? <div className="footer-text">{template.footerText}</div> : null}
           </div>
         ))
       )}
