@@ -121,7 +121,7 @@ func (s *LoginService) legacyLogin(ctx context.Context, account, password string
 		return nil, withAuditTenant(u.TenantID, errors.New(ErrTenantDisabled))
 	}
 	label := u.LoginLabel()
-	token, exp, err := LegacyMintToken(s.Cfg, u.ID, label, u.TenantID)
+	token, exp, err := LegacyMintToken(s.Cfg, u.ID, label, u.TenantID, u.TokenVersion)
 	if err != nil {
 		return nil, err
 	}

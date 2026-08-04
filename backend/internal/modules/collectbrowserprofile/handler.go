@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
@@ -51,7 +52,12 @@ func (h *Handler) List(c *gin.Context) {
 		Provider: c.Query("provider"),
 		Status:   c.Query("status"),
 	}
-	list, total, err := h.Svc.List(c.Request.Context(), q)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	list, total, err := h.Svc.List(c.Request.Context(), tenantID, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return

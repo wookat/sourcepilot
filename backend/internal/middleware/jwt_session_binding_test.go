@@ -37,7 +37,7 @@ func serveWithBearer(t *testing.T, cfg *config.Config, token string) *httptest.R
 func TestBearerAuth_secureSessionRejectsLegacyToken(t *testing.T) {
 	t.Parallel()
 	cfg := sessionBindingConfig(config.AuthSessionModeSecure)
-	token, _, err := auth.LegacyMintToken(cfg, uuid.New(), "admin@example.com", 3)
+	token, _, err := auth.LegacyMintToken(cfg, uuid.New(), "admin@example.com", 3, 1)
 	if err != nil {
 		t.Fatalf("mint legacy token: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestBearerAuth_legacyModeStillAcceptsLegacyToken(t *testing.T) {
 	t.Parallel()
 	cfg := sessionBindingConfig(config.AuthSessionModeLegacy)
 	cfg.AppEnv = config.EnvDevelopment
-	token, _, err := auth.LegacyMintToken(cfg, uuid.New(), "admin@example.com", 0)
+	token, _, err := auth.LegacyMintToken(cfg, uuid.New(), "admin@example.com", 0, 1)
 	if err != nil {
 		t.Fatalf("mint legacy token: %v", err)
 	}

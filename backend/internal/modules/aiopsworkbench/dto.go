@@ -4,6 +4,10 @@ import "time"
 
 // Query binds list/summary filters.
 type Query struct {
+	// TenantID is the trusted request tenant. Every aggregation must be
+	// restricted to it: workbench todos aggregate products, publish batches
+	// and task center rows that all belong to a single tenant.
+	TenantID int64
 	Type     string
 	Priority string
 	Platform string

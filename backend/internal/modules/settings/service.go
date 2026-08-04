@@ -26,13 +26,18 @@ type Service struct {
 	Encrypter *encrypt.Service
 }
 
-// List returns all settings with sensitive values masked when encrypted.
-func (s *Service) List(ctx context.Context) ([]Setting, error) {
+// List returns only the rows owned by tenantID, with encrypted values masked.
+// Tenant 0 holds platform configuration (platform app keys, storage, mail),
+// which business tenants must never read: platform defaults are consumed
+// server-side via PlainByGroup(ctx, 0, ...), never through this API.
+func (s *Service) List(ctx context.Context, tenantID int64) ([]Setting, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("settings: no db")
 	}
 	var rows []Setting
-	if err := s.DB.WithContext(ctx).Order("tenant_id, group_key, item_key").Find(&rows).Error; err != nil {
+	if err := s.DB.WithContext(ctx).
+		Where("tenant_id = ?", tenantID).
+		Order("tenant_id, group_key, item_key").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]Setting, len(rows))
@@ -58,7 +63,9 @@ func (s *Service) decryptStored(stored string) ([]byte, error) {
 	return s.Encrypter.Decrypt(stored)
 }
 
-// PutBulk upserts items by (tenantId, groupKey, itemKey).
+// PutBulk upserts items by (tenantId, groupKey, itemKey). Callers must pin
+// PutItem.TenantID to the request tenant; a tenant admin must never be able to
+// rewrite platform or peer tenant configuration.
 func (s *Service) PutBulk(ctx context.Context, items []PutItem) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("settings: no db")

@@ -105,6 +105,13 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 				}
 			}
 		}
+		if db != nil {
+			if err := auth.EnsureAccountActive(c.Request.Context(), db, uid, claims.TokenVersion); err != nil {
+				response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+				c.Abort()
+				return
+			}
+		}
 		c.Set(ctxkey.TenantID, tenantID)
 		if sessID != uuid.Nil {
 			c.Set(ctxkey.SessionID, sessID.String())

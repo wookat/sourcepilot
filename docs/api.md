@@ -45,6 +45,10 @@
 | `POST` | `/api/v1/auth/login` | 管理员登录，支持邮箱或手机号。 |
 | `POST` | `/api/v1/auth/logout` | 退出登录，客户端丢弃 token。 |
 | `GET` | `/api/v1/auth/profile` | 当前管理员信息（含 `role` / `permissions` / `tenantId`，前端据此判定平台管理员可见性）。 |
+| `POST` | `/api/v1/auth/send-email-code` | 注册验证码（`scene: register`）。**反枚举**：邮箱是否已注册返回完全一致的 `200 {ok:true}`（已注册不再下发验证码，仅写操作日志 `email_code.send` / `status=skipped`）；限流为「单邮箱 60s 冷却 + 每小时 5 次」叠加「单客户端 IP 每小时 20 次」，超限统一 `429`。 |
+| `POST` | `/api/v1/auth/register` | 自助注册：校验邮箱验证码后**为该账号新建独立租户**并将其设为该租户 admin（不会落入 tenant 0 平台桶）。 |
+
+`legacy_local_storage` 模式下，access token 携带账号当前 `token_version`，每次请求校验账号存在 / 未软删 / 状态 active / `token_version` 未被提升：改密码、改角色、停用、删除后旧 token 立即 `401`（`AUTH_SESSION_REVOKED` / `AUTH_USER_DISABLED`）。
 
 `secure_session` 模式下（staging/production 强制），无 session 绑定的 legacy JWT 统一返回 `401` + `AUTH_SESSION_BINDING_REQUIRED`，客户端应引导重新登录；迁移说明见 `docs/env.md`。
 
@@ -52,8 +56,8 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/settings` | 读取系统设置。 |
-| `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。item 可选 `clear: true` 强制清空已存值（含加密字段，绕过「空加密值保留旧密钥」语义），用于 AI 配置一键清空等场景。 |
+| `GET` | `/api/v1/settings` | 读取**当前租户**的系统设置（仅本租户行；tenant 0 平台配置不返回，平台默认值仅服务端内部消费）。 |
+| `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。写入租户一律取自认证上下文；请求体 `tenantId` 与当前租户不一致（含 0）返回 403。item 可选 `clear: true` 强制清空已存值（含加密字段，绕过「空加密值保留旧密钥」语义），用于 AI 配置一键清空等场景。 |
 | `POST` | `/api/v1/settings/test-ai` | 经 **AI Gateway** 测试 `settings.ai`（支持 `openai` / `openai_compatible` / `deepseek` / `qwen`）。各服务商 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`** 独立存储；可选 JSON：`provider`、`base_url`、`model`、`api_key`（写入当前 provider 对应项；`****` 占位则沿用已保存密钥）、`timeout_sec`，用于**未保存前**用当前表单试连；空 body 仅用库内配置。成功 `data`：`ok`、`message`、`provider`、`model`、`latencyMs`。 |
 | `POST` | `/api/v1/settings/test-storage` | 测试 Storage Provider 配置。 |
 | `GET` | `/api/v1/settings/report-currency` | 读取当前租户的报表本位币与手工汇率表（settings 分组 `report_currency`，按租户隔离存储）：`{provider: "manual", baseCurrency, rates:[{currency, rate}]}`；`rate` 为十进制字符串，含义为「1 单位原币 = rate 本位币」。租户未配置时返回默认本位币 CNY 与空汇率表。需 `settings.manage`（readonly 403）。 |
@@ -587,6 +591,8 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 ## P6 Backup / Restore / Release / DR API
 
 All P6 write operations require Bearer authentication and backend RBAC. The frontend never receives shell commands, full backup paths, storage secrets or database credentials.
+
+`/api/v1/ops/*` 作用于**整个部署**（全库备份/恢复、发布、容灾演练），因此为**平台租户专属**：仅 `tenant_id = 0` 的 admin 可访问，业务租户任何角色一律 403（除下表权限位外的额外前置守卫）。
 
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |

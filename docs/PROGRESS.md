@@ -1557,3 +1557,12 @@ Final Production Acceptance Deferred to P10
 
 - **P0 修复**：`POST /api/v1/auth/register` 此前把新注册用户落在 `tenant_id=0`（平台租户）且 `role=admin`，注册即获得 tenant0 全部数据视图（跨租户数据泄露）。现在注册时在事务内为每个新账号创建独立 tenants 行并绑定（`createRegistrationUser`），查询层隔离机制无需改动；回归测试 `register_test.go` 覆盖「非 0 租户、落库一致、两次注册不同租户」。
 - 本轮季度复查其余项（发布/刊登降级、运营任务批量批准驳回、采集失败链路、选品全链路、三角色权限、响应式硬指标、clean 零残留）复查通过，P2 观察项见 QA 报告（PR 评论）。
+
+### 变更记录（2026-08-04）第 102 轮：注册/租户生命周期安全复验——tenant 0 平台数据隔离 + legacy token 吊销
+
+- **#214 复验通过**：Docker 双租户实测，自助注册为账号新建独立租户（落 `tenant_id=5`，非 0），租户/账号 1:1；平台租户管理、店铺跨租户授权、租户停用/清退口径保持正确。
+- **P0 legacy token 吊销失效**：`legacy_local_storage` 模式下 access token 不校验账号状态与 `token_version`，改密码 / 停用 / 删除账号后旧 token 仍可用（此前仅 secure_session 模式生效）。新增 `auth.EnsureAccountActive`，JWT 中间件在租户解析后逐请求校验账号存在 / 未软删 / 状态 active / `token_version` 未被提升；同时修复 `LegacyMintToken` 硬编码 `token_version=1`（否则任何被提升过版本的账号登录后每个请求都会 401）。
+- **P1 tenant 0 平台数据泄露面收口**：`GET /settings` 不再返回 tenant 0 平台配置（平台默认值仅服务端内部消费），`PUT /settings` 忽略请求体 `tenantId`、跨租户写 403；`/ops/*`（备份 / 恢复 / 发布 / 容灾）与 `ai_prompts` 写操作收紧为平台租户专属；AI 运营工作台、客服仪表盘聚合与 `product-skus/search` 补可信租户过滤；新增 `ProductRouteTenantGuard` 统一校验 `/products/:id` 子资源租户归属（跨租户 404）。
+- **P1 采集规则 / 浏览器 profile 缺租户维度**：`collect_rules`、`collect_browser_profiles` 新增 `tenant_id`（AutoMigrate，默认 0，索引），列表 / 详情 / 增删改 / 启停 / 规则解析 / profile 注入全部按可信租户限定，跨租户 404。
+- **P1 注册接口枚举防护**：`POST /auth/send-email-code` 对已注册与未注册邮箱返回一致的 `200 {ok:true}`（已注册不下发验证码，写 `status=skipped` 操作日志）并消耗同样限流额度；叠加单 IP 每小时 20 次限流以钝化批量注册。
+- 回归证据：`permmatrix` 新增 `tenant_zero_test.go`（平台专属运维路由 / 提示词写 / settings tenant 0 读写 / 采集规则与 profile 跨租户 / 商品子资源守卫）、matrix.json 登记 23 条新口径；`middleware/jwt_account_state_test.go`（停用 / 缺失 / `token_version` 提升三类旧 token 401）、`auth/jwt_access_test.go` 补 token_version 携带断言。测试库全量 `go test ./...` + 权限矩阵契约通过（Actions CI 不作依据）。

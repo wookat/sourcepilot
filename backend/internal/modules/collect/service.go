@@ -622,7 +622,11 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		if err != nil {
 			return zero, err
 		}
-		rule, err := s.Rules.ResolveEnabledRuleForCustom(c.Request.Context(), url, explicitID)
+		ruleTenantID, err := tenantIDFromGin(c)
+		if err != nil {
+			return zero, err
+		}
+		rule, err := s.Rules.ResolveEnabledRuleForCustom(c.Request.Context(), ruleTenantID, url, explicitID)
 		if err != nil {
 			return zero, err
 		}
@@ -635,7 +639,7 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 			if err != nil {
 				return zero, fmt.Errorf("invalid profileId")
 			}
-			blob, err = s.Profiles.MergeIntoRequestOptions(c.Request.Context(), blob, &pid, true, url)
+			blob, err = s.Profiles.MergeIntoRequestOptions(c.Request.Context(), ruleTenantID, blob, &pid, true, url)
 			if err != nil {
 				return zero, err
 			}

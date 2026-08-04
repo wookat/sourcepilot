@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func clampRulePage(page, ps int) (int, int) {
@@ -65,7 +66,7 @@ type CollectorRunner interface {
 
 // ProfileOptionsEnricher adds browser profile fields to Collector options (implemented by collectbrowserprofile.Service).
 type ProfileOptionsEnricher interface {
-	EnrichCollectorOptions(ctx context.Context, opts map[string]any, profileID *uuid.UUID, useBrowserProfile bool, rawURL string) error
+	EnrichCollectorOptions(ctx context.Context, tenantID int64, opts map[string]any, profileID *uuid.UUID, useBrowserProfile bool, rawURL string) error
 }
 
 // TaskRulePayload is persisted on collect_tasks.request_options and sent to Collector as options.* .
@@ -133,7 +134,7 @@ func (s *Service) ruleMatchesURL(rule *CollectRule, rawURL string) bool {
 }
 
 // ResolveEnabledRuleForCustom resolves one enabled rule by explicit id or URL auto-match.
-func (s *Service) ResolveEnabledRuleForCustom(ctx context.Context, rawURL string, explicitRuleID *uuid.UUID) (*CollectRule, error) {
+func (s *Service) ResolveEnabledRuleForCustom(ctx context.Context, tenantID int64, rawURL string, explicitRuleID *uuid.UUID) (*CollectRule, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collectrule: no db")
 	}
@@ -141,7 +142,7 @@ func (s *Service) ResolveEnabledRuleForCustom(ctx context.Context, rawURL string
 	if explicitRuleID != nil && *explicitRuleID != uuid.Nil {
 		var rule CollectRule
 		if err := s.DB.WithContext(ctx).
-			Where("id = ? AND status = ?", *explicitRuleID, StatusEnabled).
+			Where("tenant_id = ? AND id = ? AND status = ?", tenantID, *explicitRuleID, StatusEnabled).
 			First(&rule).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, fmt.Errorf("rule not found or disabled")
@@ -165,7 +166,7 @@ func (s *Service) ResolveEnabledRuleForCustom(ctx context.Context, rawURL string
 
 	var rules []CollectRule
 	if err := s.DB.WithContext(ctx).
-		Where("status = ? AND source = ?", StatusEnabled, SourceCustom).
+		Where("tenant_id = ? AND status = ? AND source = ?", tenantID, StatusEnabled, SourceCustom).
 		Order("priority ASC, updated_at DESC").
 		Find(&rules).Error; err != nil {
 		return nil, err
@@ -195,12 +196,12 @@ func (s *Service) BuildTaskPayload(rule *CollectRule) ([]byte, error) {
 	return json.Marshal(p)
 }
 
-func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
+func (s *Service) List(ctx context.Context, tenantID int64, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collectrule: no db")
 	}
 	page, ps := clampRulePage(q.Page, q.PageSize)
-	tx := s.DB.WithContext(ctx).Model(&CollectRule{})
+	tx := s.DB.WithContext(ctx).Model(&CollectRule{}).Where("tenant_id = ?", tenantID)
 	if v := strings.TrimSpace(q.Name); v != "" {
 		tx = tx.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(v)+"%")
 	}
@@ -233,12 +234,12 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 	return &ListResult{Items: items, Total: total, Page: page, PageSize: ps, TotalPages: pages}, nil
 }
 
-func (s *Service) GetDetail(ctx context.Context, id uuid.UUID) (*RuleDetailDTO, error) {
+func (s *Service) GetDetail(ctx context.Context, tenantID int64, id uuid.UUID) (*RuleDetailDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collectrule: no db")
 	}
 	var r CollectRule
-	if err := s.DB.WithContext(ctx).First(&r, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&r, "tenant_id = ? AND id = ?", tenantID, id).Error; err != nil {
 		return nil, err
 	}
 	d := ruleToDetailDTO(&r)
@@ -300,10 +301,15 @@ func (s *Service) Create(c *gin.Context, body CreateRuleBody, adminID *uuid.UUID
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collectrule: no db")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	row, err := normalizeNewRule(body, adminID)
 	if err != nil {
 		return nil, err
 	}
+	row.TenantID = tenantID
 	if err := s.DB.WithContext(c.Request.Context()).Create(row).Error; err != nil {
 		return nil, err
 	}
@@ -324,8 +330,12 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateRuleBody, admi
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collectrule: no db")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var row CollectRule
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&row, "tenant_id = ? AND id = ?", tenantID, id).Error; err != nil {
 		return nil, err
 	}
 	updates := map[string]interface{}{}
@@ -395,11 +405,11 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateRuleBody, admi
 		return &d, nil
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Model(&CollectRule{}).
-		Where("id = ?", id).
+		Where("tenant_id = ? AND id = ?", tenantID, id).
 		Updates(updates).Error; err != nil {
 		return nil, err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&row, "tenant_id = ? AND id = ?", tenantID, id).Error; err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
@@ -428,7 +438,11 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("collectrule: no db")
 	}
-	res := s.DB.WithContext(c.Request.Context()).Delete(&CollectRule{}, "id = ?", id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	res := s.DB.WithContext(c.Request.Context()).Delete(&CollectRule{}, "tenant_id = ? AND id = ?", tenantID, id)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -456,8 +470,12 @@ func (s *Service) SetStatus(c *gin.Context, id uuid.UUID, status string, adminID
 	if st != StatusEnabled && st != StatusDisabled {
 		return nil, fmt.Errorf("invalid status")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var row CollectRule
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&row, "tenant_id = ? AND id = ?", tenantID, id).Error; err != nil {
 		return nil, err
 	}
 	if row.Status == st {
@@ -470,11 +488,11 @@ func (s *Service) SetStatus(c *gin.Context, id uuid.UUID, status string, adminID
 		}
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Model(&CollectRule{}).
-		Where("id = ?", id).
+		Where("tenant_id = ? AND id = ?", tenantID, id).
 		Update("status", st).Error; err != nil {
 		return nil, err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&row, "tenant_id = ? AND id = ?", tenantID, id).Error; err != nil {
 		return nil, err
 	}
 	action := "collect.rule.enable"
@@ -507,8 +525,12 @@ func (s *Service) TestPreview(c *gin.Context, id uuid.UUID, body TestRuleBody, a
 	if err := validateHTTPURL(rawURL); err != nil {
 		return nil, err
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var rule CollectRule
-	if err := s.DB.WithContext(c.Request.Context()).First(&rule, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&rule, "tenant_id = ? AND id = ?", tenantID, id).Error; err != nil {
 		return nil, err
 	}
 	if !strings.EqualFold(rule.Source, SourceCustom) {
@@ -538,7 +560,7 @@ func (s *Service) TestPreview(c *gin.Context, id uuid.UUID, body TestRuleBody, a
 		if err != nil {
 			return nil, fmt.Errorf("invalid profileId")
 		}
-		if err := s.Profiles.EnrichCollectorOptions(ctx, opts, &pid, true, rawURL); err != nil {
+		if err := s.Profiles.EnrichCollectorOptions(ctx, tenantID, opts, &pid, true, rawURL); err != nil {
 			return nil, err
 		}
 	}
