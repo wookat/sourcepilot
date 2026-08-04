@@ -54,6 +54,8 @@ Linux / macOS：
 
 默认密码见脚本输出或 `demo-dataset.permissions.json`（开发环境）。
 
+> 口径统一：`pnpm seed:demo:full`（Go seeddemo，跨平台、无需 PowerShell）也会幂等保证以上三个账号存在且密码为 `DemoAdmin123!` / `DemoOperator123!` / `DemoReadonly123!`；若密码漂移会重置回文档值并使旧会话失效。仅限非 production。
+
 ## 验证
 
 ```powershell

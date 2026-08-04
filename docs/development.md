@@ -79,6 +79,8 @@ go run ./cmd/seeddemo -mode seed|clean|verify [-tenant N] [-prefix QA-]
 
 `-tenant` 缺省为自动：取最早创建的管理员（bootstrap admin）的 `tenant_id`，保证种子数据登录后即可见；也可显式指定租户。
 
+seed 同时幂等保证三个 Demo RBAC 账号存在且密码与文档一致（漂移时重置密码并使旧会话失效）：`demo_admin@trademind.local` / `DemoAdmin123!`、`demo_operator@trademind.local` / `DemoOperator123!`、`demo_readonly@trademind.local` / `DemoReadonly123!`（与 `scripts/seed-demo-permissions.ps1` 同一口径，无需 PowerShell）。
+
 前置：PostgreSQL/Redis 已启动（`pnpm dev:infra`），根目录 `.env` 数据库配置正确。`APP_ENV=production` 时拒绝执行。既有的 API 驱动脚本 `pnpm seed:demo-data`（20 商品 slot / Dashboard 探测）仍可独立使用，两者互不依赖。
 
 ## 默认端口

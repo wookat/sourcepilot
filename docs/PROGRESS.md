@@ -1426,6 +1426,10 @@ Final Production Acceptance Deferred to P10
 - 新增用户改密码：`POST /admin/users/:id/reset-password`（≥6 位、bcrypt、`token_version+1` + 吊销全部 secure 会话/refresh token 使旧会话失效且不可 refresh 复活、操作日志 `user.password.reset`、权限矩阵已登记 admin-only）；Admin 用户管理页新增「改密码」入口；E2E `r83-users-reset-password.spec.ts` + 后端 `reset_password_test.go`。
 - docs/api.md 已同步；权限矩阵契约全量复跑通过。
 
+### 变更记录（2026-08-04）第 93 轮：seed 与文档 Demo 账号口径统一
+
+- `pnpm seed:demo:full`（Go seeddemo）新增幂等保证三个 Demo RBAC 账号（demo_admin / demo_operator / demo_readonly @trademind.local）存在且密码与文档一致；密码漂移时重置回文档值并递增 `token_version` 使旧会话失效。跨平台（不再依赖 PowerShell 的 seed-demo-permissions.ps1 才能拿到三角色账号），仅限非 production（seeder guard）。回归测试 `TestSeedEnsuresDemoAccounts`；docs/development.md、docs/DEMO_SEEDING_GUIDE.md 同步。
+
 ### 变更记录（2026-08-03）第 84 轮补充：会话吊销收口（P3）
 
 - 删除用户（`DELETE /admin/users/:id`）同步吊销该用户全部 `auth_sessions`/refresh token（`user_deleted`），旧会话立即不可 refresh 续期；回归测试 `TestDeleteUserRevokesUserSessions`。
