@@ -5,6 +5,10 @@
   "packageManager": "pnpm@9.15.4",
   "pnpm": {
     "overrides": {
+      "@babel/core": "^7.29.7",
+      "@babel/runtime": "^7.29.7",
+      "path-to-regexp@1": "1.9.0",
+      "path-to-regexp@8": "8.4.0",
       "postcss": "^8.5.18",
       "rc-resize-observer": "1.4.3",
       "react": "18.2.0",

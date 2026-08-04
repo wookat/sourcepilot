@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/csvsafe"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
@@ -202,9 +203,9 @@ func (h *Handler) ErrorsCSV(c *gin.Context) {
 	w := csv.NewWriter(c.Writer)
 	_ = w.Write([]string{"行号", "状态", "字段", "错误信息", "原始数据"})
 	for _, r := range rows {
-		_ = w.Write([]string{
+		_ = w.Write(csvsafe.Row([]string{
 			strconv.Itoa(r.RowNumber), r.Status, r.Field, r.Message, rawValuesText(r),
-		})
+		}))
 	}
 	w.Flush()
 }

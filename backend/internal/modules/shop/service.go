@@ -603,14 +603,46 @@ func applySecret(enc *encrypt.Service, input string, prevCipher string) (string,
 	return enc.Encrypt([]byte(input))
 }
 
+// findScopedShop loads a shop under the caller's tenant and store scope.
+// Authorization-carrying paths (credentials, OAuth, connection tests) must go
+// through it: an out-of-scope shop is reported as not found, never touched.
+func (s *Service) findScopedShop(c *gin.Context, shopID uuid.UUID) (*Shop, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("shop: no db")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	var row Shop
+	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, shopID); err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, &shopID); err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// ensureShopScoped guards an HTTP-driven shop operation. Worker paths pass a
+// nil gin context and are trusted (they resolve the shop themselves).
+func (s *Service) ensureShopScoped(c *gin.Context, shopID uuid.UUID) error {
+	if c == nil {
+		return nil
+	}
+	_, err := s.findScopedShop(c, shopID)
+	return err
+}
+
 func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBody, adminID *uuid.UUID) (*AuthPublicDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop: no db")
 	}
-	var shopRow Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&shopRow, "id = ?", shopID).Error; err != nil {
+	shopRowPtr, err := s.findScopedShop(c, shopID)
+	if err != nil {
 		return nil, err
 	}
+	shopRow := *shopRowPtr
 	prov := platformp.Get(shopRow.Platform)
 	if prov == nil {
 		return nil, fmt.Errorf("unknown platform")
@@ -657,7 +689,7 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 	}
 
 	var tok ShopAuthToken
-	err := s.DB.WithContext(c.Request.Context()).Where("shop_id = ?", shopID).First(&tok).Error
+	err = s.DB.WithContext(c.Request.Context()).Where("shop_id = ?", shopID).First(&tok).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		tok = ShopAuthToken{ShopID: shopID, Platform: shopRow.Platform, AuthType: authTypeIn}
 		err = nil
@@ -766,6 +798,9 @@ func (s *Service) PlainAuthForProviderCtx(ctx context.Context, shopID uuid.UUID)
 func (s *Service) decryptedAuth(c *gin.Context, shopID uuid.UUID) (*Shop, *ShopAuthToken, platformp.TestConnectionRequest, error) {
 	if c == nil {
 		return s.decryptedAuthCtx(context.Background(), shopID)
+	}
+	if err := s.ensureShopScoped(c, shopID); err != nil {
+		return nil, nil, platformp.TestConnectionRequest{}, err
 	}
 	return s.decryptedAuthCtx(c.Request.Context(), shopID)
 }

@@ -219,6 +219,7 @@ type tenantChildIDs struct {
 	ImageBatches  []string
 	ImageTasks    []string
 	Publications  []string
+	ImportJobs    []string
 }
 
 func pluckIDs(tx *gorm.DB, query string, args ...any) ([]string, error) {
@@ -244,6 +245,7 @@ func collectTenantChildIDs(tx *gorm.DB, tenantID int64) (*tenantChildIDs, error)
 		{&ids.CollectTasks, "collect_tasks"},
 		{&ids.TextBatches, "ai_product_text_batches"},
 		{&ids.ImageBatches, "ai_product_image_batches"},
+		{&ids.ImportJobs, "import_jobs"},
 	}
 	for _, st := range steps {
 		if !tx.Migrator().HasTable(st.table) {
@@ -352,6 +354,7 @@ func childSteps(ids *tenantChildIDs) []childStep {
 		{"product_ai_content_applications", "product_id IN ?", ids.Products},
 		{"product_image_applications", "product_id IN ?", ids.Products},
 		{"product_platform_publish_configs", "product_id IN ?", ids.Products},
+		{"import_job_rows", "job_id IN ?", ids.ImportJobs},
 		{"order_items", "order_id IN ?", ids.Orders},
 		{"order_shipments", "order_id IN ?", ids.Orders},
 		{"order_item_sku_matches", "order_id IN ?", ids.Orders},

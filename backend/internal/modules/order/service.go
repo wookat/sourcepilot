@@ -1252,8 +1252,12 @@ func (s *Service) AppendItem(c *gin.Context, orderID uuid.UUID, body OrderItemIn
 }
 
 func (s *Service) findOrderBare(c *gin.Context, orderID uuid.UUID) (*Order, error) {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, orderID); err != nil {
 		return nil, err
 	}
 	if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
