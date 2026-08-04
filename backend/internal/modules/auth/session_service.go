@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -453,7 +454,22 @@ func (s *SessionService) ListSessions(ctx context.Context, userID uuid.UUID) ([]
 	return rows, err
 }
 
+// sessionAccessSnapshot is the last-known-good result of a full session
+// validation, usable for at most authStateCacheTTL when the database is
+// unreachable.
+type sessionAccessSnapshot struct {
+	userID       uuid.UUID
+	tokenVersion int
+	at           time.Time
+}
+
+var sessionStateCache sync.Map // uuid.UUID -> sessionAccessSnapshot
+
 // ValidateSessionAccess checks session is active for access token binding.
+// A missing or revoked session fails closed with ErrSessionRevoked. Transient
+// database errors fall back to the last successful validation within
+// authStateCacheTTL; with no fresh snapshot the request fails closed with
+// ErrAuthStateUnavailable instead of masquerading as a revoked session.
 func (s *SessionService) ValidateSessionAccess(ctx context.Context, sessionID uuid.UUID, userID uuid.UUID, tokenVersion int) error {
 	if sessionID == uuid.Nil {
 		return nil
@@ -463,22 +479,57 @@ func (s *SessionService) ValidateSessionAccess(ctx context.Context, sessionID uu
 	}
 	var sess AuthSession
 	if err := s.DB.WithContext(ctx).Select("id", "status", "user_id").First(&sess, "id = ?", sessionID).Error; err != nil {
-		return errors.New(ErrSessionRevoked)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			sessionStateCache.Delete(sessionID)
+			return errors.New(ErrSessionRevoked)
+		}
+		return validateSessionFromSnapshot(sessionID, userID, tokenVersion)
 	}
 	if sess.Status != SessionStatusActive || sess.UserID != userID {
+		sessionStateCache.Delete(sessionID)
 		return errors.New(ErrSessionRevoked)
 	}
 	var u admin.AdminUser
 	if err := s.DB.WithContext(ctx).Select("token_version", "status", "tenant_id").First(&u, "id = ?", userID).Error; err != nil {
-		return errors.New(ErrSessionRevoked)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			sessionStateCache.Delete(sessionID)
+			return errors.New(ErrSessionRevoked)
+		}
+		return validateSessionFromSnapshot(sessionID, userID, tokenVersion)
 	}
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
+		sessionStateCache.Delete(sessionID)
 		return errors.New(ErrUserDisabled)
 	}
-	if tenantDisabled(ctx, s.DB, u.TenantID) {
+	disabled, err := tenantState(ctx, s.DB, u.TenantID)
+	if err != nil {
+		return validateSessionFromSnapshot(sessionID, userID, tokenVersion)
+	}
+	if disabled {
+		sessionStateCache.Delete(sessionID)
 		return errors.New(ErrTenantDisabled)
 	}
 	if tokenVersion > 0 && u.TokenVersion > 0 && tokenVersion != u.TokenVersion {
+		sessionStateCache.Delete(sessionID)
+		return errors.New(ErrSessionRevoked)
+	}
+	sessionStateCache.Store(sessionID, sessionAccessSnapshot{userID: userID, tokenVersion: u.TokenVersion, at: time.Now()})
+	return nil
+}
+
+func validateSessionFromSnapshot(sessionID uuid.UUID, userID uuid.UUID, tokenVersion int) error {
+	cached, ok := sessionStateCache.Load(sessionID)
+	if !ok {
+		return errors.New(ErrAuthStateUnavailable)
+	}
+	snap := cached.(sessionAccessSnapshot)
+	if time.Since(snap.at) > authStateCacheTTL {
+		return errors.New(ErrAuthStateUnavailable)
+	}
+	if snap.userID != userID {
+		return errors.New(ErrSessionRevoked)
+	}
+	if tokenVersion > 0 && snap.tokenVersion > 0 && tokenVersion != snap.tokenVersion {
 		return errors.New(ErrSessionRevoked)
 	}
 	return nil

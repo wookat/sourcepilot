@@ -73,19 +73,20 @@ git checkout <上一个正常commit>
 ```
 
 - 回滚仅回退代码与镜像；数据卷（PostgreSQL/Redis/上传/证书）不受影响。
-- 若新版本已做不兼容迁移：先 `stop backend`，用 `pg_restore --clean --if-exists` 恢复最近备份，再启动旧版本（详见 production-deployment.md「备份与恢复」）。
+- 若新版本已做不兼容迁移：先 `stop backend`，用 `pg_restore --clean --if-exists` 恢复最近备份，再启动旧版本（详见 production-deployment.md「备份与恢复」；注意恢复时用 `docker exec -i` 传 stdin，`docker compose exec -T ... < 文件` 在部分 Compose 版本会损坏二进制流）。
 - **严禁** `down -v`（删库删证书）。
 - **带存量数据的版本升级**（非首次上线）不走本清单，按 [`upgrade-guide.md`](upgrade-guide.md) 执行：先 `./scripts/deploy-prod.sh --pre-upgrade-check`（全量备份 + 迁移预检）再部署。
 
-## 五、演练结论与已知注意点（2026-08-02 首演；2026-08-03 复跑）
+## 五、演练结论与已知注意点（2026-08-02 首演；2026-08-03 复跑；2026-08-04 R106 复检）
 
-- 从零（`cp .env.prod.example` 起）到 6 服务全 healthy + HTTPS 登录成功，实测 < 15 分钟（含镜像构建；2026-08-03 复跑约 4 分钟），30 分钟目标有充分余量。
+- 从零（`cp .env.prod.example` 起）到 6 服务全 healthy + HTTPS 登录成功，实测 < 15 分钟（含镜像构建；2026-08-03 复跑约 4 分钟；2026-08-04 R106 全新 VM 从零复跑：部署 275 秒、登录累计 < 7 分钟），30 分钟目标有充分余量。
 - 引导管理员口径为 tenant 0 平台管理员（`ADMIN_BOOTSTRAP_TENANT_ID=0`），业务租户一律经「设置 → 平台租户」创建；仅遗留单租户部署才显式设 >0。
 - `BACKUP_SCHEDULE` 仅是配置元数据，后端**没有内置定时器**：每日自动备份靠宿主机 crontab（上文第 4 步），勿以为配了变量就有自动备份。
 - 后端镜像已内置 postgresql-client-16（`pg_dump`/`pg_restore`/`psql`），`/api/v1/ops/backups` 手工备份可用（演练中发现缺失并已修复）。
 - 对象存储上传**尚未实现**：`BACKUP_MODE=object_storage` 只做配置校验，`/api/v1/ops/backups` 的产物仍落在 backend 容器 `/tmp`（容器重建即丢，download 也会失效），记录中的 `storageProvider` 仅反映配置而非实际存储位置。生产的权威备份是宿主机 crontab pg_dump（上文第 4 步），必须配置；`BACKUP_STORAGE_BUCKET` 为空当前不会导致备份失败。
 - Let's Encrypt 正式签发依赖真实 DNS + 公网 80/443，为本地演练唯一未覆盖项；异常按 production-deployment.md「常见问题」第一条排查（先切 staging CA 联调）。
 - 登录接口 body 为 `{"account": "...", "password": "..."}`（account=邮箱或手机号，不是 email 字段）。
+- `./scripts/deploy-prod.sh --pre-upgrade-check` 默认备份目录 `/var/backups`，非 root 部署账号无法创建时会直接失败：先 `sudo mkdir -p /var/backups && sudo chown $USER /var/backups`，或每次显式 `BACKUP_DIR=<可写目录>` 运行。
 
 ### Let's Encrypt 真实域名签发注意事项（本地无法覆盖，上线时逐项确认）
 
