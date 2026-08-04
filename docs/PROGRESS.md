@@ -1603,3 +1603,12 @@ Final Production Acceptance Deferred to P10
 - 存量迁移口径：settings 组本身无需数据迁移（未配置回退平台默认，tenant 0 demo 行为逐字节不变）；告警数据迁移见上。
 - 测试：`tenantsettings` 合并/整组回退单测、taskcenter `alert_tenant_source_test.go`（Upsert 落租户+自愈、通知审计租户隔离）、PG 集成 `alert_tenant_backfill_test.go`（回填/孤儿/幂等）。
 - 剩余待租户化（下一批）：`image` 组（26 处）、`taskcenter` 组（告警扫描/通知触发策略，扫描 worker 仍平台视角运行）、Storage/Email/System 设置页 `tenantId: 0` 硬编码（对应组保留平台级，暂不动）。
+
+### 变更记录（2026-08-04）第 106 轮：settings 租户化第三批收尾——image 整组回退 + 告警扫描/通知触发策略租户化
+
+- **image 整组回退租户化**：`tenantsettings.ImagePlain`——image 组混存多家图片 Provider 凭据（`*_api_key`）与其配套参数（base_url/model/size/workflow/超时），逐 key 合并会让租户参数跑平台 Key（或反之），故与 ai 组同口径整组回退：租户配置任一自有凭据（任一 `*_api_key`，或无 Key Provider ComfyUI 的 `comfyui_base_url`）则整组以租户配置为准；未配置则整组回退平台（tenant 0）默认。替换读点 26 处：providers/image factory ×6、imagetask ×10（含 test-image、翻译渲染/视觉链路）、aiproductimage ×5、aioperationbatch ×1、configstatus ×3、settings integration-overview ×1。
+- **告警扫描/通知触发策略（taskcenter 组）逐 key 合并租户化**：`TaskCenterPlainForTenant`（行为策略组：告警生成开关/最低等级/分类开关/重复失败阈值、外发通知开关/等级/渠道/触发条件，租户覆盖单项、空值继承平台默认）。`UpsertAlertForFailure` 先解析来源租户再按该租户策略判定是否生成告警；`NotifyGeneratedAlerts` 按告警行归属租户逐租户解析 taskcenter 触发策略与 alert_notify 通知配置（均带批内缓存）。扫描 worker（`ScanAndGenerateTaskAlerts`）继续全局扫描（平台视角），告警按来源租户落桶，租户在告警列表看到自身聚合告警，tenant 0 视图为平台桶。**保留平台级**：扫描 worker 运行键 `enable_alert_scan_worker` / `alert_scan_interval_seconds`（单进程 worker 基础设施，仅平台管理员可配）。
+- **前端对齐**：系统设置页（system + taskcenter）站点信息与「后台定时扫描」仅平台管理员可见可存；业务租户 admin 保存告警策略落自己租户（页面此前已省略 `tenantId`）。
+- 存量迁移口径：image / taskcenter 组均无需数据迁移——租户未配置时回退/继承平台默认，tenant 0 demo 行为逐字节不变；越权口径沿用 #216（`PUT /settings` 一律写调用方租户、显式传别租户 403，`GET /settings` 仅返回本租户行）。
+- 收尾核对：全仓 `PlainByGroup(ctx, 0, ...)` 残留仅剩明确平台级组——storage、mail/email、system、platform_*（平台应用凭据与发布配置 schema 组）、库存同步平台限流、taskcenter 扫描 worker 运行键；清单入 PR 描述。
+- 测试：`tenantsettings` 单测（image 整组回退凭据判定含 ComfyUI、taskcenter 逐 key 合并/平台视图）。

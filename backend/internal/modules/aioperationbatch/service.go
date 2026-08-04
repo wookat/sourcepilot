@@ -724,7 +724,7 @@ func (s *Service) processTranslateImageBatchAsync(ctx context.Context, batchID u
 	delayMaxMs := 3000
 
 	if s.Settings != nil {
-		if m, err := s.Settings.PlainByGroup(ctx, 0, "image"); err == nil {
+		if m, err := tenantsettings.ImagePlain(ctx, s.Settings); err == nil {
 			if v := intFromAny(m["ocr_batch_concurrency"]); v > 0 {
 				concurrency = v
 			} else if v := intFromAny(m["translate_image_text_batch_concurrency"]); v > 0 {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image/comfyui"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image/dashscopeimage"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image/openaiimage"
@@ -56,7 +57,7 @@ func NewForTask(ctx context.Context, providerName string, settingsSvc *settings.
 		if settingsSvc == nil {
 			return nil, fmt.Errorf("remove.bg provider requires settings service")
 		}
-		m, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		m, err := tenantsettings.ImagePlain(ctx, settingsSvc)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +80,7 @@ func NewForTask(ctx context.Context, providerName string, settingsSvc *settings.
 		if settingsSvc == nil {
 			return nil, fmt.Errorf("openai Image provider requires settings service")
 		}
-		im, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		im, err := tenantsettings.ImagePlain(ctx, settingsSvc)
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +122,7 @@ func NewForTask(ctx context.Context, providerName string, settingsSvc *settings.
 		if settingsSvc == nil {
 			return nil, fmt.Errorf("comfyui provider requires settings service")
 		}
-		im, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		im, err := tenantsettings.ImagePlain(ctx, settingsSvc)
 		if err != nil {
 			return nil, err
 		}
@@ -156,7 +157,7 @@ func NewForTask(ctx context.Context, providerName string, settingsSvc *settings.
 		if settingsSvc == nil {
 			return nil, fmt.Errorf("dashscope_image provider requires settings service")
 		}
-		im, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		im, err := tenantsettings.ImagePlain(ctx, settingsSvc)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +174,7 @@ func NewForTask(ctx context.Context, providerName string, settingsSvc *settings.
 		if settingsSvc == nil {
 			return nil, fmt.Errorf("volcengine_image provider requires settings service")
 		}
-		im, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		im, err := tenantsettings.ImagePlain(ctx, settingsSvc)
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +197,7 @@ func NewForTask(ctx context.Context, providerName string, settingsSvc *settings.
 		if settingsSvc == nil {
 			return nil, fmt.Errorf("siliconflow_image provider requires settings service")
 		}
-		im, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		im, err := tenantsettings.ImagePlain(ctx, settingsSvc)
 		if err != nil {
 			return nil, err
 		}

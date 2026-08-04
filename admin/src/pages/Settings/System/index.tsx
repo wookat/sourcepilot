@@ -9,7 +9,9 @@ import {
   SYSTEM_TIMEZONE_OPTIONS,
   TASK_ALERT_CATEGORY_TOGGLES,
 } from '@/constants/systemSettings';
+import { usePermission } from '@/hooks/usePermission';
 import { fetchSettingsList, saveSettingsItems, type SettingPutItem } from '@/services/settings';
+import { isPlatformAdmin } from '@/utils/permission';
 import { pickGroup } from '@/utils/settingsForm';
 
 const { Text, Paragraph } = Typography;
@@ -24,10 +26,13 @@ function truthyStored(v: string | undefined): boolean {
   return s === '1' || s === 'true' || s === 'yes' || s === 'on';
 }
 
-function buildTCItems(values: Record<string, unknown>): SettingPutItem[] {
+// 站点信息与「后台定时扫描」运行键（enable_alert_scan_worker /
+// alert_scan_interval_seconds）为平台级配置，仅平台管理员可见可存；
+// 其余告警策略键按租户生效（未覆盖的键继承平台默认）。
+function buildTCItems(values: Record<string, unknown>, platformAdmin: boolean): SettingPutItem[] {
   const gk = GROUP_TC;
   const boolStr = (b: unknown) => (b ? 'true' : 'false');
-  return [
+  const items: SettingPutItem[] = [
     { groupKey: gk, itemKey: 'enable_task_alerts', itemValue: boolStr(values.enable_task_alerts), valueType: 'string', isEncrypted: false, remark: '' },
     { groupKey: gk, itemKey: 'alert_min_severity', itemValue: String(values.alert_min_severity ?? ''), valueType: 'string', isEncrypted: false, remark: '' },
     { groupKey: gk, itemKey: 'alert_on_platform_permission', itemValue: boolStr(values.alert_on_platform_permission), valueType: 'string', isEncrypted: false, remark: '' },
@@ -58,21 +63,26 @@ function buildTCItems(values: Record<string, unknown>): SettingPutItem[] {
       isEncrypted: false,
       remark: '',
     },
-    { groupKey: gk, itemKey: 'enable_alert_scan_worker', itemValue: boolStr(values.enable_alert_scan_worker), valueType: 'string', isEncrypted: false, remark: '' },
-    {
-      groupKey: gk,
-      itemKey: 'alert_scan_interval_seconds',
-      itemValue:
-        values.alert_scan_interval_seconds === undefined ||
-        values.alert_scan_interval_seconds === null ||
-        values.alert_scan_interval_seconds === ''
-          ? ''
-          : String(values.alert_scan_interval_seconds),
-      valueType: 'string',
-      isEncrypted: false,
-      remark: '',
-    },
   ];
+  if (platformAdmin) {
+    items.push(
+      { groupKey: gk, itemKey: 'enable_alert_scan_worker', itemValue: boolStr(values.enable_alert_scan_worker), valueType: 'string', isEncrypted: false, remark: '' },
+      {
+        groupKey: gk,
+        itemKey: 'alert_scan_interval_seconds',
+        itemValue:
+          values.alert_scan_interval_seconds === undefined ||
+          values.alert_scan_interval_seconds === null ||
+          values.alert_scan_interval_seconds === ''
+            ? ''
+            : String(values.alert_scan_interval_seconds),
+        valueType: 'string',
+        isEncrypted: false,
+        remark: '',
+      },
+    );
+  }
+  return items;
 }
 
 function AlertToggleItem({
@@ -104,6 +114,8 @@ function AlertToggleItem({
 export default function SystemSettingsPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const { user, role } = usePermission();
+  const platformAdmin = isPlatformAdmin(role, user?.tenantId);
   const timezoneValue = Form.useWatch('timezone', form);
 
   const timezoneOptions = useMemo(() => {
@@ -156,25 +168,27 @@ export default function SystemSettingsPage() {
 
   const onFinish = async (values: Record<string, unknown>) => {
     try {
-      const sysPut: SettingPutItem[] = [
-        {
-          groupKey: GROUP_SYSTEM,
-          itemKey: 'site_name',
-          itemValue: String(values.site_name ?? ''),
-          valueType: 'string',
-          isEncrypted: false,
-          remark: '',
-        },
-        {
-          groupKey: GROUP_SYSTEM,
-          itemKey: 'timezone',
-          itemValue: String(values.timezone ?? ''),
-          valueType: 'string',
-          isEncrypted: false,
-          remark: '',
-        },
-      ];
-      await saveSettingsItems(sysPut.concat(buildTCItems(values)));
+      const sysPut: SettingPutItem[] = platformAdmin
+        ? [
+            {
+              groupKey: GROUP_SYSTEM,
+              itemKey: 'site_name',
+              itemValue: String(values.site_name ?? ''),
+              valueType: 'string',
+              isEncrypted: false,
+              remark: '',
+            },
+            {
+              groupKey: GROUP_SYSTEM,
+              itemKey: 'timezone',
+              itemValue: String(values.timezone ?? ''),
+              valueType: 'string',
+              isEncrypted: false,
+              remark: '',
+            },
+          ]
+        : [];
+      await saveSettingsItems(sysPut.concat(buildTCItems(values, platformAdmin)));
       message.success('已保存');
       await load();
     } catch (e: unknown) {
@@ -203,41 +217,55 @@ export default function SystemSettingsPage() {
         </ProCard>
 
         <Form form={form} layout="vertical" onFinish={onFinish}>
+          {platformAdmin ? (
+            <ProCard
+              variant="outlined"
+              title="站点信息"
+              className="tm-system-settings__panel"
+              extra={
+                <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
+                  重新加载
+                </Button>
+              }
+            >
+              <Row gutter={[24, 0]}>
+                <Col xs={24} md={12} lg={10}>
+                  <Form.Item label="站点名称" name="site_name" rules={[{ required: true, message: '请输入站点名称' }]}>
+                    <Input placeholder="贸灵 TradeMind" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12} lg={10}>
+                  <Form.Item
+                    label="时区"
+                    name="timezone"
+                    rules={[{ required: true, message: '请选择时区' }]}
+                    extra="用于任务时间、日志与告警展示；存库为 IANA 时区标识"
+                  >
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="请选择时区"
+                      options={timezoneOptions}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </ProCard>
+          ) : null}
+
           <ProCard
             variant="outlined"
-            title="站点信息"
+            title="任务中心 · 站内告警策略"
             className="tm-system-settings__panel"
+            style={{ marginTop: 16 }}
             extra={
-              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
-                重新加载
-              </Button>
+              !platformAdmin ? (
+                <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
+                  重新加载
+                </Button>
+              ) : undefined
             }
           >
-            <Row gutter={[24, 0]}>
-              <Col xs={24} md={12} lg={10}>
-                <Form.Item label="站点名称" name="site_name" rules={[{ required: true, message: '请输入站点名称' }]}>
-                  <Input placeholder="贸灵 TradeMind" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12} lg={10}>
-                <Form.Item
-                  label="时区"
-                  name="timezone"
-                  rules={[{ required: true, message: '请选择时区' }]}
-                  extra="用于任务时间、日志与告警展示；存库为 IANA 时区标识"
-                >
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="请选择时区"
-                    options={timezoneOptions}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-          </ProCard>
-
-          <ProCard variant="outlined" title="任务中心 · 站内告警策略" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Alert
               type="info"
               showIcon
@@ -326,6 +354,8 @@ export default function SystemSettingsPage() {
               }}
             </Form.Item>
 
+            {platformAdmin ? (
+              <>
             <Divider orientation="left" plain>
               后台定时扫描
             </Divider>
@@ -372,6 +402,8 @@ export default function SystemSettingsPage() {
                 );
               }}
             </Form.Item>
+              </>
+            ) : null}
           </ProCard>
 
           <ProCard variant="outlined" className="tm-system-settings__footer" style={{ marginTop: 16 }}>

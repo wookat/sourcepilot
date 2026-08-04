@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantquery"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	"gorm.io/gorm"
 )
 
@@ -32,11 +33,13 @@ type ListAlertsParams struct {
 	PageSize        int
 }
 
-func taskCenterPlain(ctx context.Context, s *settings.Service) map[string]string {
+// taskCenterPlain resolves the taskcenter alert policy group for one tenant
+// (per-key merge over platform defaults; tenant 0 is the platform view).
+func taskCenterPlain(ctx context.Context, s *settings.Service, tenantID int64) map[string]string {
 	if s == nil {
 		return map[string]string{}
 	}
-	m, err := s.PlainByGroup(ctx, 0, "taskcenter")
+	m, err := tenantsettings.TaskCenterPlainForTenant(ctx, s, tenantID)
 	if err != nil || m == nil {
 		return map[string]string{}
 	}
@@ -201,13 +204,13 @@ func (s *Service) UpsertAlertForFailure(ctx context.Context, dto UnifiedTaskDTO,
 	if s == nil || s.DB == nil {
 		return false, false, fmt.Errorf("taskcenter: no db")
 	}
-	m := taskCenterPlain(ctx, s.Settings)
+	tenantID := s.resolveSourceTenant(ctx, dto.TaskType, dto.SourceID)
+	m := taskCenterPlain(ctx, s.Settings, tenantID)
 	if !force && !shouldEmitAutoAlert(m, dto, class, now) {
 		return false, false, nil
 	}
 	platform := strings.TrimSpace(dto.Platform)
 	msg := truncateRunes(strings.TrimSpace(class.Reason)+" · "+strings.TrimSpace(dto.ErrorMessage), 1200)
-	tenantID := s.resolveSourceTenant(ctx, dto.TaskType, dto.SourceID)
 
 	var cur TaskAlert
 	errFind := s.DB.WithContext(ctx).

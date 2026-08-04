@@ -287,31 +287,22 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 	if s == nil || len(candidates) == 0 {
 		return
 	}
-	tc := taskCenterPlain(ctx, s.Settings)
 	filt := normalizeChannelFilter(channelFilter)
 
-	var effective []string
-	if len(filt) > 0 {
-		effective = filt
-	} else {
-		if !manual {
-			if !parseBoolTaskCenter(tc["enable_external_notifications"], false) {
-				return
-			}
-			if strings.TrimSpace(tc["notification_min_severity"]) == "" {
-				return
-			}
+	// taskcenter notification triggers are tenant-owned policy (per-key merge
+	// over platform defaults): resolve per owning tenant of each alert, so a
+	// tenant's own switches/severity/channels decide whether its alerts leave
+	// the system. alert_notify is likewise tenant-owned (whole-group fallback
+	// to platform config when the tenant configured nothing).
+	tcByTenant := map[int64]map[string]string{}
+	taskCenterFor := func(tid int64) map[string]string {
+		if m, ok := tcByTenant[tid]; ok {
+			return m
 		}
-		effective = parseJSONStringSlice(tc["notification_channels"])
+		m := taskCenterPlain(ctx, s.Settings, tid)
+		tcByTenant[tid] = m
+		return m
 	}
-	if len(effective) == 0 {
-		return
-	}
-
-	minSev := strings.TrimSpace(tc["notification_min_severity"])
-	// alert_notify is tenant-owned: resolve per owning tenant of each alert
-	// so a tenant's alerts go to its own recipients/webhooks (whole-group
-	// fallback to platform config when the tenant configured nothing).
 	anByTenant := map[int64]map[string]string{}
 	alertNotifyFor := func(tid int64) map[string]string {
 		if m, ok := anByTenant[tid]; ok {
@@ -324,15 +315,35 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 		anByTenant[tid] = m
 		return m
 	}
-	detailBase := strings.TrimSpace(tc["alert_detail_public_base"])
 
 	for _, cand := range candidates {
 		alert := cand.Alert
+		tc := taskCenterFor(alert.TenantID)
 		an := alertNotifyFor(alert.TenantID)
+
+		var effective []string
+		if len(filt) > 0 {
+			effective = filt
+		} else {
+			if !manual {
+				if !parseBoolTaskCenter(tc["enable_external_notifications"], false) {
+					continue
+				}
+				if strings.TrimSpace(tc["notification_min_severity"]) == "" {
+					continue
+				}
+			}
+			effective = parseJSONStringSlice(tc["notification_channels"])
+		}
+		if len(effective) == 0 {
+			continue
+		}
+
+		minSev := strings.TrimSpace(tc["notification_min_severity"])
 		if !manual && minSev != "" && !s.notifySeverityOK(alert, minSev) {
 			continue
 		}
-		payload := s.buildNotifyPayload(alert, detailBase)
+		payload := s.buildNotifyPayload(alert, strings.TrimSpace(tc["alert_detail_public_base"]))
 
 		for _, ch := range effective {
 			ch = strings.TrimSpace(strings.ToLower(ch))

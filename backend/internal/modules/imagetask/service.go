@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -62,7 +63,7 @@ func imageOperationTimeout(ctx context.Context, svc *settings.Service) time.Dura
 	if svc == nil {
 		return def
 	}
-	m, err := svc.PlainByGroup(ctx, 0, "image")
+	m, err := tenantsettings.ImagePlain(ctx, svc)
 	if err != nil {
 		return def
 	}
@@ -84,7 +85,7 @@ func (s *Service) comfyUIExecutionBudget(ctx context.Context) time.Duration {
 	if s == nil || s.Settings == nil {
 		return 0
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	m, err := tenantsettings.ImagePlain(ctx, s.Settings)
 	if err != nil {
 		return 0
 	}
@@ -147,7 +148,7 @@ func (s *Service) resolveImageProvider(ctx context.Context, explicit string) (st
 	if s.Settings == nil {
 		return "", fmt.Errorf("请先在「设置 → 图片 AI」配置默认图片服务")
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	m, err := tenantsettings.ImagePlain(ctx, s.Settings)
 	if err != nil {
 		return "", err
 	}
@@ -170,7 +171,7 @@ func (s *Service) AllowsGenerateSceneNoSource(ctx context.Context, explicitProvi
 	if s == nil || s.Settings == nil {
 		return false
 	}
-	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	m, err := tenantsettings.ImagePlain(ctx, s.Settings)
 	if err != nil {
 		return false
 	}
@@ -271,7 +272,7 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 				return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
 			}
 			if s.Settings != nil {
-				m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+				m, err := tenantsettings.ImagePlain(ctx, s.Settings)
 				if err != nil {
 					return nil, err
 				}

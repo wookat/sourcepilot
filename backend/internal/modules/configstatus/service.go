@@ -205,7 +205,7 @@ func (s *Service) aiImageItem(ctx context.Context) Item {
 		NextAction:  "前往图片 AI 设置选择 Provider 并填写密钥",
 		ImpactScope: "影响去背景、白底图、去水印、图片翻译等批量处理能力",
 	}
-	img, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	img, err := tenantsettings.ImagePlain(ctx, s.Settings)
 	if err != nil {
 		it.Status = StatusConfigError
 		it.Summary = "读取图片 AI 配置失败"
@@ -237,7 +237,7 @@ func (s *Service) dashscopeWhiteBgItem(ctx context.Context) Item {
 		NextAction:  "在图片 AI 设置中填写 dashscope_image_api_key",
 		ImpactScope: "影响白底图、背景优化；缺失时相关批次项将标记为配置阻断",
 	}
-	img, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	img, err := tenantsettings.ImagePlain(ctx, s.Settings)
 	if err != nil {
 		it.Status = StatusConfigError
 		return it
@@ -265,7 +265,7 @@ func (s *Service) ocrItem(ctx context.Context) Item {
 		SettingsURL: "/settings/image",
 		NextAction:  "在图片 AI 设置中配置 OCR Provider 凭证",
 	}
-	img, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	img, err := tenantsettings.ImagePlain(ctx, s.Settings)
 	if err != nil {
 		it.Status = StatusConfigError
 		return it

@@ -70,6 +70,42 @@ func hasOwnAPIKey(m map[string]string) bool {
 	return false
 }
 
+// ImagePlain resolves the effective "image" settings group for the context
+// tenant with whole-group semantics (same rationale as ai): the image group
+// mixes provider credentials (*_api_key) with the parameters that belong to
+// them (base_url/model/size/workflow), so tenant and platform values are
+// never merged key-by-key — a tenant task must not run its parameters
+// against the platform's API key or vice versa. The tenant group applies
+// once the tenant configured a credential of its own (any *_api_key, or
+// comfyui_base_url for the key-less ComfyUI provider); otherwise the
+// platform (tenant 0) group applies unchanged.
+func ImagePlain(ctx context.Context, r Reader) (map[string]string, error) {
+	if r == nil {
+		return map[string]string{}, nil
+	}
+	tid := TenantID(ctx)
+	if tid > 0 {
+		m, err := r.PlainByGroup(ctx, tid, "image")
+		if err != nil {
+			return nil, err
+		}
+		if hasOwnImageCredential(m) {
+			return m, nil
+		}
+	}
+	return r.PlainByGroup(ctx, 0, "image")
+}
+
+// hasOwnImageCredential reports whether the tenant configured any image
+// provider credential (any "*_api_key") or a ComfyUI endpoint (the only
+// provider that can run without an API key).
+func hasOwnImageCredential(m map[string]string) bool {
+	if hasOwnAPIKey(m) {
+		return true
+	}
+	return strings.TrimSpace(m["comfyui_base_url"]) != ""
+}
+
 // CollectorPlain resolves the effective "collector" settings group for the
 // context tenant: platform defaults overlaid by the tenant's non-empty keys.
 func CollectorPlain(ctx context.Context, r Reader) (map[string]string, error) {
@@ -95,6 +131,23 @@ func PricingPlain(ctx context.Context, r Reader) (map[string]string, error) {
 // context tenant (per-key merge, same rationale as InventoryPlain).
 func SourcingPlain(ctx context.Context, r Reader) (map[string]string, error) {
 	return mergedPlain(ctx, r, TenantID(ctx), "sourcing")
+}
+
+// TaskCenterPlain resolves the effective "taskcenter" settings group for the
+// context tenant. Task-center alert policy values (enable switches,
+// thresholds, severities, notification triggers) are behavioral knobs, so
+// per-key merge applies. The scan-worker run keys
+// (enable_alert_scan_worker / alert_scan_interval_seconds) stay platform
+// infrastructure and are read from tenant 0 by the worker loop directly.
+func TaskCenterPlain(ctx context.Context, r Reader) (map[string]string, error) {
+	return mergedPlain(ctx, r, TenantID(ctx), "taskcenter")
+}
+
+// TaskCenterPlainForTenant is TaskCenterPlain keyed by an explicit tenant —
+// used by the alert scan/notify pipeline where the owning tenant comes from
+// the failure source or alert row rather than the request context.
+func TaskCenterPlainForTenant(ctx context.Context, r Reader, tenantID int64) (map[string]string, error) {
+	return mergedPlain(ctx, r, tenantID, "taskcenter")
 }
 
 // AlertNotifyPlain resolves the effective "alert_notify" settings group for
