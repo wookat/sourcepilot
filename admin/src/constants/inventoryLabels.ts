@@ -55,6 +55,7 @@ export const INVENTORY_CHANGE_TYPE: Record<string, string> = {
   order_deduct: '订单同步扣减',
   order_cancel_restore: '系统回滚',
   import: '导入',
+  import_opening: '期初导入',
   purchase_inbound: '采购签收入库',
   warehouse_transfer_out: '调拨出库',
   warehouse_transfer_in: '调拨入库',
@@ -70,6 +71,7 @@ export const INVENTORY_CHANGE_REASON: Record<string, string> = {
   order_completed: '订单完成',
   order_cancelled: '订单取消',
   warehouse_transfer: '仓库调拨',
+  import_opening: '期初导入',
 };
 
 export const INVENTORY_DEDUCT_SOURCE: Record<string, string> = {
