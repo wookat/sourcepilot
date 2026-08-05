@@ -1729,3 +1729,10 @@ Final Production Acceptance Deferred to P10
 - **UX v7 P2×4 收口**：① 自动化执行日志「结果/原因」列固定 260px + `ellipsis` + Tooltip，并修表格列宽总和超 `scroll.x` 导致弹性列被压缩为 0 宽的问题（`scroll.x` 1100→1400）；② 买家消息草稿保存改为先 `load()` 刷新列表再关弹层，消除瞬时旧/新内容混排；③ 选品任务摘要「目标平台/国家」加 `nowrap`，768 不再逐字竖排；④ 新增 `/purchase` 与 `/purchase/orders` 路由别名重定向至 `/procurement/orders`。低成本建议四条全部落地（与 P2 清单重合 + 正向 demo seed）。
 - **#256 遗留 P2×2 收口**：① 无商品行订单触发「自动生成采购单」定性为**跳过**而非可重试失败——`order.empty` 是确定性前置缺失，重试不可能改变结果，可重试失败会造成 3 次无效重试与误导性的「重试」操作；引擎新增 `order.AutomationSkip` 哨兵错误类型，router hook 将 `order.empty` blocker 映射为跳过并保留其余 blocker 的可重试失败语义，回归 `TestAutomationSkipOutcomeRecordsSkippedWithoutRetry`；② 规则引用已删除模板维持两态设计（已启用可停用不可再启用、编辑强制重选模板），补「已失效」红色标签让状态可视化（不需 hover），回归 E2E `round122-p2`。
 - **demo seed 正向采购样本**：`seedRound119OrderAutomation` 新增 `DEMO-AT-1004`（审单通过 + 未付款 + 商品行已匹配本地 SKU/主货源/SKU 映射），后台「标记已付款」即真实触发自动生成采购单成功动线；clean/verify 零残留（复用 DEMO- 前缀清理路径），回归断言补入 `fulldemo_round119_test.go`。
+
+### 变更记录（2026-08-05）第 123 轮线1：验收包整备——ACCEPTANCE_R123 + DEMO_SCRIPT + 文档核对（technical-writer / product-manager）
+
+- **验收对照表**：新增 `docs/acceptance/ACCEPTANCE_R123.md`——按业务闭环（采集/选品→优化→草稿→货源→刊登→订单→审单→采购→入库→发货→签收→消息→财务对账→报表→横切治理）逐环节列能力点/实现轮次与 PR/验证证据/状态；外部凭证依赖单独列表并注明降级路径；汇总 R118 竞品复评矩阵结论（超越 3 / 达到 10 / 落后 3，落后项全部归因外部凭证）。基线 main `02b6b086`（#260 已合并）；#261 性能收口未合并，相关项标注待合并。
+- **演示动线脚本**：新增 `docs/acceptance/DEMO_SCRIPT.md`——基于 `seed:demo:full` 的约 30 分钟 23 步完整演示（三账号三角色 + 375px 移动模式），Docker 全栈逐步实跑全部 23 步验证可照做（全程录屏）：步骤 11 自动化正/负样本真实触发通过（DEMO-AT-1004 自动生成采购单成功、DEMO-AT-1001 安全阻断留痕）；步骤 20/21 文案口径按实际表现修正（「暂无访问权限」/ readonly 写入口隐藏而非禁用）。
+- **文档核对**：README/部署/升级/运维/env 逐条命令实跑核对——Docker 全栈启动、health、seed 全套（seed/clean/verify 零残留）、`check:dev`、升级指南预检 SQL、pg_dump 备份均验证通过；README 补充宿主机直跑 Go 种子需 `DB_HOST=127.0.0.1` 的说明（实跑发现缺省 `DB_HOST=postgres` 时报解析错误）。
+- **门禁**：`pnpm check:ui-copy --strict` 通过；本轮仅文档变更，未触及代码门禁。
