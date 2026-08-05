@@ -68,6 +68,8 @@ func (h *Handler) ExportCSV(c *gin.Context) {
 		err = h.Svc.exportInventory(c, w)
 	case KindSource:
 		err = h.Svc.exportSources(c, w)
+	case KindPayment:
+		err = h.Svc.exportPayments(c, w)
 	}
 	if err != nil {
 		// Headers are already sent; append an error row instead of a broken 200.
@@ -280,6 +282,70 @@ func (s *Service) exportInventory(c *gin.Context, w *csv.Writer) error {
 				}
 				written++
 			}
+		}
+	}
+	return nil
+}
+
+type paymentExportRow struct {
+	OrderNo    string    `gorm:"column:order_no"`
+	Amount     float64   `gorm:"column:amount"`
+	Currency   string    `gorm:"column:currency"`
+	FeeAmount  float64   `gorm:"column:fee_amount"`
+	ReceivedAt time.Time `gorm:"column:received_at"`
+	Channel    string    `gorm:"column:channel"`
+	Remark     string    `gorm:"column:remark"`
+	Source     string    `gorm:"column:source"`
+}
+
+// exportPayments writes all store-visible payment records, one row per record.
+func (s *Service) exportPayments(c *gin.Context, w *csv.Writer) error {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	if err := w.Write([]string{
+		"订单号", "回款金额", "币种", "手续费", "回款日期", "回款渠道", "备注", "来源",
+	}); err != nil {
+		return err
+	}
+	written := 0
+	for offset := 0; written < MaxExportRows; offset += exportBatchSize {
+		tx := s.DB.WithContext(c.Request.Context()).
+			Table("finance_payment_records").
+			Select(`orders.order_no, finance_payment_records.amount, finance_payment_records.currency,
+				finance_payment_records.fee_amount, finance_payment_records.received_at,
+				finance_payment_records.channel, finance_payment_records.remark, finance_payment_records.source`).
+			Joins("JOIN orders ON orders.id = finance_payment_records.order_id AND orders.deleted_at IS NULL").
+			Where("finance_payment_records.tenant_id = ? AND finance_payment_records.deleted_at IS NULL", tid)
+		tx, err := adminperm.ApplyStoreScope(c, s.DB, tx, "orders.shop_id")
+		if err != nil {
+			return err
+		}
+		var rows []paymentExportRow
+		if err := tx.Order("finance_payment_records.received_at ASC, finance_payment_records.id ASC").
+			Offset(offset).Limit(exportBatchSize).Scan(&rows).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		for _, r := range rows {
+			if written >= MaxExportRows {
+				return nil
+			}
+			sourceLabel := "手工"
+			if r.Source == "import" {
+				sourceLabel = "导入"
+			}
+			if err := w.Write(csvsafe.Row([]string{
+				r.OrderNo, strconv.FormatFloat(r.Amount, 'f', -1, 64), r.Currency,
+				strconv.FormatFloat(r.FeeAmount, 'f', -1, 64), r.ReceivedAt.Local().Format("2006-01-02"),
+				r.Channel, r.Remark, sourceLabel,
+			})); err != nil {
+				return err
+			}
+			written++
 		}
 	}
 	return nil

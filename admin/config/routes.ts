@@ -373,6 +373,21 @@ export default [
         component: './Reports/Procurement',
       },
       {
+        path: '/orders/finance-payments',
+        name: '回款与费用',
+        component: './Finance/Payments',
+      },
+      {
+        path: '/orders/finance-reconciliation',
+        name: '对账差异',
+        component: './Finance/Reconciliation',
+      },
+      {
+        path: '/orders/finance-report',
+        name: '对账报表',
+        component: './Finance/Report',
+      },
+      {
         path: '/orders/reports-inventory',
         name: '库存报表',
         component: './Reports/Inventory',

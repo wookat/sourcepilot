@@ -54,19 +54,22 @@ const KIND_LABEL: Record<string, string> = {
   order: '订单',
   inventory: '库存期初',
   source: '货源档案',
+  payment: '回款记录',
 };
 const KIND_NEEDS_SHOP: Record<ImportKind, boolean> = {
   product: true,
   order: true,
   inventory: false,
   source: false,
+  payment: false,
 };
-const IMPORT_KINDS: ImportKind[] = ['product', 'order', 'inventory', 'source'];
+const IMPORT_KINDS: ImportKind[] = ['product', 'order', 'inventory', 'source', 'payment'];
 const GROUP_DESC: Record<ImportKind, (n: number) => string> = {
   product: (n) => `将创建 ${n} 个商品草稿；有问题的行不会入库`,
   order: (n) => `将合并为 ${n} 个订单；有问题的行不会入库`,
   inventory: (n) => `将写入 ${n} 条期初库存（含库存流水）；有问题的行不会入库`,
   source: (n) => `将写入 ${n} 条货源档案与 SKU 映射；有问题的行不会入库`,
+  payment: (n) => `将写入 ${n} 条回款记录；重复与有问题的行不会入库`,
 };
 const SOURCE_LABEL: Record<string, string> = {
   dianxiaomi: '店小秘',
@@ -303,6 +306,7 @@ function ImportWizard({ writable }: { writable: boolean }) {
                   { label: '历史订单', value: 'order' },
                   { label: '库存期初', value: 'inventory' },
                   { label: '货源档案', value: 'source' },
+                  { label: '平台回款', value: 'payment' },
                 ]}
                 optionType="button"
               />
@@ -652,6 +656,7 @@ function ImportHistory({ onGoWizard, refreshToken }: { onGoWizard: () => void; r
           { label: '订单', value: 'order' },
           { label: '库存期初', value: 'inventory' },
           { label: '货源档案', value: 'source' },
+          { label: '平台回款', value: 'payment' },
         ]}
         optionType="button"
       />

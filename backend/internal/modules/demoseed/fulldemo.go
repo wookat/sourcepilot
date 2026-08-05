@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/finance"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
@@ -913,6 +914,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- 财务对账演示：回款/费用/采购实付价样本（Round 121）----
+	if err := s.seedRound121Finance(tx, res, now, shops, &supplier, skus[0]); err != nil {
+		return err
+	}
+
 	// ---- exception workbench handled mark（演示处理动作留痕）----
 	mark := orderexception.OrderExceptionMark{
 		ExceptionType: orderexception.TypeInventorySyncFailed,
@@ -1027,6 +1033,18 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 
 		var orderIDs []uuid.UUID
 		if err := tx.Model(&order.Order{}).Unscoped().Where("order_no LIKE ?", like).Pluck("id", &orderIDs).Error; err != nil {
+			return err
+		}
+		finPayCond := tx.Unscoped().Where("remark LIKE ?", like)
+		finExpCond := tx.Unscoped().Where("remark LIKE ?", like)
+		if len(orderIDs) > 0 {
+			finPayCond = tx.Unscoped().Where("order_id IN ? OR remark LIKE ?", orderIDs, like)
+			finExpCond = tx.Unscoped().Where("order_id IN ? OR remark LIKE ?", orderIDs, like)
+		}
+		if err := del("finance_payment_records", finPayCond.Delete(&finance.PaymentRecord{})); err != nil {
+			return err
+		}
+		if err := del("finance_order_expenses", finExpCond.Delete(&finance.OrderExpense{})); err != nil {
 			return err
 		}
 		if len(orderIDs) > 0 {
@@ -1183,7 +1201,13 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 		if err := cleanupMigrationImports(tx, res, like, shopIDs); err != nil {
 			return err
 		}
+		if err := del("finance_shop_monthly_expenses", tx.Unscoped().Where("remark LIKE ?", like).Delete(&finance.ShopMonthlyExpense{})); err != nil {
+			return err
+		}
 		if len(shopIDs) > 0 {
+			if err := del("finance_shop_monthly_expenses", tx.Unscoped().Where("shop_id IN ?", shopIDs).Delete(&finance.ShopMonthlyExpense{})); err != nil {
+				return err
+			}
 			if err := del("order_sync_tasks", tx.Unscoped().Where("shop_id IN ? AND error_message LIKE ?", shopIDs, like).Delete(&ordersync.OrderSyncTask{})); err != nil {
 				return err
 			}
@@ -1340,6 +1364,33 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 			return tx.Model(&procurement.PurchaseOrder{}).Unscoped().
 				Where("idempotency_key LIKE ? OR external_order_id LIKE ? OR supplier_name LIKE ?", like, like, like)
 		}),
+		{table: "finance_payment_records", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("finance_payment_records") {
+				return 0, nil
+			}
+			return n, tx.Model(&finance.PaymentRecord{}).Unscoped().
+				Where("remark LIKE ? OR order_id IN (?)", like, tx.Model(&order.Order{}).Unscoped().
+					Select("id").Where("order_no LIKE ?", like)).Count(&n).Error
+		}},
+		{table: "finance_order_expenses", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("finance_order_expenses") {
+				return 0, nil
+			}
+			return n, tx.Model(&finance.OrderExpense{}).Unscoped().
+				Where("remark LIKE ? OR order_id IN (?)", like, tx.Model(&order.Order{}).Unscoped().
+					Select("id").Where("order_no LIKE ?", like)).Count(&n).Error
+		}},
+		{table: "finance_shop_monthly_expenses", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("finance_shop_monthly_expenses") {
+				return 0, nil
+			}
+			return n, tx.Model(&finance.ShopMonthlyExpense{}).Unscoped().
+				Where("remark LIKE ? OR shop_id IN (?)", like, tx.Model(&shop.Shop{}).Unscoped().
+					Select("id").Where("shop_code LIKE ?", like)).Count(&n).Error
+		}},
 		{table: "inventory_change_logs", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&inventory.InventoryChangeLog{}).Where("business_event_key LIKE ?", like).Count(&n).Error

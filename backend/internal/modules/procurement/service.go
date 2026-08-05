@@ -488,6 +488,63 @@ func (s *Service) UpdateItemPrice(ctx context.Context, poID, itemID uuid.UUID, p
 	return s.Detail(ctx, poID)
 }
 
+// UpdateItemActualPrice registers the actually paid unit price of one line
+// after the order has been placed (basis of 实算毛利, distinct from the
+// reference/expected price).
+func (s *Service) UpdateItemActualPrice(ctx context.Context, poID, itemID uuid.UUID, price float64, operator *uuid.UUID) (*PurchaseOrder, error) {
+	if price <= 0 {
+		return nil, fmt.Errorf("%w: actualPrice must be greater than 0", ErrBadRequest)
+	}
+	var po PurchaseOrder
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&po, "id = ?", poID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotFound
+			}
+			return err
+		}
+		switch po.Status {
+		case StatusPlaced, StatusPaid, StatusShipped, StatusDelivered:
+		default:
+			return fmt.Errorf("%w: 仅已下单及之后状态可登记实付价（当前 %s）", ErrConflict, po.Status)
+		}
+		var item PurchaseOrderItem
+		if err := tx.First(&item, "id = ? AND purchase_order_id = ?", itemID, poID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if err := tx.Model(&item).Update("actual_price", price).Error; err != nil {
+			return err
+		}
+		var items []PurchaseOrderItem
+		if err := tx.Where("purchase_order_id = ?", poID).Find(&items).Error; err != nil {
+			return err
+		}
+		total := 0.0
+		for _, it := range items {
+			p := it.ExpectedPrice
+			if it.ID == itemID {
+				v := price
+				p = &v
+			} else if it.ActualPrice != nil {
+				p = it.ActualPrice
+			}
+			if p != nil {
+				total += *p * float64(it.Quantity)
+			}
+		}
+		po.TotalAmount = round2(total)
+		return tx.Model(&po).Update("total_amount", po.TotalAmount).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.logOp(ctx, operator, "procurement.item.update_actual_price", poID.String(), fmt.Sprintf("item %s actual %.2f", itemID, price))
+	return s.Detail(ctx, poID)
+}
+
 // ListQuery filters purchase orders.
 type ListQuery struct {
 	Page         int

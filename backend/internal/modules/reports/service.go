@@ -101,10 +101,20 @@ type FeeItem struct {
 // feeItems reads and validates the tenant fee configuration; invalid or
 // missing configuration degrades to no fees (never fails a report).
 func (s *Service) feeItems(ctx context.Context, tenantID int64) []FeeItem {
-	if s == nil || s.Settings == nil {
+	if s == nil {
 		return nil
 	}
-	m, err := s.Settings.PlainByGroup(ctx, tenantID, FeeSettingsGroup)
+	return LoadFeeItems(ctx, s.Settings, tenantID)
+}
+
+// LoadFeeItems reads and validates the tenant profit fee configuration for
+// any consumer that must apply the same estimated-fee口径 (e.g. the finance
+// reconciliation report). Invalid or missing configuration degrades to nil.
+func LoadFeeItems(ctx context.Context, settings fxrate.SettingsReader, tenantID int64) []FeeItem {
+	if settings == nil {
+		return nil
+	}
+	m, err := settings.PlainByGroup(ctx, tenantID, FeeSettingsGroup)
 	if err != nil || strings.TrimSpace(m[FeeItemsKey]) == "" {
 		return nil
 	}

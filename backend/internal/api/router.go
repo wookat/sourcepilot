@@ -39,6 +39,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
 	"github.com/trademind-ai/trademind/backend/internal/modules/exportmod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/finance"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -765,6 +766,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	procurement.Register(authed, procurementH)
 	reportsH := &reports.Handler{Svc: &reports.Service{DB: dep.DB, Settings: settingsSvc, Proc: procurementSvc}}
 	reports.Register(authed, reportsH)
+
+	financeSvc := &finance.Service{DB: dep.DB, Settings: settingsSvc, Proc: procurementSvc, OpLog: opLogSvc}
+	financeH := &finance.Handler{Svc: financeSvc}
+	finance.Register(authed, financeH)
+	// The payment import kind commits through the finance service (created
+	// after the import service because it needs the procurement service).
+	migrationImportSvc.Finance = financeSvc
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
 	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)
