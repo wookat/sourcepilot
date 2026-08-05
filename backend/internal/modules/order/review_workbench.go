@@ -270,6 +270,16 @@ func (s *Service) decideReview(c *gin.Context, body ReviewDecisionBody, adminID 
 		} else {
 			row.OK = true
 			res.Done++
+			if approve {
+				// 放行后订单回到正常流：已付款订单补触发 order_paid 自动化
+				// （待审/挂起期间安全边界拦截过的规则此时才允许执行）。
+				var released Order
+				if e := s.DB.WithContext(c.Request.Context()).
+					First(&released, "id = ? AND tenant_id = ?", oid, tid).Error; e == nil &&
+					released.PaymentStatus == PaymentPaid {
+					s.FireOrderEvent(c.Request.Context(), tid, oid, AutomationEventOrderPaid)
+				}
+			}
 		}
 		res.Results = append(res.Results, row)
 	}
