@@ -77,6 +77,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	"github.com/trademind-ai/trademind/backend/internal/providers/marketprice"
+	"github.com/trademind-ai/trademind/backend/internal/providers/markettrend"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
@@ -688,6 +689,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		SourceMock:  &sourcematch.MockProvider{},
 		SourceCrawl: &sourcematch.CrawlerProvider{Collector: selection1688CollectorGW{c: collectorClient}},
 		SourceOpen:  &sourcematch.Open1688Provider{},
+		Banned:      bannedWordsSvc,
+		Trend:       markettrend.NewRegistry(),
 	}
 	if dep.Config != nil {
 		selectionSvc.QueueName = dep.Config.SelectionQueueName

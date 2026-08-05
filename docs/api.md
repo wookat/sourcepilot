@@ -612,6 +612,10 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `POST` | `/api/v1/selection/tasks/:id/retry` | 失败/部分成功任务重新入队 |
 | `POST` | `/api/v1/selection/candidates/:id/decision` | 人工审核 `{"decision":"approved\|rejected"}` |
 | `POST` | `/api/v1/selection/candidates/:id/to-draft` | 已通过候选一键转商品草稿（幂等，重复调用返回已有草稿） |
+| `GET` | `/api/v1/selection/candidates/:id/insights` | 候选数据面板：采集价/销量/评价（无则为空，前端显示「未采集」）+ 站内同类目毛利/动销基准（近 90 天订单）+ AI 评分拆解 + 外部数据源状态 |
+| `GET` | `/api/v1/selection/candidates/:id/price-trend` | 候选采集历史价格走势（同一 source_url 多次成功采集留痕，最多 200 点） |
+| `GET` | `/api/v1/selection/compare` | 多候选并排对比 `?ids=a,b,c`（2–5 个）：价格/预估毛利/供应链就绪度（货源档案匹配）/违禁词风险 |
+| `GET` | `/api/v1/selection/market-sources` | 外部数据源（平台热销榜等）配置状态；缺凭证时明确降级，不虚构数据 |
 
 数据表：`selection_tasks` / `selection_candidates` / `selection_source_matches` / `selection_evaluations`。
 利润参数（汇率、佣金、物流、退货率等）默认读 settings `selection` 分组，可按任务 `params` 覆盖。

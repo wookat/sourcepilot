@@ -87,6 +87,10 @@ describe('TradeMind API contract registry', () => {
         'POST /api/v1/order-review/reject',
         'POST /api/v1/orders/print/mark',
         'POST /api/v1/orders/shipping-recommendations',
+        'GET /api/v1/selection/candidates/:id/insights',
+        'GET /api/v1/selection/candidates/:id/price-trend',
+        'GET /api/v1/selection/compare',
+        'GET /api/v1/selection/market-sources',
       ]),
     );
   });
@@ -251,8 +255,28 @@ describe('TradeMind API contract registry', () => {
     expect(reject?.requestBody).toEqual(['orderIds', 'remark']);
   });
 
+  it('defines query contracts for the selection insights read APIs (GET-only)', () => {
+    const insights = contracts.endpoints.find(
+      (item) => routeKey(item) === 'GET /api/v1/selection/candidates/:id/insights',
+    );
+    const trend = contracts.endpoints.find(
+      (item) => routeKey(item) === 'GET /api/v1/selection/candidates/:id/price-trend',
+    );
+    const compare = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/selection/compare');
+    const sources = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/selection/market-sources');
+
+    expect(insights?.responseData).toBe('CandidateInsights');
+    expect(trend?.responseData).toBe('PriceTrend');
+    expect(compare?.query).toEqual(['ids']);
+    expect(compare?.responseData).toBe('CompareRow[]');
+    expect(sources?.responseData).toBe('MarketSourceStatus[]');
+    for (const endpoint of [insights, trend, compare, sources]) {
+      expect(endpoint?.method).toBe('GET');
+    }
+  });
+
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(72);
+    expect(contracts.endpoints).toHaveLength(76);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });
