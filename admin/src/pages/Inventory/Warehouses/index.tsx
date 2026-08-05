@@ -209,7 +209,7 @@ export default function WarehousesPage() {
   return (
     <TmPageContainer
       title="仓库管理"
-      subTitle="轻量多仓：默认仓承接存量库存，非默认仓通过调拨/入库获得库存；可将已启用仓库设为默认仓，默认仓不可删除/停用"
+      subTitle="轻量多仓：默认仓承接存量库存，非默认仓通过调拨/入库获得库存；支持将已启用仓库切换为默认仓"
       extra={
         <Space wrap className="tm-page-header-extra">
           <Button onClick={loadPreview} loading={previewLoading}>
