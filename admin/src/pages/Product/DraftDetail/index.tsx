@@ -29,7 +29,7 @@ import {
 import { aiPromptCodeLabel, aiTaskTypeLabel, aiTextProviderLabel } from '@/constants/aiPrompts';
 import { platformDisplayLabel } from '@/constants/platformLabels';
 import { getProductReadinessAction } from '@/constants/productReadinessActions';
-import { notifyAIFailure } from '@/utils/aiFailureNotice';
+import { dismissAIFailure, notifyAIFailure } from '@/utils/aiFailureNotice';
 import { EditableProTable, ModalForm, ProForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import {
   Button,
@@ -5971,10 +5971,11 @@ export default function ProductDraftDetailPage() {
               });
               setAiResult(res);
               setAiPreparedTitle(res.optimizedTitle || '');
+              dismissAIFailure('title-optimize');
               message.success('优化完成');
               await reloadTasks();
             } catch (e: unknown) {
-              notifyAIFailure({ title: 'AI 标题优化失败', error: e, fallback: '优化失败' });
+              notifyAIFailure({ title: 'AI 标题优化失败', error: e, fallback: '优化失败', scope: 'title-optimize' });
             } finally {
               setAiBusy(false);
             }
@@ -6138,10 +6139,11 @@ export default function ProductDraftDetailPage() {
               });
               setDescResult(res);
               setDescPreparedText(buildAiDescriptionText(res));
+              dismissAIFailure('description-generate');
               message.success('生成完成');
               await reloadTasks();
             } catch (e: unknown) {
-              notifyAIFailure({ title: 'AI 描述生成失败', error: e, fallback: '生成失败' });
+              notifyAIFailure({ title: 'AI 描述生成失败', error: e, fallback: '生成失败', scope: 'description-generate' });
             } finally {
               setDescBusy(false);
             }

@@ -49,7 +49,7 @@ import {
 import { PRODUCT_STATUS } from '@/constants/status';
 import { PRODUCT_SOURCE_LABEL, platformLabel, productSourceLabel } from '@/constants/userFriendly';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
-import { notifyAIFailure } from '@/utils/aiFailureNotice';
+import { dismissAIFailure, notifyAIFailure } from '@/utils/aiFailureNotice';
 import {
   createProduct,
   downloadDraftListingCsv,
@@ -619,13 +619,14 @@ export default function ProductDraftsPage() {
           confirmAll: productIds.length === 0,
         });
       }
+      dismissAIFailure('batch-create');
       message.success('批次已创建');
       setBulkOpen(false);
       history.push('/ai/batches');
       actionRef.current?.reload();
     } catch (e: unknown) {
       if ((e as { errorFields?: unknown })?.errorFields) return;
-      notifyAIFailure({ title: '批量 AI 任务创建失败', error: e, fallback: '创建失败' });
+      notifyAIFailure({ title: '批量 AI 任务创建失败', error: e, fallback: '创建失败', scope: 'batch-create' });
     } finally {
       setBulkLoading(false);
     }

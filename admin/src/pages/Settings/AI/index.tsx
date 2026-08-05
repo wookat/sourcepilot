@@ -46,7 +46,7 @@ import {
 } from '@/constants/aiProviders';
 import { ACTION_COPY, PAGE_COPY } from '@/constants/copywriting';
 import { fetchSettingsList, saveSettingsItems, testAIConnection } from '@/services/settings';
-import { notifyAIFailure } from '@/utils/aiFailureNotice';
+import { dismissAIFailure, notifyAIFailure } from '@/utils/aiFailureNotice';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
 
 const GROUP = 'ai';
@@ -135,6 +135,7 @@ export default function AISettingsPage() {
         res.provider || res.model
           ? ` [${[res.provider, res.model].filter(Boolean).join(' / ')}]`
           : '';
+      dismissAIFailure('connection-test');
       message.success(`${res.message || '连接成功'}${detail}${latency}`);
     } catch (e: unknown) {
       notifyAIFailure({
@@ -142,6 +143,7 @@ export default function AISettingsPage() {
         error: e,
         fallback: '连接失败',
         showSettingsLink: false,
+        scope: 'connection-test',
       });
     } finally {
       setTesting(false);

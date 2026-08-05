@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/providers/fxrate"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -222,6 +223,15 @@ func (s *FullDemoSeeder) seedPublishBatchWithTasks(tx *gorm.DB, res *FullDemoRes
 	targetKey := "tiktok:" + tiktokShop.ID.String()
 	successFin := createdAt.Add(2 * time.Minute)
 	failedFin := createdAt.Add(3 * time.Minute)
+	// Real task input samples (same shape the batch create path writes), so
+	// the retry flow is demonstrable instead of failing on an empty input.
+	taskInput := func(prod product.Product, seq int) datatypes.JSON {
+		return mustJSON(map[string]any{
+			"effectiveConfig": map[string]string{},
+			"configSources":   map[string]string{},
+			"idempotencyKey":  fmt.Sprintf("%spublish-task-%d:%s:tiktok:%s", DemoPrefix, seq, prod.ID.String(), tiktokShop.ID.String()),
+		})
+	}
 	tasks := []productpublish.ProductPublishTask{
 		{
 			TenantID: s.TenantID, ProductID: products[0].ID,
@@ -231,6 +241,7 @@ func (s *FullDemoSeeder) seedPublishBatchWithTasks(tx *gorm.DB, res *FullDemoRes
 			Status:   productpublish.TaskSuccess, PublishStatus: productpublish.StatusDraftCreated,
 			Mode: productpublish.PublishModeSaveAsPlatformDraft, PublishMode: productpublish.PublishModeSaveAsPlatformDraft,
 			Title:      products[0].Title,
+			Input:      taskInput(products[0], 1),
 			Output:     mustJSON(map[string]any{"seedPrefix": DemoPrefix, "capability": productpublish.CapLocalDraftOnly}),
 			FinishedAt: &successFin,
 		},
@@ -242,6 +253,7 @@ func (s *FullDemoSeeder) seedPublishBatchWithTasks(tx *gorm.DB, res *FullDemoRes
 			Status:   productpublish.TaskFailed, PublishStatus: productpublish.StatusPubFailed,
 			Mode: productpublish.PublishModeSaveAsPlatformDraft, PublishMode: productpublish.PublishModeSaveAsPlatformDraft,
 			Title:        products[1].Title,
+			Input:        taskInput(products[1], 2),
 			Retryable:    true,
 			ErrorCode:    "DEMO_READINESS_BLOCKED",
 			ErrorMessage: DemoPrefix + " 演示失败样本：商品缺少主图，可在补齐后重试",
@@ -255,6 +267,7 @@ func (s *FullDemoSeeder) seedPublishBatchWithTasks(tx *gorm.DB, res *FullDemoRes
 			Status:   productpublish.TaskPending, PublishStatus: productpublish.StatusReady,
 			Mode: productpublish.PublishModeSaveAsPlatformDraft, PublishMode: productpublish.PublishModeSaveAsPlatformDraft,
 			Title: products[0].Title,
+			Input: taskInput(products[0], 3),
 		},
 	}
 	for i := range tasks {

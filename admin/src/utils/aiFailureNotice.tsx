@@ -107,20 +107,35 @@ export function extractAIError(error: unknown): ExtractedAIError {
   return { errorCode, reason, traceId: env?.traceId };
 }
 
+const DEFAULT_AI_FAILURE_SCOPE = 'global';
+
+function aiFailureKey(scope?: string): string {
+  return `ai-failure-${(scope ?? '').trim() || DEFAULT_AI_FAILURE_SCOPE}`;
+}
+
+/** 关闭同一能力（scope）此前弹出的失败提示，供成功回调清理残留 */
+export function dismissAIFailure(scope?: string) {
+  notification.destroy(aiFailureKey(scope));
+}
+
 /**
  * AI 能力失败的常驻提示：错误详情需要用户读完并跳转 AI 设置排查，
  * 用 notification（不自动消失）替代一闪而过的 message.error。
+ * 同一 scope 的提示使用固定 key：新失败覆盖旧提示，成功后可用
+ * dismissAIFailure(scope) 清理残留。
  */
 export function notifyAIFailure(opts: {
   title: string;
   error?: unknown;
   fallback?: string;
   showSettingsLink?: boolean;
+  /** 能力标识（如 title-optimize），同 scope 失败提示互相覆盖并可被成功回调清理 */
+  scope?: string;
 }) {
-  const { title, error, fallback, showSettingsLink = true } = opts;
+  const { title, error, fallback, showSettingsLink = true, scope } = opts;
   const { reason } = extractAIError(error);
   const description = reason || fallback || '请求失败，请检查 AI 设置或稍后重试';
-  const key = `ai-failure-${Date.now()}`;
+  const key = aiFailureKey(scope);
   notification.error({
     key,
     message: title,

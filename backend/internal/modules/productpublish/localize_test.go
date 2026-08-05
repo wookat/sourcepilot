@@ -28,3 +28,27 @@ func TestLocalizePublishError(t *testing.T) {
 		})
 	}
 }
+
+func TestLocalizePublishFailMessage(t *testing.T) {
+	cases := []struct {
+		name string
+		msg  string
+		want string
+	}{
+		{"empty task input", "empty task input", "任务缺少输入快照，无法直接重试，请重新发起刊登"},
+		{"shop not available", "shop not available", "店铺不可用，请检查店铺授权后重试"},
+		{"load product", "load product: record not found", "商品不存在或已删除，无法重试刊登"},
+		{"not implemented", "platform product publish provider not implemented", "该平台暂不支持真实刊登，请使用本地刊登草稿"},
+		{"main image via shared map", "product main image required for publish", "商品缺少主图，无法刊登，请先在图片管理中设置商品主图"},
+		{"chinese passthrough", "店铺未授权", "店铺未授权"},
+		{"empty fallback", "", "刊登失败，请稍后重试"},
+		{"unknown english gets chinese prefix", "some upstream failure", "刊登失败：some upstream failure"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := localizePublishFailMessage(tc.msg); got != tc.want {
+				t.Fatalf("localizePublishFailMessage(%q) = %q, want %q", tc.msg, got, tc.want)
+			}
+		})
+	}
+}
