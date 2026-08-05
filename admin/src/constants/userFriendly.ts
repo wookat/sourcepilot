@@ -93,6 +93,7 @@ export const PRODUCT_SOURCE_LABEL: Record<string, string> = {
   custom: '自定义链接',
   manual: '手动创建',
   collect: '采集',
+  migration: '数据搬家导入',
 };
 
 export function productSourceLabel(source?: string): string {
