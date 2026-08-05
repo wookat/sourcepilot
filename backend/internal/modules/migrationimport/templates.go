@@ -18,7 +18,7 @@ func templateSample(kind string) []string {
 	case KindOrder:
 		return []string{"SO-20260101-0001", "PLT-88001", "王小明", "13800000000", "buyer@example.com",
 			"中国", "广东省", "深圳市", "南山区科技园路 1 号", "518000",
-			"无线蓝牙耳机 X100", "SKU-X100-BLK", "黑色", "2", "89.00", "178.00", "已发货",
+			"无线蓝牙耳机 X100", "SKU-X100-BLK", "黑色", "2", "89.00", "178.00", "CNY", "已发货",
 			"2026-01-01 10:30:00", "2026-01-01 10:35:00", "SF1234567890"}
 	case KindInventory:
 		return []string{"SKU-X100-BLK", "WH-MAIN", "120", "45.00"}
