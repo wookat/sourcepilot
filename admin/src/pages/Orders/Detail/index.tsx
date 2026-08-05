@@ -1,4 +1,5 @@
 import WarehouseSelect from '@/components/inventory/WarehouseSelect';
+import FinancePanel from './FinancePanel';
 import { PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import { platformLabel } from '@/constants/userFriendly';
 import {
@@ -1036,6 +1037,11 @@ export default function OrderDetailPage() {
                   </Button>
                 </Space>
               ),
+            },
+            {
+              key: 'finance',
+              label: '财务对账',
+              children: <FinancePanel orderId={detail.id} writable={writable} />,
             },
             {
               key: 'tech',

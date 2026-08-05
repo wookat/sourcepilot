@@ -15,6 +15,7 @@ const (
 	KindOrder     = "order"
 	KindInventory = "inventory"
 	KindSource    = "source"
+	KindPayment   = "payment"
 )
 
 // Source formats (detected from headers or chosen by the user).

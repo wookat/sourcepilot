@@ -2,8 +2,8 @@ import { deleteJSON, getWithParams, postFormData, postJSON } from '@/services/re
 import { responseErrorMessage } from '@/utils/httpErrorCopy';
 import { fetchWithSessionGuard } from '@/utils/sessionGuard';
 
-/** 导入类型：商品 / 订单 / 库存期初 / 货源档案 */
-export type ImportKind = 'product' | 'order' | 'inventory' | 'source';
+/** 导入类型：商品 / 订单 / 库存期初 / 货源档案 / 回款记录 */
+export type ImportKind = 'product' | 'order' | 'inventory' | 'source' | 'payment';
 
 /** 迁移导入字段定义（后端 FieldDef） */
 export type ImportFieldDef = {
