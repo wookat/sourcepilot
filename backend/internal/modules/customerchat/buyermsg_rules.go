@@ -33,9 +33,11 @@ type BuyerMsgRuleRow struct {
 	Node         string    `json:"node"`
 	TemplateID   uuid.UUID `json:"templateId"`
 	TemplateName string    `json:"templateName"`
-	Enabled      bool      `json:"enabled"`
-	Platforms    []string  `json:"platforms"`
-	ShopIDs      []string  `json:"shopIds"`
+	// TemplateMissing marks rules whose话术模板已被删除：规则不再生成草稿，需重新选择模板
+	TemplateMissing bool     `json:"templateMissing"`
+	Enabled         bool     `json:"enabled"`
+	Platforms       []string `json:"platforms"`
+	ShopIDs         []string `json:"shopIds"`
 }
 
 func jsonToStrings(raw datatypes.JSON) []string {
@@ -67,15 +69,17 @@ func stringsToJSON(list []string) (datatypes.JSON, error) {
 }
 
 func (s *Service) buyerMsgRuleRow(row BuyerMessageRule, templateNames map[uuid.UUID]string) BuyerMsgRuleRow {
+	name, ok := templateNames[row.TemplateID]
 	return BuyerMsgRuleRow{
-		ID:           row.ID,
-		Name:         row.Name,
-		Node:         row.Node,
-		TemplateID:   row.TemplateID,
-		TemplateName: templateNames[row.TemplateID],
-		Enabled:      row.Enabled,
-		Platforms:    jsonToStrings(row.Platforms),
-		ShopIDs:      jsonToStrings(row.ShopIDs),
+		ID:              row.ID,
+		Name:            row.Name,
+		Node:            row.Node,
+		TemplateID:      row.TemplateID,
+		TemplateName:    name,
+		TemplateMissing: !ok,
+		Enabled:         row.Enabled,
+		Platforms:       jsonToStrings(row.Platforms),
+		ShopIDs:         jsonToStrings(row.ShopIDs),
 	}
 }
 
