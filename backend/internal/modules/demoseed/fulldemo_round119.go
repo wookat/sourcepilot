@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 )
 
@@ -14,7 +15,7 @@ import (
 // (成功/失败/跳过) so the automation rules page and execution log page demo out
 // of the box. Everything is DEMO- prefixed and removed by Cleanup / checked by
 // VerifyClean.
-func (s *FullDemoSeeder) seedRound119OrderAutomation(tx *gorm.DB, res *FullDemoResult, now time.Time, shops []shop.Shop) error {
+func (s *FullDemoSeeder) seedRound119OrderAutomation(tx *gorm.DB, res *FullDemoResult, now time.Time, shops []shop.Shop, products []product.Product, skus []product.ProductSKU) error {
 	if len(shops) == 0 {
 		return nil
 	}
@@ -113,6 +114,33 @@ func (s *FullDemoSeeder) seedRound119OrderAutomation(tx *gorm.DB, res *FullDemoR
 		count("orders", 1)
 		count("order_items", 1)
 		count("order_automation_logs", 1)
+	}
+
+	// 正向样本：本地 SKU 已匹配 + 主货源/映射齐全的未付款订单。demo 中批量
+	// 「标记已付款」即可真实触发「自动生成采购单」成功动线（开箱可演示）。
+	if len(products) > 0 && len(skus) > 0 {
+		amount := 129.0
+		created := now.Add(-30 * time.Minute)
+		matched := order.Order{
+			TenantID: s.TenantID, Platform: shops[0].Platform, ShopID: &shops[0].ID,
+			OrderNo: "DEMO-AT-1004", CustomerName: "DEMO-自动化买家", CustomerPhone: "13800000119",
+			Status: order.StatusPending, ReviewStatus: order.ReviewStatusAutoPassed,
+			PaymentStatus: order.PaymentUnpaid, FulfillmentStatus: order.FulfillmentUnfulfilled,
+			Currency: "CNY", TotalAmount: amount, OrderedAt: &created,
+		}
+		if err := tx.Create(&matched).Error; err != nil {
+			return fmt.Errorf("demoseed: automation matched order: %w", err)
+		}
+		matchedItem := order.OrderItem{
+			OrderID: matched.ID, ProductID: &products[0].ID, ProductSKUID: &skus[0].ID,
+			ProductTitle: products[0].Title, SKUCode: skus[0].SKUCode, SKUName: skus[0].SKUName,
+			Quantity: 1, UnitPrice: amount, TotalPrice: amount,
+		}
+		if err := tx.Create(&matchedItem).Error; err != nil {
+			return fmt.Errorf("demoseed: automation matched item: %w", err)
+		}
+		count("orders", 1)
+		count("order_items", 1)
 	}
 	return nil
 }

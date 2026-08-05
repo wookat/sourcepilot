@@ -904,7 +904,7 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	}
 
 	// ---- 自动化订单规则演示：规则 + 成功/失败/跳过执行日志（Round 119）----
-	if err := s.seedRound119OrderAutomation(tx, res, now, shops); err != nil {
+	if err := s.seedRound119OrderAutomation(tx, res, now, shops, products, skus); err != nil {
 		return err
 	}
 

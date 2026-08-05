@@ -748,7 +748,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 				return "", err
 			}
 			if len(res.Blockers) > 0 {
-				return "", fmt.Errorf("生成采购单被阻断：%s", res.Blockers[0].Message)
+				b := res.Blockers[0]
+				if b.Code == "order.empty" {
+					// 前置条件重试也无法满足：记「跳过」而非可重试失败。
+					return "", &order.AutomationSkip{Reason: fmt.Sprintf("跳过生成采购单：%s", b.Message)}
+				}
+				return "", fmt.Errorf("生成采购单被阻断：%s", b.Message)
 			}
 			if len(res.Orders) == 0 {
 				return "订单已有有效采购单，无需重复生成", nil

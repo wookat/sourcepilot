@@ -28,6 +28,13 @@ const (
 	automationMaxDepth    = 2
 )
 
+// AutomationSkip marks a hook outcome whose precondition cannot be satisfied
+// by retrying (e.g. the order has no item rows). The engine records it as a
+// skipped log entry instead of a retryable failure.
+type AutomationSkip struct{ Reason string }
+
+func (e *AutomationSkip) Error() string { return e.Reason }
+
 // FireOrderEvent runs all enabled automation rules bound to the event against
 // the order. It is safe to call after any state event; failures are recorded
 // in order_automation_logs and never break the triggering flow.
@@ -197,6 +204,10 @@ func (s *Service) autoGenerateProcurement(ctx context.Context, r OrderAutomation
 	summary, err := s.Automation.GenerateProcurement(ctx, o.TenantID, o.ID,
 		fmt.Sprintf("auto-%s-%s", r.ID.String(), o.ID.String()))
 	if err != nil {
+		var skip *AutomationSkip
+		if errors.As(err, &skip) {
+			return AutomationLogSkipped, skip.Reason, nil
+		}
 		return AutomationLogFailed, "", err
 	}
 	if summary == "" {

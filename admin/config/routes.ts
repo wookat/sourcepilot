@@ -444,6 +444,14 @@ export default [
     ],
   },
   {
+    path: '/purchase',
+    redirect: '/procurement/orders',
+  },
+  {
+    path: '/purchase/orders',
+    redirect: '/procurement/orders',
+  },
+  {
     path: '/procurement',
     name: '采购协同',
     icon: 'ShoppingCartOutlined',
