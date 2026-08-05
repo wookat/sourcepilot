@@ -139,6 +139,39 @@ func TestReviewDecisionRespectsStoreScope(t *testing.T) {
 	}
 }
 
+// The workbench header count (pendingTotal) must follow the same store scope
+// as the list items: an operator granted one shop only counts that shop's
+// pending / held orders, not the whole tenant.
+func TestReviewWorkbenchPendingTotalRespectsStoreScope(t *testing.T) {
+	env := setupOperatorStoreScopeEnv(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/order-review", nil)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d (%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data struct {
+			Items []struct {
+				OrderNo string `json:"orderNo"`
+			} `json:"items"`
+			Total        int64 `json:"total"`
+			PendingTotal int64 `json:"pendingTotal"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Data.Items) != 1 || resp.Data.Items[0].OrderNo != "SCOPE-GRANTED" {
+		t.Fatalf("list should only contain granted-store order: %s", w.Body.String())
+	}
+	if resp.Data.Total != 1 || resp.Data.PendingTotal != 1 {
+		t.Fatalf("pendingTotal must follow the store scope, got total=%d pendingTotal=%d (%s)",
+			resp.Data.Total, resp.Data.PendingTotal, w.Body.String())
+	}
+}
+
 // Shipping recommendations must not resolve orders outside the operator's
 // store scope, by id or by order number.
 func TestShippingRecommendationsRespectStoreScope(t *testing.T) {
