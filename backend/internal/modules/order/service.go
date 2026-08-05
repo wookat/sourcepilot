@@ -35,6 +35,9 @@ type Service struct {
 	Idempotency *idempotency.Service
 	Carriers    *carrier.Service
 	Waybill     *waybill.Service
+	// Automation injects cross-module actions for the自动化订单规则 engine
+	// (nil disables those actions with a visible failure log).
+	Automation *AutomationHooks
 }
 
 // AIContext holds serializable subsets for Prompt / ai_tasks audit (minimal PII).
@@ -894,6 +897,10 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 			Message:     fmt.Sprintf("orderId=%s orderNo=%s platform=%s", o.ID.String(), o.OrderNo, o.Platform),
 		})
 	}
+	s.FireOrderEvent(c.Request.Context(), tid, o.ID, AutomationEventOrderCreated)
+	if o.PaymentStatus == PaymentPaid {
+		s.FireOrderEvent(c.Request.Context(), tid, o.ID, AutomationEventOrderPaid)
+	}
 	return s.loadDetailDTO(c, o.ID)
 }
 
@@ -1000,6 +1007,7 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 			return nil, err
 		}
 	}
+	prevPaymentStatus := o.PaymentStatus
 
 	if strings.TrimSpace(body.CustomerName) != "" {
 		o.CustomerName = strings.TrimSpace(body.CustomerName)
@@ -1108,6 +1116,9 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 			Status:      "success",
 			Message:     fmt.Sprintf("orderId=%s orderNo=%s", orderID.String(), o.OrderNo),
 		})
+	}
+	if prevPaymentStatus != PaymentPaid && o.PaymentStatus == PaymentPaid {
+		s.FireOrderEvent(c.Request.Context(), tid, o.ID, AutomationEventOrderPaid)
 	}
 	return s.loadDetailDTO(c, orderID)
 }

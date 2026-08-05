@@ -903,6 +903,16 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- 自动化订单规则演示：规则 + 成功/失败/跳过执行日志（Round 119）----
+	if err := s.seedRound119OrderAutomation(tx, res, now, shops); err != nil {
+		return err
+	}
+
+	// ---- 买家自动消息演示：节点规则 + 待发/已发送/已忽略草稿样本（Round 119）----
+	if err := s.seedRound119BuyerMessages(tx, res, now, shops); err != nil {
+		return err
+	}
+
 	// ---- exception workbench handled mark（演示处理动作留痕）----
 	mark := orderexception.OrderExceptionMark{
 		ExceptionType: orderexception.TypeInventorySyncFailed,
@@ -1023,6 +1033,9 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			if err := del("order_review_hits", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderReviewHit{})); err != nil {
 				return err
 			}
+			if err := del("order_automation_logs", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderAutomationLog{})); err != nil {
+				return err
+			}
 			if err := del("order_item_sku_matches", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderItemSKUMatch{})); err != nil {
 				return err
 			}
@@ -1041,6 +1054,12 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			return err
 		}
 		if err := del("order_review_rules", tx.Unscoped().Where("name LIKE ?", like).Delete(&order.OrderReviewRule{})); err != nil {
+			return err
+		}
+		if err := del("order_automation_logs", tx.Unscoped().Where("rule_name LIKE ?", like).Delete(&order.OrderAutomationLog{})); err != nil {
+			return err
+		}
+		if err := del("order_automation_rules", tx.Unscoped().Where("name LIKE ?", like).Delete(&order.OrderAutomationRule{})); err != nil {
 			return err
 		}
 
@@ -1217,6 +1236,13 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			}
 		}
 
+		if err := del("buyer_message_drafts", tx.Unscoped().Where("order_no LIKE ? OR template_name LIKE ? OR customer_name LIKE ?", like, like, like).Delete(&customerchat.BuyerMessageDraft{})); err != nil {
+			return err
+		}
+		if err := del("buyer_message_rules", tx.Unscoped().Where("name LIKE ?", like).Delete(&customerchat.BuyerMessageRule{})); err != nil {
+			return err
+		}
+
 		if err := del("customer_reply_templates", tx.Unscoped().Where("name LIKE ? OR content LIKE ?", like, like).Delete(&customerchat.CustomerReplyTemplate{})); err != nil {
 			return err
 		}
@@ -1370,6 +1396,23 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 					tx.Model(&order.Order{}).Unscoped().Select("id").Where("order_no LIKE ?", like)).
 				Count(&n).Error
 		}},
+		{table: "order_automation_rules", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("order_automation_rules") {
+				return 0, nil
+			}
+			return n, tx.Model(&order.OrderAutomationRule{}).Where("name LIKE ?", like).Count(&n).Error
+		}},
+		{table: "order_automation_logs", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("order_automation_logs") {
+				return 0, nil
+			}
+			return n, tx.Model(&order.OrderAutomationLog{}).
+				Where("rule_name LIKE ? OR order_id IN (?)", like,
+					tx.Model(&order.Order{}).Unscoped().Select("id").Where("order_no LIKE ?", like)).
+				Count(&n).Error
+		}},
 		{table: "order_exception_marks", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&orderexception.OrderExceptionMark{}).Where("remark LIKE ?", like).Count(&n).Error
@@ -1395,6 +1438,14 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		splitSoftDeleted("customer_reply_templates", func() *gorm.DB {
 			return tx.Model(&customerchat.CustomerReplyTemplate{}).Unscoped().
 				Where("name LIKE ? OR content LIKE ?", like, like)
+		}),
+		splitSoftDeleted("buyer_message_rules", func() *gorm.DB {
+			return tx.Model(&customerchat.BuyerMessageRule{}).Unscoped().
+				Where("name LIKE ?", like)
+		}),
+		splitSoftDeleted("buyer_message_drafts", func() *gorm.DB {
+			return tx.Model(&customerchat.BuyerMessageDraft{}).Unscoped().
+				Where("order_no LIKE ? OR template_name LIKE ? OR customer_name LIKE ?", like, like, like)
 		}),
 		{table: "shipping_rules", count: func() (int64, error) {
 			var n int64

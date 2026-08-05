@@ -140,6 +140,9 @@ export default function CustomerHubPage() {
                   <Button onClick={() => history.push('/customer/message-sync-tasks')}>消息同步任务</Button>
                 </Col>
                 <Col>
+                  <Button onClick={() => history.push('/customer/buyer-messages')}>买家自动消息</Button>
+                </Col>
+                <Col>
                   <Button onClick={() => history.push(appendSourceToUrl('/ops/task-center/failures?taskType=customer_failure', 'taskcenter'))}>
                     失败任务中心
                   </Button>

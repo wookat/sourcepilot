@@ -31,6 +31,18 @@ func registerCustomerRoutes(c *gin.RouterGroup, h *Handler) {
 	c.PUT("/conversations/:id", h.UpdateConversation)
 	c.DELETE("/conversations/:id", h.DeleteConversation)
 
+	c.GET("/buyer-message-rules", h.ListBuyerMsgRules)
+	c.POST("/buyer-message-rules", h.CreateBuyerMsgRule)
+	c.PUT("/buyer-message-rules/:id", h.UpdateBuyerMsgRule)
+	c.DELETE("/buyer-message-rules/:id", h.DeleteBuyerMsgRule)
+
+	c.GET("/buyer-messages/drafts", h.ListBuyerMsgDrafts)
+	c.POST("/buyer-messages/generate", h.GenerateBuyerMsgDrafts)
+	c.PUT("/buyer-messages/drafts/:id", h.UpdateBuyerMsgDraft)
+	c.POST("/buyer-messages/drafts/:id/mark-sent", h.MarkBuyerMsgDraftSent)
+	c.POST("/buyer-messages/drafts/:id/ignore", h.IgnoreBuyerMsgDraft)
+	c.POST("/buyer-messages/drafts/batch-mark-sent", h.BatchMarkBuyerMsgDraftsSent)
+
 	c.GET("/reply-templates", h.ListTemplates)
 	c.POST("/reply-templates", h.CreateTemplate)
 	c.POST("/reply-templates/reorder", h.ReorderTemplates)

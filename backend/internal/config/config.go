@@ -151,6 +151,10 @@ type Config struct {
 	TaskAlertScanLookbackMinutes int
 	TaskAlertScanLockTTLSeconds  int
 
+	// Buyer auto-message draft scanner (in-process ticker; drafts only, never sends).
+	BuyerMessageScanEnabled         bool
+	BuyerMessageScanIntervalSeconds int
+
 	// StorageProvider is the fail-fast storage kind (STORAGE_PROVIDER env).
 	// Allowed: local, cos, oss, s3, r2, minio. staging/production must not use local.
 	StorageProvider string
@@ -331,6 +335,9 @@ func Load() (*Config, error) {
 		WorkerReaperEnabled:               envBool(os.Getenv("WORKER_REAPER_ENABLED"), true),
 		WorkerReaperIntervalSeconds:       atoiOrDefault(os.Getenv("WORKER_REAPER_INTERVAL_SECONDS"), 15),
 		WorkerLegacyRunningTimeoutSeconds: atoiOrDefault(os.Getenv("WORKER_LEGACY_RUNNING_TIMEOUT_SECONDS"), 1800),
+
+		BuyerMessageScanEnabled:         envBool(os.Getenv("BUYER_MESSAGE_SCAN_ENABLED"), true),
+		BuyerMessageScanIntervalSeconds: atoiOrDefault(os.Getenv("BUYER_MESSAGE_SCAN_INTERVAL_SECONDS"), 60),
 
 		TaskAlertScanEnabled:         envBool(os.Getenv("TASK_ALERT_SCAN_ENABLED"), false),
 		TaskAlertScanIntervalSeconds: atoiOrDefault(os.Getenv("TASK_ALERT_SCAN_INTERVAL_SECONDS"), 60),

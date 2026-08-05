@@ -278,6 +278,23 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 | `DELETE` | `/api/v1/customer/reply-templates/:id` | 删除模板（软删除）。返回 `{ ok: true }`。 |
 | `POST` | `/api/v1/customer/reply-templates/reorder` | 组内重排。body：`groupKey`、`ids`（该组完整有序 ID 列表，校验归属后按顺序写 `sortOrder`）。 |
 
+### 买家自动消息（round119）
+
+租户级订单节点消息规则与「待发送草稿」工作台。系统按节点（`paid` / `shipped` / `delivered` / `logistics_exception` / `refunded`）× 话术模板自动生成站内草稿，变量按订单/物流上下文自动填充（缺失变量保留占位并记录 `missingVars`）；**绝不自动外发**，人工在平台后台发送后回执「标记已发送」。生成入口：定时扫描（`BUYER_MESSAGE_SCAN_*`）与手动 `generate`；同一 `tenant+order+node` 幂等只生成一条。写端点复用客服操作权限口径（`adminperm.CanWriteCustomer`），readonly 返回 **403**；全部端点按当前租户隔离，跨租户/不存在返回 **404**。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/customer/buyer-message-rules` | 规则列表。返回 `{ list, canWrite }`。 |
+| `POST` | `/api/v1/customer/buyer-message-rules` | 新建规则。body：`name`、`node`、`templateId`（须为当前租户模板）、可选 `enabled`（默认启用）、`platforms`、`shopIds`（空数组表示全部）。 |
+| `PUT` | `/api/v1/customer/buyer-message-rules/:id` | 更新规则（部分字段：改名、换节点/模板、启停、平台/店铺过滤）。 |
+| `DELETE` | `/api/v1/customer/buyer-message-rules/:id` | 删除规则（软删除）。返回 `{ ok: true }`。 |
+| `GET` | `/api/v1/customer/buyer-messages/drafts` | 草稿列表。query：`page`、`pageSize`、`node`、`status`（`pending`/`sent`/`ignored`）、`platform`、`shopId`、`keyword`。返回 `{ list, total, page, pageSize, canWrite }`。 |
+| `POST` | `/api/v1/customer/buyer-messages/generate` | 按当前租户启用规则立即扫描生成草稿。返回 `{ created }`。 |
+| `PUT` | `/api/v1/customer/buyer-messages/drafts/:id` | 编辑草稿内容（仅 `pending` 可编辑）。body：`content`。 |
+| `POST` | `/api/v1/customer/buyer-messages/drafts/:id/mark-sent` | 人工回执：标记已发送（幂等；记录操作人与时间）。 |
+| `POST` | `/api/v1/customer/buyer-messages/drafts/:id/ignore` | 忽略草稿（幂等；仅 `pending` 可忽略）。 |
+| `POST` | `/api/v1/customer/buyer-messages/drafts/batch-mark-sent` | 批量标记已发送。body：`ids`；仅更新当前租户 `pending` 行，返回 `{ updated, skipped }`。 |
+
 ## Dev / Demo 种子（非 production）
 
 | 方法 | 路径 | 说明 |
@@ -802,6 +819,21 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `GET` | `/api/v1/order-review` | 审单工作台列表：`?page=&pageSize=&reviewStatus=&keyword=`；`reviewStatus` 缺省时只看 `pending_review`+`held`；返回 `{items:[{...订单字段, reviewStatus, itemCount, hits:[{ruleId, ruleName, action, reason, decisive}]}], total, page, pageSize, totalPages, pendingTotal}`（租户+店铺范围隔离）。 |
 | `POST` | `/api/v1/order-review/approve` | 单个/批量放行：`{orderIds:[UUID]}`（≤100）→ `{total, done, failed, results:[{orderId, orderNo?, ok, error?}]}`；仅待审/挂起订单可放行，放行后 `reviewStatus=approved` 回正常流。 |
 | `POST` | `/api/v1/order-review/reject` | 单个/批量拒绝（入取消动线）：请求/返回同放行；拒绝后 `reviewStatus=rejected` 且订单 `status=cancelled`。 |
+
+### 自动化订单规则与执行日志（order-automation，round119）
+
+租户级自动化订单规则：状态事件触发（`order_created` 订单创建 / `order_paid` 已付款进入待采购 / `procurement_delivered` 采购签收入库 / `logistics_collected` 采购物流揽收）+ AND 条件（平台 / 店铺 / 金额区间 / 要求审单已通过）→ 一个站内自动动作（`confirm_payment` 自动确认付款（低风险：规则必须配置金额上限）/ `generate_procurement` 自动生成采购单 / `mark_printed` 自动标记打单 / `notify_shipping` 通知发货工作台）。规则按 `priority` 升序执行，命中的每条规则都会执行；动作按 `租户:规则:订单:事件` 幂等（成功/跳过不重复执行），失败 inline 最多 3 次尝试并可在执行日志人工重试。安全边界：`pending_review` / `held` 订单一律不自动化（沿用审单阻断），审单放行后已付款订单补触发 `order_paid`。自动动作在操作日志留痕，消息含「自动规则：规则名」。仅站内状态流转，不调用真实平台 API。写端点要求非 readonly；全部按租户隔离，越权返回 404。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/order-automation-rules` | 规则列表（租户隔离，按 `priority` 升序）：返回 `{items:[{id, name, priority, enabled, triggerEvent, action, minAmount?, maxAmount?, platforms?, shopIds?, requireReviewPassed}]}`。 |
+| `POST` | `/api/v1/order-automation-rules` | 新增规则：`{name, priority?, enabled?, triggerEvent, action, minAmount?, maxAmount?, platforms?, shopIds?, requireReviewPassed?}`；`triggerEvent`/`action` 必须为合法组合；金额区间非负且 min≤max；`confirm_payment` 必须设置 `maxAmount`。 |
+| `PUT` | `/api/v1/order-automation-rules/:ruleId` | 更新规则（部分更新；`clearMinAmount`/`clearMaxAmount` 清除金额条件）；越权/不存在 404。 |
+| `DELETE` | `/api/v1/order-automation-rules/:ruleId` | 删除规则；越权/不存在 404；历史执行日志保留。 |
+| `POST` | `/api/v1/order-automation-rules/dry-run` | 测试跑（不落库、不执行动作）：请求体同新增规则，对租户最近订单 dry-run → `{scanned, matched, blocked, samples:[{orderId, orderNo, amount, reason, blocked}]}`；`blocked` 为将被审单安全边界跳过的数量。 |
+| `GET` | `/api/v1/order-automation-logs` | 执行日志查询：`?page=&pageSize=&status=&triggerEvent=&action=&ruleId=&keyword=`；`status` ∈ `success`/`failed`/`skipped`；返回 `{items:[{id, ruleId, ruleName, orderId, orderNo, triggerEvent, action, status, reason, attempts}], total, page, pageSize, totalPages}`。 |
+| `POST` | `/api/v1/order-automation-logs/:logId/retry` | 人工重试失败日志（仅 `failed` 可重试）→ 更新后的日志行；越权/不存在 404。 |
+| `GET` | `/api/v1/orders/:id/automation-logs` | 单订单自动化轨迹：`{items: 日志行[]}`（租户+店铺范围隔离，越权 404）。 |
 
 ### 违禁词合规检测（banned-words，round109）
 
