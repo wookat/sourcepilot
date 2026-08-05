@@ -1661,3 +1661,10 @@ Final Production Acceptance Deferred to P10
 - **大回归 v14**（main `e08e55b9` + PR #239）：全量门禁除 admin/e2e 外全绿（check:dev / ui-copy strict / 前端 273 单测 / collector 18 / contracts 10 / build ×2 / go vet+gofmt+test / backend:integration / db / redis）；Docker 全栈 + `seed:demo:full` 实测 R57 主链路与 R109–R113 新功能动线（违禁词/话术模板/深度报表/AI 规避/面单+发货规则/多仓闭环/移动模式）三角色 × 三视口通过；双租户正规开租→隔离验证→清退、`seed:demo:full:clean` + verify 零残留；PR #239（375px 移动指标卡截断修复）验证通过。
 - **P1 修复两条**：① 运营任务批量审批弹窗 `useForm` 未连接 Form 的 console.error（admin/e2e 全量此前 2 条失败根因）——Modal `destroyOnHidden` 改 `forceRender`，round63-optask-batch 12/12 通过；② 登录/注册页错误提示丢弃后端中文指引（未配 SMTP 时「获取验证码」只显「发送失败」，50301 指引文案不可见）——`getAuthErrorMessage` 改用共享 `httpErrorCopy`，补 envelope 中文透出单测。
 - **UX 视觉复核 v6**：报告归档 `docs/ux-review/UX_REVIEW_V6_REPORT.md`；无 P0；P2 清单三条（默认仓无「设为默认」入口的产品口径说明、seeddemo verify 软删除残留口径、权限空态与 404 文案分离）。#237「默认仓唯一」为后端部分唯一索引兜底（Go 回归通过），UI 层无切换入口属轻量多仓产品口径，待产品确认（P2-1）。
+
+### 变更记录（2026-08-05）第 115 轮：R115 P2 收口（fullstack-engineer）
+
+- **默认仓切换**（UX v6 P2-1，产品已确认）：新增 `POST /api/v1/inventory/warehouses/:id/set-default`——事务内行锁原子切换旧默认→新默认（与 #237 部分唯一索引兼容：先清旧默认再置新默认）；因默认仓库存为推导口径，切换时先将旧默认仓推导库存物化为 `warehouse_stocks` 行、清空新默认仓持久行，各仓库存数量不变；已停用仓库拒绝设为默认（400），readonly 403（`requireInventoryWrite`），admin/operator 可操作；默认仓不可删除/停用口径随标志迁移。仓库管理页新增「设为默认仓」确认动线。回归：`TestSetDefaultWarehouse`（服务层：幂等/停用拒绝/跨租户/唯一默认/库存分布）、`TestSetDefaultWarehouseRoles`（HTTP 三角色）、`round115-warehouse-default` E2E（写拦截 + 切换后标签/只读隐藏）。
+- **seed verify 软删除口径**（UX v6 P2-2）：`VerifyClean` 各表检查拆分 live（`deleted_at IS NULL`，计入残留）与 soft-deleted（单独上报 `softDeleted` 字段，不计残留）；`seeddemo verify` 仅对 live 残留失败，软删除历史残留以 stderr note 提示。回归 `TestVerifyCleanIgnoresSoftDeletedResidue`。
+- **权限空态与 404 语义分离**（UX v6 P2-3）：`RouteAccessGuard` 无权限改为「暂无访问权限」+ 联系管理员开通权限/授权店铺引导（403 Result），`404.tsx` 改为「页面不存在」纯 404 语义，不再共用「页面不存在，或当前账号无权访问」混合文案；单测覆盖无权限/真实 404/有权限/未登录四态，相关 E2E 文案同步。
+- **顺带（#240 已合入 main）**：移动首页快捷入口新增「审单工作台」（`/orders/review`，按 `ORDER_VIEW` 权限显隐；`menuAccess` 补该路由权限映射），round113-mobile-h5 E2E 断言补充。

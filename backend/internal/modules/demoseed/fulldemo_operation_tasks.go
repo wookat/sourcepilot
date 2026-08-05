@@ -439,49 +439,43 @@ func cleanupOperationTasks(tx *gorm.DB, res *FullDemoResult, like string) error 
 
 // operationTaskVerifyChecks returns residual DEMO- row counters for the
 // operation task tables (all zero after cleanup).
-func operationTaskVerifyChecks(tx *gorm.DB, like string) []struct {
-	table string
-	count func() (int64, error)
-} {
+func operationTaskVerifyChecks(tx *gorm.DB, like string) []verifyCheck {
 	if !tx.Migrator().HasTable("operation_tasks") {
 		return nil
 	}
-	return []struct {
-		table string
-		count func() (int64, error)
-	}{
-		{"operation_tasks", func() (int64, error) {
+	return []verifyCheck{
+		{table: "operation_tasks", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&operationtask.OperationTask{}).
 				Where("title LIKE ? OR idempotency_key LIKE ?", like, like).Count(&n).Error
 		}},
-		{"platform_drafts", func() (int64, error) {
+		{table: "platform_drafts", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&operationtask.PlatformDraft{}).
 				Where("idempotency_key LIKE ? OR operation_task_id IN (?)", like,
 					tx.Model(&operationtask.OperationTask{}).Select("id").
 						Where("title LIKE ? OR idempotency_key LIKE ?", like, like)).Count(&n).Error
 		}},
-		{"approval_records", func() (int64, error) {
+		{table: "approval_records", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&operationtask.ApprovalRecord{}).
 				Where("idempotency_key LIKE ? OR request_id LIKE ? OR operation_task_id IN (?)", like, like,
 					tx.Model(&operationtask.OperationTask{}).Select("id").
 						Where("title LIKE ? OR idempotency_key LIKE ?", like, like)).Count(&n).Error
 		}},
-		{"execution_attempts", func() (int64, error) {
+		{table: "execution_attempts", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&operationtask.ExecutionAttempt{}).
 				Where("idempotency_key LIKE ? OR request_id LIKE ? OR operation_task_id IN (?)", like, like,
 					tx.Model(&operationtask.OperationTask{}).Select("id").
 						Where("title LIKE ? OR idempotency_key LIKE ?", like, like)).Count(&n).Error
 		}},
-		{"execution_errors", func() (int64, error) {
+		{table: "execution_errors", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&operationtask.ExecutionError{}).
 				Where("safe_message LIKE ?", like).Count(&n).Error
 		}},
-		{"operation_task_events", func() (int64, error) {
+		{table: "operation_task_events", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&operationtask.OperationTaskEvent{}).
 				Where("request_id LIKE ? OR operation_task_id IN (?)", like,

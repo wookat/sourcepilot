@@ -93,6 +93,9 @@ func main() {
 				fatal(fmt.Errorf("residual %s rows in %s: %d", *prefix, table, n))
 			}
 		}
+		for table, n := range res.SoftDeleted {
+			fmt.Fprintf(os.Stderr, "seeddemo: note: %d soft-deleted %s row(s) remain in %s (historical residue, not counted)\n", n, *prefix, table)
+		}
 		fmt.Printf("verify: zero %s residual rows\n", *prefix)
 	}
 }

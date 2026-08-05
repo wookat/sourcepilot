@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import RouteAccessGuard, { ROUTE_FALLBACK_SUBTITLE } from '../RouteAccessGuard';
+import RouteAccessGuard, { ROUTE_FORBIDDEN_SUBTITLE } from '../RouteAccessGuard';
+import NotFoundPage, { NOT_FOUND_SUBTITLE } from '@/pages/404';
 
 let pathname = '/dashboard';
 let currentUser: API.CurrentUser | undefined;
@@ -14,13 +15,13 @@ vi.mock('@/hooks/useInitialStateModel', () => ({
   useInitialStateModel: () => ({ initialState: { currentUser }, setInitialState: vi.fn() }),
 }));
 
-describe('RouteAccessGuard（受限路由统一语义页）', () => {
+describe('RouteAccessGuard（权限空态与 404 语义分离）', () => {
   beforeEach(() => {
     pathname = '/dashboard';
     currentUser = undefined;
   });
 
-  it('operator 访问受限路由时展示统一 404 语义页，不泄露存在性', () => {
+  it('operator 访问受限路由时展示权限引导空态（非 404）', () => {
     pathname = '/settings/users';
     currentUser = {
       id: '1',
@@ -35,8 +36,16 @@ describe('RouteAccessGuard（受限路由统一语义页）', () => {
       </RouteAccessGuard>,
     );
     expect(screen.queryByText('secret page')).toBeNull();
-    expect(screen.getByText('无法访问该页面')).toBeTruthy();
-    expect(screen.getByText(ROUTE_FALLBACK_SUBTITLE)).toBeTruthy();
+    expect(screen.getByText('暂无访问权限')).toBeTruthy();
+    expect(screen.getByText(ROUTE_FORBIDDEN_SUBTITLE)).toBeTruthy();
+    expect(screen.queryByText('页面不存在')).toBeNull();
+  });
+
+  it('404 页使用独立的不存在语义文案', () => {
+    render(<NotFoundPage />);
+    expect(screen.getByText('页面不存在')).toBeTruthy();
+    expect(screen.getByText(NOT_FOUND_SUBTITLE)).toBeTruthy();
+    expect(screen.queryByText('暂无访问权限')).toBeNull();
   });
 
   it('有权限的路由正常渲染子内容', () => {

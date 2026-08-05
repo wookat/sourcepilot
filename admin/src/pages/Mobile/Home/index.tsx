@@ -1,4 +1,5 @@
 import {
+  AuditOutlined,
   BellOutlined,
   ReloadOutlined,
   RightOutlined,
@@ -180,6 +181,7 @@ export default function MobileHome() {
   const alertCount = (summary.criticalAlertCount ?? 0) + (summary.openAlertCount ?? 0);
   const canSeeAlerts = canAccessPath('/ops/task-center/alerts', role, permissions, user?.tenantId);
   const canShip = canAccessPath('/orders/list', role, permissions, user?.tenantId);
+  const canReviewOrders = canAccessPath('/orders/review', role, permissions, user?.tenantId);
 
   const pullHint = refreshing ? '刷新中…' : ready ? '松开立即刷新' : '下拉刷新';
 
@@ -236,7 +238,7 @@ export default function MobileHome() {
         )}
       </div>
 
-      {canSeeAlerts || canShip ? (
+      {canSeeAlerts || canShip || canReviewOrders ? (
         <div className="tm-mobile-section">
           <Typography.Text strong className="tm-mobile-section__title">
             快捷入口
@@ -261,6 +263,25 @@ export default function MobileHome() {
                   ) : (
                     <Tag style={{ marginInlineEnd: 0 }}>暂无告警</Tag>
                   )}
+                  <RightOutlined className="tm-mobile-list-row__arrow" />
+                </span>
+              </button>
+            ) : null}
+            {canReviewOrders ? (
+              <button
+                type="button"
+                className="tm-mobile-list-row"
+                onClick={() => history.push('/orders/review')}
+                data-testid="tm-mobile-order-review-entry"
+              >
+                <span className="tm-mobile-list-row__title">
+                  <AuditOutlined style={{ marginInlineEnd: 8 }} />
+                  审单工作台
+                </span>
+                <span className="tm-mobile-list-row__extra">
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    待人工审核订单
+                  </Typography.Text>
                   <RightOutlined className="tm-mobile-list-row__arrow" />
                 </span>
               </button>

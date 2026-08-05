@@ -21,23 +21,30 @@ async function mockOperatorProfile(page: import('@playwright/test').Page) {
   });
 }
 
-test.describe('@round102 受限路由统一语义页', () => {
-  test('operator 直达受限路由展示统一中文语义页，不泄露存在性', async ({ admin, page }) => {
+test.describe('@round102 受限路由权限空态', () => {
+  test('operator 直达受限路由展示权限引导空态', async ({ admin, page }) => {
     await mockOperatorProfile(page);
     await admin.goto('/settings/users');
-    await expect(page.getByText('无法访问该页面')).toBeVisible();
-    await expect(page.getByText(/页面不存在，或当前账号无权访问/)).toBeVisible();
+    await expect(page.getByText('暂无访问权限')).toBeVisible();
+    await expect(page.getByText(/当前账号没有访问该页面的权限/)).toBeVisible();
     await expect(page.getByRole('button', { name: '返回工作台' })).toBeVisible();
+  });
+
+  test('不存在的路由展示 404 语义页（非权限空态）', async ({ admin, page }) => {
+    await mockOperatorProfile(page);
+    await admin.goto('/route-not-exists-e2e');
+    await expect(page.getByText('页面不存在')).toBeVisible();
+    await expect(page.getByText('暂无访问权限')).toHaveCount(0);
   });
 
   test('operator 访问有权限路由正常渲染', async ({ admin, page }) => {
     await mockOperatorProfile(page);
     await admin.goto('/dashboard');
-    await expect(page.getByText('无法访问该页面')).toHaveCount(0);
+    await expect(page.getByText('暂无访问权限')).toHaveCount(0);
   });
 
   test('admin 访问设置路由不被拦截', async ({ admin, page }) => {
     await admin.goto('/settings/users');
-    await expect(page.getByText('无法访问该页面')).toHaveCount(0);
+    await expect(page.getByText('暂无访问权限')).toHaveCount(0);
   });
 });

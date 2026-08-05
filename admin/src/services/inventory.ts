@@ -555,6 +555,10 @@ export async function updateWarehouse(
   return putJSON<WarehouseDTO>(`/api/v1/inventory/warehouses/${encodeURIComponent(id)}`, payload);
 }
 
+export async function setDefaultWarehouse(id: string) {
+  return postJSON<WarehouseDTO>(`/api/v1/inventory/warehouses/${encodeURIComponent(id)}/set-default`, {});
+}
+
 export async function deleteWarehouse(id: string) {
   return deleteJSON<{ deleted: boolean }>(`/api/v1/inventory/warehouses/${encodeURIComponent(id)}`);
 }

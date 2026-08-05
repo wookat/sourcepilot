@@ -99,7 +99,7 @@ test.describe('R86 P2 readonly 写入口 UI 收口', () => {
     await useReadonlyProfile(page);
     await routeFailures(page);
     await admin.goto('/ops/task-center/failures');
-    await expect(page.getByText('无法访问该页面')).toBeVisible();
+    await expect(page.getByText('暂无访问权限')).toBeVisible();
     await expect(page.getByRole('button', { name: '返回工作台' })).toBeVisible();
     await expect(page.getByRole('button', { name: '批量重试' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '批量忽略' })).toHaveCount(0);

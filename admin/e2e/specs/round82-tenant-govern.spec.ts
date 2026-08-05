@@ -131,7 +131,7 @@ test.describe('@settings 平台租户治理（round82）', () => {
         });
       });
       await admin.goto('/settings/platform-tenants');
-      await expect(page.getByText('无法访问该页面')).toBeVisible();
+      await expect(page.getByText('暂无访问权限')).toBeVisible();
       await expect(page.getByRole('button', { name: '返回工作台' })).toBeVisible();
       await expect(page.getByRole('button', { name: '改名' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '停用' })).toHaveCount(0);

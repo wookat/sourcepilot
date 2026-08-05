@@ -410,6 +410,7 @@ collector 代理端点（登录态检测 / 打开采集浏览器）在采集服�
 | `GET` | `/api/v1/inventory/warehouses/migration-preview` | 存量迁移预检：默认仓、SKU 总量、非默认仓库存、默认仓推导库存、孤儿仓库行、负推导 SKU、一致性判定。 |
 | `POST` | `/api/v1/inventory/warehouses` | 创建仓库；body：`code`（可空自动生成）、`name`、`priority`、`remark`。 |
 | `PUT` | `/api/v1/inventory/warehouses/:id` | 更新仓库（名称 / 优先级 / 启停 / 备注）；默认仓不可停用。 |
+| `POST` | `/api/v1/inventory/warehouses/:id/set-default` | 设为默认仓（R115）：事务内原子切换旧默认→新默认，旧默认仓推导库存落库、新默认仓改为推导口径；已停用仓库拒绝；readonly 403。 |
 | `DELETE` | `/api/v1/inventory/warehouses/:id` | 删除仓库；默认仓不可删除；仍有库存的仓库拒绝删除。 |
 | `POST` | `/api/v1/inventory/transfers` | 仓间调拨（单事务原子）；body：`productSkuId` / `fromWarehouseId` / `toWarehouseId` / `quantity` / `remark`；成功生成 `warehouse_transfer_out` + `warehouse_transfer_in` 两条配对流水。 |
 | `GET` | `/api/v1/inventory/sku-warehouse-stocks` | 指定 SKU 的分仓库存明细（默认仓库存 = SKU 总库存 − 非默认仓库存之和）。 |
