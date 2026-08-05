@@ -1,10 +1,13 @@
 package reports
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
@@ -108,7 +111,7 @@ func (h *Handler) GetProcurement(c *gin.Context) {
 	response.OK(c, res)
 }
 
-// GetInventory GET /reports/inventory?slowDays=30
+// GetInventory GET /reports/inventory?slowDays=30&warehouseId=<uuid>
 func (h *Handler) GetInventory(c *gin.Context) {
 	if !h.ok() {
 		response.Fail(c, 500, response.CodeInternalError, "reports unavailable")
@@ -123,8 +126,21 @@ func (h *Handler) GetInventory(c *gin.Context) {
 		}
 		slowDays = v
 	}
-	res, err := h.Svc.InventoryReport(c, slowDays)
+	var warehouseID *uuid.UUID
+	if raw := strings.TrimSpace(c.Query("warehouseId")); raw != "" {
+		u, err := uuid.Parse(raw)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "warehouseId 参数无效")
+			return
+		}
+		warehouseID = &u
+	}
+	res, err := h.Svc.InventoryReport(c, slowDays, warehouseID)
 	if err != nil {
+		if errors.Is(err, inventory.ErrWarehouseNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "仓库不存在")
+			return
+		}
 		response.Fail(c, 500, response.CodeInternalError, err.Error())
 		return
 	}

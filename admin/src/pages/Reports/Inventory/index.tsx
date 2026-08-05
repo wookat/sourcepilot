@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from '@umijs/max';
 import { mergeQueryState } from '@/utils/urlState';
 import { EmptyState, TmPageContainer } from '@/components/ui';
+import WarehouseSelect from '@/components/inventory/WarehouseSelect';
 import { formatAmount, tabularNumsStyle } from '@/constants/chartTokens';
 import { fetchInventoryReport, type InventoryReportDTO, type InventorySKURow } from '@/services/reports';
 
@@ -32,8 +33,12 @@ function formatDateTime(v?: string): string {
 export default function InventoryReport() {
   const [searchParams] = useSearchParams();
   const slowDays = normalizeSlowDays(searchParams.get('slowDays'));
+  const warehouseId = searchParams.get('warehouseId')?.trim() || undefined;
   const setSlowDays = useCallback((next: number) => {
     mergeQueryState({ slowDays: next === DEFAULT_SLOW_DAYS ? undefined : next }, { replace: true });
+  }, []);
+  const setWarehouseId = useCallback((next?: string) => {
+    mergeQueryState({ warehouseId: next || undefined }, { replace: true });
   }, []);
 
   const [data, setData] = useState<InventoryReportDTO | null>(null);
@@ -43,11 +48,11 @@ export default function InventoryReport() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchInventoryReport(slowDays)
+    fetchInventoryReport(slowDays, warehouseId)
       .then((res) => setData(res ?? null))
       .catch((e: unknown) => setError(e instanceof Error ? e.message : '加载失败，请稍后重试'))
       .finally(() => setLoading(false));
-  }, [slowDays]);
+  }, [slowDays, warehouseId]);
 
   useEffect(() => {
     load();
@@ -103,9 +108,18 @@ export default function InventoryReport() {
   return (
     <TmPageContainer
       title="库存报表"
-      subTitle="库存价值按参考进价估算（CNY），周转天数按近 30 天出库速度"
+      subTitle={`库存价值按参考进价估算（CNY），周转天数按近 30 天出库速度${data?.warehouseName ? `；当前仓库：${data.warehouseName}` : '；全仓汇总'}`}
       extra={
         <Space wrap className="tm-page-header-extra">
+          <WarehouseSelect
+            includeAll
+            includeDisabled
+            style={{ minWidth: 160 }}
+            placeholder="全仓汇总"
+            value={warehouseId ?? ''}
+            onChange={(v) => setWarehouseId(v || undefined)}
+            aria-label="仓库筛选"
+          />
           <Segmented
             options={SLOW_DAY_OPTIONS}
             value={slowDays}

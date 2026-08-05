@@ -12,7 +12,10 @@ import {
 import { INVENTORY_COPY, PRODUCT_COPY } from '@/constants/copywriting';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { queryInventoryCenter, type InventoryCenterRow } from '@/services/inventory';
-import { Space, Tag, Typography, message } from 'antd';
+import TransferStockModal from '@/components/inventory/TransferStockModal';
+import WarehouseSelect from '@/components/inventory/WarehouseSelect';
+import { usePermission } from '@/hooks/usePermission';
+import { Space, Tag, Tooltip, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import { Link } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -33,6 +36,7 @@ const INVENTORY_QUERY_KEYS = [
   'productSkuId',
   'source',
   'skuId',
+  'warehouseId',
 ] as const;
 
 function tagFrom(raw: string, map: Record<string, { text: string; color: string }>) {
@@ -42,6 +46,8 @@ function tagFrom(raw: string, map: Record<string, { text: string; color: string 
 
 export default function InventoryCenterPage() {
   const emptyLocale = useListEmptyLocale('inventoryCenter', { permissionScoped: true });
+  const { canWriteInventory } = usePermission();
+  const [transferRow, setTransferRow] = useState<InventoryCenterRow | null>(null);
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
@@ -76,6 +82,7 @@ export default function InventoryCenterPage() {
       platform: urlState.platform,
       shopId: urlState.shopId,
       productSkuId: skuIdFromUrl,
+      warehouseId: urlState.warehouseId,
     });
   }, [
     skuIdFromUrl,
@@ -87,6 +94,7 @@ export default function InventoryCenterPage() {
     urlState.skuBindStatus,
     urlState.stockStatus,
     urlState.syncStatus,
+    urlState.warehouseId,
   ]);
 
   useEffect(() => {
@@ -103,6 +111,12 @@ export default function InventoryCenterPage() {
         fieldProps: { placeholder: '商品标题 / 规格编码 / 名称', ...keywordFieldProps },
       },
       { title: '规格 ID', dataIndex: 'productSkuId', hideInTable: true },
+      {
+        title: '仓库',
+        dataIndex: 'warehouseId',
+        hideInTable: true,
+        renderFormItem: () => <WarehouseSelect includeAll includeDisabled placeholder="全部仓库" />,
+      },
       { title: '店铺 ID', dataIndex: 'shopId', hideInTable: true },
       { title: '平台', dataIndex: 'platform', hideInTable: true },
       {
@@ -160,6 +174,30 @@ export default function InventoryCenterPage() {
         render: (_, r) => r.skuName || '—',
       },
       { title: '本地库存', dataIndex: 'stock', width: 88, search: false },
+      {
+        title: '分仓库存',
+        dataIndex: 'warehouseStocks',
+        width: 160,
+        search: false,
+        render: (_, r) =>
+          r.warehouseStocks && r.warehouseStocks.length > 0 ? (
+            <Tooltip
+              title={r.warehouseStocks
+                .map((w) => `${w.warehouseName}${w.isDefault ? '（默认）' : ''}：${w.stock}`)
+                .join(' / ')}
+            >
+              <Space size={4} wrap>
+                {r.warehouseStocks.map((w) => (
+                  <Tag key={w.warehouseId} color={w.isDefault ? 'blue' : undefined}>
+                    {w.warehouseName} {w.stock}
+                  </Tag>
+                ))}
+              </Space>
+            </Tooltip>
+          ) : (
+            '—'
+          ),
+      },
       { title: '可用库存', dataIndex: 'availableStock', width: 88, search: false },
       { title: '预警阈值', dataIndex: 'warningStock', width: 88, search: false },
       {
@@ -222,6 +260,9 @@ export default function InventoryCenterPage() {
             <Link to={`/inventory/sync-tasks?productSkuId=${encodeURIComponent(r.productSkuId)}`}>
               同步任务
             </Link>
+            {canWriteInventory ? (
+              <Typography.Link onClick={() => setTransferRow(r)}>调拨</Typography.Link>
+            ) : null}
             {r.exceptionCount > 0 ? (
               <Link to={`/ops/task-center/failures?taskType=inventory_sync`}>失败任务</Link>
             ) : null}
@@ -229,7 +270,7 @@ export default function InventoryCenterPage() {
         ),
       },
     ],
-    [keywordFieldProps],
+    [keywordFieldProps, canWriteInventory],
   );
 
   return (
@@ -280,6 +321,7 @@ export default function InventoryCenterPage() {
               stockStatus: (params.stockStatus as string | undefined)?.trim(),
               skuBindStatus: (params.skuBindStatus as string | undefined)?.trim(),
               syncStatus: (params.syncStatus as string | undefined)?.trim(),
+              warehouseId: (params.warehouseId as string | undefined)?.trim() || undefined,
               page: params.current ?? tablePage,
               pageSize: params.pageSize ?? tablePageSize,
             };
@@ -294,6 +336,7 @@ export default function InventoryCenterPage() {
                 stockStatus: qp.stockStatus,
                 skuBindStatus: qp.skuBindStatus,
                 syncStatus: qp.syncStatus,
+                warehouseId: qp.warehouseId,
                 source: urlState.source,
               },
               { replace: true },
@@ -306,6 +349,7 @@ export default function InventoryCenterPage() {
               stockStatus: qp.stockStatus,
               skuBindStatus: qp.skuBindStatus,
               syncStatus: qp.syncStatus,
+              warehouseId: qp.warehouseId,
               hasException: params.hasException === 'true' || params.hasException === true,
               page: qp.page,
               pageSize: qp.pageSize,
@@ -316,6 +360,17 @@ export default function InventoryCenterPage() {
             return { data: [], success: false, total: 0 };
           }
         }}
+      />
+      <TransferStockModal
+        open={!!transferRow}
+        productSkuId={transferRow?.productSkuId}
+        skuLabel={
+          transferRow
+            ? `${transferRow.productTitle || ''} ${transferRow.skuCode || transferRow.skuName || ''}`.trim()
+            : undefined
+        }
+        onClose={() => setTransferRow(null)}
+        onTransferred={() => actionRef.current?.reload?.()}
       />
     </TmPageContainer>
   );

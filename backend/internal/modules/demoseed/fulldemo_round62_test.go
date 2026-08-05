@@ -71,6 +71,8 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&inventory.InventoryChangeLog{},
 		&inventory.InventorySyncBatch{},
 		&inventory.InventorySyncTask{},
+		&inventory.Warehouse{},
+		&inventory.WarehouseStock{},
 		&ordersync.OrderSyncTask{},
 		&orderexception.OrderExceptionMark{},
 		&admin.AdminUser{},

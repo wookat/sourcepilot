@@ -1,4 +1,4 @@
-import { getJSON, getWithParams, postJSON } from '@/services/request';
+import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
 
 export type PaginatedInventory<T> = {
   list: T[];
@@ -46,6 +46,8 @@ export type InventoryChangeLogRow = {
   createdBy?: string | null;
   refOrderId?: string;
   refOrderItemId?: string;
+  warehouseId?: string;
+  warehouseName?: string;
 };
 
 export type OrderInventoryEffectRow = {
@@ -190,6 +192,14 @@ export type PlatformStockAlertEntry = {
   lastSyncAt?: string;
 };
 
+export type WarehouseStockEntry = {
+  warehouseId: string;
+  warehouseName: string;
+  isDefault: boolean;
+  enabled: boolean;
+  stock: number;
+};
+
 export type InventoryAlertRow = {
   productId: string;
   productTitle: string;
@@ -203,6 +213,7 @@ export type InventoryAlertRow = {
   alertTypes: string[];
   publicationCount: number;
   platformStocks: PlatformStockAlertEntry[];
+  warehouseStocks?: WarehouseStockEntry[];
   lastInventoryChangeAt?: string;
   lastSyncTaskId?: string;
   lastSyncStatus?: string;
@@ -221,6 +232,7 @@ export async function queryInventoryCenter(params?: {
   skuBindStatus?: string;
   syncStatus?: string;
   hasException?: boolean;
+  warehouseId?: string;
   page?: number;
   pageSize?: number;
 }) {
@@ -234,6 +246,7 @@ export async function queryInventoryCenter(params?: {
     alertStatus: params?.alertStatus?.trim() || undefined,
     skuBindStatus: params?.skuBindStatus?.trim() || undefined,
     syncStatus: params?.syncStatus?.trim() || undefined,
+    warehouseId: params?.warehouseId || undefined,
     page: params?.page,
     pageSize: params?.pageSize,
   };
@@ -289,6 +302,7 @@ export async function queryGlobalInventoryLogs(params?: {
   productSkuId?: string;
   orderId?: string;
   changeType?: string;
+  warehouseId?: string;
   start?: string;
   end?: string;
 }) {
@@ -453,4 +467,105 @@ export type BatchStockSettingsUpdateResult = {
 
 export async function batchUpdateStockSettings(payload: BatchStockSettingsUpdatePayload) {
   return postJSON<BatchStockSettingsUpdateResult>('/api/v1/inventory/stock-settings/batch-update', payload);
+}
+
+// ---- 多仓库存（Round 112） ----
+
+export type WarehouseDTO = {
+  id: string;
+  tenantId: number;
+  code: string;
+  name: string;
+  isDefault: boolean;
+  enabled: boolean;
+  priority: number;
+  remark?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type WarehouseSummaryEntry = {
+  warehouseId: string;
+  warehouseName: string;
+  code: string;
+  isDefault: boolean;
+  enabled: boolean;
+  priority: number;
+  totalStock: number;
+  skuCount: number;
+};
+
+export type WarehouseMigrationPreview = {
+  defaultWarehouseExists: boolean;
+  defaultWarehouseId?: string;
+  defaultWarehouseName?: string;
+  skuCount: number;
+  totalStock: number;
+  nonDefaultStock: number;
+  defaultDerivedStock: number;
+  orphanWarehouseRows: number;
+  negativeDerivedSkus: number;
+  consistent: boolean;
+};
+
+export type TransferStockPayload = {
+  productSkuId: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+  quantity: number;
+  remark?: string;
+};
+
+export type TransferStockResult = {
+  transferId: string;
+  productSkuId: string;
+  fromWarehouseId: string;
+  fromWarehouseName: string;
+  toWarehouseId: string;
+  toWarehouseName: string;
+  quantity: number;
+  fromBefore: number;
+  fromAfter: number;
+  toBefore: number;
+  toAfter: number;
+  outLogId: string;
+  inLogId: string;
+};
+
+export async function queryWarehouses() {
+  return getJSON<{ list: WarehouseDTO[]; total: number }>('/api/v1/inventory/warehouses');
+}
+
+export async function queryWarehouseSummary() {
+  return getJSON<{ list: WarehouseSummaryEntry[] }>('/api/v1/inventory/warehouses/summary');
+}
+
+export async function queryWarehouseMigrationPreview() {
+  return getJSON<WarehouseMigrationPreview>('/api/v1/inventory/warehouses/migration-preview');
+}
+
+export async function createWarehouse(payload: { code?: string; name: string; priority?: number; remark?: string }) {
+  return postJSON<WarehouseDTO>('/api/v1/inventory/warehouses', payload);
+}
+
+export async function updateWarehouse(
+  id: string,
+  payload: { name?: string; priority?: number; remark?: string; enabled?: boolean },
+) {
+  return putJSON<WarehouseDTO>(`/api/v1/inventory/warehouses/${encodeURIComponent(id)}`, payload);
+}
+
+export async function deleteWarehouse(id: string) {
+  return deleteJSON<{ deleted: boolean }>(`/api/v1/inventory/warehouses/${encodeURIComponent(id)}`);
+}
+
+export async function transferWarehouseStock(payload: TransferStockPayload) {
+  return postJSON<TransferStockResult>('/api/v1/inventory/transfers', payload);
+}
+
+export async function querySkuWarehouseStocks(productSkuId: string) {
+  return getWithParams<{ list: WarehouseStockEntry[]; totalStock: number }>(
+    '/api/v1/inventory/sku-warehouse-stocks',
+    { productSkuId },
+  );
 }

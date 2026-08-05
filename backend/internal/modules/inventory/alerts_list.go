@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ type alertSKUScan struct {
 	SKUCode      string    `gorm:"column:sku_code"`
 	SKUName      string    `gorm:"column:sku_name"`
 	Stock        *int      `gorm:"column:stock"`
+	WhStock      *int      `gorm:"column:wh_stock"`
 	WarningStock int       `gorm:"column:warning_stock"`
 	SafetyStock  int       `gorm:"column:safety_stock"`
 	ProductTitle string    `gorm:"column:product_title"`
@@ -65,6 +67,28 @@ type skuAlertBaseQuery struct {
 	ShopID        *uuid.UUID
 	StockStatus   string
 	OnlyPublished bool
+	// WarehouseID scopes stock quantity/status to one warehouse: the selected
+	// wh_stock column and the StockStatus filter then use that warehouse's
+	// quantity (default warehouse quantity is derived from the SKU total).
+	WarehouseID        *uuid.UUID
+	WarehouseIsDefault bool
+}
+
+// nonDefaultWarehouseSumSQL sums a SKU's stock parked in non-default
+// warehouses; the default warehouse quantity is the SKU total minus this.
+const nonDefaultWarehouseSumSQL = `COALESCE((
+	SELECT SUM(wsx.stock) FROM warehouse_stocks wsx
+	INNER JOIN warehouses wx ON wx.id = wsx.warehouse_id AND wx.deleted_at IS NULL AND wx.is_default = FALSE
+	WHERE wsx.product_sku_id = sk.id
+),0)`
+
+// warehouseStockExprSQL renders the SQL expression for the SKU's stock inside
+// the selected warehouse.
+func warehouseStockExprSQL(isDefault bool) string {
+	if isDefault {
+		return "(COALESCE(sk.stock,0) - " + nonDefaultWarehouseSumSQL + ")"
+	}
+	return `COALESCE((SELECT wsy.stock FROM warehouse_stocks wsy WHERE wsy.warehouse_id = @warehouse_id AND wsy.product_sku_id = sk.id),0)`
 }
 
 func (s *Service) buildAlertsBaseTX(ctx context.Context, q AlertsListQuery) *gorm.DB {
@@ -82,8 +106,18 @@ func (s *Service) buildAlertsBaseTX(ctx context.Context, q AlertsListQuery) *gor
 }
 
 func (s *Service) buildSKUAlertBaseTX(ctx context.Context, q skuAlertBaseQuery) *gorm.DB {
+	stockExpr := "COALESCE(sk.stock,0)"
+	selectCols := `sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock, sk.warning_stock, sk.safety_stock, sk.updated_at, p.title AS product_title`
+	var whArg []any
+	if q.WarehouseID != nil && *q.WarehouseID != uuid.Nil {
+		stockExpr = warehouseStockExprSQL(q.WarehouseIsDefault)
+		selectCols += ", " + stockExpr + " AS wh_stock"
+		if !q.WarehouseIsDefault {
+			whArg = []any{sql.Named("warehouse_id", q.WarehouseID.String())}
+		}
+	}
 	tx := s.DB.WithContext(ctx).Table("product_skus AS sk").
-		Select(`sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock, sk.warning_stock, sk.safety_stock, sk.updated_at, p.title AS product_title`).
+		Select(selectCols, whArg...).
 		Joins("INNER JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL")
 	if q.TenantID != nil {
 		tx = tx.Where("p.tenant_id = ?", *q.TenantID)
@@ -120,15 +154,15 @@ func (s *Service) buildSKUAlertBaseTX(ctx context.Context, q skuAlertBaseQuery) 
 	}
 	switch strings.TrimSpace(q.StockStatus) {
 	case product.StockStatusOutOfStock:
-		tx = tx.Where("COALESCE(sk.stock,0) <= 0")
+		tx = tx.Where(stockExpr+" <= 0", whArg...)
 	case product.StockStatusBelowSafetyStock:
-		tx = tx.Where("sk.safety_stock > 0 AND COALESCE(sk.stock,0) > 0 AND COALESCE(sk.stock,0) <= sk.safety_stock")
+		tx = tx.Where("sk.safety_stock > 0 AND "+stockExpr+" > 0 AND "+stockExpr+" <= sk.safety_stock", whArg...)
 	case product.StockStatusLowStock:
-		tx = tx.Where(`COALESCE(sk.stock,0) > 0
-			AND (sk.safety_stock = 0 OR COALESCE(sk.stock,0) > sk.safety_stock)
-			AND COALESCE(sk.stock,0) <= sk.warning_stock`)
+		tx = tx.Where(stockExpr+` > 0
+			AND (sk.safety_stock = 0 OR `+stockExpr+` > sk.safety_stock)
+			AND `+stockExpr+` <= sk.warning_stock`, whArg...)
 	case product.StockStatusNormal:
-		tx = tx.Where("COALESCE(sk.stock,0) > sk.warning_stock")
+		tx = tx.Where(stockExpr+" > sk.warning_stock", whArg...)
 	}
 	return tx
 }
@@ -404,6 +438,16 @@ func (s *Service) ListInventoryAlerts(ctx context.Context, q AlertsListQuery) (*
 	}
 	taskByPub := s.loadLatestTasksByPubSku(ctx, pubIDs)
 	lastLog := s.loadMaxLogTimeBySku(ctx, skuIDs)
+	whBreakdown := map[uuid.UUID][]WarehouseStockEntry{}
+	if q.TenantID != nil {
+		totalsBySku := map[uuid.UUID]int{}
+		for _, r := range scans {
+			totalsBySku[r.ID] = derefStock(r.Stock)
+		}
+		if b, err := s.warehouseStockBreakdownBatch(ctx, *q.TenantID, totalsBySku); err == nil {
+			whBreakdown = b
+		}
+	}
 
 	items := make([]InventoryAlertEntry, 0, len(scans))
 	for _, row := range scans {
@@ -471,6 +515,7 @@ func (s *Service) ListInventoryAlerts(ctx context.Context, q AlertsListQuery) (*
 			SKUCode:               row.SKUCode,
 			SKUName:               row.SKUName,
 			Stock:                 derefStock(row.Stock),
+			WarehouseStocks:       whBreakdown[row.ID],
 			WarningStock:          row.WarningStock,
 			SafetyStock:           row.SafetyStock,
 			StockStatus:           st,

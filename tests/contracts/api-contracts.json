@@ -323,9 +323,80 @@
       "path": "/api/v1/reports/inventory",
       "auth": true,
       "query": [
-        "slowDays"
+        "slowDays",
+        "warehouseId"
       ],
       "responseData": "InventoryReportDTO"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/warehouses",
+      "auth": true,
+      "responseData": "{ list: WarehouseDTO[], total: number }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/warehouses/summary",
+      "auth": true,
+      "responseData": "{ list: WarehouseSummaryEntry[] }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/warehouses/migration-preview",
+      "auth": true,
+      "responseData": "WarehouseMigrationPreview"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/warehouses",
+      "auth": true,
+      "requestBody": [
+        "code",
+        "name",
+        "priority",
+        "remark"
+      ],
+      "responseData": "WarehouseDTO"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/inventory/warehouses/:id",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "priority",
+        "remark",
+        "enabled"
+      ],
+      "responseData": "WarehouseDTO"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/inventory/warehouses/:id",
+      "auth": true,
+      "responseData": "{ deleted: boolean }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/transfers",
+      "auth": true,
+      "requestBody": [
+        "productSkuId",
+        "fromWarehouseId",
+        "toWarehouseId",
+        "quantity",
+        "remark"
+      ],
+      "responseData": "TransferStockResult"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/sku-warehouse-stocks",
+      "auth": true,
+      "query": [
+        "productSkuId"
+      ],
+      "responseData": "{ list: WarehouseStockEntry[], totalStock: number }"
     },
     {
       "method": "GET",

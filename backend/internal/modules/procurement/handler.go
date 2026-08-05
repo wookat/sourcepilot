@@ -96,6 +96,10 @@ func handleProcurementError(c *gin.Context, err error) {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 	case errors.Is(err, ErrConflict):
 		response.Fail(c, 409, response.CodeBadRequest, err.Error())
+	case errors.Is(err, ErrInboundWarehouseNotFound):
+		response.Fail(c, 404, response.CodeNotFound, "入库仓库不存在")
+	case errors.Is(err, ErrInboundWarehouseDisabled):
+		response.Fail(c, 400, response.CodeBadRequest, "入库仓库已停用")
 	default:
 		response.HandleError(c, err)
 	}
@@ -298,8 +302,40 @@ func (h *Handler) Confirm(c *gin.Context) { h.simpleTransition(c, h.Svc.Confirm)
 // Retry POST /procurement/orders/:id/retry
 func (h *Handler) Retry(c *gin.Context) { h.simpleTransition(c, h.Svc.Retry) }
 
+// MarkDeliveredBody optionally selects the inbound warehouse (default
+// warehouse when omitted).
+type MarkDeliveredBody struct {
+	WarehouseID string `json:"warehouseId"`
+}
+
 // MarkDelivered POST /procurement/orders/:id/mark-delivered
-func (h *Handler) MarkDelivered(c *gin.Context) { h.simpleTransition(c, h.Svc.MarkDelivered) }
+func (h *Handler) MarkDelivered(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "procurement unavailable")
+		return
+	}
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var body MarkDeliveredBody
+	_ = c.ShouldBindJSON(&body) // body optional for backward compatibility
+	var whID *uuid.UUID
+	if raw := strings.TrimSpace(body.WarehouseID); raw != "" {
+		u, err := uuid.Parse(raw)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid warehouseId")
+			return
+		}
+		whID = &u
+	}
+	out, err := h.Svc.MarkDelivered(c.Request.Context(), id, adminUUID(c), whID)
+	if err != nil {
+		handleProcurementError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
 
 // MarkPlaced POST /procurement/orders/:id/mark-placed
 func (h *Handler) MarkPlaced(c *gin.Context) {

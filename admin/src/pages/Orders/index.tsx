@@ -63,6 +63,7 @@ import ImportOrdersModal from '@/pages/Orders/ImportOrdersModal';
 import BatchShipModal from '@/pages/Orders/BatchShipModal';
 import { recommendForOrders } from '@/services/waybill';
 import CarrierSelect, { matchCarrier, useEnabledCarriers } from '@/components/CarrierSelect';
+import WarehouseSelect from '@/components/inventory/WarehouseSelect';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import {
   fetchOrderCostEstimateBatch,
@@ -183,6 +184,7 @@ export default function OrdersPage() {
   const [invEffectRows, setInvEffectRows] = useState<OrderInventoryEffectRow[]>([]);
   const [costMap, setCostMap] = useState<Record<string, OrderCostEstimateSummary>>({});
   const [invActionLoading, setInvActionLoading] = useState(false);
+  const [deductWarehouseId, setDeductWarehouseId] = useState<string | undefined>();
   const detailIdRef = useRef<string | undefined>();
   const { initialState } = useModel('@@initialState') as {
     initialState?: { currentUser?: API.CurrentUser };
@@ -1258,12 +1260,22 @@ export default function OrdersPage() {
                         ) : (
                           <Tag>库存摘要不可用</Tag>
                         )}
+                        <WarehouseSelect
+                          size="small"
+                          style={{ minWidth: 180 }}
+                          placeholder="扣减仓库（默认按仓库优先级）"
+                          value={deductWarehouseId}
+                          onChange={(v) => setDeductWarehouseId(v || undefined)}
+                        />
                         <Popconfirm
                           title="扣减绑定 SKU 的本地库存（幂等；见错误提示）"
                           onConfirm={async () => {
                             setInvActionLoading(true);
                             try {
-                              const r = await deductOrderInventory(detail.id, { syncInventory: false });
+                              const r = await deductOrderInventory(detail.id, {
+                                syncInventory: false,
+                                warehouseId: deductWarehouseId,
+                              });
                               setDetail(r.order);
                               message.success(
                                 summarizeInvResp(r.inventoryDeduction as Record<string, unknown>),
@@ -1286,7 +1298,10 @@ export default function OrdersPage() {
                           onConfirm={async () => {
                             setInvActionLoading(true);
                             try {
-                              const r = await deductOrderInventory(detail.id, { syncInventory: true });
+                              const r = await deductOrderInventory(detail.id, {
+                                syncInventory: true,
+                                warehouseId: deductWarehouseId,
+                              });
                               setDetail(r.order);
                               message.success(
                                 summarizeInvResp(r.inventoryDeduction as Record<string, unknown>),

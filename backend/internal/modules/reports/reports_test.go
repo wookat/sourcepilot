@@ -39,6 +39,7 @@ func openReportsTestDB(t *testing.T) *gorm.DB {
 		&sourcing.Supplier{}, &sourcing.ProductSource{}, &sourcing.ProductSourceSKU{}, &sourcing.SourcePriceHistory{},
 		&procurement.PurchaseOrder{}, &procurement.PurchaseOrderItem{}, &procurement.PurchaseOrderEvent{},
 		&inventory.InventoryChangeLog{},
+		&inventory.Warehouse{}, &inventory.WarehouseStock{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +403,7 @@ func TestInventoryReport(t *testing.T) {
 	mustCreate(t, db, p2)
 	mustCreate(t, db, &product.ProductSKU{ProductID: p2.ID, SKUCode: "X", Stock: &stockA})
 
-	res, err := svc.InventoryReport(reportsTestCtx(1, nil), 30)
+	res, err := svc.InventoryReport(reportsTestCtx(1, nil), 30, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

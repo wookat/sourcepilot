@@ -859,6 +859,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- 多仓演示：第二仓 + 调拨/入库样本流水（Round 112）----
+	if err := s.seedRound112Warehouses(tx, res, now, skus); err != nil {
+		return err
+	}
+
 	// ---- exception workbench handled mark（演示处理动作留痕）----
 	mark := orderexception.OrderExceptionMark{
 		ExceptionType: orderexception.TypeInventorySyncFailed,
@@ -1063,6 +1068,24 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 				return err
 			}
 		}
+		var demoWarehouseIDs []uuid.UUID
+		if err := tx.Model(&inventory.Warehouse{}).Unscoped().
+			Where("code LIKE ? OR name LIKE ?", like, like).Pluck("id", &demoWarehouseIDs).Error; err != nil {
+			return err
+		}
+		if len(demoWarehouseIDs) > 0 {
+			if err := del("warehouse_stocks", tx.Unscoped().Where("warehouse_id IN ?", demoWarehouseIDs).Delete(&inventory.WarehouseStock{})); err != nil {
+				return err
+			}
+			if err := del("warehouses", tx.Unscoped().Where("id IN ?", demoWarehouseIDs).Delete(&inventory.Warehouse{})); err != nil {
+				return err
+			}
+		}
+		if len(productIDs) > 0 {
+			if err := del("warehouse_stocks", tx.Unscoped().Where("product_id IN ?", productIDs).Delete(&inventory.WarehouseStock{})); err != nil {
+				return err
+			}
+		}
 		if len(productIDs) > 0 {
 			if err := del("inventory_change_logs", tx.Unscoped().Where("product_id IN ?", productIDs).Delete(&inventory.InventoryChangeLog{})); err != nil {
 				return err
@@ -1252,6 +1275,26 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		{"inventory_change_logs", func() (int64, error) {
 			var n int64
 			return n, tx.Model(&inventory.InventoryChangeLog{}).Where("business_event_key LIKE ?", like).Count(&n).Error
+		}},
+		{"warehouses", func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("warehouses") {
+				return 0, nil
+			}
+			return n, tx.Model(&inventory.Warehouse{}).Unscoped().
+				Where("code LIKE ? OR name LIKE ?", like, like).Count(&n).Error
+		}},
+		{"warehouse_stocks", func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("warehouse_stocks") {
+				return 0, nil
+			}
+			return n, tx.Model(&inventory.WarehouseStock{}).
+				Where("warehouse_id IN (?) OR product_id IN (?)",
+					tx.Model(&inventory.Warehouse{}).Unscoped().Select("id").
+						Where("code LIKE ? OR name LIKE ?", like, like),
+					tx.Model(&product.Product{}).Unscoped().Select("id").
+						Where("title LIKE ?", like)).Count(&n).Error
 		}},
 		{"inventory_sync_batches", func() (int64, error) {
 			var n int64

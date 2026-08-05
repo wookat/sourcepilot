@@ -42,11 +42,14 @@ type CenterListQuery struct {
 	SkuBindStatus string
 	SyncStatus    string
 	HasException  bool
-	Page          int
-	PageSize      int
-	Cursor        string
-	Limit         int
-	UseCursor     bool
+	// WarehouseID scopes displayed stock and stock-status filtering to one
+	// warehouse; nil keeps the all-warehouse aggregate view.
+	WarehouseID *uuid.UUID
+	Page        int
+	PageSize    int
+	Cursor      string
+	Limit       int
+	UseCursor   bool
 }
 
 // InventoryCenterEntry is one SKU row in the inventory center list.
@@ -89,6 +92,7 @@ func inventoryCenterCursorScope(q CenterListQuery) (string, string) {
 		"skuBindStatus": q.SkuBindStatus,
 		"syncStatus":    q.SyncStatus,
 		"hasException":  q.HasException,
+		"warehouseId":   q.WarehouseID,
 		"sort":          "updated_at_desc_id_desc",
 	}), shopScope
 }
@@ -368,14 +372,24 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 		th = 0
 	}
 
+	var filterWh *Warehouse
+	if q.WarehouseID != nil && *q.WarehouseID != uuid.Nil {
+		wh, err := s.GetWarehouse(ctx, q.TenantID, *q.WarehouseID)
+		if err != nil {
+			return nil, err
+		}
+		filterWh = wh
+	}
 	base := s.buildSKUAlertBaseTX(ctx, skuAlertBaseQuery{
-		Keyword:       q.Keyword,
-		ProductID:     q.ProductID,
-		ProductSkuID:  q.ProductSkuID,
-		Platform:      q.Platform,
-		ShopID:        q.ShopID,
-		StockStatus:   q.StockStatus,
-		OnlyPublished: false,
+		Keyword:            q.Keyword,
+		ProductID:          q.ProductID,
+		ProductSkuID:       q.ProductSkuID,
+		Platform:           q.Platform,
+		ShopID:             q.ShopID,
+		StockStatus:        q.StockStatus,
+		OnlyPublished:      false,
+		WarehouseID:        q.WarehouseID,
+		WarehouseIsDefault: filterWh != nil && filterWh.IsDefault,
 	})
 	base = base.Where("p.tenant_id = ?", q.TenantID)
 	if strings.TrimSpace(q.AlertStatus) != "" {
@@ -456,13 +470,25 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 	}
 	taskByPub := s.loadLatestTasksByPubSku(ctx, pubIDs)
 	lastLog := s.loadMaxLogTimeBySku(ctx, skuIDs)
+	totalsBySku := map[uuid.UUID]int{}
+	for _, r := range scans {
+		totalsBySku[r.ID] = derefStock(r.Stock)
+	}
+	whBreakdown, whErr := s.warehouseStockBreakdownBatch(ctx, q.TenantID, totalsBySku)
+	if whErr != nil {
+		return nil, whErr
+	}
 	lastDeduct := s.loadLastDeductBySku(ctx, skuIDs)
 	exCounts := s.loadExceptionCountsBySku(ctx, skuIDs)
 	orderCounts := s.loadAffectedOrderCountsBySku(ctx, skuIDs)
 
 	items := make([]InventoryCenterEntry, 0, len(scans))
 	for _, row := range scans {
-		st := product.CalculateSKUStockStatus(derefStock(row.Stock), row.WarningStock, row.SafetyStock)
+		displayStock := derefStock(row.Stock)
+		if filterWh != nil {
+			displayStock = derefStock(row.WhStock)
+		}
+		st := product.CalculateSKUStockStatus(displayStock, row.WarningStock, row.SafetyStock)
 		alerts := make([]string, 0, 6)
 		if pol.EnableInventoryAlerts {
 			switch st {
@@ -521,7 +547,7 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 			stocks = append(stocks, ent)
 		}
 
-		localStock := derefStock(row.Stock)
+		localStock := displayStock
 		alertEntry := InventoryAlertEntry{
 			ProductID:             row.ProductID,
 			ProductTitle:          row.ProductTitle,
@@ -535,6 +561,7 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 			AlertTypes:            alerts,
 			PublicationCount:      len(stocks),
 			PlatformStocks:        stocks,
+			WarehouseStocks:       whBreakdown[row.ID],
 			LastInventoryChangeAt: ptrTime(lastLog[row.ID]),
 		}
 		if worstFail != nil {

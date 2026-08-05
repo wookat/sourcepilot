@@ -50,6 +50,10 @@ const (
 	// ChangePurchaseInbound is written by the procurement module when a
 	// purchase order is marked delivered (cloud warehouse inbound).
 	ChangePurchaseInbound = "purchase_inbound"
+	// ChangeTransferOut / ChangeTransferIn are the paired ledger rows written
+	// atomically by one warehouse-to-warehouse transfer (SKU total unchanged).
+	ChangeTransferOut = "warehouse_transfer_out"
+	ChangeTransferIn  = "warehouse_transfer_in"
 )
 
 // Platform-side snapshot status vs local SKU stock (alerts only).

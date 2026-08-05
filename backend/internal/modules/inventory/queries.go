@@ -249,6 +249,9 @@ func (s *Service) ListGlobalLogs(ctx context.Context, q GlobalLogsQuery) (*Pagin
 	if q.RefOrderID != nil && *q.RefOrderID != uuid.Nil {
 		tx = tx.Where("ref_order_id = ?", *q.RefOrderID)
 	}
+	if q.WarehouseID != nil && *q.WarehouseID != uuid.Nil {
+		tx = tx.Where("warehouse_id = ?", *q.WarehouseID)
+	}
 	if strings.TrimSpace(q.ChangeType) != "" {
 		tx = tx.Where("change_type = ?", strings.TrimSpace(q.ChangeType))
 	}
@@ -306,6 +309,24 @@ func (s *Service) enrichChangeLogRows(rows []InventoryChangeLog) []ChangeLogDTO 
 			skuInfo[m.ID] = m
 		}
 	}
+	whName := map[uuid.UUID]string{}
+	{
+		whIDs := make([]uuid.UUID, 0, 4)
+		seenWh := map[uuid.UUID]bool{}
+		for _, r := range rows {
+			if r.WarehouseID != nil && *r.WarehouseID != uuid.Nil && !seenWh[*r.WarehouseID] {
+				seenWh[*r.WarehouseID] = true
+				whIDs = append(whIDs, *r.WarehouseID)
+			}
+		}
+		if len(whIDs) > 0 {
+			var whs []Warehouse
+			_ = s.DB.Unscoped().Where("id IN ?", whIDs).Find(&whs).Error
+			for _, w := range whs {
+				whName[w.ID] = w.Name
+			}
+		}
+	}
 	orderNo := map[uuid.UUID]string{}
 	if len(orderIDs) > 0 {
 		type orderMini struct {
@@ -348,6 +369,11 @@ func (s *Service) enrichChangeLogRows(rows []InventoryChangeLog) []ChangeLogDTO 
 		}
 		if r.RefOrderID != nil {
 			dto.RefOrderNo = orderNo[*r.RefOrderID]
+		}
+		if r.WarehouseID != nil && *r.WarehouseID != uuid.Nil {
+			wid := *r.WarehouseID
+			dto.WarehouseID = &wid
+			dto.WarehouseName = whName[wid]
 		}
 		items = append(items, dto)
 	}

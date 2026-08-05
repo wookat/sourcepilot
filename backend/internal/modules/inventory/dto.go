@@ -17,6 +17,10 @@ type AdjustStockBody struct {
 	Reason string `json:"reason"`
 	Remark string `json:"remark"`
 	Sync   bool   `json:"sync"`
+	// WarehouseID targets one warehouse: stock is set for that warehouse and
+	// the SKU total moves by the same delta. Empty keeps the legacy behaviour
+	// (set the SKU total; movement attributed to the default warehouse).
+	WarehouseID string `json:"warehouseId"`
 }
 
 // PublicationSkuSyncBody POST /product-publication-skus/:id/sync-inventory
@@ -94,6 +98,8 @@ type ChangeLogDTO struct {
 	SKUCode        string     `json:"skuCode,omitempty"`
 	SKUName        string     `json:"skuName,omitempty"`
 	RefOrderNo     string     `json:"refOrderNo,omitempty"`
+	WarehouseID    *uuid.UUID `json:"warehouseId,omitempty"`
+	WarehouseName  string     `json:"warehouseName,omitempty"`
 	ChangeType     string     `json:"changeType"`
 	BeforeStock    int        `json:"beforeStock"`
 	AfterStock     int        `json:"afterStock"`
@@ -132,6 +138,7 @@ type GlobalLogsQuery struct {
 	ProductID    *uuid.UUID
 	ProductSKUID *uuid.UUID
 	RefOrderID   *uuid.UUID
+	WarehouseID  *uuid.UUID
 	ChangeType   string
 	Start        *time.Time
 	End          *time.Time
@@ -165,23 +172,26 @@ type PlatformStockAlertEntry struct {
 
 // InventoryAlertEntry is one local SKU row in the inventory alerts list.
 type InventoryAlertEntry struct {
-	ProductID             uuid.UUID                 `json:"productId"`
-	ProductTitle          string                    `json:"productTitle"`
-	ProductSkuID          uuid.UUID                 `json:"productSkuId"`
-	SKUCode               string                    `json:"skuCode"`
-	SKUName               string                    `json:"skuName"`
-	Stock                 int                       `json:"stock"`
-	WarningStock          int                       `json:"warningStock"`
-	SafetyStock           int                       `json:"safetyStock"`
-	StockStatus           string                    `json:"stockStatus"`
-	AlertTypes            []string                  `json:"alertTypes"`
-	PublicationCount      int                       `json:"publicationCount"`
-	PlatformStocks        []PlatformStockAlertEntry `json:"platformStocks"`
-	LastInventoryChangeAt *time.Time                `json:"lastInventoryChangeAt,omitempty"`
-	LastSyncTaskID        *uuid.UUID                `json:"lastSyncTaskId,omitempty"`
-	LastSyncStatus        string                    `json:"lastSyncStatus,omitempty"`
-	LastSyncError         string                    `json:"lastSyncError,omitempty"`
-	LastSyncAt            *time.Time                `json:"lastSyncAt,omitempty"`
+	ProductID        uuid.UUID                 `json:"productId"`
+	ProductTitle     string                    `json:"productTitle"`
+	ProductSkuID     uuid.UUID                 `json:"productSkuId"`
+	SKUCode          string                    `json:"skuCode"`
+	SKUName          string                    `json:"skuName"`
+	Stock            int                       `json:"stock"`
+	WarningStock     int                       `json:"warningStock"`
+	SafetyStock      int                       `json:"safetyStock"`
+	StockStatus      string                    `json:"stockStatus"`
+	AlertTypes       []string                  `json:"alertTypes"`
+	PublicationCount int                       `json:"publicationCount"`
+	PlatformStocks   []PlatformStockAlertEntry `json:"platformStocks"`
+	// WarehouseStocks lists the per-warehouse breakdown (with warehouse names
+	// for alert copy); empty when the tenant only has the default warehouse.
+	WarehouseStocks       []WarehouseStockEntry `json:"warehouseStocks,omitempty"`
+	LastInventoryChangeAt *time.Time            `json:"lastInventoryChangeAt,omitempty"`
+	LastSyncTaskID        *uuid.UUID            `json:"lastSyncTaskId,omitempty"`
+	LastSyncStatus        string                `json:"lastSyncStatus,omitempty"`
+	LastSyncError         string                `json:"lastSyncError,omitempty"`
+	LastSyncAt            *time.Time            `json:"lastSyncAt,omitempty"`
 }
 
 // AlertsListQuery filters GET /inventory/alerts.

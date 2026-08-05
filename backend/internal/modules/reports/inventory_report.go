@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"gorm.io/gorm"
 )
 
 const (
@@ -51,14 +52,18 @@ type InventorySummary struct {
 	TurnoverDays     *float64 `json:"turnoverDays,omitempty"`
 }
 
-// InventoryReportDTO is GET /reports/inventory.
+// InventoryReportDTO is GET /reports/inventory. WarehouseID/WarehouseName are
+// set when the report is scoped to one warehouse; empty means the
+// all-warehouse aggregate (identical to the pre-multi-warehouse report).
 type InventoryReportDTO struct {
-	GeneratedAt string            `json:"generatedAt"`
-	SlowDays    int               `json:"slowDays"`
-	Currency    string            `json:"currency"`
-	Summary     InventorySummary  `json:"summary"`
-	SlowMoving  []InventorySKURow `json:"slowMoving"`
-	LowStock    []InventorySKURow `json:"lowStock"`
+	GeneratedAt   string            `json:"generatedAt"`
+	SlowDays      int               `json:"slowDays"`
+	Currency      string            `json:"currency"`
+	WarehouseID   string            `json:"warehouseId,omitempty"`
+	WarehouseName string            `json:"warehouseName,omitempty"`
+	Summary       InventorySummary  `json:"summary"`
+	SlowMoving    []InventorySKURow `json:"slowMoving"`
+	LowStock      []InventorySKURow `json:"lowStock"`
 }
 
 type invSKUScan struct {
@@ -77,7 +82,7 @@ type invSKUScan struct {
 // value at reference purchase price, turnover days, slow-moving SKUs (no
 // outbound in slowDays) and the low-stock list driven by the existing
 // per-SKU warning thresholds.
-func (s *Service) InventoryReport(c *gin.Context, slowDays int) (*InventoryReportDTO, error) {
+func (s *Service) InventoryReport(c *gin.Context, slowDays int, warehouseID *uuid.UUID) (*InventoryReportDTO, error) {
 	if slowDays <= 0 {
 		slowDays = slowDaysDefault
 	}
@@ -91,15 +96,44 @@ func (s *Service) InventoryReport(c *gin.Context, slowDays int) (*InventoryRepor
 		tenantID = 0
 	}
 
+	var wh *inventory.Warehouse
+	if warehouseID != nil && *warehouseID != uuid.Nil {
+		var w inventory.Warehouse
+		if err := s.DB.WithContext(ctx).
+			Where("tenant_id = ? AND id = ?", tenantID, *warehouseID).
+			First(&w).Error; err != nil {
+			return nil, inventory.ErrWarehouseNotFound
+		}
+		wh = &w
+	}
+
 	// SKUs joined to products (tenant scope). Reference purchase prices are
-	// resolved separately from the primary source SKU mappings.
+	// resolved separately from the primary source SKU mappings. With a
+	// warehouse filter, stock is the warehouse-scoped quantity: the default
+	// warehouse holds the SKU total minus stock parked in other warehouses,
+	// matching the inventory center's per-warehouse breakdown.
+	stockExpr := "sk.stock"
+	args := []any{}
+	if wh != nil {
+		if wh.IsDefault {
+			stockExpr = `(COALESCE(sk.stock,0) - COALESCE((
+				SELECT SUM(wsx.stock) FROM warehouse_stocks wsx
+				JOIN warehouses wx ON wx.id = wsx.warehouse_id AND wx.deleted_at IS NULL AND wx.is_default = FALSE
+				WHERE wsx.product_sku_id = sk.id),0))`
+		} else {
+			stockExpr = `COALESCE((SELECT wsy.stock FROM warehouse_stocks wsy
+				WHERE wsy.warehouse_id = ? AND wsy.product_sku_id = sk.id),0)`
+			args = append(args, wh.ID)
+		}
+	}
+	args = append(args, tenantID)
 	var rows []invSKUScan
 	if err := s.DB.WithContext(ctx).Raw(`
 SELECT sk.id AS sku_id, sk.product_id, p.title, sk.sku_name, sk.sku_code,
-       sk.stock, sk.warning_stock, sk.safety_stock, sk.cost_price
+       `+stockExpr+` AS stock, sk.warning_stock, sk.safety_stock, sk.cost_price
 FROM product_skus sk
 JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL
-WHERE p.tenant_id = ?`, tenantID).Scan(&rows).Error; err != nil {
+WHERE p.tenant_id = ?`, args...).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 
@@ -112,7 +146,7 @@ WHERE p.tenant_id = ?`, tenantID).Scan(&rows).Error; err != nil {
 	for _, r := range rows {
 		skuIDs = append(skuIDs, r.SKUID)
 	}
-	lastOut, outboundQty, err := s.outboundStats(c, tenantID, skuIDs)
+	lastOut, outboundQty, err := s.outboundStats(c, tenantID, skuIDs, wh)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +159,10 @@ WHERE p.tenant_id = ?`, tenantID).Scan(&rows).Error; err != nil {
 		Currency:    "CNY",
 		SlowMoving:  []InventorySKURow{},
 		LowStock:    []InventorySKURow{},
+	}
+	if wh != nil {
+		out.WarehouseID = wh.ID.String()
+		out.WarehouseName = wh.Name
 	}
 
 	var stockValue float64
@@ -238,12 +276,24 @@ ORDER BY ps.id, pss.id`, tenantID, true).Scan(&rows).Error; err != nil {
 // outboundStats returns each SKU's most recent outbound time (any horizon)
 // and the total outbound quantity over the turnover window. Outbound =
 // negative-delta stock changes from order deductions or manual adjustments.
-func (s *Service) outboundStats(c *gin.Context, tenantID int64, skuIDs []uuid.UUID) (map[uuid.UUID]time.Time, int64, error) {
+func (s *Service) outboundStats(c *gin.Context, tenantID int64, skuIDs []uuid.UUID, wh *inventory.Warehouse) (map[uuid.UUID]time.Time, int64, error) {
 	lastOut := map[uuid.UUID]time.Time{}
 	if len(skuIDs) == 0 {
 		return lastOut, 0, nil
 	}
 	ctx := c.Request.Context()
+
+	// Ledger rows written before multi-warehouse have a NULL warehouse_id and
+	// belong to the default warehouse.
+	warehouseScope := func(tx *gorm.DB) *gorm.DB {
+		if wh == nil {
+			return tx
+		}
+		if wh.IsDefault {
+			return tx.Where("(warehouse_id IS NULL OR warehouse_id = ?)", wh.ID)
+		}
+		return tx.Where("warehouse_id = ?", wh.ID)
+	}
 
 	type lastRow struct {
 		ProductSKUID uuid.UUID `gorm:"column:product_sku_id"`
@@ -256,7 +306,7 @@ func (s *Service) outboundStats(c *gin.Context, tenantID int64, skuIDs []uuid.UU
 			j = len(skuIDs)
 		}
 		var rows []lastRow
-		if err := s.DB.WithContext(ctx).Model(&inventory.InventoryChangeLog{}).
+		if err := warehouseScope(s.DB.WithContext(ctx).Model(&inventory.InventoryChangeLog{})).
 			Select("product_sku_id, MAX(created_at) AS at").
 			Where("tenant_id = ? AND product_sku_id IN ? AND delta < 0", tenantID, skuIDs[i:j]).
 			Group("product_sku_id").Scan(&rows).Error; err != nil {
@@ -273,7 +323,7 @@ func (s *Service) outboundStats(c *gin.Context, tenantID int64, skuIDs []uuid.UU
 	var total struct {
 		Qty *int64 `gorm:"column:qty"`
 	}
-	if err := s.DB.WithContext(ctx).Model(&inventory.InventoryChangeLog{}).
+	if err := warehouseScope(s.DB.WithContext(ctx).Model(&inventory.InventoryChangeLog{})).
 		Select("SUM(-delta) AS qty").
 		Where("tenant_id = ? AND delta < 0 AND created_at >= ?", tenantID, since).
 		Scan(&total).Error; err != nil {

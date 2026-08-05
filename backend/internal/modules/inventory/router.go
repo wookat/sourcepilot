@@ -14,6 +14,15 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/product-publication-skus/:id/sync-inventory", h.SyncPublicationSku)
 	g.POST("/products/:id/sync-inventory", h.BatchSyncProduct)
 
+	g.GET("/inventory/warehouses", h.ListWarehouses)
+	g.GET("/inventory/warehouses/summary", h.GetWarehouseSummary)
+	g.GET("/inventory/warehouses/migration-preview", h.GetWarehouseMigrationPreview)
+	g.POST("/inventory/warehouses", h.CreateWarehouse)
+	g.PUT("/inventory/warehouses/:id", h.UpdateWarehouse)
+	g.DELETE("/inventory/warehouses/:id", h.DeleteWarehouse)
+	g.POST("/inventory/transfers", h.TransferStock)
+	g.GET("/inventory/sku-warehouse-stocks", h.GetSKUWarehouseStocks)
+
 	g.GET("/inventory", h.ListCenter)
 	g.GET("/inventory/logs", h.ListGlobalLogs)
 	g.GET("/inventory/effects", h.ListGlobalOrderEffects)
