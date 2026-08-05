@@ -247,6 +247,12 @@ func (s *Service) decideReview(c *gin.Context, body ReviewDecisionBody, adminID 
 			if err := tx.First(&o, "id = ? AND tenant_id = ? AND deleted_at IS NULL", oid, tid).Error; err != nil {
 				return fmt.Errorf("订单不存在")
 			}
+			// Store scope must gate the decision itself: the workbench list is
+			// scoped, but ids arrive from the client and an operator may only
+			// approve / reject orders of the stores granted to the account.
+			if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
+				return fmt.Errorf("订单不存在")
+			}
 			row.OrderNo = o.OrderNo
 			if !reviewBlocked(o.ReviewStatus) {
 				return fmt.Errorf("订单不在待审核或挂起状态")
