@@ -83,6 +83,21 @@ seed 同时幂等保证三个 Demo RBAC 账号存在且密码与文档一致（�
 
 前置：PostgreSQL/Redis 已启动（`pnpm dev:infra`），根目录 `.env` 数据库配置正确。`APP_ENV=production` 时拒绝执行。既有的 API 驱动脚本 `pnpm seed:demo-data`（20 商品 slot / Dashboard 探测）仍可独立使用，两者互不依赖。
 
+## 性能压测种子数据（seedperf）
+
+面向性能审计 / 压测场景的万级数据集（约 1 万订单、2 万订单行、5 千采购单、3 万库存流水、2 万自动化执行日志、1.2 万回款、2 万费用、2 千商品与货源、选品任务样本）。所有数据带 `PERF-` 前缀，与 `DEMO-` 演示数据完全隔离，互不影响。
+
+```bash
+pnpm seed:perf           # 种子（幂等：先清理旧 PERF- 数据再重建）
+pnpm seed:perf:clean     # 一键清理，只删 PERF- 前缀数据
+pnpm seed:perf:verify    # 复核清理后零残留（有残留退出码非 0）
+
+# 等价直跑（backend 目录）：
+go run ./cmd/seedperf -mode seed|clean|verify [-tenant N]
+```
+
+`-tenant` 缺省为自动：取最早创建的管理员的 `tenant_id`。前置与 seeddemo 相同（PostgreSQL/Redis 已启动、`.env` 正确）；`APP_ENV=production` 时拒绝执行。
+
 ## 默认端口
 
 | 服务 | 默认地址 |

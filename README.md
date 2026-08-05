@@ -205,6 +205,14 @@ pnpm seed:demo:full:clean    # 仅清理 DEMO- 前缀数据
 
 在宿主机直跑上述 Go 种子而 `.env` 的 `DB_HOST` 为容器服务名 `postgres` 时，需临时覆盖 `DB_HOST=127.0.0.1`（详见 [docs/DEMO_SEEDING_GUIDE.md](docs/DEMO_SEEDING_GUIDE.md)）。
 
+性能压测种子（`PERF-` 前缀万级数据，与演示数据隔离，详见 [docs/development.md](docs/development.md)）：
+
+```bash
+pnpm seed:perf               # 万级压测数据（PERF- 前缀，幂等）
+pnpm seed:perf:clean         # 只清理 PERF- 前缀数据
+pnpm seed:perf:verify        # 复核清理后零残留
+```
+
 Linux / macOS 需先安装 [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)，再执行 `bash scripts/seed-demo-data.sh`。详见 [docs/DEMO_SEEDING_GUIDE.md](docs/DEMO_SEEDING_GUIDE.md)。
 
 ### 本地开发

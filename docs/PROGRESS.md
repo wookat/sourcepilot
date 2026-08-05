@@ -740,6 +740,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-08-05 | **R122 线1 性能收口 v2**：新增 `cmd/seedperf` + `internal/modules/perfseed` 万级压测种子（`PERF-` 前缀，1 万订单/5 千采购/3 万库存流水/2 万自动化日志/1.2 万回款/2 万费用，独立于 DEMO- seed，幂等、clean/verify 零残留、production 拒绝；`pnpm seed:perf(:clean/:verify)`）；慢查询治理：`/orders/exceptions` 聚合排序 O(n²) 插入排序改 `sort.SliceStable`（万级异常行 p50 ~2373ms → ~278ms）、`migrate_round122` 补三个复合索引（orders 租户+支付状态+时间、order_automation_logs / inventory_change_logs 租户+时间，日志深分页 p500 ~31ms → ~7ms）；自动化规则引擎新增集成压测 `automation_engine_load_test.go`（10k order_created：首轮 ~74 events/s、重放幂等 ~404 events/s、dedup 零重复，默认 500 条快跑、`PERF_AUTOMATION_ORDERS` 放大）；前端万级数据下核心列表/报表页加载 1.2–2.2s、分页正常，Lighthouse 登录页无回退。财务对账/报表与利润报表全量装载聚合列为 P2 |
 | 2026-08-05 | **R114 审单规则**：`order_review_rules`/`order_review_hits` AutoMigrate；订单 `reviewStatus`；创建动线跑规则引擎（首个命中定动作、全部命中落快照）；审单工作台 `/orders/review`（单个/批量放行、拒绝入取消动线、命中原因可见）；待审/挂起后端强制阻断采购单与发货；管理页 `/settings/order-review-rules`（增删改/排序/启停/dry-run）；demoseed R114 规则与命中样本 clean/verify 零残留；contracts 66 端点、permmatrix +8、后端/前端/E2E 测试补齐；`docs/api.md`、`docs/module-map.md` 同步 |
 | 2026-08-04 | **R107 P2 收口（R106 复检后续）**：前端 `AUTH_STATE_UNAVAILABLE` 专门处理（不登出、「服务暂时不可用，正在自动重试」提示 + 指数退避自动重试，恢复后无感续用，与 401 重登守卫区分；覆盖 umi 拦截器 / fetch 守卫 / 启动期 profile 三链路）；UX v5 P2 收口（AI 未配置统一 banner 落地新手入门/采集/AI 工作台、新手入门第 1 步按设置权限降级、`GET /healthz` 别名）；v11 P2 复核（生产写闸门补 `real_credentials_forbidden`/`unsupported_adapter_mode` 中文文案，告警取消标记租户隔离回归通过） |
 | 2026-08-04 | **R106 季度生产复检（部署/升级/语义抽查）**：从零 production+Caddy 部署（全新 VM）275 秒、HTTPS 登录累计 <7 分钟，launch-checklist 14 项验证全过；旧版本（R101/#214）→ 新版本升级演练通过（存量 collect_rules 归 tenant 0、task_alerts 按来源租户回填、租户 settings 归属正确、业务无回退、迁移幂等）；语义抽查通过（tenant0 写闸门、legacy token 拒绝、ORIGIN_NOT_ALLOWED、业务租户 /ops 403、备份 verify/download SHA-256 一致、恢复演练）。修复 P1：secure_session 下 `ValidateSessionAccess` 将数据库瞬断误报为 `AUTH_SESSION_REVOKED`（前端强制登出），改为 30s last-known-good 快照 + `AUTH_STATE_UNAVAILABLE` fail-closed（与 R103 legacy 路径同口径，补 Go 回归）；文档纠偏：恢复命令 `docker compose exec -T` stdin 损坏二进制流改 `docker exec -i`、`--pre-upgrade-check` 非 root 需 `BACKUP_DIR` 覆盖、env.md 补 fail-closed 语义 |
@@ -1707,6 +1708,12 @@ Final Production Acceptance Deferred to P10
 - 前端构建链 `pnpm.overrides` / `pnpm-workspace.yaml` 补 `axios 0.33.0`、`immer 9.0.21`（两者均为 `@umijs/plugins` 传递依赖，仓库未直接声明）：`pnpm audit --prod` critical 1→0、high 14→3、moderate 21→9、low 5→4；`axios` 覆盖 SSRF / 代理绕过 / 原型污染 / 头注入 / 凭据泄露等 9 条通告，`immer` 覆盖唯一一条 critical 原型污染。`pnpm build:admin`、`pnpm test:frontend`（41 套 283 用例）、`pnpm test:contracts` 全绿。
 - 未处理并列入 P2（均为构建期或框架内部固定版本，补丁需跨大版本或与 umi 4 绑定）：`react-router 6.3.0`（umi 4 内部固定）、`node-fetch 1.7.3`（dva → isomorphic-fetch 传递）、`vite` / `esbuild`（devDependencies）、`send`、`elliptic`、`hono` / `@hono/node-server`。
 - `govulncheck ./...`：0 命中（另有 1 条仅存在于 require 图、代码未调用）。
+
+### 变更记录（2026-08-05）第 123 轮：验收前最终全站大回归 v17（qa-engineer）
+
+- **大回归 v17**：基于 main（#254–#260 已合并）本地叠加 #261 perf/round122（合并无冲突）。全量门禁通过：go build/vet/gofmt/test（97 包）+ 集成（integration/redis，TEST_DATABASE_URL/TEST_REDIS_URL）、contracts 15、frontend 46 文件 315 用例、collector 18、build:admin/collector、`check:ui-copy --strict`；全量 admin/e2e 280 passed / 3 skipped（webServer 冷构建超 120s 超时，改为预启 `max preview :8001` 复用后全绿，非用例失败）。Docker 全栈（当前分支镜像）+ `seed:demo:full` 实走 R57 主链路、R119 自动化（正样本 DEMO-AT-1004 标记已付款→生成采购单成功并跳转、负样本 DEMO-AT-1002 SKU 未匹配安全阻断、DEMO-AT-1003 跳过、?tab=automation 深链）、R119 买家消息闭环、R120 数据面板/趋势/对比 CSV、R121 回款登记→CSV 导入→差异工作台→实算毛利→对账报表、R122 收口面 + #261 索引后订单/日志/报表/选品页加载无回退且 SQL 数值对照 4 处全一致、审单/多仓/订单导入/375 底部导航叠加面；双租户（Redis 注入验证码正规开租、数据隔离、越权 not found）三角色三视口硬指标全零；clean+verify `zero DEMO- residual rows`。
+- **零 P0/P1 产品缺陷**。上报的「DEMO-AT-1001 未被阻断」核对 seed 源码（`fulldemo_round119.go`）确认 1001 本就是自动确认付款成功样本、阻断负样本是 1002，属走查 skill 文档口径漂移而非缺陷——本轮修正 `demo-fullstack-walkthrough` SKILL（样本映射 + demo_operator/readonly 实际密码 DemoOperator123!/DemoReadonly123!）。P2×1 遗留：768 视口同时出现侧栏汉堡与移动端底部导航（无溢出，断点意图待确认）。
+- **合并结论：#261 可合并**（叠加后全部门禁与实走通过，无其他待合并批次，直接合入 main 即可）。
 
 ### 变更记录（2026-08-05）第 121 轮：大回归 v16 + UX 视觉复核 v7（qa-engineer / user-experience-officer）
 
