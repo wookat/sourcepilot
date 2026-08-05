@@ -238,6 +238,7 @@ export default function LoginPage() {
 
             {activeTab === 'login' ? (
               <Form
+                key="login"
                 form={loginForm}
                 layout="vertical"
                 onFinish={onLogin}
@@ -310,6 +311,7 @@ export default function LoginPage() {
               </Form>
             ) : (
               <Form
+                key="register"
                 form={registerForm}
                 layout="vertical"
                 onFinish={onRegister}

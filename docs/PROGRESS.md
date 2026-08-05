@@ -1705,3 +1705,9 @@ Final Production Acceptance Deferred to P10
 - 前端构建链 `pnpm.overrides` / `pnpm-workspace.yaml` 补 `axios 0.33.0`、`immer 9.0.21`（两者均为 `@umijs/plugins` 传递依赖，仓库未直接声明）：`pnpm audit --prod` critical 1→0、high 14→3、moderate 21→9、low 5→4；`axios` 覆盖 SSRF / 代理绕过 / 原型污染 / 头注入 / 凭据泄露等 9 条通告，`immer` 覆盖唯一一条 critical 原型污染。`pnpm build:admin`、`pnpm test:frontend`（41 套 283 用例）、`pnpm test:contracts` 全绿。
 - 未处理并列入 P2（均为构建期或框架内部固定版本，补丁需跨大版本或与 umi 4 绑定）：`react-router 6.3.0`（umi 4 内部固定）、`node-fetch 1.7.3`（dva → isomorphic-fetch 传递）、`vite` / `esbuild`（devDependencies）、`send`、`elliptic`、`hono` / `@hono/node-server`。
 - `govulncheck ./...`：0 命中（另有 1 条仅存在于 require 图、代码未调用）。
+
+### 变更记录（2026-08-05）第 121 轮：大回归 v16 + UX 视觉复核 v7（qa-engineer / user-experience-officer）
+
+- **大回归 v16**：基于 main（R119 #254/#255 已合并）本地叠加 #256/#257（冲突仅 `docs/PROGRESS.md` 双 Round 120 条目）。全量门禁通过：go build/vet/fmt/test、contracts 14、frontend 45 文件 305 用例、collector 18、build:admin/collector、`check:ui-copy --strict`；CI=1 admin/e2e 268 passed / 3 skipped。Docker 全栈 + `seed:demo:full` 实测 R57 主链路、R119 自动化规则（含确认支付触发、日志/重试、时间线 tab/深链、审单/多仓/导入叠加面）、R119 买家消息闭环、R120 选品面板/走势/对比 CSV；双租户三角色三视口硬指标全零；clean+verify 零残留。唯一未覆盖：自动生成采购单正向样本（demo seed 无本地 SKU 匹配订单，负向安全拦截已验证）。
+- **P1 修复两条（V6 P1-1 回归的双重根因）**：① 登录/注册两个 `<Form>` 同位三元切换被 React 复用实例，antd Form 始终绑定初始 `loginForm`，注册「获取验证码」请求体缺 `email` → 400 → 「发送失败」——两 Form 加独立 `key` 强制重挂载，补 `round120-register-send-code` E2E；② `admin/nginx.conf` `error_page 502 503 504` 把后端业务 503（50301 SMTP 指引、AUTH_STATE_UNAVAILABLE 契约）吞成「系统升级维护中」——仅拦 502/504，503 透传。
+- **UX 视觉复核 v7**：报告归档 `docs/ux-review/UX_REVIEW_V7_REPORT.md`；无 P0；P2 清单四条（自动化日志小屏行高、买家消息保存瞬时渲染、选品摘要 768 竖排折行、`/purchase/orders` 深链 404）。结论：**#257 可合并；#256 功能验证通过但需先解 `docs/PROGRESS.md` 冲突再合并**。
