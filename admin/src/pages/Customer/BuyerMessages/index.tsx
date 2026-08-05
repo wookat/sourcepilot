@@ -574,7 +574,15 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
             dataIndex: 'enabled',
             width: 80,
             render: (v: boolean, row) => (
-              <Tooltip title={row.templateMissing && !v ? '模板已删除，请先编辑规则重新选择模板后再启用' : ''}>
+              <Tooltip
+                title={
+                  row.templateMissing
+                    ? v
+                      ? '模板已删除，该规则已不再生成草稿；可停用或编辑规则重新选择模板'
+                      : '模板已删除，请先编辑规则重新选择模板后再启用'
+                    : ''
+                }
+              >
                 <Switch
                   checked={v}
                   size="small"
