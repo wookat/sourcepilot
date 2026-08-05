@@ -880,6 +880,8 @@
         "platforms",
         "shopIds",
         "requireReviewPassed",
+        "shippingApplyMode",
+        "warehouseStrategy",
         "clearMinAmount",
         "clearMaxAmount"
       ],
@@ -900,6 +902,8 @@
         "platforms",
         "shopIds",
         "requireReviewPassed",
+        "shippingApplyMode",
+        "warehouseStrategy",
         "clearMinAmount",
         "clearMaxAmount"
       ],
@@ -920,6 +924,8 @@
         "platforms",
         "shopIds",
         "requireReviewPassed",
+        "shippingApplyMode",
+        "warehouseStrategy",
         "clearMinAmount",
         "clearMaxAmount"
       ],

@@ -38,13 +38,28 @@ type Order struct {
 	// ShipReadyNotifiedAt marks when the shipping workbench was notified that
 	// the order's procurement was signed in (自动化「通知发货工作台」动作); it
 	// is informational and never gates the shipping flow.
-	ShipReadyNotifiedAt *time.Time     `gorm:"index" json:"shipReadyNotifiedAt,omitempty"`
-	DeliveredAt         *time.Time     `json:"deliveredAt,omitempty"`
-	PlatformUpdatedAt   *time.Time     `gorm:"index" json:"platformUpdatedAt,omitempty"`
-	PlatformRevision    string         `gorm:"size:128;index" json:"platformRevision,omitempty"`
-	Remark              string         `gorm:"type:text" json:"remark,omitempty"`
-	RawData             datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
-	CreatedBy           *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	ShipReadyNotifiedAt *time.Time `gorm:"index" json:"shipReadyNotifiedAt,omitempty"`
+	// PlannedCarrier* snapshot the R111发货规则 outcome landed by the自动化
+	// 「自动应用发货规则」 action (or a future manual pick). The plan is advisory:
+	// the ship flow still lets the operator choose any carrier (人工覆盖).
+	PlannedCarrierCode string `gorm:"size:64" json:"plannedCarrierCode,omitempty"`
+	PlannedCarrierName string `gorm:"size:128" json:"plannedCarrierName,omitempty"`
+	// PlannedCarrierMode is recommend (仅推荐) or apply (直接应用).
+	PlannedCarrierMode string     `gorm:"size:16" json:"plannedCarrierMode,omitempty"`
+	PlannedCarrierRule string     `gorm:"size:128" json:"plannedCarrierRule,omitempty"`
+	PlannedCarrierAt   *time.Time `json:"plannedCarrierAt,omitempty"`
+	// AssignedWarehouse* snapshot the自动分仓 outcome; deductions without an
+	// explicit warehouse pin to the assigned warehouse (多仓扣减联动).
+	AssignedWarehouseID       *uuid.UUID     `gorm:"type:char(36);index" json:"assignedWarehouseId,omitempty"`
+	AssignedWarehouseName     string         `gorm:"size:128" json:"assignedWarehouseName,omitempty"`
+	AssignedWarehouseStrategy string         `gorm:"size:32" json:"assignedWarehouseStrategy,omitempty"`
+	WarehouseAssignedAt       *time.Time     `json:"warehouseAssignedAt,omitempty"`
+	DeliveredAt               *time.Time     `json:"deliveredAt,omitempty"`
+	PlatformUpdatedAt         *time.Time     `gorm:"index" json:"platformUpdatedAt,omitempty"`
+	PlatformRevision          string         `gorm:"size:128;index" json:"platformRevision,omitempty"`
+	Remark                    string         `gorm:"type:text" json:"remark,omitempty"`
+	RawData                   datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
+	CreatedBy                 *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 
 	Items     []OrderItem     `gorm:"foreignKey:OrderID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"items,omitempty"`
 	Shipments []OrderShipment `gorm:"foreignKey:OrderID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"shipments,omitempty"`

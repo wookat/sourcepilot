@@ -13,6 +13,9 @@ type orderMirror struct {
 	OrderNo       string `gorm:"size:128;not null"`
 	Status        string `gorm:"size:32;not null"`
 	PaymentStatus string `gorm:"size:32;not null"`
+	// AssignedWarehouseID mirrors the order's发货仓 (自动分仓/人工指定); when set,
+	// deductions without an explicit warehouse pin to it.
+	AssignedWarehouseID *uuid.UUID `gorm:"type:char(36)"`
 }
 
 func (orderMirror) TableName() string { return "orders" }

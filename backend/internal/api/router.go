@@ -761,6 +761,24 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 			}
 			return fmt.Sprintf("已自动生成 %d 张采购单", len(res.Orders)), nil
 		},
+		PlanWarehouse: func(ctx context.Context, tenantID int64, strategy string, demands []order.AutomationWarehouseDemand) (*order.AutomationWarehousePlan, error) {
+			lines := make([]inventory.WarehouseDemand, 0, len(demands))
+			for _, d := range demands {
+				lines = append(lines, inventory.WarehouseDemand{
+					ProductSKUID: d.ProductSKUID,
+					SKUCode:      d.SKUCode,
+					Quantity:     d.Quantity,
+				})
+			}
+			plan, err := inventorySvc.PlanOrderWarehouse(ctx, tenantID, strategy, lines)
+			if err != nil {
+				return nil, err
+			}
+			return &order.AutomationWarehousePlan{
+				WarehouseID:   plan.WarehouseID,
+				WarehouseName: plan.WarehouseName,
+			}, nil
+		},
 	}
 	procurementH := &procurement.Handler{Svc: procurementSvc}
 	procurement.Register(authed, procurementH)
