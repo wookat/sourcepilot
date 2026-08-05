@@ -24,6 +24,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/alerting"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
@@ -378,6 +379,11 @@ func main() {
 		ProductPublish:  productPublishSvc,
 		InventorySync:   inventorySyncSvc,
 	})
+
+	if cfg.BuyerMessageScanEnabled {
+		customerchat.StartBuyerMsgScanner(workerCtx, &workerWG, &customerchat.Service{DB: db}, log,
+			time.Duration(cfg.BuyerMessageScanIntervalSeconds)*time.Second)
+	}
 
 	taskcenter.StartAlertScanWorker(workerCtx, &workerWG, log, tcSvc, workerReg, cfg)
 	douyinruntime.StartDouyinAlertScanWorker(workerCtx, &workerWG, log, douyinRuntimeSvc, workerReg, cfg)
