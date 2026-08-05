@@ -831,6 +831,105 @@
         "items"
       ],
       "responseData": "{ items: OrderShippingRecommendation[] }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/order-automation-rules",
+      "auth": true,
+      "responseData": "{ items: OrderAutomationRule[] }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/order-automation-rules",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "priority",
+        "enabled",
+        "triggerEvent",
+        "action",
+        "minAmount",
+        "maxAmount",
+        "platforms",
+        "shopIds",
+        "requireReviewPassed",
+        "clearMinAmount",
+        "clearMaxAmount"
+      ],
+      "responseData": "OrderAutomationRule"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/order-automation-rules/dry-run",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "priority",
+        "enabled",
+        "triggerEvent",
+        "action",
+        "minAmount",
+        "maxAmount",
+        "platforms",
+        "shopIds",
+        "requireReviewPassed",
+        "clearMinAmount",
+        "clearMaxAmount"
+      ],
+      "responseData": "{ scanned: number, matched: number, blocked: number, samples: { orderId, orderNo, amount, reason, blocked }[] }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/order-automation-rules/:ruleId",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "priority",
+        "enabled",
+        "triggerEvent",
+        "action",
+        "minAmount",
+        "maxAmount",
+        "platforms",
+        "shopIds",
+        "requireReviewPassed",
+        "clearMinAmount",
+        "clearMaxAmount"
+      ],
+      "responseData": "OrderAutomationRule"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/order-automation-rules/:ruleId",
+      "auth": true,
+      "responseData": "{ ok: boolean }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/order-automation-logs",
+      "auth": true,
+      "query": [
+        "page",
+        "pageSize",
+        "status",
+        "triggerEvent",
+        "action",
+        "ruleId",
+        "keyword"
+      ],
+      "responseData": "{ items: OrderAutomationLog[], total: number, page: number, pageSize: number, totalPages: number }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/order-automation-logs/:logId/retry",
+      "auth": true,
+      "responseData": "OrderAutomationLog"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/orders/:id/automation-logs",
+      "auth": true,
+      "responseData": "{ items: OrderAutomationLog[] }"
     }
   ]
 }

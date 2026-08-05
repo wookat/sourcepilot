@@ -9,8 +9,8 @@ const inventoryParseResult = {
   sourceFormat: 'custom',
   columns: ['SKU编码', '仓库编码', '期初数量', '参考进价'],
   rows: [
-    ['SKU-X100-BLK', 'WH-MAIN', '120', '45.00'],
-    ['SKU-X100-WHT', 'WH-MAIN', '80', '45.00'],
+    ['DEMO-SKU-1-1', 'default', '120', '45.00'],
+    ['DEMO-SKU-1-2', 'DEMO-WH-2', '80', '45.00'],
   ],
   totalRows: 2,
   mapping: { skuCode: 0, warehouseCode: 1, quantity: 2, costPrice: 3 },

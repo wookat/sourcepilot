@@ -2,14 +2,14 @@ package demoseed
 
 import (
 	"context"
-	"encoding/json"
-	"strings"
 	"testing"
 
-	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 )
 
-func TestFullDemoSeedBuyerMessages(t *testing.T) {
+// Round 119: demo自动化订单规则 + 执行日志样本 seed / cleanup / verify leave
+// zero residue.
+func TestFullDemoSeedOrderAutomationSamples(t *testing.T) {
 	db := openFullDemoTestDB(t)
 	s := &FullDemoSeeder{DB: db, TenantID: 1, AppEnv: "development"}
 
@@ -17,20 +17,20 @@ func TestFullDemoSeedBuyerMessages(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var rules []customerchat.BuyerMessageRule
+	var rules []order.OrderAutomationRule
 	if err := db.Find(&rules).Error; err != nil {
 		t.Fatal(err)
 	}
-	if len(rules) != 3 {
-		t.Fatalf("expected 3 demo buyer message rules, got %d", len(rules))
+	if len(rules) != 4 {
+		t.Fatalf("expected 4 demo automation rules, got %d", len(rules))
 	}
 	var disabled int
 	for _, r := range rules {
 		if r.TenantID != 1 {
 			t.Fatalf("rule %s wrong tenant %d", r.Name, r.TenantID)
 		}
-		if !strings.HasPrefix(r.Name, DemoPrefix) {
-			t.Fatalf("rule %s missing DEMO- prefix", r.Name)
+		if !order.AutomationActionAllowed(r.TriggerEvent, r.Action) {
+			t.Fatalf("rule %s has invalid event/action pair %s/%s", r.Name, r.TriggerEvent, r.Action)
 		}
 		if !r.Enabled {
 			disabled++
@@ -40,35 +40,14 @@ func TestFullDemoSeedBuyerMessages(t *testing.T) {
 		t.Fatalf("expected exactly one disabled demo rule, got %d", disabled)
 	}
 
-	var drafts []customerchat.BuyerMessageDraft
-	if err := db.Find(&drafts).Error; err != nil {
-		t.Fatal(err)
+	statuses := map[string]int64{}
+	for _, st := range []string{order.AutomationLogSuccess, order.AutomationLogFailed, order.AutomationLogSkipped} {
+		var n int64
+		db.Model(&order.OrderAutomationLog{}).Where("status = ?", st).Count(&n)
+		statuses[st] = n
 	}
-	if len(drafts) != 4 {
-		t.Fatalf("expected 4 demo drafts, got %d", len(drafts))
-	}
-	statuses := map[string]int{}
-	missingSample := 0
-	for _, d := range drafts {
-		if d.TenantID != 1 {
-			t.Fatalf("draft %s wrong tenant %d", d.OrderNo, d.TenantID)
-		}
-		statuses[d.Status]++
-		var miss []string
-		if len(d.MissingVars) > 0 {
-			miss = jsonList(t, d.MissingVars)
-		}
-		if len(miss) > 0 {
-			missingSample++
-		}
-	}
-	if statuses[customerchat.BuyerMsgDraftPending] != 2 ||
-		statuses[customerchat.BuyerMsgDraftSent] != 1 ||
-		statuses[customerchat.BuyerMsgDraftIgnored] != 1 {
-		t.Fatalf("draft statuses: %+v", statuses)
-	}
-	if missingSample < 1 {
-		t.Fatal("expected at least one draft with missing vars sample")
+	if statuses[order.AutomationLogSuccess] < 1 || statuses[order.AutomationLogFailed] < 1 || statuses[order.AutomationLogSkipped] < 1 {
+		t.Fatalf("expected success/failed/skipped log samples, got %+v", statuses)
 	}
 
 	if _, err := s.Cleanup(context.Background()); err != nil {
@@ -78,28 +57,19 @@ func TestFullDemoSeedBuyerMessages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if verify.Counts["buyer_message_rules"] != 0 {
-		t.Fatalf("buyer message rules residue: %d", verify.Counts["buyer_message_rules"])
+	if verify.Counts["order_automation_rules"] != 0 {
+		t.Fatalf("expected zero demo automation rules after cleanup, got %d", verify.Counts["order_automation_rules"])
 	}
-	if verify.Counts["buyer_message_drafts"] != 0 {
-		t.Fatalf("buyer message drafts residue: %d", verify.Counts["buyer_message_drafts"])
+	if verify.Counts["order_automation_logs"] != 0 {
+		t.Fatalf("expected zero demo automation logs after cleanup, got %d", verify.Counts["order_automation_logs"])
 	}
 	var residue int64
-	db.Model(&customerchat.BuyerMessageRule{}).Count(&residue)
+	db.Model(&order.OrderAutomationRule{}).Count(&residue)
 	if residue != 0 {
-		t.Fatalf("rules residue: %d", residue)
+		t.Fatalf("automation rules residue: %d", residue)
 	}
-	db.Model(&customerchat.BuyerMessageDraft{}).Count(&residue)
+	db.Model(&order.OrderAutomationLog{}).Count(&residue)
 	if residue != 0 {
-		t.Fatalf("drafts residue: %d", residue)
+		t.Fatalf("automation logs residue: %d", residue)
 	}
-}
-
-func jsonList(t *testing.T, raw []byte) []string {
-	t.Helper()
-	var out []string
-	if err := json.Unmarshal(raw, &out); err != nil {
-		t.Fatal(err)
-	}
-	return out
 }

@@ -816,6 +816,21 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `POST` | `/api/v1/order-review/approve` | 单个/批量放行：`{orderIds:[UUID]}`（≤100）→ `{total, done, failed, results:[{orderId, orderNo?, ok, error?}]}`；仅待审/挂起订单可放行，放行后 `reviewStatus=approved` 回正常流。 |
 | `POST` | `/api/v1/order-review/reject` | 单个/批量拒绝（入取消动线）：请求/返回同放行；拒绝后 `reviewStatus=rejected` 且订单 `status=cancelled`。 |
 
+### 自动化订单规则与执行日志（order-automation，round119）
+
+租户级自动化订单规则：状态事件触发（`order_created` 订单创建 / `order_paid` 已付款进入待采购 / `procurement_delivered` 采购签收入库 / `logistics_collected` 采购物流揽收）+ AND 条件（平台 / 店铺 / 金额区间 / 要求审单已通过）→ 一个站内自动动作（`confirm_payment` 自动确认付款（低风险：规则必须配置金额上限）/ `generate_procurement` 自动生成采购单 / `mark_printed` 自动标记打单 / `notify_shipping` 通知发货工作台）。规则按 `priority` 升序执行，命中的每条规则都会执行；动作按 `租户:规则:订单:事件` 幂等（成功/跳过不重复执行），失败 inline 最多 3 次尝试并可在执行日志人工重试。安全边界：`pending_review` / `held` 订单一律不自动化（沿用审单阻断），审单放行后已付款订单补触发 `order_paid`。自动动作在操作日志留痕，消息含「自动规则：规则名」。仅站内状态流转，不调用真实平台 API。写端点要求非 readonly；全部按租户隔离，越权返回 404。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/order-automation-rules` | 规则列表（租户隔离，按 `priority` 升序）：返回 `{items:[{id, name, priority, enabled, triggerEvent, action, minAmount?, maxAmount?, platforms?, shopIds?, requireReviewPassed}]}`。 |
+| `POST` | `/api/v1/order-automation-rules` | 新增规则：`{name, priority?, enabled?, triggerEvent, action, minAmount?, maxAmount?, platforms?, shopIds?, requireReviewPassed?}`；`triggerEvent`/`action` 必须为合法组合；金额区间非负且 min≤max；`confirm_payment` 必须设置 `maxAmount`。 |
+| `PUT` | `/api/v1/order-automation-rules/:ruleId` | 更新规则（部分更新；`clearMinAmount`/`clearMaxAmount` 清除金额条件）；越权/不存在 404。 |
+| `DELETE` | `/api/v1/order-automation-rules/:ruleId` | 删除规则；越权/不存在 404；历史执行日志保留。 |
+| `POST` | `/api/v1/order-automation-rules/dry-run` | 测试跑（不落库、不执行动作）：请求体同新增规则，对租户最近订单 dry-run → `{scanned, matched, blocked, samples:[{orderId, orderNo, amount, reason, blocked}]}`；`blocked` 为将被审单安全边界跳过的数量。 |
+| `GET` | `/api/v1/order-automation-logs` | 执行日志查询：`?page=&pageSize=&status=&triggerEvent=&action=&ruleId=&keyword=`；`status` ∈ `success`/`failed`/`skipped`；返回 `{items:[{id, ruleId, ruleName, orderId, orderNo, triggerEvent, action, status, reason, attempts}], total, page, pageSize, totalPages}`。 |
+| `POST` | `/api/v1/order-automation-logs/:logId/retry` | 人工重试失败日志（仅 `failed` 可重试）→ 更新后的日志行；越权/不存在 404。 |
+| `GET` | `/api/v1/orders/:id/automation-logs` | 单订单自动化轨迹：`{items: 日志行[]}`（租户+店铺范围隔离，越权 404）。 |
+
 ### 违禁词合规检测（banned-words，round109）
 
 | 方法 | 路径 | 说明 |

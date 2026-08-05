@@ -6,126 +6,113 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 )
 
-// seedRound119BuyerMessages adds demo买家自动消息节点规则 plus待发/已发送/已忽略
-// draft samples so the待发消息工作台 demos out of the box. Everything is
-// DEMO- prefixed and removed by Cleanup / checked by VerifyClean.
-func (s *FullDemoSeeder) seedRound119BuyerMessages(tx *gorm.DB, res *FullDemoResult, now time.Time, shops []shop.Shop) error {
+// seedRound119OrderAutomation adds demo自动化订单规则 plus execution-log samples
+// (成功/失败/跳过) so the automation rules page and execution log page demo out
+// of the box. Everything is DEMO- prefixed and removed by Cleanup / checked by
+// VerifyClean.
+func (s *FullDemoSeeder) seedRound119OrderAutomation(tx *gorm.DB, res *FullDemoResult, now time.Time, shops []shop.Shop) error {
 	if len(shops) == 0 {
 		return nil
 	}
 	count := func(table string, n int64) { res.Counts[table] += n }
-	demoShop := shops[0]
 
-	var logisticsTpl, refundTpl customerchat.CustomerReplyTemplate
-	if err := tx.Where("tenant_id = ? AND name = ?", s.TenantID, "DEMO-物流-查询进度").
-		First(&logisticsTpl).Error; err != nil {
-		return fmt.Errorf("demoseed: buyer msg logistics template: %w", err)
+	payMax := 100.0
+	payRule := order.OrderAutomationRule{
+		TenantID: s.TenantID, Name: "DEMO-低额订单自动确认付款", Priority: 1, Enabled: true,
+		TriggerEvent: order.AutomationEventOrderCreated,
+		Action:       order.AutomationActionConfirmPayment, MaxAmount: &payMax,
 	}
-	if err := tx.Where("tenant_id = ? AND name = ?", s.TenantID, "DEMO-退款-流程说明").
-		First(&refundTpl).Error; err != nil {
-		return fmt.Errorf("demoseed: buyer msg refund template: %w", err)
+	if err := tx.Create(&payRule).Error; err != nil {
+		return fmt.Errorf("demoseed: automation pay rule: %w", err)
 	}
+	genMax := 500.0
+	genRule := order.OrderAutomationRule{
+		TenantID: s.TenantID, Name: "DEMO-付款后自动生成采购单", Priority: 2, Enabled: true,
+		TriggerEvent: order.AutomationEventOrderPaid,
+		Action:       order.AutomationActionGenerateProcurement,
+		MaxAmount:    &genMax, RequireReviewPassed: false,
+	}
+	if err := tx.Create(&genRule).Error; err != nil {
+		return fmt.Errorf("demoseed: automation generate rule: %w", err)
+	}
+	notifyRule := order.OrderAutomationRule{
+		TenantID: s.TenantID, Name: "DEMO-采购签收自动通知发货", Priority: 3, Enabled: true,
+		TriggerEvent: order.AutomationEventProcurementDelivered,
+		Action:       order.AutomationActionNotifyShipping,
+		Platforms:    mustJSONStrings(shops[0].Platform),
+	}
+	if err := tx.Create(&notifyRule).Error; err != nil {
+		return fmt.Errorf("demoseed: automation notify rule: %w", err)
+	}
+	disabledRule := order.OrderAutomationRule{
+		TenantID: s.TenantID, Name: "DEMO-揽收自动通知（停用示例）", Priority: 4,
+		TriggerEvent: order.AutomationEventLogisticsCollected,
+		Action:       order.AutomationActionNotifyShipping,
+	}
+	if err := tx.Create(&disabledRule).Error; err != nil {
+		return fmt.Errorf("demoseed: automation disabled rule: %w", err)
+	}
+	if err := tx.Model(&order.OrderAutomationRule{}).Where("id = ?", disabledRule.ID).
+		Update("enabled", false).Error; err != nil {
+		return err
+	}
+	count("order_automation_rules", 4)
 
-	rules := []customerchat.BuyerMessageRule{
-		{TenantID: s.TenantID, Name: "DEMO-发货后自动通知买家", Node: customerchat.BuyerMsgNodeShipped,
-			TemplateID: logisticsTpl.ID, Enabled: true},
-		{TenantID: s.TenantID, Name: "DEMO-退款进度自动告知", Node: customerchat.BuyerMsgNodeRefunded,
-			TemplateID: refundTpl.ID, Enabled: true},
-		{TenantID: s.TenantID, Name: "DEMO-签收后关怀（停用示例）", Node: customerchat.BuyerMsgNodeDelivered,
-			TemplateID: logisticsTpl.ID},
+	samples := []struct {
+		orderNo string
+		amount  float64
+		review  string
+		rule    *order.OrderAutomationRule
+		status  string
+		reason  string
+	}{
+		{"DEMO-AT-1001", 68, order.ReviewStatusAutoPassed, &payRule,
+			order.AutomationLogSuccess, "已自动确认付款（低风险条件）"},
+		{"DEMO-AT-1002", 120, order.ReviewStatusAutoPassed, &genRule,
+			order.AutomationLogFailed, "执行失败（已重试 3 次）：生成采购单被阻断：SKU 未匹配货源"},
+		{"DEMO-AT-1003", 88, order.ReviewStatusPending, &payRule,
+			order.AutomationLogSkipped, "订单审单待审/挂起，按安全边界跳过自动化"},
 	}
-	for i := range rules {
-		if err := tx.Create(&rules[i]).Error; err != nil {
-			return fmt.Errorf("demoseed: buyer msg rule %s: %w", rules[i].Name, err)
-		}
-	}
-	count("buyer_message_rules", int64(len(rules)))
-
-	shippedRule, refundRule := rules[0], rules[1]
-
-	type draftPlan struct {
-		orderNo    string
-		status     string // order status
-		rule       *customerchat.BuyerMessageRule
-		tpl        *customerchat.CustomerReplyTemplate
-		trackingNo string
-		draft      string // draft status
-		missing    bool
-	}
-	plans := []draftPlan{
-		{orderNo: "DEMO-BM-1001", status: order.StatusShipped, rule: &shippedRule, tpl: &logisticsTpl,
-			trackingNo: "DEMO-TRK-BM-1", draft: customerchat.BuyerMsgDraftPending},
-		{orderNo: "DEMO-BM-1002", status: order.StatusShipped, rule: &shippedRule, tpl: &logisticsTpl,
-			draft: customerchat.BuyerMsgDraftPending, missing: true},
-		{orderNo: "DEMO-BM-1003", status: order.StatusShipped, rule: &shippedRule, tpl: &logisticsTpl,
-			trackingNo: "DEMO-TRK-BM-3", draft: customerchat.BuyerMsgDraftSent},
-		{orderNo: "DEMO-BM-1004", status: order.StatusRefunded, rule: &refundRule, tpl: &refundTpl,
-			draft: customerchat.BuyerMsgDraftIgnored},
-	}
-	for i, p := range plans {
+	for i, sp := range samples {
 		created := now.Add(-time.Duration(i+1) * time.Hour)
 		o := order.Order{
-			TenantID: s.TenantID, Platform: demoShop.Platform, ShopID: &demoShop.ID,
-			OrderNo: p.orderNo, CustomerName: "DEMO-消息买家", CustomerPhone: "13800000119",
-			Status: p.status, ReviewStatus: order.ReviewStatusApproved,
-			PaymentStatus: order.PaymentPaid, FulfillmentStatus: order.FulfillmentUnfulfilled,
-			Currency: "CNY", TotalAmount: 128, OrderedAt: &created,
-		}
-		if p.status == order.StatusRefunded {
-			o.PaymentStatus = order.PaymentRefunded
+			TenantID: s.TenantID, Platform: shops[0].Platform, ShopID: &shops[0].ID,
+			OrderNo: sp.orderNo, CustomerName: "DEMO-自动化买家", CustomerPhone: "13800000119",
+			Status: order.StatusPending, ReviewStatus: sp.review,
+			PaymentStatus: order.PaymentUnpaid, FulfillmentStatus: order.FulfillmentUnfulfilled,
+			Currency: "CNY", TotalAmount: sp.amount, OrderedAt: &created,
 		}
 		if err := tx.Create(&o).Error; err != nil {
-			return fmt.Errorf("demoseed: buyer msg order %s: %w", p.orderNo, err)
+			return fmt.Errorf("demoseed: automation sample order %s: %w", sp.orderNo, err)
 		}
 		item := order.OrderItem{
-			OrderID: o.ID, ProductTitle: "DEMO-自动消息演示商品", SKUCode: "DEMO-BM-SKU",
-			Quantity: 1, UnitPrice: 128, TotalPrice: 128,
+			OrderID: o.ID, ProductTitle: "DEMO-自动化演示商品", SKUCode: "DEMO-AT-SKU",
+			Quantity: 1, UnitPrice: sp.amount, TotalPrice: sp.amount,
 		}
 		if err := tx.Create(&item).Error; err != nil {
-			return fmt.Errorf("demoseed: buyer msg item: %w", err)
+			return fmt.Errorf("demoseed: automation sample item: %w", err)
+		}
+		attempts := 1
+		if sp.status == order.AutomationLogFailed {
+			attempts = 3
+		}
+		log := order.OrderAutomationLog{
+			TenantID: s.TenantID, RuleID: sp.rule.ID, RuleName: sp.rule.Name,
+			OrderID: o.ID, OrderNo: o.OrderNo,
+			TriggerEvent: sp.rule.TriggerEvent, Action: sp.rule.Action,
+			Status: sp.status, Reason: sp.reason, Attempts: attempts,
+			DedupKey: fmt.Sprintf("%d:%s:%s:%s", s.TenantID, sp.rule.ID, o.ID, sp.rule.TriggerEvent),
+		}
+		if err := tx.Create(&log).Error; err != nil {
+			return fmt.Errorf("demoseed: automation sample log: %w", err)
 		}
 		count("orders", 1)
 		count("order_items", 1)
-		if p.trackingNo != "" {
-			ship := order.OrderShipment{
-				OrderID: o.ID, Carrier: "DEMO-中通快递", TrackingNo: p.trackingNo,
-				Status: order.ShipmentShipped, ShippedAt: &created,
-			}
-			if err := tx.Create(&ship).Error; err != nil {
-				return fmt.Errorf("demoseed: buyer msg shipment: %w", err)
-			}
-			count("order_shipments", 1)
-		}
-
-		vars := map[string]string{
-			"买家昵称": o.CustomerName, "订单号": o.OrderNo, "物流单号": p.trackingNo,
-			"商品名": item.ProductTitle, "店铺名": demoShop.ShopName,
-		}
-		content, missing := customerchat.FillBuyerMsgTemplate(p.tpl.Content, vars)
-		draft := customerchat.BuyerMessageDraft{
-			TenantID: s.TenantID, OrderID: o.ID, Node: p.rule.Node,
-			RuleID: p.rule.ID, TemplateID: p.tpl.ID, TemplateName: p.tpl.Name,
-			Platform: o.Platform, ShopID: o.ShopID, OrderNo: o.OrderNo,
-			CustomerName: o.CustomerName, Content: content,
-			MissingVars: mustJSONStrings(missing...), Status: p.draft,
-		}
-		if p.draft == customerchat.BuyerMsgDraftSent {
-			sentAt := created.Add(30 * time.Minute)
-			draft.SentAt = &sentAt
-		}
-		if p.draft == customerchat.BuyerMsgDraftIgnored {
-			ignoredAt := created.Add(30 * time.Minute)
-			draft.IgnoredAt = &ignoredAt
-		}
-		if err := tx.Create(&draft).Error; err != nil {
-			return fmt.Errorf("demoseed: buyer msg draft %s: %w", p.orderNo, err)
-		}
-		count("buyer_message_drafts", 1)
+		count("order_automation_logs", 1)
 	}
 	return nil
 }

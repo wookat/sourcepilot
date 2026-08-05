@@ -398,6 +398,11 @@ export default [
         component: './Orders/Review',
       },
       {
+        path: '/orders/automation-logs',
+        name: '自动化执行日志',
+        component: './Orders/AutomationLogs',
+      },
+      {
         path: '/orders/print',
         name: '拣货发货单打印',
         hideInMenu: true,
@@ -631,6 +636,11 @@ export default [
         path: '/settings/order-review-rules',
         name: '审单规则',
         component: './Settings/OrderReviewRules',
+      },
+      {
+        path: '/settings/order-automation-rules',
+        name: '自动化订单规则',
+        component: './Settings/OrderAutomationRules',
       },
       {
         path: '/settings/banned-words',

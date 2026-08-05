@@ -897,6 +897,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- 自动化订单规则演示：规则 + 成功/失败/跳过执行日志（Round 119）----
+	if err := s.seedRound119OrderAutomation(tx, res, now, shops); err != nil {
+		return err
+	}
+
 	// ---- 买家自动消息演示：节点规则 + 待发/已发送/已忽略草稿样本（Round 119）----
 	if err := s.seedRound119BuyerMessages(tx, res, now, shops); err != nil {
 		return err
@@ -1022,6 +1027,9 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			if err := del("order_review_hits", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderReviewHit{})); err != nil {
 				return err
 			}
+			if err := del("order_automation_logs", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderAutomationLog{})); err != nil {
+				return err
+			}
 			if err := del("order_item_sku_matches", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderItemSKUMatch{})); err != nil {
 				return err
 			}
@@ -1040,6 +1048,12 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			return err
 		}
 		if err := del("order_review_rules", tx.Unscoped().Where("name LIKE ?", like).Delete(&order.OrderReviewRule{})); err != nil {
+			return err
+		}
+		if err := del("order_automation_logs", tx.Unscoped().Where("rule_name LIKE ?", like).Delete(&order.OrderAutomationLog{})); err != nil {
+			return err
+		}
+		if err := del("order_automation_rules", tx.Unscoped().Where("name LIKE ?", like).Delete(&order.OrderAutomationRule{})); err != nil {
 			return err
 		}
 
@@ -1369,6 +1383,23 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 				return 0, nil
 			}
 			return n, tx.Model(&order.OrderReviewHit{}).
+				Where("rule_name LIKE ? OR order_id IN (?)", like,
+					tx.Model(&order.Order{}).Unscoped().Select("id").Where("order_no LIKE ?", like)).
+				Count(&n).Error
+		}},
+		{table: "order_automation_rules", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("order_automation_rules") {
+				return 0, nil
+			}
+			return n, tx.Model(&order.OrderAutomationRule{}).Where("name LIKE ?", like).Count(&n).Error
+		}},
+		{table: "order_automation_logs", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("order_automation_logs") {
+				return 0, nil
+			}
+			return n, tx.Model(&order.OrderAutomationLog{}).
 				Where("rule_name LIKE ? OR order_id IN (?)", like,
 					tx.Model(&order.Order{}).Unscoped().Select("id").Where("order_no LIKE ?", like)).
 				Count(&n).Error

@@ -95,6 +95,14 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/order-review',
         'POST /api/v1/order-review/approve',
         'POST /api/v1/order-review/reject',
+        'GET /api/v1/order-automation-rules',
+        'POST /api/v1/order-automation-rules',
+        'POST /api/v1/order-automation-rules/dry-run',
+        'PUT /api/v1/order-automation-rules/:ruleId',
+        'DELETE /api/v1/order-automation-rules/:ruleId',
+        'GET /api/v1/order-automation-logs',
+        'POST /api/v1/order-automation-logs/:logId/retry',
+        'GET /api/v1/orders/:id/automation-logs',
         'POST /api/v1/orders/print/mark',
         'POST /api/v1/orders/shipping-recommendations',
       ]),
@@ -286,8 +294,44 @@ describe('TradeMind API contract registry', () => {
     expect(reject?.requestBody).toEqual(['orderIds', 'remark']);
   });
 
+  it('defines payload/query contracts for order automation rule and execution log APIs', () => {
+    const createRule = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/order-automation-rules');
+    const updateRule = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/order-automation-rules/:ruleId');
+    const dryRun = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/order-automation-rules/dry-run');
+    const logs = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/order-automation-logs');
+    const retry = contracts.endpoints.find(
+      (item) => routeKey(item) === 'POST /api/v1/order-automation-logs/:logId/retry',
+    );
+    const trail = contracts.endpoints.find(
+      (item) => routeKey(item) === 'GET /api/v1/orders/:id/automation-logs',
+    );
+
+    const ruleBody = [
+      'name',
+      'priority',
+      'enabled',
+      'triggerEvent',
+      'action',
+      'minAmount',
+      'maxAmount',
+      'platforms',
+      'shopIds',
+      'requireReviewPassed',
+      'clearMinAmount',
+      'clearMaxAmount',
+    ];
+    expect(createRule?.requestBody).toEqual(ruleBody);
+    expect(updateRule?.requestBody).toEqual(ruleBody);
+    expect(dryRun?.requestBody).toEqual(ruleBody);
+    expect(dryRun?.responseData).toContain('blocked');
+    expect(logs?.query).toEqual(['page', 'pageSize', 'status', 'triggerEvent', 'action', 'ruleId', 'keyword']);
+    expect(logs?.responseData).toContain('totalPages');
+    expect(retry?.responseData).toBe('OrderAutomationLog');
+    expect(trail?.responseData).toBe('{ items: OrderAutomationLog[] }');
+  });
+
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(82);
+    expect(contracts.endpoints).toHaveLength(90);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });
