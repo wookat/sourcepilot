@@ -70,6 +70,15 @@ describe('httpErrorCopy', () => {
     );
   });
 
+  it('surfaces localized guidance from the response envelope (e.g. 邮件服务未配置)', () => {
+    const axiosLike = Object.assign(new Error('Request failed with status code 503'), {
+      response: { data: { code: 50301, message: '邮件服务未配置，无法发送注册验证码。请管理员在「设置 → 邮件设置」完成 SMTP 配置。' } },
+    });
+    expect(httpErrorCopy(axiosLike, '发送失败')).toBe(
+      '邮件服务未配置，无法发送注册验证码。请管理员在「设置 → 邮件设置」完成 SMTP 配置。',
+    );
+  });
+
   it('prefers the response envelope message on HTTP errors', () => {
     const axiosLike = Object.assign(new Error('Request failed with status code 409'), {
       response: { data: { code: 409, message: 'conflict: supplier has bound sources' } },

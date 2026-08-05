@@ -1652,3 +1652,9 @@ Final Production Acceptance Deferred to P10
 - **大回归 v11 P2 复核**：
   - 生产写闸门文案：`AutomaticPublishGuard`/`CredentialAbsenceGuard`/adapter 模式三道闸门的错误码中，`production_capability_forbidden` 已有中文文案，补齐 `real_credentials_forbidden`、`unsupported_adapter_mode` 中文映射（`constants/operationTasks.ts`），闸门触发时 UI 语义明确；seed 场景 tenant_id=0 重试被 worker 拒绝属 seed 局限（`order_sync_worker_tenant_missing` 仅日志，不产生真实外发），维持观察。
   - 告警「取消标记」：`TestUnmarkAlertRouteIsTenantScoped` 回归通过（跨租户 unmark 404、本租户正常），无回退。
+
+### 变更记录（2026-08-05）第 114 轮：大回归 v14 + UX 视觉复核 v6（qa-engineer / user-experience-officer）
+
+- **大回归 v14**（main `e08e55b9` + PR #239）：全量门禁除 admin/e2e 外全绿（check:dev / ui-copy strict / 前端 273 单测 / collector 18 / contracts 10 / build ×2 / go vet+gofmt+test / backend:integration / db / redis）；Docker 全栈 + `seed:demo:full` 实测 R57 主链路与 R109–R113 新功能动线（违禁词/话术模板/深度报表/AI 规避/面单+发货规则/多仓闭环/移动模式）三角色 × 三视口通过；双租户正规开租→隔离验证→清退、`seed:demo:full:clean` + verify 零残留；PR #239（375px 移动指标卡截断修复）验证通过。
+- **P1 修复两条**：① 运营任务批量审批弹窗 `useForm` 未连接 Form 的 console.error（admin/e2e 全量此前 2 条失败根因）——Modal `destroyOnHidden` 改 `forceRender`，round63-optask-batch 12/12 通过；② 登录/注册页错误提示丢弃后端中文指引（未配 SMTP 时「获取验证码」只显「发送失败」，50301 指引文案不可见）——`getAuthErrorMessage` 改用共享 `httpErrorCopy`，补 envelope 中文透出单测。
+- **UX 视觉复核 v6**：报告归档 `docs/ux-review/UX_REVIEW_V6_REPORT.md`；无 P0；P2 清单三条（默认仓无「设为默认」入口的产品口径说明、seeddemo verify 软删除残留口径、权限空态与 404 文案分离）。#237「默认仓唯一」为后端部分唯一索引兜底（Go 回归通过），UI 层无切换入口属轻量多仓产品口径，待产品确认（P2-1）。
