@@ -114,7 +114,7 @@ export const e2eOrderAutomationLogs = [
     triggerEvent: 'order_paid',
     action: 'assign_warehouse',
     status: 'failed',
-    reason: '执行失败（已重试 3 次）：库存不足，无法分配发货仓：SKU-1 需 999 件仅 6 件',
+    reason: '执行失败（本轮尝试 3 次）：库存不足，无法分配发货仓：SKU-1 需 999 件仅 6 件',
     attempts: 3,
     createdAt: '2026-01-02T03:00:00Z',
     updatedAt: '2026-01-02T03:00:00Z',

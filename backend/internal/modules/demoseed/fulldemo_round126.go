@@ -108,7 +108,7 @@ func (s *FullDemoSeeder) seedRound126AutoActions(tx *gorm.DB, res *FullDemoResul
 		OrderID: short.ID, OrderNo: short.OrderNo,
 		TriggerEvent: warehouseRule.TriggerEvent, Action: warehouseRule.Action,
 		Status:   order.AutomationLogFailed,
-		Reason:   fmt.Sprintf("执行失败（已重试 3 次）：库存不足，无法分配发货仓：所有仓库均无法整单覆盖（如 %s：%s 需 %d 件）", "默认仓", shortItem.SKUCode, shortQty),
+		Reason:   fmt.Sprintf("执行失败（本轮尝试 3 次）：库存不足，无法分配发货仓：所有仓库均无法整单覆盖（如 %s：%s 需 %d 件）", "默认仓", shortItem.SKUCode, shortQty),
 		Attempts: 3,
 		DedupKey: fmt.Sprintf("%d:%s:%s:%s", s.TenantID, warehouseRule.ID, short.ID, warehouseRule.TriggerEvent),
 	}

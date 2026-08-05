@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -315,5 +316,45 @@ func TestAutomationDryRunNewActions(t *testing.T) {
 		if o.PlannedCarrierCode != "" || o.AssignedWarehouseID != nil {
 			t.Fatalf("dry run must not mutate orders: %+v", o)
 		}
+	}
+}
+
+// Regression: the order detail DTO must expose the automation-written
+// planned carrier / assigned warehouse fields (R127 cross-QA P1).
+func TestOrderDetailExposesAutomationFields(t *testing.T) {
+	db := openRound126TestDB(t)
+	svc := &order.Service{DB: db}
+	c := automationTestCtx(1)
+
+	o := newAutomationOrder(t, db, 1, 60, "")
+	now := time.Now()
+	whID := uuid.New()
+	if err := db.Model(&order.Order{}).Where("id = ?", o.ID).Updates(map[string]any{
+		"planned_carrier_code":        "yunda",
+		"planned_carrier_name":        "韵达速递",
+		"planned_carrier_mode":        "apply",
+		"planned_carrier_rule":        "默认发货规则",
+		"planned_carrier_at":          now,
+		"assigned_warehouse_id":       whID,
+		"assigned_warehouse_name":     "默认仓",
+		"assigned_warehouse_strategy": "stock_first",
+		"warehouse_assigned_at":       now,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	dto, err := svc.Get(c, o.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dto.PlannedCarrierCode != "yunda" || dto.PlannedCarrierName != "韵达速递" ||
+		dto.PlannedCarrierMode != "apply" || dto.PlannedCarrierRule != "默认发货规则" ||
+		dto.PlannedCarrierAt == nil {
+		t.Fatalf("planned carrier fields missing from detail DTO: %+v", dto)
+	}
+	if dto.AssignedWarehouseID == nil || *dto.AssignedWarehouseID != whID ||
+		dto.AssignedWarehouseName != "默认仓" || dto.AssignedWarehouseStrategy != "stock_first" ||
+		dto.WarehouseAssignedAt == nil {
+		t.Fatalf("assigned warehouse fields missing from detail DTO: %+v", dto)
 	}
 }

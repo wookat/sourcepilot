@@ -74,7 +74,7 @@ func (s *FullDemoSeeder) seedRound119OrderAutomation(tx *gorm.DB, res *FullDemoR
 		{"DEMO-AT-1001", 68, order.ReviewStatusAutoPassed, &payRule,
 			order.AutomationLogSuccess, "已自动确认付款（低风险条件）"},
 		{"DEMO-AT-1002", 120, order.ReviewStatusAutoPassed, &genRule,
-			order.AutomationLogFailed, "执行失败（已重试 3 次）：生成采购单被阻断：SKU 未匹配货源"},
+			order.AutomationLogFailed, "执行失败（本轮尝试 3 次）：生成采购单被阻断：SKU 未匹配货源"},
 		{"DEMO-AT-1003", 88, order.ReviewStatusPending, &payRule,
 			order.AutomationLogSkipped, "订单审单待审/挂起，按安全边界跳过自动化"},
 	}
