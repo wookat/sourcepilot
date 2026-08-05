@@ -1748,3 +1748,10 @@ Final Production Acceptance Deferred to P10
 - **演示动线脚本**：新增 `docs/acceptance/DEMO_SCRIPT.md`——基于 `seed:demo:full` 的约 30 分钟 23 步完整演示（三账号三角色 + 375px 移动模式），Docker 全栈逐步实跑全部 23 步验证可照做（全程录屏）：步骤 11 自动化正/负样本真实触发通过（DEMO-AT-1004 自动生成采购单成功、DEMO-AT-1001 安全阻断留痕）；步骤 20/21 文案口径按实际表现修正（「暂无访问权限」/ readonly 写入口隐藏而非禁用）。
 - **文档核对**：README/部署/升级/运维/env 逐条命令实跑核对——Docker 全栈启动、health、seed 全套（seed/clean/verify 零残留）、`check:dev`、升级指南预检 SQL、pg_dump 备份均验证通过；README 补充宿主机直跑 Go 种子需 `DB_HOST=127.0.0.1` 的说明（实跑发现缺省 `DB_HOST=postgres` 时报解析错误）。
 - **门禁**：`pnpm check:ui-copy --strict` 通过；本轮仅文档变更，未触及代码门禁。
+
+### 变更记录（2026-08-05）第 126 轮线1：R125 审计 P2×4 收口（fullstack-engineer）
+
+- **依赖漏洞（P2-1）**：overrides 补 `hono 4.12.34`（moderate 修复）与 `send 0.19.1`（low 修复，构建链传递依赖）；`react-router` 6.x 线内升级实测净变差（6.30.x 引入 GHSA-337j / GHSA-jjmj 等新通告且 6.x 无修复版本），维持 6.3.0 并登记。仍需跨 major 才能修的项（交老板决策，不擅自升级）：`vite`（2 条 high 仅 6.4.3+ 修复，4→6 双跨大版本且被 umi 4 构建链绑定）、`vitest`（critical，0.34→3.x，#82 明确忽略其 major）、`esbuild`（0.18→0.25，0.x 语义等同 major）、`@hono/node-server`（1.x→2.0.5，`@utoo/pack` peer 限定 1.x）、`react-router`（彻底修复需 7.18+，umi 4 不兼容）、`elliptic`（无修复版本）。以上均为构建/dev server/测试链传递依赖，不进产物、不对外网监听。`pnpm audit` 全量 23（6 low/12 mod/4 high/1 crit）→ 21（5/11/4/1）；`govulncheck ./...` 前后均 0 命中。
+- **财务 CSV 导入控制字符/格式校验（P2-2）**：`migrationimport` 解析层新增统一单元格校验（CSV 与 XLSX 共用）：拒绝表头/数据单元格中除 `\t` 外的一切控制字符（C0/C1/DEL，含 ANSI 转义、NUL、引号内嵌换行），并在解析阶段拒绝超过 `MaxMappingColumns`（200）列的超宽表头；错误信息带行列定位。恶意样本单测覆盖（ANSI/NUL/VT/BS/C1/表头/引号内换行/XLSX/超宽表头 + 合法样本回归）。
+- **执行日志表冗余 shop_id（P2-3，评估后即修，低成本）**：`order_automation_logs` 新增 `shop_id` 快照列（写入时取订单店铺；迁移 `UPDATE ... FROM orders` 回填存量），店铺 scope 由订单子查询改为直接按日志 `shop_id` 过滤（无店铺订单日志维持仅 admin 可见的原口径）；API/前端类型/文档同步。
+- **Hono 测试工具链（P2-4）**：`hono` 经 override 升至 4.12.34（patch 内修复）；`@hono/node-server` 需 1.x→2.0.5 跨大版本（`@utoo/pack` 传递依赖，peer 限定 ^1.19），登记为 umi 升级时复评。

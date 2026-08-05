@@ -831,7 +831,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `PUT` | `/api/v1/order-automation-rules/:ruleId` | 更新规则（部分更新；`clearMinAmount`/`clearMaxAmount` 清除金额条件）；越权/不存在 404。 |
 | `DELETE` | `/api/v1/order-automation-rules/:ruleId` | 删除规则；越权/不存在 404；历史执行日志保留。 |
 | `POST` | `/api/v1/order-automation-rules/dry-run` | 测试跑（不落库、不执行动作）：请求体同新增规则，对租户最近订单 dry-run → `{scanned, matched, blocked, samples:[{orderId, orderNo, amount, reason, blocked}]}`；`blocked` 为将被审单安全边界跳过的数量。 |
-| `GET` | `/api/v1/order-automation-logs` | 执行日志查询：`?page=&pageSize=&status=&triggerEvent=&action=&ruleId=&keyword=`；`status` ∈ `success`/`failed`/`skipped`；返回 `{items:[{id, ruleId, ruleName, orderId, orderNo, triggerEvent, action, status, reason, attempts}], total, page, pageSize, totalPages}`。 |
+| `GET` | `/api/v1/order-automation-logs` | 执行日志查询：`?page=&pageSize=&status=&triggerEvent=&action=&ruleId=&keyword=`；`status` ∈ `success`/`failed`/`skipped`；返回 `{items:[{id, ruleId, ruleName, orderId, orderNo, shopId?, triggerEvent, action, status, reason, attempts}], total, page, pageSize, totalPages}`（店铺范围直接按日志冗余 `shop_id` 过滤）。 |
 | `POST` | `/api/v1/order-automation-logs/:logId/retry` | 人工重试失败日志（仅 `failed` 可重试）→ 更新后的日志行；越权/不存在 404。 |
 | `GET` | `/api/v1/orders/:id/automation-logs` | 单订单自动化轨迹：`{items: 日志行[]}`（租户+店铺范围隔离，越权 404）。 |
 

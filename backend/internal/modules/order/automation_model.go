@@ -124,6 +124,10 @@ type OrderAutomationLog struct {
 	RuleName string    `gorm:"size:128;not null" json:"ruleName"`
 	OrderID  uuid.UUID `gorm:"type:char(36);index;not null" json:"orderId"`
 	OrderNo  string    `gorm:"size:128;index" json:"orderNo"`
+	// ShopID snapshots the order's shop at execution time so store-scope
+	// filtering runs directly on the log table (nil = order without shop,
+	// visible to admins only under store scope).
+	ShopID *uuid.UUID `gorm:"type:char(36);index" json:"shopId,omitempty"`
 	// TriggerEvent / Action snapshot what ran.
 	TriggerEvent string `gorm:"size:32;not null;index" json:"triggerEvent"`
 	Action       string `gorm:"size:32;not null" json:"action"`
