@@ -17,11 +17,14 @@ type Order struct {
 	ExternalOrderID *string    `gorm:"size:255;index" json:"externalOrderId,omitempty"`
 	// OrderNo is unique per tenant, never globally: a global unique index
 	// leaks (and lets a tenant squat) other tenants' order numbers.
-	OrderNo           string     `gorm:"size:128;uniqueIndex:idx_orders_tenant_order_no,priority:2;not null" json:"orderNo"`
-	CustomerName      string     `gorm:"size:255;index;not null" json:"customerName"`
-	CustomerEmail     string     `gorm:"size:255" json:"customerEmail,omitempty"`
-	CustomerPhone     string     `gorm:"size:64" json:"customerPhone,omitempty"`
-	Status            string     `gorm:"size:32;index;not null" json:"status"`
+	OrderNo       string `gorm:"size:128;uniqueIndex:idx_orders_tenant_order_no,priority:2;not null" json:"orderNo"`
+	CustomerName  string `gorm:"size:255;index;not null" json:"customerName"`
+	CustomerEmail string `gorm:"size:255" json:"customerEmail,omitempty"`
+	CustomerPhone string `gorm:"size:64" json:"customerPhone,omitempty"`
+	Status        string `gorm:"size:32;index;not null" json:"status"`
+	// ReviewStatus is the审单 state (see ReviewStatus* constants). Empty means
+	// the order never entered the review flow and is not blocked.
+	ReviewStatus      string     `gorm:"size:32;index;default:''" json:"reviewStatus"`
 	PaymentStatus     string     `gorm:"size:32;index;not null" json:"paymentStatus"`
 	FulfillmentStatus string     `gorm:"size:32;index;not null" json:"fulfillmentStatus"`
 	Currency          string     `gorm:"size:16;not null" json:"currency"`

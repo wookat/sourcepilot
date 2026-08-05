@@ -724,7 +724,7 @@ export default function OrderExceptionsPage() {
   return (
     <TmPageContainer
       title="订单异常工作台"
-      subTitle="处理订单同步与规格匹配中的异常情况。"
+      subTitle="处理订单同步与规格匹配中的固定异常拦截（缺货源 / 缺 SKU 映射 / 负毛利 / 重复单号等）；可配置审单规则命中的订单请到「审单工作台」处理。"
     >
       <Typography.Paragraph type="secondary">
         聚合规格未匹配、扣库存失败与库存同步失败等需人工处理的问题；标记仅影响本列表视图，不改订单与任务原始状态。

@@ -32,6 +32,7 @@ func openTestDB(t *testing.T) *gorm.DB {
 		&migrationimport.ImportJob{}, &migrationimport.ImportJobRow{},
 		&product.Product{}, &product.ProductSKU{}, &product.ProductImage{}, &product.ProductPlatformPublishConfig{}, &productpublish.ProductPublication{},
 		&order.Order{}, &order.OrderItem{}, &order.OrderShipment{},
+		&order.OrderReviewRule{}, &order.OrderReviewHit{},
 		&shop.Shop{},
 	); err != nil {
 		t.Fatal(err)

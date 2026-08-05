@@ -864,6 +864,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- 审单规则演示：规则 + 待审/挂起命中样本（Round 114）----
+	if err := s.seedRound114OrderReview(tx, res, now, shops); err != nil {
+		return err
+	}
+
 	// ---- exception workbench handled mark（演示处理动作留痕）----
 	mark := orderexception.OrderExceptionMark{
 		ExceptionType: orderexception.TypeInventorySyncFailed,
@@ -981,6 +986,9 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			return err
 		}
 		if len(orderIDs) > 0 {
+			if err := del("order_review_hits", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderReviewHit{})); err != nil {
+				return err
+			}
 			if err := del("order_item_sku_matches", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderItemSKUMatch{})); err != nil {
 				return err
 			}
@@ -993,6 +1001,13 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			if err := del("orders", tx.Unscoped().Where("id IN ?", orderIDs).Delete(&order.Order{})); err != nil {
 				return err
 			}
+		}
+
+		if err := del("order_review_hits", tx.Unscoped().Where("rule_name LIKE ?", like).Delete(&order.OrderReviewHit{})); err != nil {
+			return err
+		}
+		if err := del("order_review_rules", tx.Unscoped().Where("name LIKE ?", like).Delete(&order.OrderReviewRule{})); err != nil {
+			return err
 		}
 
 		var demoSupplierIDs []uuid.UUID
@@ -1303,6 +1318,23 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		{"order_sync_tasks", func() (int64, error) {
 			var n int64
 			return n, tx.Model(&ordersync.OrderSyncTask{}).Where("error_message LIKE ?", like).Count(&n).Error
+		}},
+		{"order_review_rules", func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("order_review_rules") {
+				return 0, nil
+			}
+			return n, tx.Model(&order.OrderReviewRule{}).Where("name LIKE ?", like).Count(&n).Error
+		}},
+		{"order_review_hits", func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("order_review_hits") {
+				return 0, nil
+			}
+			return n, tx.Model(&order.OrderReviewHit{}).
+				Where("rule_name LIKE ? OR order_id IN (?)", like,
+					tx.Model(&order.Order{}).Unscoped().Select("id").Where("order_no LIKE ?", like)).
+				Count(&n).Error
 		}},
 		{"order_exception_marks", func() (int64, error) {
 			var n int64

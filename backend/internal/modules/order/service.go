@@ -107,6 +107,7 @@ type ListOrderRow struct {
 	OrderNo               string     `json:"orderNo"`
 	CustomerName          string     `json:"customerName"`
 	Status                string     `json:"status"`
+	ReviewStatus          string     `json:"reviewStatus,omitempty"`
 	PaymentStatus         string     `json:"paymentStatus"`
 	FulfillmentStatus     string     `json:"fulfillmentStatus"`
 	Currency              string     `json:"currency"`
@@ -333,6 +334,7 @@ type OrderRow struct {
 	CustomerEmail     string     `json:"customerEmail,omitempty"`
 	CustomerPhone     string     `json:"customerPhone,omitempty"`
 	Status            string     `json:"status"`
+	ReviewStatus      string     `json:"reviewStatus,omitempty"`
 	PaymentStatus     string     `json:"paymentStatus"`
 	FulfillmentStatus string     `json:"fulfillmentStatus"`
 	Currency          string     `json:"currency"`
@@ -608,6 +610,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 			OrderNo:              r.OrderNo,
 			CustomerName:         r.CustomerName,
 			Status:               r.Status,
+			ReviewStatus:         r.ReviewStatus,
 			PaymentStatus:        r.PaymentStatus,
 			FulfillmentStatus:    r.FulfillmentStatus,
 			Currency:             r.Currency,
@@ -686,6 +689,7 @@ func orderRowDTO(o *Order) OrderRow {
 		CustomerEmail:     o.CustomerEmail,
 		CustomerPhone:     o.CustomerPhone,
 		Status:            o.Status,
+		ReviewStatus:      o.ReviewStatus,
 		PaymentStatus:     o.PaymentStatus,
 		FulfillmentStatus: o.FulfillmentStatus,
 		Currency:          o.Currency,
@@ -872,7 +876,7 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 				return err
 			}
 		}
-		return nil
+		return runReviewOnCreate(tx, o, items)
 	})
 	if err != nil {
 		if isOrderNoUniqueViolation(err) {
@@ -1355,6 +1359,9 @@ func (s *Service) DeleteItem(c *gin.Context, orderID, itemID uuid.UUID, adminID 
 func (s *Service) AppendShipment(c *gin.Context, orderID uuid.UUID, body OrderShipmentInput, adminID *uuid.UUID) (*OrderShipment, error) {
 	o, err := s.findOrderBare(c, orderID)
 	if err != nil {
+		return nil, err
+	}
+	if err := guardReviewNotBlocked(o); err != nil {
 		return nil, err
 	}
 	if err := s.resolveShipmentInput(c, &body); err != nil {

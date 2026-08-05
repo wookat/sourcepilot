@@ -12,6 +12,18 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/order-item-sku-matches", h.ListGlobalSKUMatches)
 	g.POST("/order-items/:itemId/bind-sku", w, h.PostBindOrderItemSKU)
 
+	rr := g.Group("/order-review-rules")
+	rr.GET("", h.GetReviewRules)
+	rr.POST("", w, h.PostReviewRule)
+	rr.POST("/dry-run", h.PostReviewRuleDryRun)
+	rr.PUT("/:ruleId", w, h.PutReviewRule)
+	rr.DELETE("/:ruleId", w, h.DeleteReviewRule)
+
+	rw := g.Group("/order-review")
+	rw.GET("", h.GetReviewWorkbench)
+	rw.POST("/approve", w, h.PostReviewApprove)
+	rw.POST("/reject", w, h.PostReviewReject)
+
 	o := g.Group("/orders")
 	o.GET("", h.List)
 	o.POST("", w, h.Create)
