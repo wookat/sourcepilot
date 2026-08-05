@@ -38,6 +38,8 @@ docker compose -f docker-compose.prod.yml exec -T postgres \
 | R95（PR #206） | `orders.order_no` 全局唯一 → 租户内唯一（`idx_orders_tenant_order_no`，随后 drop `idx_orders_order_no`） | 同租户存量重复订单号会中断迁移（预检 SQL 见上）；跨租户重复不受影响 |
 | R97（PR #208） | tenant 0 的 `report_currency` 汇率配置复制到所有尚未自行配置的存量租户 | 无中断风险；幂等，可重复执行 |
 | R102/R103（PR #216 及后续） | `collect_rules`、`collect_browser_profiles` 新增 `tenant_id` 列（默认 0，索引） | 无中断风险；但**存量行全部落在 tenant 0（平台租户）**，业务租户升级后将看不到自己此前创建的采集规则 / 浏览器 profile，需按下方「R102 采集规则租户归属回填」处理 |
+| R112/R113（PR #236/#237） | 新增 `warehouses`/`warehouse_stocks` 表；每租户回填一个默认仓（`code=default`）；`idx_warehouses_tenant_default` 部分唯一索引（每租户至多一个默认仓） | 无中断风险；存量 SKU 库存留在 `product_skus.stock` 由默认仓派生口径承接（零数据搬动）；重复默认仓在建索引前自动保留最早一条、其余降级停用 |
+| R114–R116（PR #240 前后至 #249） | 审单：`order_review_rules`/`order_review_hits` 表 + `orders.review_status` 列；数据搬家：`import_jobs`/`import_job_rows` 结构沿用并新增 `import_mapping_presets`；安全批次：`banned_words`/`banned_word_category_states` 等 | 无中断风险；均为新表/新列，存量订单 `review_status` 默认空值不进入审单队列 |
 
 ## 二、升级步骤
 
@@ -127,6 +129,7 @@ R102 起 `/api/v1/ops/*` 中的备份 / 恢复 / 发布 / 容灾接口收紧为�
 
 - 常规回滚（迁移未改数据）：`git checkout <旧 commit>` + 重新部署即可，数据卷不动。
 - 迁移已改数据：`stop backend` → `pg_restore --clean --if-exists < 升级前备份` → 部署旧版本（恢复时用 `docker exec -i <postgres 容器>` 传 stdin；`docker compose exec -T ... < 文件` 在部分 Compose 版本会损坏二进制流，pg_restore 报 did not find magic string）。
+- **注意（新表残留）**：`pg_restore --clean` 只清理备份内已有的对象；升级失败前 AutoMigrate 已创建的**新表**（如 `warehouses`、`order_review_rules`）不在旧备份中，恢复后会残留。残留新表对回滚后的旧版本无影响（旧代码不读它们），重跑升级时 AutoMigrate 幂等续建即可；若失败根因正是某个与新版本模型冲突的既有同名表（列类型不兼容会报 `database_migrate_failed`），必须先修正/删除该冲突表再重跑，仅恢复备份不能消除该冲突。
 - **陷阱 1（跨租户订单号 + 回滚到 R95 之前）**：新版本上线后各租户可以使用相同订单号；一旦产生跨租户重复，再回滚到 R95 之前的版本会因旧版本启动时重建全局唯一索引 `idx_orders_order_no` 而无法启动。回滚前先查：
 
   ```sql
@@ -141,4 +144,5 @@ R102 起 `/api/v1/ops/*` 中的备份 / 恢复 / 发布 / 容灾接口收紧为�
 ## 五、演练记录
 
 - 2026-08-04：旧版本（#204）→ 新版本（含 #206/#208）全流程演练通过：存量多租户/订单/运单/导入任务/汇率配置迁移无损，报表数值逐字段一致；同租户重复订单号中断、备份恢复、清理重跑均按本 SOP 复现并收口。演练发现的迁移预检（round95 preflight）已随同批修复合入。
+- 2026-08-05（R118）：旧版本（R106 时点，#224 合并后 `cb07f920`）+ 存量数据（双业务租户/双店铺订单/SKU 库存/跨租户重复订单号/存量导入任务）→ 新版本（main + R118 分支）全流程演练通过：R112/R113 默认仓回填 + 部分唯一索引、审单/导入/安全批次新表全部落地，存量订单金额/SKU 库存/导入任务逐字段无损；预检 SQL（同租户重复订单号 0 行）与陷阱 1 跨租户重复 SQL 实测有效；从零部署到登录实测 254s（目标 <15 分钟）；故意注入冲突表制造升级失败（backend 反复重启 `database_migrate_failed`，站点整体不可用符合陷阱 2 描述）→ `pg_restore --clean --if-exists` 恢复 + 回滚旧版本（指纹逐项一致）→ 清理冲突表 → 重跑升级成功。
 - 2026-08-04（R106）：旧版本（R101，#214，settings 租户化/collect_rules 租户列之前）→ 新版本（main + #221/#222）全流程演练通过：`--pre-upgrade-check`（备份+预检 SQL 0 行）→ 升级 → 验证：存量 collect_rules 全部归 tenant 0（含业务租户创建的，需人工回填，回填后租户可见）；存量 task_alerts 按来源任务租户回填正确（孤儿来源保留 tenant 0）；租户 settings 写入落自身租户、平台配置仍归 tenant 0；订单/业务数据无回退；迁移重启幂等。
