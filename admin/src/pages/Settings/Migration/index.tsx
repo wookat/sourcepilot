@@ -306,6 +306,7 @@ function ImportWizard({ writable }: { writable: boolean }) {
                   { label: '历史订单', value: 'order' },
                   { label: '库存期初', value: 'inventory' },
                   { label: '货源档案', value: 'source' },
+                  { label: '平台回款', value: 'payment' },
                 ]}
                 optionType="button"
               />
@@ -655,6 +656,7 @@ function ImportHistory({ onGoWizard, refreshToken }: { onGoWizard: () => void; r
           { label: '订单', value: 'order' },
           { label: '库存期初', value: 'inventory' },
           { label: '货源档案', value: 'source' },
+          { label: '平台回款', value: 'payment' },
         ]}
         optionType="button"
       />

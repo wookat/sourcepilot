@@ -28,7 +28,9 @@ test.describe('@round121 回款与费用页', () => {
   test('回款列表展示金额、对账状态与来源标签', async ({ admin, page }) => {
     await mockShops(page);
     await admin.goto('/orders/finance-payments');
-    await expect(page.getByRole('link', { name: 'SO-E2E-FIN-1' })).toBeVisible({ timeout: 20000 });
+    const orderLink = page.getByRole('link', { name: 'SO-E2E-FIN-1' });
+    await expect(orderLink).toBeVisible({ timeout: 20000 });
+    await expect(orderLink).toHaveAttribute('href', /\/orders\/e2e-finance-order-1(\?|$)/);
     await expect(page.getByText('已结清')).toBeVisible();
     await expect(page.getByText('少款', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('手工', { exact: true })).toBeVisible();

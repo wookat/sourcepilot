@@ -97,7 +97,7 @@ export default function FinanceReconciliation() {
         width: 180,
         fixed: 'left',
         render: (v: string, r) => (
-          <Link to={appendSourceToUrl(`/orders/detail/${r.orderId}`, 'finance-reconciliation')}>{v}</Link>
+          <Link to={appendSourceToUrl(`/orders/${r.orderId}`, 'finance-reconciliation')}>{v}</Link>
         ),
       },
       { title: '店铺', dataIndex: 'shopName', width: 140, render: (v?: string) => v || '—' },

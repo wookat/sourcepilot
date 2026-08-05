@@ -145,7 +145,7 @@ function PaymentsTab({ writable }: { writable: boolean }) {
         dataIndex: 'orderNo',
         width: 180,
         render: (v: string, r) => (
-          <Link to={appendSourceToUrl(`/orders/detail/${r.orderId}`, 'finance-payments')}>{v}</Link>
+          <Link to={appendSourceToUrl(`/orders/${r.orderId}`, 'finance-payments')}>{v}</Link>
         ),
       },
       { title: '店铺', dataIndex: 'shopName', width: 140, render: (v?: string) => v || '—' },
