@@ -284,13 +284,13 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/customer/buyer-message-rules` | 规则列表。返回 `{ list, canWrite }`。 |
+| `GET` | `/api/v1/customer/buyer-message-rules` | 规则列表。返回 `{ list, canWrite }`；行内 `templateMissing=true` 表示引用的话术模板已删除（规则不再生成草稿，需重选模板）。 |
 | `POST` | `/api/v1/customer/buyer-message-rules` | 新建规则。body：`name`、`node`、`templateId`（须为当前租户模板）、可选 `enabled`（默认启用）、`platforms`、`shopIds`（空数组表示全部）。 |
 | `PUT` | `/api/v1/customer/buyer-message-rules/:id` | 更新规则（部分字段：改名、换节点/模板、启停、平台/店铺过滤）。 |
 | `DELETE` | `/api/v1/customer/buyer-message-rules/:id` | 删除规则（软删除）。返回 `{ ok: true }`。 |
 | `GET` | `/api/v1/customer/buyer-messages/drafts` | 草稿列表。query：`page`、`pageSize`、`node`、`status`（`pending`/`sent`/`ignored`）、`platform`、`shopId`、`keyword`。返回 `{ list, total, page, pageSize, canWrite }`。 |
 | `POST` | `/api/v1/customer/buyer-messages/generate` | 按当前租户启用规则立即扫描生成草稿。返回 `{ created }`。 |
-| `PUT` | `/api/v1/customer/buyer-messages/drafts/:id` | 编辑草稿内容（仅 `pending` 可编辑）。body：`content`。 |
+| `PUT` | `/api/v1/customer/buyer-messages/drafts/:id` | 编辑草稿内容（仅 `pending` 可编辑）。body：`content`；保存时按内容中剩余 `{变量}` 占位重算 `missingVars`。 |
 | `POST` | `/api/v1/customer/buyer-messages/drafts/:id/mark-sent` | 人工回执：标记已发送（幂等；记录操作人与时间）。 |
 | `POST` | `/api/v1/customer/buyer-messages/drafts/:id/ignore` | 忽略草稿（幂等；仅 `pending` 可忽略）。 |
 | `POST` | `/api/v1/customer/buyer-messages/drafts/batch-mark-sent` | 批量标记已发送。body：`ids`；仅更新当前租户 `pending` 行，返回 `{ updated, skipped }`。 |
