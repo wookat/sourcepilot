@@ -315,6 +315,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateRound112DefaultWarehouses(db); err != nil {
 		return err
 	}
+	if err := migrateRound113DefaultWarehouseUnique(db); err != nil {
+		return err
+	}
 	return migrateP7Performance(db)
 }
 
@@ -353,6 +356,15 @@ SELECT t.id FROM tenants t`).Scan(&tenantIDs).Error; err != nil {
 			Enabled:   true,
 		}
 		if err := db.Create(&w).Error; err != nil {
+			// A concurrent instance may have inserted the default warehouse
+			// between the count and the create (the round113 partial unique
+			// index rejects the second insert); tolerate it.
+			var again int64
+			if err2 := db.Model(&inventory.Warehouse{}).
+				Where("tenant_id = ? AND is_default = ?", tid, true).
+				Count(&again).Error; err2 == nil && again > 0 {
+				continue
+			}
 			return err
 		}
 	}
