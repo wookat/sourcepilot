@@ -34,6 +34,9 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		if peek.Platform == "douyin_shop" && (peek.TaskType == TaskTypeDouyinDraftCreate || peek.PublishMode == PublishModeSaveAsPlatformDraft) {
 			return s.ProcessDouyinDraftTask(ctx, taskID, workerID)
 		}
+		if peek.TaskType == TaskTypeLocalDraftCreate {
+			return s.processLocalDraftTask(ctx, taskID, workerID)
+		}
 	}
 	return s.processGenericPublishTask(ctx, taskID, workerID)
 }
@@ -80,7 +83,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 			"status":         TaskFailed,
 			"publish_status": StatusPubFailed,
 			"error_code":     code,
-			"error_message":  msg,
+			"error_message":  localizePublishFailMessage(msg),
 			"finished_at":    &fin,
 		})
 		if rid, ok := snapshotPublicationFromTask(taskRow); ok {
