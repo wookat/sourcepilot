@@ -612,7 +612,7 @@ function ImportWizard({ writable }: { writable: boolean }) {
   );
 }
 
-function ImportHistory({ onGoWizard }: { onGoWizard: () => void }) {
+function ImportHistory({ onGoWizard, refreshToken }: { onGoWizard: () => void; refreshToken: number }) {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<ImportJobRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -636,7 +636,7 @@ function ImportHistory({ onGoWizard }: { onGoWizard: () => void }) {
 
   useEffect(() => {
     void load(page, pageSize, kind);
-  }, [load, page, pageSize, kind]);
+  }, [load, page, pageSize, kind, refreshToken]);
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="middle">
@@ -872,6 +872,14 @@ export default function MigrationImportPage() {
     initialState?.currentUser?.permissions,
   );
   const [activeTab, setActiveTab] = useState('wizard');
+  // Tabs keep children mounted after first visit; bump the token whenever the
+  // history tab is (re)activated so newly committed jobs show without a manual
+  // page refresh.
+  const [historyRefreshToken, setHistoryRefreshToken] = useState(0);
+  const switchTab = (key: string) => {
+    if (key === 'history') setHistoryRefreshToken((n) => n + 1);
+    setActiveTab(key);
+  };
 
   return (
     <TmPageContainer
@@ -880,13 +888,15 @@ export default function MigrationImportPage() {
     >
       <Tabs
         activeKey={activeTab}
-        onChange={setActiveTab}
+        onChange={switchTab}
         items={[
           { key: 'wizard', label: '导入向导', children: <ImportWizard writable={writable} /> },
           {
             key: 'history',
             label: '导入历史',
-            children: <ImportHistory onGoWizard={() => setActiveTab('wizard')} />,
+            children: (
+              <ImportHistory onGoWizard={() => switchTab('wizard')} refreshToken={historyRefreshToken} />
+            ),
           },
           { key: 'export', label: '数据导出', children: <ExportCenter /> },
         ]}
