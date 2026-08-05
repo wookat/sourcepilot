@@ -7,6 +7,7 @@ packages:
 overrides:
   axios: 0.33.0
   immer: 9.0.21
+  isomorphic-fetch>node-fetch: 2.6.7
   rc-resize-observer: 1.4.3
   react: 18.2.0
   react-dom: 18.2.0
