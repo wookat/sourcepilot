@@ -883,9 +883,33 @@ Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_nega
 
 对应管理端入口：`/orders/reports-profit`（利润报表）、`/orders/reports-procurement`（采购报表）、`/orders/reports-inventory`（库存报表），与 `/orders/reports` 经营报表并列。
 
+## 财务对账（finance，round121）
+
+手工 + 导入的记账对账闭环（无平台 API 凭证时可用；凭证到位后可自动化）：回款记录、订单级/店铺月度费用记账、采购实付价、实算毛利（回款−采购实付−费用）与估算毛利并列、对账差异工作台、店铺/月份对账报表。统一 JWT 鉴权、统一返回结构；写操作 readonly 返回 403；非 admin 按授权店铺 scope 过滤，越权资源 404。金额 `decimal(18,4)` 存储；本位币折算沿用 `report_currency` 手工汇率表（无汇率时本位币字段缺省，不伪造）。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/finance/expense-types` | 费用类型列表：内置 平台佣金/推广费/运费/其他（`platform_commission|promotion|shipping|other`），可经租户 settings `finance.expense_types` 增配自定义类型；返回 `{items:[{code,label}]}`。 |
+| `GET` | `/api/v1/finance/payments?orderId=&shopId=&status=&page=&pageSize=` | 回款记录列表（倒序，租户+店铺 scope）；行含订单号/订单应收/回款金额/手续费/回款日期/渠道/来源（manual|import）与订单级对账状态 `settlementStatus`（unpaid 未回款 / short 少款 / over 多款 / settled 已结清，容差 0.01）及差异额 `diffAmount`。 |
+| `POST` | `/api/v1/finance/payments` | 登记回款：`{orderId, amount>0, currency?（缺省订单币种）, feeAmount≥0（≤amount）, receivedAt: YYYY-MM-DD, channel?, remark?}`；订单须本租户可操作（operator 店铺 scope，越权 404/403）。 |
+| `DELETE` | `/api/v1/finance/payments/:id` | 删除回款记录（软删除，租户+店铺 scope，越权 404）。 |
+| `POST` | `/api/v1/finance/order-expenses` | 登记订单级费用：`{orderId, typeCode, amount>0, currency?, incurredAt?, remark?}`（typeCode 须在费用类型内）。 |
+| `DELETE` | `/api/v1/finance/order-expenses/:id` | 删除订单费用。 |
+| `GET` | `/api/v1/finance/shop-expenses?shopId=&month=&page=&pageSize=` | 店铺月度费用列表。 |
+| `POST` | `/api/v1/finance/shop-expenses` | 登记店铺月度费用：`{shopId, month: YYYY-MM, typeCode, amount>0, currency?, remark?}`（shopId 须本租户且可操作）。 |
+| `DELETE` | `/api/v1/finance/shop-expenses/:id` | 删除店铺月度费用。 |
+| `GET` | `/api/v1/finance/orders/:id/summary` | 单订单财务视图：`{baseCurrency, finance（应收/回款/手续费/差异/对账状态 + 本位币 received/actualCost/expense/actualProfit/estimatedProfit/profitDiff + largeDiff + missingActualLines）, payments[], expenses[], expenseTypes[]}`；实算毛利=回款（扣手续费）−采购实付（按销售订单绑定的采购项 `actual_price`）−订单费用。 |
+| `GET` | `/api/v1/finance/reconciliation` | 对账差异工作台（范围参数同报表：`?days=` 或 `?start=&end=`，另 `?status=flagged|large_diff|unpaid|short|over|settled`）：返回 `{generatedAt, startDate, endDate, baseCurrency, summary:{orderCount, unpaidCount, shortCount, overCount, settledCount, largeDiffs, flaggedCount}, rows[], truncated?}`；`largeDiff` 判定：|实算−估算| ≥ 估算的 10% 且 ≥ 本位币 10。 |
+| `GET` | `/api/v1/finance/reconciliation/export.csv` | 差异工作台 CSV 导出（UTF-8 BOM，csvsafe；参数同上）。 |
+| `GET` | `/api/v1/finance/report` | 对账报表（按店铺×月份聚合，范围参数同上）：行含订单数/应收/回款/回款率、费用构成 `feesByType[]`、店铺月度费用、采购实付、实算/估算毛利与差异、各对账状态计数、largeDiffCount、缺实付行数；实算毛利额外扣除店铺月度费用。 |
+| `GET` | `/api/v1/finance/report/export.csv` | 对账报表 CSV 导出（UTF-8 BOM，csvsafe；参数同上）。 |
+| `PUT` | `/api/v1/procurement/orders/:id/items/:itemId/actual-price` | 采购实付价：`{actualPrice: number|null}`（null 清除），区别于参考价 `expectedPrice`；readonly 403，租户+越权 404。 |
+
+对应管理端入口：`/orders/finance-payments`（回款与费用）、`/orders/finance-reconciliation`（对账差异工作台）、`/orders/finance-report`（对账报表）；订单详情页新增「财务」面板（实算 vs 估算并列）。回款 CSV 批量导入沿用数据搬家向导（`kind=payment`，见下节）；`GET /api/v1/imports/export/payment` 提供回款全量导出。
+
 ## 迁移导入与数据搬家（migrationimport，round92 / round115）
 
-从店小秘 / 马帮导出文件或通用 CSV/Excel 模板迁移存量数据的导入向导 API，支持四类 `kind=product|order|inventory|source`（商品草稿 / 历史订单 / 库存期初 / 货源档案），并提供四类全量 CSV 导出。统一 JWT 鉴权与统一返回结构；写操作（parse/validate/commit/mappings 写）readonly 返回 403。商品/订单导入需 `shopId`（operator 越权 404/403）；库存期初/货源档案为租户级，不需店铺。
+从店小秘 / 马帮导出文件或通用 CSV/Excel 模板迁移存量数据的导入向导 API，支持五类 `kind=product|order|inventory|source|payment`（商品草稿 / 历史订单 / 库存期初 / 货源档案 / 平台回款，round121 新增 payment），并提供同类全量 CSV 导出。统一 JWT 鉴权与统一返回结构；写操作（parse/validate/commit/mappings 写）readonly 返回 403。商品/订单导入需 `shopId`（operator 越权 404/403）；库存期初/货源档案为租户级，不需店铺。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -905,6 +929,8 @@ Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_nega
 库存期初导入（`kind=inventory`，round115）：字段 SKU编码(必填)/仓库编码(缺省默认仓)/期初数量(必填非负整数)/参考进价(可选)。落 SKU 总库存与非默认仓 `warehouse_stocks`，写 `inventory_change_logs`（type=`import_opening`）；防重复：同租户同 SKU 同仓的期初导入仅生效一次（`BusinessEventKey` 幂等，重复行计入 duplicate）。
 
 货源档案导入（`kind=source`，round115）：字段 供应商名称(必填)/SKU编码(必填)/货源链接/参考价/外部SKU。复用货源档案模块：供应商按名幂等创建、`BindSource` 绑定货源（已存在则复用）、`SaveSKUMappings` 写 SKU 映射（已存在映射计入 duplicate）。
+
+平台回款导入（`kind=payment`，round121）：字段 订单号(必填)/回款金额(必填>0)/币种(可选，缺省订单币种)/手续费(可选，≤金额)/回款日期(必填)/回款渠道/备注。逐行绑定既有订单（租户+店铺 scope，越权行报错不入库）；防重复：同订单+金额+币种+回款日期的既有记录按重复跳过；成功行落 `finance_payment_records`（source=import）并自动参与对账状态计算。
 
 订单状态映射（店小秘/马帮 → 内部枚举）：未付款/待付款→`pending`；已付款→`paid`；待处理/待审核/待打单/已打单/配货中→`processing`；已发货→`shipped`；已完成/已签收→`delivered`；已作废/已取消→`cancelled`；已退款→`refunded`；无法识别的状态逐行报错不入库。格式假设与字段别名详见 `docs/migration-guide.md`。
 

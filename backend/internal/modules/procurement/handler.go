@@ -515,6 +515,36 @@ func (h *Handler) UpdateItemPrice(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// UpdateItemActualPrice PUT /procurement/orders/:id/items/:itemId/actual-price
+func (h *Handler) UpdateItemActualPrice(c *gin.Context) {
+	if !h.ok() {
+		response.Fail(c, 500, response.CodeInternalError, "procurement unavailable")
+		return
+	}
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	itemID, err := uuid.Parse(strings.TrimSpace(c.Param("itemId")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid item id")
+		return
+	}
+	var body struct {
+		ActualPrice float64 `json:"actualPrice"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
+		return
+	}
+	out, err := h.Svc.UpdateItemActualPrice(c.Request.Context(), id, itemID, body.ActualPrice, adminUUID(c))
+	if err != nil {
+		handleProcurementError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
 // ExportCSV GET /procurement/orders/:id/export.csv
 func (h *Handler) ExportCSV(c *gin.Context) {
 	if !h.ok() {

@@ -11,6 +11,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/finance"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -26,6 +27,7 @@ type Service struct {
 	Products *product.Service
 	Orders   *order.Service
 	Sourcing *sourcing.Service
+	Finance  *finance.Service
 	OpLog    *operationlog.Service
 }
 
@@ -82,10 +84,10 @@ type JobDTO struct {
 
 func normalizeKind(kind string) (string, error) {
 	switch strings.TrimSpace(kind) {
-	case KindProduct, KindOrder, KindInventory, KindSource:
+	case KindProduct, KindOrder, KindInventory, KindSource, KindPayment:
 		return strings.TrimSpace(kind), nil
 	default:
-		return "", fmt.Errorf("kind 需为 product、order、inventory 或 source")
+		return "", fmt.Errorf("kind 需为 product、order、inventory、source 或 payment")
 	}
 }
 
@@ -192,6 +194,10 @@ func (s *Service) Validate(c *gin.Context, body WizardBody) (*ValidateResult, er
 		rows, errs := BuildSourceRows(body.Columns, body.Rows, body.Mapping)
 		res.Errors = errs
 		res.GroupCount = len(rows)
+	case KindPayment:
+		rows, errs := BuildPaymentRows(body.Columns, body.Rows, body.Mapping)
+		res.Errors = errs
+		res.GroupCount = len(rows)
 	}
 	if res.Errors == nil {
 		res.Errors = []RowError{}
@@ -280,6 +286,10 @@ func (s *Service) Commit(c *gin.Context, body WizardBody, adminID *uuid.UUID) (*
 		rows, errs := BuildSourceRows(body.Columns, body.Rows, body.Mapping)
 		appendErrors(errs)
 		s.commitSources(c, job, &errorRows, body, rows, adminID)
+	case KindPayment:
+		rows, errs := BuildPaymentRows(body.Columns, body.Rows, body.Mapping)
+		appendErrors(errs)
+		s.commitPayments(c, job, &errorRows, body, rows, adminID)
 	}
 
 	switch {

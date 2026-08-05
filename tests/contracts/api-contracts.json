@@ -930,6 +930,159 @@
       "path": "/api/v1/orders/:id/automation-logs",
       "auth": true,
       "responseData": "{ items: OrderAutomationLog[] }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/finance/expense-types",
+      "auth": true,
+      "responseData": "{ items: ExpenseType[] }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/finance/payments",
+      "auth": true,
+      "query": [
+        "orderId",
+        "shopId",
+        "status",
+        "page",
+        "pageSize"
+      ],
+      "responseData": "{ items: PaymentDTO[], total: number }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/finance/payments",
+      "auth": true,
+      "requestBody": [
+        "orderId",
+        "amount",
+        "currency",
+        "feeAmount",
+        "receivedAt",
+        "channel",
+        "remark"
+      ],
+      "responseData": "PaymentRecord"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/finance/payments/:id",
+      "auth": true,
+      "responseData": "{ deleted: boolean }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/finance/order-expenses",
+      "auth": true,
+      "requestBody": [
+        "orderId",
+        "typeCode",
+        "amount",
+        "currency",
+        "incurredAt",
+        "remark"
+      ],
+      "responseData": "OrderExpense"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/finance/order-expenses/:id",
+      "auth": true,
+      "responseData": "{ deleted: boolean }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/finance/shop-expenses",
+      "auth": true,
+      "query": [
+        "shopId",
+        "month",
+        "page",
+        "pageSize"
+      ],
+      "responseData": "{ items: ShopExpenseDTO[], total: number }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/finance/shop-expenses",
+      "auth": true,
+      "requestBody": [
+        "shopId",
+        "month",
+        "typeCode",
+        "amount",
+        "currency",
+        "remark"
+      ],
+      "responseData": "ShopMonthlyExpense"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/finance/shop-expenses/:id",
+      "auth": true,
+      "responseData": "{ deleted: boolean }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/finance/orders/:id/summary",
+      "auth": true,
+      "responseData": "OrderFinanceSummary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/finance/reconciliation",
+      "auth": true,
+      "query": [
+        "days",
+        "start",
+        "end",
+        "status"
+      ],
+      "responseData": "ReconciliationDTO"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/finance/reconciliation/export.csv",
+      "auth": true,
+      "query": [
+        "days",
+        "start",
+        "end",
+        "status"
+      ],
+      "responseData": "text/csv"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/finance/report",
+      "auth": true,
+      "query": [
+        "days",
+        "start",
+        "end"
+      ],
+      "responseData": "FinanceReportDTO"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/finance/report/export.csv",
+      "auth": true,
+      "query": [
+        "days",
+        "start",
+        "end"
+      ],
+      "responseData": "text/csv"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/procurement/orders/:id/items/:itemId/actual-price",
+      "auth": true,
+      "requestBody": [
+        "actualPrice"
+      ],
+      "responseData": "PurchaseOrderDetail"
     }
   ]
 }

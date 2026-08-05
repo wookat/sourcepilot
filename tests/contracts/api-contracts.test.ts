@@ -105,8 +105,53 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/orders/:id/automation-logs',
         'POST /api/v1/orders/print/mark',
         'POST /api/v1/orders/shipping-recommendations',
+        'GET /api/v1/finance/expense-types',
+        'GET /api/v1/finance/payments',
+        'POST /api/v1/finance/payments',
+        'DELETE /api/v1/finance/payments/:id',
+        'POST /api/v1/finance/order-expenses',
+        'DELETE /api/v1/finance/order-expenses/:id',
+        'GET /api/v1/finance/shop-expenses',
+        'POST /api/v1/finance/shop-expenses',
+        'DELETE /api/v1/finance/shop-expenses/:id',
+        'GET /api/v1/finance/orders/:id/summary',
+        'GET /api/v1/finance/reconciliation',
+        'GET /api/v1/finance/reconciliation/export.csv',
+        'GET /api/v1/finance/report',
+        'GET /api/v1/finance/report/export.csv',
+        'PUT /api/v1/procurement/orders/:id/items/:itemId/actual-price',
       ]),
     );
+  });
+
+  it('defines payload/query contracts for finance bookkeeping APIs', () => {
+    const createPayment = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/finance/payments');
+    const listPayments = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/finance/payments');
+    const createOrderExpense = contracts.endpoints.find(
+      (item) => routeKey(item) === 'POST /api/v1/finance/order-expenses',
+    );
+    const createShopExpense = contracts.endpoints.find(
+      (item) => routeKey(item) === 'POST /api/v1/finance/shop-expenses',
+    );
+    const reconciliation = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/finance/reconciliation');
+    const actualPrice = contracts.endpoints.find(
+      (item) => routeKey(item) === 'PUT /api/v1/procurement/orders/:id/items/:itemId/actual-price',
+    );
+
+    expect(createPayment?.requestBody).toEqual([
+      'orderId',
+      'amount',
+      'currency',
+      'feeAmount',
+      'receivedAt',
+      'channel',
+      'remark',
+    ]);
+    expect(listPayments?.query).toEqual(['orderId', 'shopId', 'status', 'page', 'pageSize']);
+    expect(createOrderExpense?.requestBody).toEqual(['orderId', 'typeCode', 'amount', 'currency', 'incurredAt', 'remark']);
+    expect(createShopExpense?.requestBody).toEqual(['shopId', 'month', 'typeCode', 'amount', 'currency', 'remark']);
+    expect(reconciliation?.query).toEqual(['days', 'start', 'end', 'status']);
+    expect(actualPrice?.requestBody).toEqual(['actualPrice']);
   });
 
   it('defines payload/query contracts for logistics APIs', () => {
@@ -331,7 +376,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(90);
+    expect(contracts.endpoints).toHaveLength(105);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

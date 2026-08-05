@@ -1701,3 +1701,13 @@ Final Production Acceptance Deferred to P10
 - 前端构建链 `pnpm.overrides` / `pnpm-workspace.yaml` 补 `axios 0.33.0`、`immer 9.0.21`（两者均为 `@umijs/plugins` 传递依赖，仓库未直接声明）：`pnpm audit --prod` critical 1→0、high 14→3、moderate 21→9、low 5→4；`axios` 覆盖 SSRF / 代理绕过 / 原型污染 / 头注入 / 凭据泄露等 9 条通告，`immer` 覆盖唯一一条 critical 原型污染。`pnpm build:admin`、`pnpm test:frontend`（41 套 283 用例）、`pnpm test:contracts` 全绿。
 - 未处理并列入 P2（均为构建期或框架内部固定版本，补丁需跨大版本或与 umi 4 绑定）：`react-router 6.3.0`（umi 4 内部固定）、`node-fetch 1.7.3`（dva → isomorphic-fetch 传递）、`vite` / `esbuild`（devDependencies）、`send`、`elliptic`、`hono` / `@hono/node-server`。
 - `govulncheck ./...`：0 命中（另有 1 条仅存在于 require 图、代码未调用）。
+
+### 变更记录（2026-08-05）第 121 轮：R121 线1 财务对账——回款/费用记账/实算毛利/对账报表（fullstack-engineer）
+
+- **回款记录**：新模块 `backend/internal/modules/finance`（`finance_payment_records` / `finance_order_expenses` / `finance_shop_monthly_expenses`，金额 decimal(18,4)）。按订单登记平台回款（金额/币种/手续费/回款日期/渠道），手工录入 + CSV 批量导入（数据搬家向导新增 `kind=payment`：模板/自动映射/校验/幂等重放/重复跳过/错误行报告/全量导出）；回款与订单应收自动对账标记 未回款/少款/多款/已结清（容差 0.01）。
+- **费用记账**：订单级费用（平台佣金/推广费/运费/其他，settings `finance.expense_types` 可增配）+ 店铺级月度费用（店铺×YYYY-MM×类型）；采购实付价 `PUT /procurement/orders/:id/items/:itemId/actual-price`（`actual_price` 区别于参考价 `expected_price`）。
+- **实算毛利与对账**：实算毛利=回款（扣手续费）−采购实付（销售订单绑定采购项）−费用，与估算毛利并列（订单详情财务面板 + 工作台 + 报表）；差异较大（≥10% 且 ≥ 本位币 10）列入对账差异工作台；多币种沿用 `report_currency` 手工汇率本位币折算（无汇率缺省不伪造）。对账报表按店铺×月份汇总回款率/费用构成/实算 vs 估算差异；工作台与报表均支持 CSV 导出（UTF-8 BOM + csvsafe）。
+- **前端**：`/orders/finance-payments`（回款+店铺月度费用，登记/删除/CSV 导入入口）、`/orders/finance-reconciliation`（汇总统计+状态筛选+导出）、`/orders/finance-report`（店铺×月份+导出）、订单详情「财务」面板；服务层集中 `admin/src/services/finance.ts`，全中文文案。
+- **权限与租户**：全部端点登记权限矩阵（readonly 写 403、operator 店铺 scope、跨租户/越权 404）；顺带补齐 main 上缺登记的 buyer-messages×2 前缀 20 条与 `GET /imports/progress`（TestRouteRegistryComplete 此前在设 TEST_DATABASE_URL 时失败）。
+- **demo seed**：fulldemo 新增财务样本（已结清/少款/多款回款、订单费用、店铺月度费用、采购实付价绑定销售订单）；clean/verify 覆盖三张 finance 表零残留（`TestFullDemoSeedFinanceSamples`）。
+- **测试**：后端 finance 单测（CRUD/scope/对账状态/毛利/报表/CSV）、payment 导入/导出回归（含租户隔离与店铺 scope）、demoseed 回归、契约注册 105 端点 + finance payload/query 断言、前端 services 单测、`round121-finance` Playwright E2E 8 条（列表/登记回款写拦截 payload/删除/店铺费用写拦截/readonly/工作台/报表/三档视口无根溢出）。
