@@ -338,7 +338,7 @@ export default function OperationTasksPage() {
           confirmLoading={batchLoading}
           okText={batchModal === 'approve' ? '确认批量批准' : '确认批量驳回'}
           cancelText="取消"
-          destroyOnHidden
+          forceRender
         >
           <Form form={batchForm} layout="vertical">
             <Paragraph>

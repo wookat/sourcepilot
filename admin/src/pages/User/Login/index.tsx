@@ -18,7 +18,7 @@ import { message } from 'antd';
 import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
 import { saveSessionCredentials } from '@/utils/sessionGuard';
-import { formatUserErrorMessage } from '@/constants/errorMessages';
+import { httpErrorCopy } from '@/constants/errorMessages';
 import { getRegisterConfig, login, register, resolveSessionUser, sendEmailCode } from '@/services/auth';
 import './index.less';
 
@@ -33,15 +33,8 @@ const FEATURE_TAGS = [
 
 const PLATFORM_ITEMS = ['1688', 'Shopee', 'Lazada', 'Temu'];
 
-type ApiErrorLike = {
-  response?: { data?: { message?: string } };
-  message?: string;
-};
-
 function getAuthErrorMessage(error: unknown, fallback: string) {
-  const ax = error as ApiErrorLike;
-  const raw = ax?.response?.data?.message || ax?.message;
-  return formatUserErrorMessage(raw, fallback);
+  return httpErrorCopy(error, fallback);
 }
 
 export default function LoginPage() {
