@@ -15,6 +15,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	imp.POST("/commit", w, h.Commit)
 	imp.GET("/templates/:kind", h.TemplateCSV)
 	imp.GET("/export/:kind", h.ExportCSV)
+	imp.GET("/progress", h.Progress)
 	imp.GET("/mappings", h.ListMappings)
 	imp.POST("/mappings", w, h.SaveMapping)
 	imp.DELETE("/mappings/:id", w, h.DeleteMapping)

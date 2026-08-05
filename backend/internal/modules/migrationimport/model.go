@@ -37,8 +37,10 @@ const (
 	RowStatusDuplicate = "duplicate"
 )
 
-// MaxImportRows caps a single import batch.
-const MaxImportRows = 1000
+// MaxImportRows caps a single import batch. Raised from 1000 to 10000 in
+// R116: commit paths batch their reads / writes, so a 10k-row file imports
+// in one upload instead of ten manual splits (file size stays capped at 10MB).
+const MaxImportRows = 10000
 
 // ImportJob is one committed import batch (task-style history record).
 type ImportJob struct {

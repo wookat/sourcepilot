@@ -140,9 +140,28 @@ export async function downloadImportErrorsCsv(id: string) {
   return downloadCsv(`/api/v1/imports/${id}/errors.csv`, `import-errors-${id.slice(0, 8)}.csv`);
 }
 
-/** GET /api/v1/imports/templates/:kind — 下载通用导入模板 */
+/** GET /api/v1/imports/templates/:kind — 下载通用导入模板（CSV） */
 export async function downloadImportTemplateCsv(kind: ImportKind) {
   return downloadCsv(`/api/v1/imports/templates/${kind}`, `trademind-import-template-${kind}.csv`);
+}
+
+/** GET /api/v1/imports/templates/:kind?format=xlsx — 下载通用导入模板（Excel） */
+export async function downloadImportTemplateXlsx(kind: ImportKind) {
+  return downloadCsv(
+    `/api/v1/imports/templates/${kind}?format=xlsx`,
+    `trademind-import-template-${kind}.xlsx`,
+  );
+}
+
+/** GET /api/v1/imports/progress — 当前批次导入进度（未在导入时 active=false） */
+export type ImportProgress = {
+  active: boolean;
+  processed: number;
+  total: number;
+};
+
+export async function getImportProgress(kind: ImportKind, fileHash: string): Promise<ImportProgress> {
+  return getWithParams('/api/v1/imports/progress', { kind, fileHash });
 }
 
 /** GET /api/v1/imports/export/:kind — 全量数据 CSV 导出 */

@@ -157,6 +157,8 @@ func (s *Service) resolveShop(c *gin.Context, raw string) (*uuid.UUID, error) {
 
 var errShopNotOperable = errors.New("当前账号无该店铺的操作权限")
 
+var errCommitInFlight = errors.New("该批次正在导入中，请勿重复提交")
+
 // Validate runs mapping + per-row validation without writing anything.
 func (s *Service) Validate(c *gin.Context, body WizardBody) (*ValidateResult, error) {
 	kind, err := normalizeKind(body.Kind)
@@ -229,6 +231,11 @@ func (s *Service) Commit(c *gin.Context, body WizardBody, adminID *uuid.UUID) (*
 	} else if existing != nil {
 		return replayResult(existing), nil
 	}
+	pKey := progressKey(tid, kind, body.FileHash)
+	if !commits.begin(pKey, len(body.Rows)) {
+		return nil, errCommitInFlight
+	}
+	defer commits.finish(pKey)
 
 	job := &ImportJob{
 		TenantID:     tid,
@@ -253,6 +260,7 @@ func (s *Service) Commit(c *gin.Context, body WizardBody, adminID *uuid.UUID) (*
 			})
 			job.FailedRows++
 		}
+		commits.advance(pKey, len(errs))
 	}
 
 	switch kind {
@@ -373,31 +381,33 @@ func rawRowJSON(columns []string, rows [][]string, rowNumber int) datatypes.JSON
 }
 
 func (s *Service) commitProducts(c *gin.Context, job *ImportJob, errorRows *[]ImportJobRow, body WizardBody, products []ProductInput, adminID *uuid.UUID) {
-	dupSKU := func(code string) (bool, error) {
-		if code == "" {
-			return false, nil
+	tid, tenantErr := adminperm.TenantIDFromGin(c)
+	// Duplicate detection runs in bulk: one query per row would dominate the
+	// commit time on 10k-row files.
+	var existing map[string]bool
+	if tenantErr == nil {
+		codes := make([]string, 0, len(body.Rows))
+		for _, p := range products {
+			for _, sku := range p.SKUs {
+				codes = append(codes, sku.SKUCode)
+			}
 		}
-		tid, err := adminperm.TenantIDFromGin(c)
-		if err != nil {
-			return false, err
-		}
-		var cnt int64
-		err = s.DB.WithContext(c.Request.Context()).
-			Table("product_skus").
-			Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").
-			Where("products.tenant_id = ? AND product_skus.sku_code = ?", tid, code).
-			Count(&cnt).Error
-		return cnt > 0, err
+		existing, tenantErr = s.existingSKUCodes(c, tid, codes)
 	}
+	pKey := progressKey(tid, job.Kind, job.BatchKey)
 	for _, p := range products {
+		if tenantErr != nil {
+			rowNos := make([]int, 0, len(p.SKUs))
+			for _, sku := range p.SKUs {
+				rowNos = append(rowNos, sku.RowNumber)
+			}
+			s.markRows(job, errorRows, body, rowNos, RowStatusFailed, FSKUCode, tenantErr.Error())
+			commits.advance(pKey, len(p.SKUs))
+			continue
+		}
 		var fresh []SKUInput
 		for _, sku := range p.SKUs {
-			isDup, err := dupSKU(sku.SKUCode)
-			if err != nil {
-				s.markRows(job, errorRows, body, []int{sku.RowNumber}, RowStatusFailed, FSKUCode, err.Error())
-				continue
-			}
-			if isDup {
+			if sku.SKUCode != "" && existing[sku.SKUCode] {
 				s.markRows(job, errorRows, body, []int{sku.RowNumber}, RowStatusDuplicate, FSKUCode,
 					fmt.Sprintf("SKU「%s」已存在，跳过", sku.SKUCode))
 				continue
@@ -405,6 +415,7 @@ func (s *Service) commitProducts(c *gin.Context, job *ImportJob, errorRows *[]Im
 			fresh = append(fresh, sku)
 		}
 		if len(fresh) == 0 {
+			commits.advance(pKey, len(p.SKUs))
 			continue
 		}
 		detail, err := s.Products.Create(c, product.CreateBody{
@@ -421,6 +432,7 @@ func (s *Service) commitProducts(c *gin.Context, job *ImportJob, errorRows *[]Im
 				rowNos = append(rowNos, sku.RowNumber)
 			}
 			s.markRows(job, errorRows, body, rowNos, RowStatusFailed, FTitle, err.Error())
+			commits.advance(pKey, len(p.SKUs))
 			continue
 		}
 		for _, sku := range fresh {
@@ -438,36 +450,45 @@ func (s *Service) commitProducts(c *gin.Context, job *ImportJob, errorRows *[]Im
 			}
 			job.SuccessRows++
 		}
+		commits.advance(pKey, len(p.SKUs))
 	}
 }
 
 func (s *Service) commitOrders(c *gin.Context, job *ImportJob, errorRows *[]ImportJobRow, body WizardBody, orders []OrderInput, adminID *uuid.UUID) {
 	tid, tenantErr := adminperm.TenantIDFromGin(c)
+	// Duplicate detection is per tenant and in bulk: a global lookup would
+	// report another tenant's order number as an existing one, and one query
+	// per row would dominate the commit time on 10k-row files.
+	var existing map[string]bool
+	if tenantErr == nil {
+		nos := make([]string, 0, len(orders))
+		for _, oi := range orders {
+			nos = append(nos, oi.OrderNo)
+		}
+		existing, tenantErr = s.existingOrderNos(c, tid, nos)
+	}
+	pKey := progressKey(tid, job.Kind, job.BatchKey)
 	for _, oi := range orders {
 		if tenantErr != nil {
 			s.markRows(job, errorRows, body, oi.RowNumbers, RowStatusFailed, FOrderNo, tenantErr.Error())
+			commits.advance(pKey, len(oi.RowNumbers))
 			continue
 		}
-		var cnt int64
-		// Duplicate detection is per tenant: a global lookup would report
-		// another tenant's order number as an existing one.
-		if err := s.DB.WithContext(c.Request.Context()).Model(&order.Order{}).
-			Where("tenant_id = ? AND order_no = ?", tid, oi.OrderNo).Count(&cnt).Error; err != nil {
-			s.markRows(job, errorRows, body, oi.RowNumbers, RowStatusFailed, FOrderNo, err.Error())
-			continue
-		}
-		if cnt > 0 {
+		if existing[oi.OrderNo] {
 			s.markRows(job, errorRows, body, oi.RowNumbers, RowStatusDuplicate, FOrderNo,
 				fmt.Sprintf("订单号「%s」已存在，跳过", oi.OrderNo))
+			commits.advance(pKey, len(oi.RowNumbers))
 			continue
 		}
 		cb := oi.ToCreateBody(normalizeSourceFormat(body.SourceFormat))
 		cb.ShopID = job.ShopID
 		if _, err := s.Orders.Create(c, cb, adminID); err != nil {
 			s.markRows(job, errorRows, body, oi.RowNumbers, RowStatusFailed, "", err.Error())
+			commits.advance(pKey, len(oi.RowNumbers))
 			continue
 		}
 		job.SuccessRows += len(oi.RowNumbers)
+		commits.advance(pKey, len(oi.RowNumbers))
 	}
 }
 

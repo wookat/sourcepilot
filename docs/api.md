@@ -857,13 +857,14 @@ Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_nega
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/imports/parse` | multipart 上传（`kind=product|order|inventory|source`、`file`，CSV/XLSX ≤10MB）；返回 `columns / rows / totalRows / fileHash / sourceFormat（dianxiaomi|mabang|custom，按表头自动识别）/ mapping（自动猜列，字段 key → 列下标，-1 表示未映射）/ fields（目标字段定义，含 required）`。单批 ≤1000 数据行，超限 400。 |
+| `POST` | `/api/v1/imports/parse` | multipart 上传（`kind=product|order|inventory|source`、`file`，CSV/XLSX ≤10MB）；返回 `columns / rows / totalRows / fileHash / sourceFormat（dianxiaomi|mabang|custom，按表头自动识别）/ mapping（自动猜列，字段 key → 列下标，-1 表示未映射）/ fields（目标字段定义，含 required）`。单批 ≤10000 数据行，超限 400（R116 由 1000 行放宽）。XLSX 基于 excelize 解析（BSD-3-Clause），内置 zip 炸弹防护（解压上限 128MB、单 XML 部件 ≤64MB），损坏/加密文件返回中文 400。 |
 | `POST` | `/api/v1/imports/validate` | 请求体 `kind / shopId / columns / rows / mapping / fileName / fileHash / sourceFormat`；只校验不落库。返回 `totalRows / validRows / errorRows / groupCount（商品数或订单数）/ errors[]（rowNumber/field/message，逐行必填缺失、重复、非法值）`。`shopId` 必填且必须是当前账号可操作的店铺（operator 越权返回 404/403）。 |
 | `POST` | `/api/v1/imports/commit` | 与 validate 同请求体；确认导入。商品按「商品名称」聚合创建草稿（status=draft，行=SKU，已存在的 SKU 编码按重复跳过）；订单按「订单号」聚合创建（platform=migration，来源状态映射到内部枚举，收件人地址存入 `rawData.receiver` 与备注）。**幂等**：同租户同 kind 同 `fileHash`（文件 sha256）只提交一次，重传原样返回首个批次结果（`replayed=true`）。返回 `jobId / status（success|partial_success|failed）/ totalRows / successRows / failedRows / duplicateRows / replayed`。 |
 | `GET` | `/api/v1/imports?kind=&page=&pageSize=` | 导入历史（租户隔离，倒序）；返回 `list[]（ImportJob + errorRowCount）/ total / page / pageSize`。 |
 | `GET` | `/api/v1/imports/:id` | 单批详情：`job` + `errorRows[]`（仅持久化失败/重复行：rowNumber/status(failed|duplicate)/field/message/rawValues）。 |
 | `GET` | `/api/v1/imports/:id/errors.csv` | 错误行报告下载（UTF-8 BOM CSV：行号/状态/字段/错误信息/原始数据）。 |
-| `GET` | `/api/v1/imports/templates/:kind` | 通用导入模板下载（UTF-8 BOM CSV，表头为目标字段中文标签 + 一行示例；Excel 可直接打开、另存为 CSV 后上传）。 |
+| `GET` | `/api/v1/imports/templates/:kind?format=csv|xlsx` | 通用导入模板下载：默认 UTF-8 BOM CSV（表头为目标字段中文标签 + 一行示例）；`format=xlsx` 返回真实 xlsx 工作簿（R116）。 |
+| `GET` | `/api/v1/imports/progress?kind=&fileHash=` | 当前批次导入进度（R116）：`active / processed / total`；未在导入时 `active=false`。导入进行中重复提交 commit 返回 409（该批次正在导入中）。进度为单实例内存态，仅作前端体验提示，不作为业务状态依据。 |
 | `GET` | `/api/v1/imports/export/:kind` | 四类全量 CSV 导出（UTF-8 BOM，csvsafe 防注入，单次 ≤50000 行）：`product` 每 SKU 一行（含币种/售价/成本/库存）；`order` 每商品行一行（含订单币种与金额，沿用店铺 scope）；`inventory` 每 SKU×仓库一行（默认仓库存 = 总库存−非默认仓之和，与 #236 多仓口径一致）；`source` 每货源×SKU 映射一行（供应商/链接/参考价/币种）。 |
 | `GET` | `/api/v1/imports/mappings?kind=` | 列出租户级已保存的列映射方案（按 kind）。 |
 | `POST` | `/api/v1/imports/mappings` | 保存映射方案（`kind / name / columns / mapping`；同 kind+name 覆盖，每租户每 kind ≤50 个，name ≤64 字）。 |

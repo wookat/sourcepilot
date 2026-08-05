@@ -5,7 +5,9 @@ import {
   downloadExportCsv,
   downloadImportErrorsCsv,
   downloadImportTemplateCsv,
+  downloadImportTemplateXlsx,
   getImportJob,
+  getImportProgress,
   parseImportFile,
   queryImportJobs,
   queryImportMappingPresets,
@@ -32,6 +34,7 @@ import {
   Empty,
   Input,
   Popconfirm,
+  Progress,
   Radio,
   Result,
   Select,
@@ -44,7 +47,7 @@ import {
   Upload,
   message,
 } from 'antd';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const KIND_LABEL: Record<string, string> = {
   product: '商品',
@@ -98,6 +101,8 @@ function ImportWizard({ writable }: { writable: boolean }) {
   const [validating, setValidating] = useState(false);
   const [validated, setValidated] = useState<ImportValidateResult | null>(null);
   const [committing, setCommitting] = useState(false);
+  const [commitProgress, setCommitProgress] = useState<{ processed: number; total: number } | null>(null);
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [committed, setCommitted] = useState<{
     jobId: string;
     status: string;
@@ -209,9 +214,32 @@ function ImportWizard({ writable }: { writable: boolean }) {
     }
   }, [wizardBody, needsShop, shopId, missingRequired]);
 
+  const stopProgressPolling = useCallback(() => {
+    if (progressTimer.current) {
+      clearInterval(progressTimer.current);
+      progressTimer.current = null;
+    }
+    setCommitProgress(null);
+  }, []);
+
+  useEffect(() => stopProgressPolling, [stopProgressPolling]);
+
   const handleCommit = useCallback(async () => {
-    if (!wizardBody) return;
+    if (!wizardBody || committing) return;
     setCommitting(true);
+    setCommitProgress({ processed: 0, total: wizardBody.rows.length });
+    const fileHash = wizardBody.fileHash || '';
+    if (fileHash) {
+      progressTimer.current = setInterval(() => {
+        getImportProgress(kind, fileHash)
+          .then((p) => {
+            if (p.active) setCommitProgress({ processed: p.processed, total: p.total });
+          })
+          .catch(() => {
+            // 进度查询失败不影响导入本身
+          });
+      }, 1000);
+    }
     try {
       const res = await commitImport(wizardBody);
       setCommitted(res);
@@ -222,9 +250,10 @@ function ImportWizard({ writable }: { writable: boolean }) {
     } catch (e) {
       message.error(e instanceof Error ? e.message : '导入失败');
     } finally {
+      stopProgressPolling();
       setCommitting(false);
     }
-  }, [wizardBody]);
+  }, [wizardBody, committing, kind, stopProgressPolling]);
 
   const previewColumns = useMemo(() => {
     if (!parsed) return [];
@@ -233,7 +262,12 @@ function ImportWizard({ writable }: { writable: boolean }) {
       dataIndex: String(i),
       ellipsis: true,
       width: 140,
-      render: (_: unknown, row: string[]) => row[i] ?? '',
+      render: (_: unknown, row: string[]) =>
+        (row[i] ?? '') === '' ? (
+          <Typography.Text type="secondary">—</Typography.Text>
+        ) : (
+          row[i]
+        ),
     }));
   }, [parsed]);
 
@@ -278,17 +312,30 @@ function ImportWizard({ writable }: { writable: boolean }) {
               showIcon
               message="不是店小秘 / 马帮导出文件？下载通用模板，按模板整理后上传即可"
               action={
-                <Button
-                  size="small"
-                  icon={<DownloadOutlined />}
-                  onClick={() =>
-                    downloadImportTemplateCsv(kind).catch((e) =>
-                      message.error(e instanceof Error ? e.message : '模板下载失败'),
-                    )
-                  }
-                >
-                  下载{KIND_LABEL[kind]}模板
-                </Button>
+                <Space>
+                  <Button
+                    size="small"
+                    icon={<DownloadOutlined />}
+                    onClick={() =>
+                      downloadImportTemplateCsv(kind).catch((e) =>
+                        message.error(e instanceof Error ? e.message : '模板下载失败'),
+                      )
+                    }
+                  >
+                    下载{KIND_LABEL[kind]}模板（CSV）
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<DownloadOutlined />}
+                    onClick={() =>
+                      downloadImportTemplateXlsx(kind).catch((e) =>
+                        message.error(e instanceof Error ? e.message : '模板下载失败'),
+                      )
+                    }
+                  >
+                    下载{KIND_LABEL[kind]}模板（Excel）
+                  </Button>
+                </Space>
               }
             />
             <Upload.Dragger
@@ -306,7 +353,7 @@ function ImportWizard({ writable }: { writable: boolean }) {
               </p>
               <p className="ant-upload-text">{parsing ? '解析中…' : '点击或拖拽上传 CSV / XLSX 文件'}</p>
               <p className="ant-upload-hint">
-                支持店小秘 / 马帮导出文件与通用模板，自动识别列；单批最多 1000 行，文件不超过 10MB
+                支持店小秘 / 马帮导出文件与通用模板，自动识别列；单批最多 10000 行，文件不超过 10MB
               </p>
             </Upload.Dragger>
           </Space>
@@ -491,15 +538,32 @@ function ImportWizard({ writable }: { writable: boolean }) {
                 ]}
               />
             )}
+            {committing && commitProgress && (
+              <div data-testid="import-commit-progress">
+                <Progress
+                  percent={
+                    commitProgress.total > 0
+                      ? Math.round((commitProgress.processed / commitProgress.total) * 100)
+                      : 0
+                  }
+                  status="active"
+                />
+                <Typography.Text type="secondary">
+                  正在导入：{commitProgress.processed} / {commitProgress.total} 行，请勿关闭或重复提交
+                </Typography.Text>
+              </div>
+            )}
             <Space>
-              <Button onClick={() => setStep(1)}>返回调整映射</Button>
+              <Button disabled={committing} onClick={() => setStep(1)}>
+                返回调整映射
+              </Button>
               <Button
                 type="primary"
                 loading={committing}
-                disabled={validated.validRows === 0}
+                disabled={validated.validRows === 0 || committing}
                 onClick={handleCommit}
               >
-                确认导入 {validated.validRows} 行
+                {committing ? '导入中…' : `确认导入 ${validated.validRows} 行`}
               </Button>
             </Space>
           </Space>

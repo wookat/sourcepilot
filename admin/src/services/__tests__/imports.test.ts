@@ -2,6 +2,7 @@ import { request } from '@umijs/max';
 import { describe, expect, it, vi } from 'vitest';
 import {
   deleteImportMappingPreset,
+  getImportProgress,
   parseImportFile,
   queryImportMappingPresets,
   saveImportMappingPreset,
@@ -46,5 +47,21 @@ describe('imports service', () => {
     requestMock.mockResolvedValue({ code: 0, message: 'ok', data: { deleted: true } });
     await deleteImportMappingPreset('p-1');
     expect(requestMock).toHaveBeenCalledWith('/api/v1/imports/mappings/p-1', { method: 'DELETE' });
+  });
+
+  it('queries the commit progress of a batch', async () => {
+    requestMock.mockResolvedValue({
+      code: 0,
+      message: 'ok',
+      data: { active: true, processed: 500, total: 10000 },
+    });
+
+    const p = await getImportProgress('order', 'hash-1');
+    expect(requestMock).toHaveBeenCalledWith('/api/v1/imports/progress', {
+      method: 'GET',
+      params: { kind: 'order', fileHash: 'hash-1' },
+    });
+    expect(p.active).toBe(true);
+    expect(p.total).toBe(10000);
   });
 });

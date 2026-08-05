@@ -85,7 +85,8 @@ test.describe('R115 数据搬家：库存期初导入与映射方案', () => {
 
     await admin.goto('/settings/migration?kind=inventory');
     await expect(page.locator('.ant-radio-button-wrapper-checked')).toContainText('库存期初');
-    await expect(page.getByRole('button', { name: '下载库存期初模板' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '下载库存期初模板（CSV）' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '下载库存期初模板（Excel）' })).toBeVisible();
 
     await page
       .locator('input[type="file"]')
@@ -166,7 +167,7 @@ test.describe('R115 数据搬家：库存期初导入与映射方案', () => {
     ]) {
       await page.setViewportSize(vp);
       await admin.goto('/settings/migration?kind=source');
-      await expect(page.getByRole('button', { name: '下载货源档案模板' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '下载货源档案模板（CSV）' })).toBeVisible();
       const rootOverflow = await page.evaluate(
         () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
       );

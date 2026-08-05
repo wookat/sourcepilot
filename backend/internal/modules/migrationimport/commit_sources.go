@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
@@ -21,14 +22,28 @@ func (s *Service) commitSources(c *gin.Context, job *ImportJob, errorRows *[]Imp
 		return
 	}
 	tid, tenantErr := adminperm.TenantIDFromGin(c)
+	// SKUs are resolved in bulk: one query per row would dominate the commit
+	// time on 10k-row files.
+	var foundSKUs map[string]*product.ProductSKU
+	var ambiguous map[string]bool
+	if tenantErr == nil {
+		codes := make([]string, 0, len(rows))
+		for _, in := range rows {
+			codes = append(codes, in.SKUCode)
+		}
+		foundSKUs, ambiguous, tenantErr = s.findTenantSKUsBulk(c, tid, codes)
+	}
+	pKey := progressKey(tid, job.Kind, job.BatchKey)
 	for _, in := range rows {
 		if tenantErr != nil {
 			s.markRows(job, errorRows, body, []int{in.RowNumber}, RowStatusFailed, FSupplierName, tenantErr.Error())
+			commits.advance(pKey, 1)
 			continue
 		}
-		sku, err := s.findTenantSKU(c, tid, in.SKUCode)
+		sku, err := resolveBulkSKU(foundSKUs, ambiguous, in.SKUCode)
 		if err != nil {
 			s.markRows(job, errorRows, body, []int{in.RowNumber}, RowStatusFailed, FSKUCode, err.Error())
+			commits.advance(pKey, 1)
 			continue
 		}
 		src, err := s.Sourcing.BindSource(c, sku.ProductID, sourcing.BindSourceBody{
@@ -40,6 +55,7 @@ func (s *Service) commitSources(c *gin.Context, job *ImportJob, errorRows *[]Imp
 		}
 		if err != nil {
 			s.markRows(job, errorRows, body, []int{in.RowNumber}, RowStatusFailed, FSupplierName, err.Error())
+			commits.advance(pKey, 1)
 			continue
 		}
 		var mapped int64
@@ -47,11 +63,13 @@ func (s *Service) commitSources(c *gin.Context, job *ImportJob, errorRows *[]Imp
 			Where("product_source_id = ? AND local_sku_id = ?", src.ID, sku.ID).
 			Count(&mapped).Error; err != nil {
 			s.markRows(job, errorRows, body, []int{in.RowNumber}, RowStatusFailed, "", err.Error())
+			commits.advance(pKey, 1)
 			continue
 		}
 		if mapped > 0 {
 			s.markRows(job, errorRows, body, []int{in.RowNumber}, RowStatusDuplicate, FSKUCode,
 				fmt.Sprintf("SKU「%s」与该供应商的货源映射已存在，跳过", in.SKUCode))
+			commits.advance(pKey, 1)
 			continue
 		}
 		if _, err := s.Sourcing.SaveSKUMappings(c, src.ID, []sourcing.SKUMappingBody{{
@@ -60,9 +78,11 @@ func (s *Service) commitSources(c *gin.Context, job *ImportJob, errorRows *[]Imp
 			CurrentPrice:  in.RefPrice,
 		}}, adminID); err != nil {
 			s.markRows(job, errorRows, body, []int{in.RowNumber}, RowStatusFailed, FRefPrice, err.Error())
+			commits.advance(pKey, 1)
 			continue
 		}
 		job.SuccessRows++
+		commits.advance(pKey, 1)
 	}
 }
 
