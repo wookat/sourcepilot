@@ -174,8 +174,8 @@ function DraftsTab({ shops }: { shops: ShopListRow[] }) {
     try {
       await updateBuyerMsgDraft(editModal.row.id, v.content);
       message.success('草稿内容已保存');
-      setEditModal({ open: false });
       await load();
+      setEditModal({ open: false });
     } catch (e) {
       message.error(extractErrorMessage(e, '保存失败'));
     } finally {
@@ -303,7 +303,6 @@ function DraftsTab({ shops }: { shops: ShopListRow[] }) {
           {
             title: '消息内容',
             dataIndex: 'content',
-            ellipsis: true,
             render: (v: string, row) => (
               <Space direction="vertical" size={0} style={{ maxWidth: '100%' }}>
                 <Tooltip title={v} placement="topLeft">
@@ -572,25 +571,28 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
           {
             title: '启用',
             dataIndex: 'enabled',
-            width: 80,
+            width: 110,
             render: (v: boolean, row) => (
-              <Tooltip
-                title={
-                  row.templateMissing
-                    ? v
-                      ? '模板已删除，该规则已不再生成草稿；可停用或编辑规则重新选择模板'
-                      : '模板已删除，请先编辑规则重新选择模板后再启用'
-                    : ''
-                }
-              >
-                <Switch
-                  checked={v}
-                  size="small"
-                  disabled={!canWrite || (row.templateMissing && !v)}
-                  loading={togglingId === row.id}
-                  onChange={(checked) => void toggleEnabled(row, checked)}
-                />
-              </Tooltip>
+              <Space size={4}>
+                <Tooltip
+                  title={
+                    row.templateMissing
+                      ? v
+                        ? '模板已删除，该规则已不再生成草稿；可停用或编辑规则重新选择模板'
+                        : '模板已删除，请先编辑规则重新选择模板后再启用'
+                      : ''
+                  }
+                >
+                  <Switch
+                    checked={v}
+                    size="small"
+                    disabled={!canWrite || (row.templateMissing && !v)}
+                    loading={togglingId === row.id}
+                    onChange={(checked) => void toggleEnabled(row, checked)}
+                  />
+                </Tooltip>
+                {row.templateMissing && v ? <Tag color="red">已失效</Tag> : null}
+              </Space>
             ),
           },
           {

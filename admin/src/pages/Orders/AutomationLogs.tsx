@@ -13,7 +13,7 @@ import {
 } from '@/services/orderAutomation';
 import { isReadonly } from '@/utils/permission';
 import { Link, useModel } from '@umijs/max';
-import { Alert, Button, Card, Input, Select, Space, Table, Tag, message } from 'antd';
+import { Alert, Button, Card, Input, Select, Space, Table, Tag, Tooltip, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
 const STATUS_OPTIONS = (
@@ -140,7 +140,7 @@ export default function OrderAutomationLogsPage() {
           size="middle"
           loading={loading}
           dataSource={rows}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1400 }}
           locale={{ emptyText: '暂无执行日志' }}
           pagination={{
             current: page,
@@ -189,7 +189,20 @@ export default function OrderAutomationLogsPage() {
                 </Tag>
               ),
             },
-            { title: '结果 / 原因', dataIndex: 'reason' },
+            {
+              title: '结果 / 原因',
+              dataIndex: 'reason',
+              width: 260,
+              ellipsis: { showTitle: false },
+              render: (v: string) =>
+                v ? (
+                  <Tooltip title={v} placement="topLeft">
+                    <span>{v}</span>
+                  </Tooltip>
+                ) : (
+                  '-'
+                ),
+            },
             { title: '尝试次数', dataIndex: 'attempts', width: 90 },
             {
               title: '操作',

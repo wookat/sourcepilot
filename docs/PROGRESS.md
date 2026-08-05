@@ -1723,3 +1723,9 @@ Final Production Acceptance Deferred to P10
 - **权限与租户**：全部端点登记权限矩阵（readonly 写 403、operator 店铺 scope、跨租户/越权 404）；顺带补齐 main 上缺登记的 buyer-messages×2 前缀 20 条与 `GET /imports/progress`（TestRouteRegistryComplete 此前在设 TEST_DATABASE_URL 时失败）。
 - **demo seed**：fulldemo 新增财务样本（已结清/少款/多款回款、订单费用、店铺月度费用、采购实付价绑定销售订单）；clean/verify 覆盖三张 finance 表零残留（`TestFullDemoSeedFinanceSamples`）。
 - **测试**：后端 finance 单测（CRUD/scope/对账状态/毛利/报表/CSV）、payment 导入/导出回归（含租户隔离与店铺 scope）、demoseed 回归、契约注册 109 端点 + finance payload/query 断言、前端 services 单测、`round121-finance` Playwright E2E 8 条（列表/登记回款写拦截 payload/删除/店铺费用写拦截/readonly/工作台/报表/五档视口无根溢出）。
+
+### 变更记录（2026-08-05）第 122 轮线2：UX v7 P2×4 + #256 遗留 P2×2 收口批次（fullstack-engineer）
+
+- **UX v7 P2×4 收口**：① 自动化执行日志「结果/原因」列固定 260px + `ellipsis` + Tooltip，并修表格列宽总和超 `scroll.x` 导致弹性列被压缩为 0 宽的问题（`scroll.x` 1100→1400）；② 买家消息草稿保存改为先 `load()` 刷新列表再关弹层，消除瞬时旧/新内容混排；③ 选品任务摘要「目标平台/国家」加 `nowrap`，768 不再逐字竖排；④ 新增 `/purchase` 与 `/purchase/orders` 路由别名重定向至 `/procurement/orders`。低成本建议四条全部落地（与 P2 清单重合 + 正向 demo seed）。
+- **#256 遗留 P2×2 收口**：① 无商品行订单触发「自动生成采购单」定性为**跳过**而非可重试失败——`order.empty` 是确定性前置缺失，重试不可能改变结果，可重试失败会造成 3 次无效重试与误导性的「重试」操作；引擎新增 `order.AutomationSkip` 哨兵错误类型，router hook 将 `order.empty` blocker 映射为跳过并保留其余 blocker 的可重试失败语义，回归 `TestAutomationSkipOutcomeRecordsSkippedWithoutRetry`；② 规则引用已删除模板维持两态设计（已启用可停用不可再启用、编辑强制重选模板），补「已失效」红色标签让状态可视化（不需 hover），回归 E2E `round122-p2`。
+- **demo seed 正向采购样本**：`seedRound119OrderAutomation` 新增 `DEMO-AT-1004`（审单通过 + 未付款 + 商品行已匹配本地 SKU/主货源/SKU 映射），后台「标记已付款」即真实触发自动生成采购单成功动线；clean/verify 零残留（复用 DEMO- 前缀清理路径），回归断言补入 `fulldemo_round119_test.go`。

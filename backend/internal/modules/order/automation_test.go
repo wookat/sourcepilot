@@ -199,6 +199,37 @@ func TestAutomationConfirmPaymentAndChain(t *testing.T) {
 	}
 }
 
+func TestAutomationSkipOutcomeRecordsSkippedWithoutRetry(t *testing.T) {
+	db := openAutomationTestDB(t)
+	calls := 0
+	svc := &order.Service{DB: db, Automation: &order.AutomationHooks{
+		GenerateProcurement: func(ctx context.Context, tenantID int64, orderID uuid.UUID, key string) (string, error) {
+			calls++
+			return "", &order.AutomationSkip{Reason: "跳过生成采购单：订单不存在或没有商品行"}
+		},
+	}}
+	createAutomationRule(t, db, svc, 1, order.AutomationRuleBody{
+		Name: "付款后自动采购", TriggerEvent: order.AutomationEventOrderPaid,
+		Action: order.AutomationActionGenerateProcurement, MaxAmount: f64Ptr(500),
+	})
+	o := newAutomationOrder(t, db, 1, 60, "")
+	if err := db.Model(&order.Order{}).Where("id = ?", o.ID).
+		Update("payment_status", order.PaymentPaid).Error; err != nil {
+		t.Fatal(err)
+	}
+	svc.FireOrderEvent(context.Background(), 1, o.ID, order.AutomationEventOrderPaid)
+	if calls != 1 {
+		t.Fatalf("skip outcome must not be retried inline, got %d calls", calls)
+	}
+	rows := logsFor(t, db, o.ID)
+	if len(rows) != 1 || rows[0].Status != order.AutomationLogSkipped || rows[0].Attempts != 1 {
+		t.Fatalf("expected one skipped log with 1 attempt, got %+v", rows)
+	}
+	if rows[0].Reason != "跳过生成采购单：订单不存在或没有商品行" {
+		t.Fatalf("unexpected skip reason: %q", rows[0].Reason)
+	}
+}
+
 func TestAutomationSafetyBoundaryBlocksReview(t *testing.T) {
 	db := openAutomationTestDB(t)
 	svc := &order.Service{DB: db}

@@ -50,6 +50,28 @@ func TestFullDemoSeedOrderAutomationSamples(t *testing.T) {
 		t.Fatalf("expected success/failed/skipped log samples, got %+v", statuses)
 	}
 
+	// 正向样本：DEMO-AT-1004 未付款 + 审单通过 + 商品行已匹配本地 SKU，
+	// 标记已付款即可真实触发「自动生成采购单」成功动线。
+	var matched order.Order
+	if err := db.First(&matched, "order_no = ?", "DEMO-AT-1004").Error; err != nil {
+		t.Fatalf("expected DEMO-AT-1004 matched-SKU sample order: %v", err)
+	}
+	if matched.PaymentStatus != order.PaymentUnpaid || matched.ReviewStatus != order.ReviewStatusAutoPassed {
+		t.Fatalf("unexpected DEMO-AT-1004 state: %+v", matched)
+	}
+	var matchedItems []order.OrderItem
+	if err := db.Where("order_id = ?", matched.ID).Find(&matchedItems).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(matchedItems) == 0 {
+		t.Fatal("expected DEMO-AT-1004 to have item rows")
+	}
+	for _, it := range matchedItems {
+		if it.ProductID == nil || it.ProductSKUID == nil {
+			t.Fatalf("DEMO-AT-1004 item must link a local SKU, got %+v", it)
+		}
+	}
+
 	if _, err := s.Cleanup(context.Background()); err != nil {
 		t.Fatal(err)
 	}

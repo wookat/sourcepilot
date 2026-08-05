@@ -339,8 +339,10 @@ export default function SelectionTaskDetailPage() {
             <StatusTag status={task.status} />
           </Descriptions.Item>
           <Descriptions.Item label="目标平台">
-            <PlatformTag platform={task.targetPlatform} />
-            {task.targetCountry ? ` / ${task.targetCountry}` : ''}
+            <span style={{ whiteSpace: 'nowrap' }}>
+              <PlatformTag platform={task.targetPlatform} />
+              {task.targetCountry ? ` / ${task.targetCountry}` : ''}
+            </span>
           </Descriptions.Item>
           <Descriptions.Item label="候选/打分/失败">
             {task.candidateCount} / {task.scoredCount} / {task.failedCount}
