@@ -1713,3 +1713,13 @@ Final Production Acceptance Deferred to P10
 - **大回归 v16**：基于 main（R119 #254/#255 已合并）本地叠加 #256/#257（冲突仅 `docs/PROGRESS.md` 双 Round 120 条目）。全量门禁通过：go build/vet/fmt/test、contracts 14、frontend 45 文件 305 用例、collector 18、build:admin/collector、`check:ui-copy --strict`；CI=1 admin/e2e 268 passed / 3 skipped。Docker 全栈 + `seed:demo:full` 实测 R57 主链路、R119 自动化规则（含确认支付触发、日志/重试、时间线 tab/深链、审单/多仓/导入叠加面）、R119 买家消息闭环、R120 选品面板/走势/对比 CSV；双租户三角色三视口硬指标全零；clean+verify 零残留。唯一未覆盖：自动生成采购单正向样本（demo seed 无本地 SKU 匹配订单，负向安全拦截已验证）。
 - **P1 修复两条（V6 P1-1 回归的双重根因）**：① 登录/注册两个 `<Form>` 同位三元切换被 React 复用实例，antd Form 始终绑定初始 `loginForm`，注册「获取验证码」请求体缺 `email` → 400 → 「发送失败」——两 Form 加独立 `key` 强制重挂载，补 `round120-register-send-code` E2E；② `admin/nginx.conf` `error_page 502 503 504` 把后端业务 503（50301 SMTP 指引、AUTH_STATE_UNAVAILABLE 契约）吞成「系统升级维护中」——仅拦 502/504，503 透传。
 - **UX 视觉复核 v7**：报告归档 `docs/ux-review/UX_REVIEW_V7_REPORT.md`；无 P0；P2 清单四条（自动化日志小屏行高、买家消息保存瞬时渲染、选品摘要 768 竖排折行、`/purchase/orders` 深链 404）。结论：**#257 可合并；#256 功能验证通过但需先解 `docs/PROGRESS.md` 冲突再合并**。
+
+### 变更记录（2026-08-05）第 121 轮：R121 线1 财务对账——回款/费用记账/实算毛利/对账报表（fullstack-engineer）
+
+- **回款记录**：新模块 `backend/internal/modules/finance`（`finance_payment_records` / `finance_order_expenses` / `finance_shop_monthly_expenses`，金额 decimal(18,4)）。按订单登记平台回款（金额/币种/手续费/回款日期/渠道），手工录入 + CSV 批量导入（数据搬家向导新增 `kind=payment`：模板/自动映射/校验/幂等重放/重复跳过/错误行报告/全量导出）；回款与订单应收自动对账标记 未回款/少款/多款/已结清（容差 0.01）。
+- **费用记账**：订单级费用（平台佣金/推广费/运费/其他，settings `finance.expense_types` 可增配）+ 店铺级月度费用（店铺×YYYY-MM×类型）；采购实付价 `PUT /procurement/orders/:id/items/:itemId/actual-price`（`actual_price` 区别于参考价 `expected_price`）。
+- **实算毛利与对账**：实算毛利=回款（扣手续费）−采购实付（销售订单绑定采购项）−费用，与估算毛利并列（订单详情财务面板 + 工作台 + 报表）；差异较大（≥10% 且 ≥ 本位币 10）列入对账差异工作台；多币种沿用 `report_currency` 手工汇率本位币折算（无汇率缺省不伪造）。对账报表按店铺×月份汇总回款率/费用构成/实算 vs 估算差异；工作台与报表均支持 CSV 导出（UTF-8 BOM + csvsafe）。
+- **前端**：`/orders/finance-payments`（回款+店铺月度费用，登记/删除/CSV 导入入口）、`/orders/finance-reconciliation`（汇总统计+状态筛选+导出）、`/orders/finance-report`（店铺×月份+导出）、订单详情「财务」面板；服务层集中 `admin/src/services/finance.ts`，全中文文案。
+- **权限与租户**：全部端点登记权限矩阵（readonly 写 403、operator 店铺 scope、跨租户/越权 404）；顺带补齐 main 上缺登记的 buyer-messages×2 前缀 20 条与 `GET /imports/progress`（TestRouteRegistryComplete 此前在设 TEST_DATABASE_URL 时失败）。
+- **demo seed**：fulldemo 新增财务样本（已结清/少款/多款回款、订单费用、店铺月度费用、采购实付价绑定销售订单）；clean/verify 覆盖三张 finance 表零残留（`TestFullDemoSeedFinanceSamples`）。
+- **测试**：后端 finance 单测（CRUD/scope/对账状态/毛利/报表/CSV）、payment 导入/导出回归（含租户隔离与店铺 scope）、demoseed 回归、契约注册 109 端点 + finance payload/query 断言、前端 services 单测、`round121-finance` Playwright E2E 8 条（列表/登记回款写拦截 payload/删除/店铺费用写拦截/readonly/工作台/报表/五档视口无根溢出）。

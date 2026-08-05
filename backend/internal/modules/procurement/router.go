@@ -25,6 +25,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/procurement/orders/:id/cancel", w, sg, h.Cancel)
 	g.POST("/procurement/orders/:id/void", w, sg, h.Void)
 	g.PUT("/procurement/orders/:id/items/:itemId/price", w, sg, h.UpdateItemPrice)
+	g.PUT("/procurement/orders/:id/items/:itemId/actual-price", w, sg, h.UpdateItemActualPrice)
 	g.POST("/procurement/orders/:id/mark-placed", w, sg, h.MarkPlaced)
 	g.POST("/procurement/orders/:id/mark-paid", w, sg, h.MarkPaid)
 	g.POST("/procurement/orders/:id/logistics", w, sg, h.FillLogistics)

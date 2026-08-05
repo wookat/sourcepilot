@@ -37,6 +37,16 @@ const (
 	FExternalSKUID = "externalSkuId"
 )
 
+// Payment (回款) import canonical field keys (orderNo reuses FOrderNo,
+// currency reuses FCurrency).
+const (
+	FPaymentAmount = "paymentAmount"
+	FFeeAmount     = "feeAmount"
+	FReceivedAt    = "receivedAt"
+	FChannel       = "channel"
+	FRemark        = "remark"
+)
+
 // Order canonical field keys.
 const (
 	FOrderNo         = "orderNo"
@@ -167,6 +177,27 @@ func SourceFields() []FieldDef {
 	}
 }
 
+// PaymentFields lists canonical payment (回款) import fields (one file row =
+// one payment record against an existing order).
+func PaymentFields() []FieldDef {
+	return []FieldDef{
+		{Key: FOrderNo, Label: "订单号", Required: true,
+			Aliases: []string{"订单号", "订单编号", "订单id", "order number", "order no", "order id"}},
+		{Key: FPaymentAmount, Label: "回款金额", Required: true,
+			Aliases: []string{"回款金额", "到账金额", "结算金额", "放款金额", "金额", "amount", "payout amount", "settlement amount"}},
+		{Key: FCurrency, Label: "币种",
+			Aliases: []string{"币种", "货币", "currency"}},
+		{Key: FFeeAmount, Label: "手续费",
+			Aliases: []string{"手续费", "平台手续费", "服务费", "fee", "transaction fee"}},
+		{Key: FReceivedAt, Label: "回款日期", Required: true,
+			Aliases: []string{"回款日期", "到账日期", "到账时间", "结算日期", "放款日期", "date", "payout date", "settlement date"}},
+		{Key: FChannel, Label: "回款渠道",
+			Aliases: []string{"回款渠道", "渠道", "收款渠道", "收款方式", "channel", "payment method"}},
+		{Key: FRemark, Label: "备注",
+			Aliases: []string{"备注", "说明", "remark", "note", "memo"}},
+	}
+}
+
 // FieldsForKind returns the canonical field list for an import kind.
 func FieldsForKind(kind string) []FieldDef {
 	switch kind {
@@ -176,6 +207,8 @@ func FieldsForKind(kind string) []FieldDef {
 		return InventoryFields()
 	case KindSource:
 		return SourceFields()
+	case KindPayment:
+		return PaymentFields()
 	default:
 		return ProductFields()
 	}

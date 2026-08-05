@@ -27,6 +27,8 @@ func templateSample(kind string) []string {
 		return []string{"DEMO-SKU-1-1", "default", "120", "45.00"}
 	case KindSource:
 		return []string{"深圳华强北电子", "DEMO-SKU-1-1", "https://detail.1688.com/offer/123456789.html", "38.50", "3216549870"}
+	case KindPayment:
+		return []string{"SO-20260101-0001", "178.00", "CNY", "8.90", "2026-01-05", "平台结算", "首次回款"}
 	default:
 		return []string{"无线蓝牙耳机 X100", "SKU-X100-BLK", "黑色", "89.00", "45.00", "120", "CNY",
 			"https://example.com/img/x100.jpg", "高续航无线蓝牙耳机", "https://detail.1688.com/offer/123456789.html"}
