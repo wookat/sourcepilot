@@ -155,3 +155,92 @@ export type DraftProduct = {
 export async function selectionCandidateToDraft(id: string) {
   return postJSON<DraftProduct>(`/api/v1/selection/candidates/${id}/to-draft`, {});
 }
+
+export type CollectedFacts = {
+  marketPrice?: number;
+  marketCurrency?: string;
+  marketSales30d?: number;
+  marketReviewCount?: number;
+  sourcePrice?: number;
+  sourceCurrency?: string;
+  sourceSales?: number;
+  sourceReviewCount?: number;
+  sourceCapturedAt?: string;
+  collectCount: number;
+};
+
+export type CategoryBenchmark = {
+  category: string;
+  productCount: number;
+  avgDraftMarginPercent?: number;
+  windowDays: number;
+  orderCount: number;
+  soldQty: number;
+  revenue?: number;
+  grossProfit?: number;
+  grossMarginPercent?: number;
+};
+
+export type MarketSourceStatus = {
+  name: string;
+  displayName: string;
+  configured: boolean;
+  message?: string;
+};
+
+export type CandidateInsights = {
+  candidate: SelectionCandidateRow;
+  evaluation?: SelectionEvaluationRow;
+  bestMatch?: SelectionSourceMatchRow;
+  collected: CollectedFacts;
+  benchmark?: CategoryBenchmark;
+  external: MarketSourceStatus[];
+};
+
+export type PriceTrendPoint = {
+  capturedAt: string;
+  price: number;
+  taskId: string;
+};
+
+export type PriceTrend = {
+  sourceUrl?: string;
+  currency?: string;
+  points: PriceTrendPoint[];
+};
+
+export type SupplyReadiness = {
+  ready: boolean;
+  supplierName?: string;
+  sourceStatus?: string;
+};
+
+export type BannedRisk = {
+  forbiddenCount: number;
+  warningCount: number;
+  words?: string[];
+};
+
+export type CompareRow = {
+  candidate: SelectionCandidateRow;
+  evaluation?: SelectionEvaluationRow;
+  bestMatch?: SelectionSourceMatchRow;
+  supply: SupplyReadiness;
+  banned: BannedRisk;
+};
+
+export async function fetchCandidateInsights(id: string) {
+  return getJSON<CandidateInsights>(`/api/v1/selection/candidates/${id}/insights`);
+}
+
+export async function fetchCandidatePriceTrend(id: string) {
+  return getJSON<PriceTrend>(`/api/v1/selection/candidates/${id}/price-trend`);
+}
+
+export async function fetchSelectionCompare(ids: string[]) {
+  return getWithParams<CompareRow[]>('/api/v1/selection/compare', { ids: ids.join(',') });
+}
+
+export async function fetchMarketSources() {
+  return getJSON<MarketSourceStatus[]>('/api/v1/selection/market-sources');
+}
