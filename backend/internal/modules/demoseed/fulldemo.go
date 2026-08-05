@@ -82,9 +82,37 @@ func (s *FullDemoSeeder) cleanPrefix() string {
 }
 
 // FullDemoResult reports per-table row counts for seed / cleanup / verify.
+// SoftDeleted (verify only) lists prefixed rows that are soft-deleted
+// (deleted_at set): they are historical residue invisible to the app and are
+// reported separately instead of being counted as live residual rows.
 type FullDemoResult struct {
-	Action string           `json:"action"`
-	Counts map[string]int64 `json:"counts"`
+	Action      string           `json:"action"`
+	Counts      map[string]int64 `json:"counts"`
+	SoftDeleted map[string]int64 `json:"softDeleted,omitempty"`
+}
+
+// verifyCheck is one residual-row counter; softDeleted is set only for
+// soft-delete models to report deleted_at-marked residue separately.
+type verifyCheck struct {
+	table       string
+	count       func() (int64, error)
+	softDeleted func() (int64, error)
+}
+
+// splitSoftDeleted builds live + soft-deleted residual counters for a
+// soft-delete model; base must apply Model + Unscoped + the prefix filter.
+func splitSoftDeleted(table string, base func() *gorm.DB) verifyCheck {
+	return verifyCheck{
+		table: table,
+		count: func() (int64, error) {
+			var n int64
+			return n, base().Where(table + ".deleted_at IS NULL").Count(&n).Error
+		},
+		softDeleted: func() (int64, error) {
+			var n int64
+			return n, base().Where(table + ".deleted_at IS NOT NULL").Count(&n).Error
+		},
+	}
 }
 
 // purchaseOrderPlan describes one demo purchase order walked through the real
@@ -1215,34 +1243,28 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 	res := &FullDemoResult{Action: "verify", Counts: map[string]int64{}}
 	tx := s.DB.WithContext(ctx)
 	like := s.cleanPrefix() + "%"
-	checks := []struct {
-		table string
-		count func() (int64, error)
-	}{
-		{"shops", func() (int64, error) {
-			var n int64
-			return n, tx.Model(&shop.Shop{}).Unscoped().Where("shop_code LIKE ?", like).Count(&n).Error
-		}},
-		{"products", func() (int64, error) {
-			var n int64
-			return n, tx.Model(&product.Product{}).Unscoped().Where("title LIKE ?", like).Count(&n).Error
-		}},
-		{"product_skus", func() (int64, error) {
+	checks := []verifyCheck{
+		splitSoftDeleted("shops", func() *gorm.DB {
+			return tx.Model(&shop.Shop{}).Unscoped().Where("shop_code LIKE ?", like)
+		}),
+		splitSoftDeleted("products", func() *gorm.DB {
+			return tx.Model(&product.Product{}).Unscoped().Where("title LIKE ?", like)
+		}),
+		{table: "product_skus", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&product.ProductSKU{}).Unscoped().Where("sku_code LIKE ?", like).Count(&n).Error
 		}},
-		{"product_publications", func() (int64, error) {
-			var n int64
-			return n, tx.Model(&productpublish.ProductPublication{}).Unscoped().Where("title LIKE ? OR external_product_id LIKE ?", like, like).Count(&n).Error
-		}},
-		{"product_publication_skus", func() (int64, error) {
+		splitSoftDeleted("product_publications", func() *gorm.DB {
+			return tx.Model(&productpublish.ProductPublication{}).Unscoped().Where("title LIKE ? OR external_product_id LIKE ?", like, like)
+		}),
+		{table: "product_publication_skus", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&productpublish.ProductPublicationSKU{}).Unscoped().
 				Where("external_sku_id LIKE ? OR bind_message LIKE ? OR publication_id IN (?)", like, like,
 					tx.Model(&productpublish.ProductPublication{}).Unscoped().Select("id").
 						Where("title LIKE ? OR external_product_id LIKE ?", like, like)).Count(&n).Error
 		}},
-		{"product_publish_batches", func() (int64, error) {
+		{table: "product_publish_batches", count: func() (int64, error) {
 			var n int64
 			if !tx.Migrator().HasTable("product_publish_batches") {
 				return 0, nil
@@ -1250,7 +1272,7 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 			return n, tx.Model(&productpublish.ProductPublishBatch{}).Unscoped().
 				Where("name LIKE ? OR idempotency_key LIKE ?", like, like).Count(&n).Error
 		}},
-		{"product_publish_tasks", func() (int64, error) {
+		{table: "product_publish_tasks", count: func() (int64, error) {
 			var n int64
 			if !tx.Migrator().HasTable("product_publish_tasks") || !tx.Migrator().HasTable("product_publish_batches") {
 				return 0, nil
@@ -1260,46 +1282,49 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 					tx.Model(&productpublish.ProductPublishBatch{}).Unscoped().Select("id").
 						Where("name LIKE ? OR idempotency_key LIKE ?", like, like)).Count(&n).Error
 		}},
-		{"settings", func() (int64, error) {
+		{table: "settings", count: func() (int64, error) {
 			var n int64
 			if !defaultPrefix || !tx.Migrator().HasTable("settings") {
 				return 0, nil
 			}
 			return n, tx.Model(&settings.Setting{}).Where("remark = ?", demoSettingRemark).Count(&n).Error
 		}},
-		{"source_switch_events", func() (int64, error) {
+		{table: "source_switch_events", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&sourcing.SourceSwitchEvent{}).Unscoped().
 				Where("product_id IN (?)", tx.Model(&product.Product{}).Unscoped().
 					Select("id").Where("title LIKE ?", like)).Count(&n).Error
 		}},
-		{"suppliers", func() (int64, error) {
-			var n int64
-			return n, tx.Model(&sourcing.Supplier{}).Unscoped().Where("name LIKE ?", like).Count(&n).Error
-		}},
-		{"orders", func() (int64, error) {
-			var n int64
-			return n, tx.Model(&order.Order{}).Unscoped().Where("order_no LIKE ?", like).Count(&n).Error
-		}},
-		{"purchase_orders", func() (int64, error) {
-			var n int64
-			return n, tx.Model(&procurement.PurchaseOrder{}).Unscoped().
-				Where("idempotency_key LIKE ? OR external_order_id LIKE ? OR supplier_name LIKE ?", like, like, like).
-				Count(&n).Error
-		}},
-		{"inventory_change_logs", func() (int64, error) {
+		splitSoftDeleted("suppliers", func() *gorm.DB {
+			return tx.Model(&sourcing.Supplier{}).Unscoped().Where("name LIKE ?", like)
+		}),
+		splitSoftDeleted("orders", func() *gorm.DB {
+			return tx.Model(&order.Order{}).Unscoped().Where("order_no LIKE ?", like)
+		}),
+		splitSoftDeleted("purchase_orders", func() *gorm.DB {
+			return tx.Model(&procurement.PurchaseOrder{}).Unscoped().
+				Where("idempotency_key LIKE ? OR external_order_id LIKE ? OR supplier_name LIKE ?", like, like, like)
+		}),
+		{table: "inventory_change_logs", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&inventory.InventoryChangeLog{}).Where("business_event_key LIKE ?", like).Count(&n).Error
 		}},
-		{"warehouses", func() (int64, error) {
+		{table: "warehouses", count: func() (int64, error) {
 			var n int64
 			if !tx.Migrator().HasTable("warehouses") {
 				return 0, nil
 			}
 			return n, tx.Model(&inventory.Warehouse{}).Unscoped().
-				Where("code LIKE ? OR name LIKE ?", like, like).Count(&n).Error
+				Where("(code LIKE ? OR name LIKE ?) AND warehouses.deleted_at IS NULL", like, like).Count(&n).Error
+		}, softDeleted: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("warehouses") {
+				return 0, nil
+			}
+			return n, tx.Model(&inventory.Warehouse{}).Unscoped().
+				Where("(code LIKE ? OR name LIKE ?) AND warehouses.deleted_at IS NOT NULL", like, like).Count(&n).Error
 		}},
-		{"warehouse_stocks", func() (int64, error) {
+		{table: "warehouse_stocks", count: func() (int64, error) {
 			var n int64
 			if !tx.Migrator().HasTable("warehouse_stocks") {
 				return 0, nil
@@ -1311,22 +1336,22 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 					tx.Model(&product.Product{}).Unscoped().Select("id").
 						Where("title LIKE ?", like)).Count(&n).Error
 		}},
-		{"inventory_sync_batches", func() (int64, error) {
+		{table: "inventory_sync_batches", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&inventory.InventorySyncBatch{}).Unscoped().Where("batch_no LIKE ?", like).Count(&n).Error
 		}},
-		{"order_sync_tasks", func() (int64, error) {
+		{table: "order_sync_tasks", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&ordersync.OrderSyncTask{}).Where("error_message LIKE ?", like).Count(&n).Error
 		}},
-		{"order_review_rules", func() (int64, error) {
+		{table: "order_review_rules", count: func() (int64, error) {
 			var n int64
 			if !tx.Migrator().HasTable("order_review_rules") {
 				return 0, nil
 			}
 			return n, tx.Model(&order.OrderReviewRule{}).Where("name LIKE ?", like).Count(&n).Error
 		}},
-		{"order_review_hits", func() (int64, error) {
+		{table: "order_review_hits", count: func() (int64, error) {
 			var n int64
 			if !tx.Migrator().HasTable("order_review_hits") {
 				return 0, nil
@@ -1336,66 +1361,63 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 					tx.Model(&order.Order{}).Unscoped().Select("id").Where("order_no LIKE ?", like)).
 				Count(&n).Error
 		}},
-		{"order_exception_marks", func() (int64, error) {
+		{table: "order_exception_marks", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&orderexception.OrderExceptionMark{}).Where("remark LIKE ?", like).Count(&n).Error
 		}},
-		{"customer_conversations", func() (int64, error) {
-			var n int64
-			q := tx.Model(&customerchat.CustomerConversation{}).Unscoped().
-				Where("customer_name LIKE ?", like)
+		splitSoftDeleted("customer_conversations", func() *gorm.DB {
 			if defaultPrefix {
-				q = tx.Model(&customerchat.CustomerConversation{}).Unscoped().
+				return tx.Model(&customerchat.CustomerConversation{}).Unscoped().
 					Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %")
 			}
-			return n, q.Count(&n).Error
-		}},
-		{"customer_messages", func() (int64, error) {
+			return tx.Model(&customerchat.CustomerConversation{}).Unscoped().
+				Where("customer_name LIKE ?", like)
+		}),
+		{table: "customer_messages", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&customerchat.CustomerMessage{}).
 				Where("content LIKE ?", like).Count(&n).Error
 		}},
-		{"customer_reply_suggestions", func() (int64, error) {
+		{table: "customer_reply_suggestions", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&customerchat.CustomerReplySuggestion{}).Unscoped().
 				Where("prompt_code LIKE ? OR suggested_reply LIKE ?", like, like).Count(&n).Error
 		}},
-		{"customer_reply_templates", func() (int64, error) {
-			var n int64
-			return n, tx.Model(&customerchat.CustomerReplyTemplate{}).Unscoped().
-				Where("name LIKE ? OR content LIKE ?", like, like).Count(&n).Error
-		}},
-		{"shipping_rules", func() (int64, error) {
+		splitSoftDeleted("customer_reply_templates", func() *gorm.DB {
+			return tx.Model(&customerchat.CustomerReplyTemplate{}).Unscoped().
+				Where("name LIKE ? OR content LIKE ?", like, like)
+		}),
+		{table: "shipping_rules", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&waybill.ShippingRule{}).
 				Where("name LIKE ?", like).Count(&n).Error
 		}},
-		{"waybill_templates", func() (int64, error) {
+		{table: "waybill_templates", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&waybill.Template{}).
 				Where("is_preset = ? AND name LIKE ?", false, like).Count(&n).Error
 		}},
-		{"customer_message_sync_tasks", func() (int64, error) {
+		{table: "customer_message_sync_tasks", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&customersync.CustomerMessageSyncTask{}).Unscoped().
 				Where("cursor LIKE ? OR error_message LIKE ?", like, like).Count(&n).Error
 		}},
-		{"selection_tasks", func() (int64, error) {
+		{table: "selection_tasks", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&selection.SelectionTask{}).Unscoped().
 				Where("name LIKE ?", like).Count(&n).Error
 		}},
-		{"selection_candidates", func() (int64, error) {
+		{table: "selection_candidates", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&selection.SelectionCandidate{}).Unscoped().
 				Where("title LIKE ?", like).Count(&n).Error
 		}},
-		{"selection_source_matches", func() (int64, error) {
+		{table: "selection_source_matches", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&selection.SelectionSourceMatch{}).Unscoped().
 				Where("source_offer_id LIKE ? OR supplier_name LIKE ?", like, like).Count(&n).Error
 		}},
-		{"selection_evaluations", func() (int64, error) {
+		{table: "selection_evaluations", count: func() (int64, error) {
 			var n int64
 			return n, tx.Model(&selection.SelectionEvaluation{}).Unscoped().
 				Where("candidate_id IN (?)", tx.Model(&selection.SelectionCandidate{}).Unscoped().
@@ -1412,6 +1434,19 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 			return nil, fmt.Errorf("demoseed verify %s: %w", c.table, err)
 		}
 		res.Counts[c.table] = n
+		if c.softDeleted == nil {
+			continue
+		}
+		d, err := c.softDeleted()
+		if err != nil {
+			return nil, fmt.Errorf("demoseed verify %s (soft-deleted): %w", c.table, err)
+		}
+		if d > 0 {
+			if res.SoftDeleted == nil {
+				res.SoftDeleted = map[string]int64{}
+			}
+			res.SoftDeleted[c.table] = d
+		}
 	}
 	return res, nil
 }

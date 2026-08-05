@@ -37,6 +37,8 @@ func warehouseFail(c *gin.Context, err error) {
 		response.Fail(c, 400, response.CodeBadRequest, "源仓库与目标仓库不能相同")
 	case errors.Is(err, ErrTransferInvalidQuantity):
 		response.Fail(c, 400, response.CodeBadRequest, "调拨数量必须大于 0")
+	case errors.Is(err, ErrDefaultMustBeEnabled):
+		response.Fail(c, 400, response.CodeBadRequest, "已停用仓库不可设为默认仓，请先启用")
 	default:
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 	}
@@ -164,6 +166,28 @@ func (h *Handler) DeleteWarehouse(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"deleted": true})
+}
+
+// SetDefaultWarehouse POST /inventory/warehouses/:id/set-default
+func (h *Handler) SetDefaultWarehouse(c *gin.Context) {
+	if !h.requireInventoryWrite(c) {
+		return
+	}
+	tid, ok := h.tenantID(c)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	w, err := h.Svc.SetDefaultWarehouse(c.Request.Context(), tid, id)
+	if err != nil {
+		warehouseFail(c, err)
+		return
+	}
+	response.OK(c, w)
 }
 
 // TransferStock POST /inventory/transfers

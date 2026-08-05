@@ -73,7 +73,7 @@ test.describe('@settings 平台租户页（round81）', () => {
         });
       });
       await admin.goto('/settings/platform-tenants');
-      await expect(page.getByText('无法访问该页面')).toBeVisible();
+      await expect(page.getByText('暂无访问权限')).toBeVisible();
       await expect(page.getByRole('button', { name: '返回工作台' })).toBeVisible();
       await expect(page.getByRole('button', { name: '新建租户' })).toHaveCount(0);
       await expect(page.getByRole('menuitem', { name: '平台租户' })).toHaveCount(0);

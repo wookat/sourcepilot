@@ -68,6 +68,7 @@ test.describe('@round113 移动 H5 轻端（375px）', () => {
     // 告警摘要 + 批量发货入口
     await expect(page.getByTestId('tm-mobile-alerts-entry')).toContainText('3 条待处理');
     await expect(page.getByTestId('tm-mobile-batch-ship-entry')).toBeVisible();
+    await expect(page.getByTestId('tm-mobile-order-review-entry')).toContainText('审单工作台');
 
     await expectNoRootOverflow(page);
   });

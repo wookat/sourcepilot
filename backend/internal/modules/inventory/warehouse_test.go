@@ -277,3 +277,88 @@ func TestWarehouseMigrationPreview(t *testing.T) {
 		t.Fatalf("inconsistent preview: %+v", prev)
 	}
 }
+
+// Default switch: the default flag moves atomically, per-warehouse quantities
+// are preserved (old default materialized, new default derived), and locks
+// follow the flag.
+func TestSetDefaultWarehouse(t *testing.T) {
+	db := openWarehouseTestDB(t)
+	svc := &Service{DB: db}
+	ctx := context.Background()
+
+	sku := createWarehouseTestSKU(t, db, 1, 20)
+	def, err := svc.EnsureDefaultWarehouse(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	south, err := svc.CreateWarehouse(ctx, 1, CreateWarehouseBody{Code: "south", Name: "华南仓"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.TransferStock(ctx, 1, TransferStockBody{
+		ProductSKUID:    sku.ID.String(),
+		FromWarehouseID: def.ID.String(),
+		ToWarehouseID:   south.ID.String(),
+		Quantity:        6,
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := svc.SetDefaultWarehouse(ctx, 1, south.ID)
+	if err != nil || !got.IsDefault {
+		t.Fatalf("set default: %v %+v", err, got)
+	}
+	old, err := svc.GetWarehouse(ctx, 1, def.ID)
+	if err != nil || old.IsDefault {
+		t.Fatalf("old default flag not cleared: %v %+v", err, old)
+	}
+
+	// Quantities preserved: old default keeps 14, new default keeps 6 (derived).
+	entries, err := svc.WarehouseStocksForSKU(ctx, 1, sku.ID, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[uuid.UUID]int{}
+	for _, e := range entries {
+		byID[e.WarehouseID] = e.Stock
+	}
+	if byID[def.ID] != 14 || byID[south.ID] != 6 {
+		t.Fatalf("breakdown after switch: %+v", entries)
+	}
+	var newDefaultRows int64
+	if err := db.Model(&WarehouseStock{}).Where("warehouse_id = ?", south.ID).
+		Count(&newDefaultRows).Error; err != nil || newDefaultRows != 0 {
+		t.Fatalf("new default persisted rows: %v %d", err, newDefaultRows)
+	}
+
+	// Exactly one default remains for the tenant.
+	var defaults int64
+	if err := db.Model(&Warehouse{}).Where("tenant_id = ? AND is_default = ?", 1, true).
+		Count(&defaults).Error; err != nil || defaults != 1 {
+		t.Fatalf("default count: %v %d", err, defaults)
+	}
+
+	// Locks follow the flag: new default locked, old default now deletable/disable-able.
+	if err := svc.DeleteWarehouse(ctx, 1, south.ID); !errors.Is(err, ErrDefaultWarehouseLocked) {
+		t.Fatalf("delete new default: want locked, got %v", err)
+	}
+	off := false
+	if _, err := svc.UpdateWarehouse(ctx, 1, def.ID, UpdateWarehouseBody{Enabled: &off}); err != nil {
+		t.Fatalf("disable old default: %v", err)
+	}
+
+	// Idempotent: setting the current default again is a no-op success.
+	if _, err := svc.SetDefaultWarehouse(ctx, 1, south.ID); err != nil {
+		t.Fatalf("idempotent set default: %v", err)
+	}
+
+	// Disabled warehouse cannot become default.
+	if _, err := svc.SetDefaultWarehouse(ctx, 1, def.ID); !errors.Is(err, ErrDefaultMustBeEnabled) {
+		t.Fatalf("disabled set default: want ErrDefaultMustBeEnabled, got %v", err)
+	}
+
+	// Cross-tenant target: not found.
+	if _, err := svc.SetDefaultWarehouse(ctx, 2, south.ID); !errors.Is(err, ErrWarehouseNotFound) {
+		t.Fatalf("cross-tenant set default: want not found, got %v", err)
+	}
+}

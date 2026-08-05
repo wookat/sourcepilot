@@ -55,24 +55,26 @@ func cleanupMigrationImports(tx *gorm.DB, res *FullDemoResult, like string, demo
 // migrationImportVerifyChecks counts residual migration import artifacts for
 // VerifyClean (demo-shop-attached jobs are matched through the prefixed shop
 // subquery so a missed job still surfaces alongside its residual shop).
-func migrationImportVerifyChecks(tx *gorm.DB, like string, demoShopIDs func() *gorm.DB) []struct {
-	table string
-	count func() (int64, error)
-} {
-	return []struct {
-		table string
-		count func() (int64, error)
-	}{
-		{"import_jobs", func() (int64, error) {
+func migrationImportVerifyChecks(tx *gorm.DB, like string, demoShopIDs func() *gorm.DB) []verifyCheck {
+	return []verifyCheck{
+		{table: "import_jobs", count: func() (int64, error) {
 			var n int64
 			if !tx.Migrator().HasTable("import_jobs") {
 				return 0, nil
 			}
 			return n, tx.Model(&migrationimport.ImportJob{}).Unscoped().
-				Where("file_name LIKE ? OR batch_key LIKE ? OR shop_id IN (?)", like, like, demoShopIDs()).
+				Where("(file_name LIKE ? OR batch_key LIKE ? OR shop_id IN (?)) AND import_jobs.deleted_at IS NULL", like, like, demoShopIDs()).
+				Count(&n).Error
+		}, softDeleted: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("import_jobs") {
+				return 0, nil
+			}
+			return n, tx.Model(&migrationimport.ImportJob{}).Unscoped().
+				Where("(file_name LIKE ? OR batch_key LIKE ? OR shop_id IN (?)) AND import_jobs.deleted_at IS NOT NULL", like, like, demoShopIDs()).
 				Count(&n).Error
 		}},
-		{"import_job_rows", func() (int64, error) {
+		{table: "import_job_rows", count: func() (int64, error) {
 			var n int64
 			if !tx.Migrator().HasTable("import_jobs") || !tx.Migrator().HasTable("import_job_rows") {
 				return 0, nil

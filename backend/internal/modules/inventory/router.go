@@ -19,6 +19,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/inventory/warehouses/migration-preview", h.GetWarehouseMigrationPreview)
 	g.POST("/inventory/warehouses", h.CreateWarehouse)
 	g.PUT("/inventory/warehouses/:id", h.UpdateWarehouse)
+	g.POST("/inventory/warehouses/:id/set-default", h.SetDefaultWarehouse)
 	g.DELETE("/inventory/warehouses/:id", h.DeleteWarehouse)
 	g.POST("/inventory/transfers", h.TransferStock)
 	g.GET("/inventory/sku-warehouse-stocks", h.GetSKUWarehouseStocks)

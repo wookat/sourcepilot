@@ -20,6 +20,7 @@ var (
 	ErrInsufficientWarehouse   = errors.New("insufficient stock in source warehouse")
 	ErrTransferSameWarehouse   = errors.New("source and target warehouse must differ")
 	ErrTransferInvalidQuantity = errors.New("transfer quantity must be positive")
+	ErrDefaultMustBeEnabled    = errors.New("disabled warehouse cannot become the default")
 )
 
 // EnsureDefaultWarehouse returns the tenant's default warehouse, creating it
@@ -208,6 +209,104 @@ func (s *Service) DeleteWarehouse(ctx context.Context, tenantID int64, id uuid.U
 		}
 		return tx.Where("id = ? AND tenant_id = ?", id, tenantID).Delete(&Warehouse{}).Error
 	})
+}
+
+// SetDefaultWarehouse atomically moves the default flag to the target
+// warehouse. Per-SKU quantities are preserved: the old default's derived
+// stock is materialized into persisted rows, and the new default's rows are
+// removed (its quantity becomes the derived remainder). Compatible with the
+// partial unique index on (tenant_id) WHERE is_default (old flag cleared
+// before the new one is set inside the same transaction).
+func (s *Service) SetDefaultWarehouse(ctx context.Context, tenantID int64, id uuid.UUID) (*Warehouse, error) {
+	target, err := s.GetWarehouse(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if target.IsDefault {
+		return target, nil
+	}
+	if !target.Enabled {
+		return nil, ErrDefaultMustBeEnabled
+	}
+	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var old Warehouse
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("tenant_id = ? AND is_default = ?", tenantID, true).
+			First(&old).Error; err != nil {
+			return err
+		}
+		var tgt Warehouse
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND tenant_id = ?", id, tenantID).
+			First(&tgt).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrWarehouseNotFound
+			}
+			return err
+		}
+		if tgt.IsDefault {
+			return nil
+		}
+		if !tgt.Enabled {
+			return ErrDefaultMustBeEnabled
+		}
+		// Materialize the old default's derived per-SKU stock as persisted rows.
+		type derivedRow struct {
+			SKUID     uuid.UUID `gorm:"column:sku_id"`
+			ProductID uuid.UUID `gorm:"column:product_id"`
+			Derived   int       `gorm:"column:derived"`
+		}
+		var derived []derivedRow
+		if err := tx.Raw(`
+SELECT sk.id AS sku_id, sk.product_id AS product_id,
+       COALESCE(sk.stock,0) - COALESCE((
+         SELECT SUM(ws.stock) FROM warehouse_stocks ws
+         JOIN warehouses w ON w.id = ws.warehouse_id AND w.deleted_at IS NULL AND w.is_default = FALSE
+         WHERE ws.product_sku_id = sk.id
+       ), 0) AS derived
+FROM product_skus sk
+JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL
+WHERE p.tenant_id = ?`, tenantID).Scan(&derived).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("warehouse_id = ?", old.ID).Delete(&WarehouseStock{}).Error; err != nil {
+			return err
+		}
+		rows := make([]WarehouseStock, 0, len(derived))
+		for _, d := range derived {
+			if d.Derived == 0 {
+				continue
+			}
+			rows = append(rows, WarehouseStock{
+				TenantID:     tenantID,
+				WarehouseID:  old.ID,
+				ProductID:    d.ProductID,
+				ProductSKUID: d.SKUID,
+				Stock:        d.Derived,
+			})
+		}
+		if len(rows) > 0 {
+			if err := tx.CreateInBatches(rows, 200).Error; err != nil {
+				return err
+			}
+		}
+		// The new default becomes derived: drop its persisted rows.
+		if err := tx.Where("warehouse_id = ?", tgt.ID).Delete(&WarehouseStock{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&Warehouse{}).
+			Where("id = ? AND tenant_id = ?", old.ID, tenantID).
+			Update("is_default", false).Error; err != nil {
+			return err
+		}
+		return tx.Model(&Warehouse{}).
+			Where("id = ? AND tenant_id = ?", tgt.ID, tenantID).
+			Update("is_default", true).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.GetWarehouse(ctx, tenantID, id)
 }
 
 // skuTotalStockScoped returns the SKU's total stock with tenant scope

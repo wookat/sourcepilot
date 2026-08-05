@@ -5,6 +5,7 @@ import {
   deleteWarehouse,
   queryWarehouseMigrationPreview,
   queryWarehouseSummary,
+  setDefaultWarehouse,
   updateWarehouse,
   type WarehouseMigrationPreview,
   type WarehouseSummaryEntry,
@@ -122,6 +123,16 @@ export default function WarehousesPage() {
     }
   };
 
+  const makeDefault = async (r: WarehouseSummaryEntry) => {
+    try {
+      await setDefaultWarehouse(r.warehouseId);
+      message.success(`默认仓已切换为「${r.warehouseName}」`);
+      load();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '切换失败');
+    }
+  };
+
   const remove = async (r: WarehouseSummaryEntry) => {
     try {
       await deleteWarehouse(r.warehouseId);
@@ -159,6 +170,16 @@ export default function WarehousesPage() {
             <Typography.Link onClick={() => openEdit(r)}>编辑</Typography.Link>
             {!r.isDefault ? (
               <>
+                {r.enabled ? (
+                  <Popconfirm
+                    title="设为默认仓？新默认仓将承接未分仓库存，各仓现有库存数量不变"
+                    okText="设为默认仓"
+                    cancelText="取消"
+                    onConfirm={() => void makeDefault(r)}
+                  >
+                    <Typography.Link>设为默认仓</Typography.Link>
+                  </Popconfirm>
+                ) : null}
                 <Switch
                   size="small"
                   checked={r.enabled}
@@ -188,7 +209,7 @@ export default function WarehousesPage() {
   return (
     <TmPageContainer
       title="仓库管理"
-      subTitle="轻量多仓：默认仓承接存量库存，非默认仓通过调拨/入库获得库存"
+      subTitle="轻量多仓：默认仓承接存量库存，非默认仓通过调拨/入库获得库存；支持将已启用仓库切换为默认仓"
       extra={
         <Space wrap className="tm-page-header-extra">
           <Button onClick={loadPreview} loading={previewLoading}>
