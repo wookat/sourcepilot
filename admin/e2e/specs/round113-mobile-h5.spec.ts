@@ -44,6 +44,14 @@ test.describe('@round113 移动 H5 轻端（375px）', () => {
     await expect(todayCard.getByText('12')).toBeVisible();
     await expect(todayCard.getByText(/3,?200/)).toBeVisible();
     await expect(todayCard.getByText('860')).toBeVisible();
+
+    // 金额完整可读（375px 下不得被截断成「CNY 3…」）
+    const amountBox = await todayCard.getByText('CNY 3,200.00').boundingBox();
+    const amountScroll = await todayCard
+      .getByText('CNY 3,200.00')
+      .evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
+    expect(amountBox, '销售额金额可见').not.toBeNull();
+    expect(amountScroll.scrollWidth, '销售额金额未被截断').toBeLessThanOrEqual(amountScroll.clientWidth + 1);
     const weekCard = page.getByTestId('tm-mobile-metric-近 7 日');
     await expect(weekCard).toBeVisible();
     await expect(weekCard.getByText('86')).toBeVisible();
