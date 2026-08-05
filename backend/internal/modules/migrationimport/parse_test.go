@@ -52,6 +52,67 @@ func TestParseImportFileRowLimit(t *testing.T) {
 	}
 }
 
+// 恶意样本：单元格中的控制字符（ANSI 转义、NUL、垂直制表符等）必须被拒绝，
+// 防止转义序列混入日志 / 终端 / 下游 CSV 再导出。
+func TestParseImportFileRejectsControlCharacters(t *testing.T) {
+	cases := []struct {
+		name string
+		data string
+	}{
+		{"ANSI escape in cell", "商品名称,SKU\n\x1b[31m恶意\x1b[0m,SKU-1\n"},
+		{"NUL byte in cell", "商品名称,SKU\n商品\x00名,SKU-1\n"},
+		{"vertical tab in cell", "商品名称,SKU\n商品\x0b名,SKU-1\n"},
+		{"backspace in cell", "商品名称,SKU\n商品\x08名,SKU-1\n"},
+		{"C1 control in cell", "商品名称,SKU\n商品\u0085名,SKU-1\n"},
+		{"escape in header", "商品\x1b名称,SKU\n测试,SKU-1\n"},
+		{"embedded newline in quoted cell", "商品名称,SKU\n\"第一行\n第二行\",SKU-1\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := ParseImportFile("m.csv", []byte(tc.data)); err == nil {
+				t.Fatalf("expected control character rejection for %q", tc.data)
+			} else if !strings.Contains(err.Error(), "控制字符") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// 恶意样本：XLSX 单元格同样过控制字符校验（共用 splitHeader 之后的统一校验）。
+func TestParseImportFileXLSXRejectsControlCharacters(t *testing.T) {
+	data := buildXLSX(t, [][]interface{}{
+		{"商品名称", "SKU"},
+		{"恶意\u0085内容", "SKU-1"},
+	})
+	if _, err := ParseImportFile("m.xlsx", data); err == nil {
+		t.Fatal("expected control character rejection for xlsx cell")
+	}
+}
+
+// 合法样本：制表符、常规中英文与数字不受控制字符校验影响。
+func TestParseImportFileAllowsTabsAndNormalText(t *testing.T) {
+	data := "商品名称,SKU,备注\n测试商品,SKU-1,含\t制表符备注\n"
+	p, err := ParseImportFile("ok.csv", []byte(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Rows[0][2] != "含\t制表符备注" {
+		t.Fatalf("rows: %v", p.Rows)
+	}
+}
+
+// 格式校验：超过映射上限的超宽表头直接在解析阶段拒绝。
+func TestParseImportFileRejectsTooManyColumns(t *testing.T) {
+	cols := make([]string, MaxMappingColumns+1)
+	for i := range cols {
+		cols[i] = "c"
+	}
+	data := strings.Join(cols, ",") + "\n" + strings.Join(cols, ",") + "\n"
+	if _, err := ParseImportFile("wide.csv", []byte(data)); err == nil {
+		t.Fatal("expected column limit error")
+	}
+}
+
 func TestParseImportFileUnsupported(t *testing.T) {
 	if _, err := ParseImportFile("a.pdf", []byte("x")); err == nil {
 		t.Fatal("expected unsupported format error")

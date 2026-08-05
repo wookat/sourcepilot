@@ -132,6 +132,7 @@ export type OrderAutomationLogRow = {
   ruleName: string;
   orderId: string;
   orderNo: string;
+  shopId?: string;
   triggerEvent: AutomationTriggerEvent;
   action: AutomationAction;
   status: AutomationLogStatus;

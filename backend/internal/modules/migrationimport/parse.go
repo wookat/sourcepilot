@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -51,8 +52,14 @@ func ParseImportFile(fileName string, data []byte) (*ParsedFile, error) {
 	if len(columns) == 0 {
 		return nil, fmt.Errorf("未找到表头行")
 	}
+	if len(columns) > MaxMappingColumns {
+		return nil, fmt.Errorf("表头最多支持 %d 列（当前 %d 列）", MaxMappingColumns, len(columns))
+	}
 	if len(rows) == 0 {
 		return nil, fmt.Errorf("文件没有数据行")
+	}
+	if err := validateCellCharacters(columns, rows); err != nil {
+		return nil, err
 	}
 	if len(rows) > MaxImportRows {
 		return nil, fmt.Errorf("单批最多导入 %d 行数据（当前 %d 行），请拆分文件", MaxImportRows, len(rows))
@@ -109,6 +116,41 @@ func splitHeader(table [][]string) ([]string, [][]string) {
 		rows = append(rows, norm)
 	}
 	return columns, rows
+}
+
+// validateCellCharacters rejects header / data cells containing control
+// characters (C0 除 \t、DEL、C1). Such bytes never appear in legitimate
+// spreadsheet exports but can smuggle escape sequences into logs, terminals
+// or downstream CSV re-exports.
+func validateCellCharacters(columns []string, rows [][]string) error {
+	for i, c := range columns {
+		if hasControlChars(c) {
+			return fmt.Errorf("表头第 %d 列包含非法控制字符，请检查文件来源", i+1)
+		}
+	}
+	for ri, row := range rows {
+		for ci, cell := range row {
+			if hasControlChars(cell) {
+				return fmt.Errorf("第 %d 行第 %d 列包含非法控制字符，请检查文件来源", ri+2, ci+1)
+			}
+		}
+	}
+	return nil
+}
+
+// hasControlChars reports whether s contains a control rune other than tab.
+// Newlines are already trimmed cell-edge by TrimSpace; embedded newlines in
+// quoted CSV cells are likewise rejected: import fields are single-line.
+func hasControlChars(s string) bool {
+	for _, r := range s {
+		if r == '\t' {
+			continue
+		}
+		if unicode.IsControl(r) {
+			return true
+		}
+	}
+	return false
 }
 
 func rowHasContent(row []string) bool {

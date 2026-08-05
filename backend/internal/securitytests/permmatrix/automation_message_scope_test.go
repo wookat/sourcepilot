@@ -131,7 +131,7 @@ func TestAutomationLogStoreScope(t *testing.T) {
 	mkLog := func(o *order.Order) *order.OrderAutomationLog {
 		l := &order.OrderAutomationLog{
 			TenantID: tenantA, RuleID: rule.ID, RuleName: rule.Name,
-			OrderID: o.ID, OrderNo: o.OrderNo,
+			OrderID: o.ID, OrderNo: o.OrderNo, ShopID: o.ShopID,
 			TriggerEvent: rule.TriggerEvent, Action: rule.Action,
 			Status: order.AutomationLogFailed, Reason: "perm-matrix-r125",
 			DedupKey: fmt.Sprintf("%d:%s:%s:%s", tenantA, rule.ID, o.ID, rule.TriggerEvent),

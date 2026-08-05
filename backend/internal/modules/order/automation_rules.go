@@ -303,24 +303,6 @@ func (s *Service) DryRunAutomationRule(c *gin.Context, body AutomationRuleBody) 
 	return res, nil
 }
 
-// applyOrderStoreScopeVia limits a query on order-child rows (order_id
-// column) to orders within the caller's store scope; admins see everything.
-func (s *Service) applyOrderStoreScopeVia(c *gin.Context, tx *gorm.DB, tid int64) (*gorm.DB, error) {
-	p, err := adminperm.LoadPrincipal(c, s.DB)
-	if err != nil {
-		return nil, err
-	}
-	if p.IsAdmin() {
-		return tx, nil
-	}
-	sub := s.DB.Model(&Order{}).Select("id").Where("tenant_id = ? AND deleted_at IS NULL", tid)
-	sub, err = adminperm.ApplyStoreScope(c, s.DB, sub, "shop_id")
-	if err != nil {
-		return nil, err
-	}
-	return tx.Where("order_id IN (?)", sub), nil
-}
-
 // AutomationLogQuery filters GET /order-automation-logs.
 type AutomationLogQuery struct {
 	Page     int
@@ -356,7 +338,10 @@ func (s *Service) ListAutomationLogs(c *gin.Context, q AutomationLogQuery) (*Aut
 	}
 	tx := s.DB.WithContext(c.Request.Context()).Model(&OrderAutomationLog{}).
 		Where("tenant_id = ?", tid)
-	tx, err = s.applyOrderStoreScopeVia(c, tx, tid)
+	// Store scope filters directly on the log's denormalized shop_id snapshot
+	// (logs of shopless orders stay admin-only, matching the previous
+	// order-subquery behavior).
+	tx, err = adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
 	if err != nil {
 		return nil, err
 	}

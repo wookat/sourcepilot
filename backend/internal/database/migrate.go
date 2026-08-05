@@ -332,7 +332,24 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateRound122PerfIndexes(db); err != nil {
 		return err
 	}
+	if err := backfillAutomationLogShopIDs(db); err != nil {
+		return err
+	}
 	return migrateP7Performance(db)
+}
+
+// backfillAutomationLogShopIDs fills order_automation_logs.shop_id from the
+// referenced order for rows created before the denormalized column existed,
+// so store-scope filtering can run directly on the log table.
+func backfillAutomationLogShopIDs(db *gorm.DB) error {
+	sql := `UPDATE order_automation_logs l SET shop_id = o.shop_id
+		FROM orders o
+		WHERE o.id = l.order_id AND l.shop_id IS NULL AND o.shop_id IS NOT NULL`
+	if err := db.Exec(sql).Error; err != nil {
+		// SQLite dev may not support UPDATE FROM; skip non-fatal.
+		warnMigrateSkipped("backfillAutomationLogShopIDs", err)
+	}
+	return nil
 }
 
 // migrateRound112DefaultWarehouses backfills one default warehouse per tenant.
