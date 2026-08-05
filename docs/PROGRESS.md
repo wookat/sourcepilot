@@ -1708,6 +1708,12 @@ Final Production Acceptance Deferred to P10
 - 未处理并列入 P2（均为构建期或框架内部固定版本，补丁需跨大版本或与 umi 4 绑定）：`react-router 6.3.0`（umi 4 内部固定）、`node-fetch 1.7.3`（dva → isomorphic-fetch 传递）、`vite` / `esbuild`（devDependencies）、`send`、`elliptic`、`hono` / `@hono/node-server`。
 - `govulncheck ./...`：0 命中（另有 1 条仅存在于 require 图、代码未调用）。
 
+### 变更记录（2026-08-05）第 123 轮：验收前最终全站大回归 v17（qa-engineer）
+
+- **大回归 v17**：基于 main（#254–#260 已合并）本地叠加 #261 perf/round122（合并无冲突）。全量门禁通过：go build/vet/gofmt/test（97 包）+ 集成（integration/redis，TEST_DATABASE_URL/TEST_REDIS_URL）、contracts 15、frontend 46 文件 315 用例、collector 18、build:admin/collector、`check:ui-copy --strict`；全量 admin/e2e 280 passed / 3 skipped（webServer 冷构建超 120s 超时，改为预启 `max preview :8001` 复用后全绿，非用例失败）。Docker 全栈（当前分支镜像）+ `seed:demo:full` 实走 R57 主链路、R119 自动化（正样本 DEMO-AT-1004 标记已付款→生成采购单成功并跳转、负样本 DEMO-AT-1002 SKU 未匹配安全阻断、DEMO-AT-1003 跳过、?tab=automation 深链）、R119 买家消息闭环、R120 数据面板/趋势/对比 CSV、R121 回款登记→CSV 导入→差异工作台→实算毛利→对账报表、R122 收口面 + #261 索引后订单/日志/报表/选品页加载无回退且 SQL 数值对照 4 处全一致、审单/多仓/订单导入/375 底部导航叠加面；双租户（Redis 注入验证码正规开租、数据隔离、越权 not found）三角色三视口硬指标全零；clean+verify `zero DEMO- residual rows`。
+- **零 P0/P1 产品缺陷**。上报的「DEMO-AT-1001 未被阻断」核对 seed 源码（`fulldemo_round119.go`）确认 1001 本就是自动确认付款成功样本、阻断负样本是 1002，属走查 skill 文档口径漂移而非缺陷——本轮修正 `demo-fullstack-walkthrough` SKILL（样本映射 + demo_operator/readonly 实际密码 DemoOperator123!/DemoReadonly123!）。P2×1 遗留：768 视口同时出现侧栏汉堡与移动端底部导航（无溢出，断点意图待确认）。
+- **合并结论：#261 可合并**（叠加后全部门禁与实走通过，无其他待合并批次，直接合入 main 即可）。
+
 ### 变更记录（2026-08-05）第 121 轮：大回归 v16 + UX 视觉复核 v7（qa-engineer / user-experience-officer）
 
 - **大回归 v16**：基于 main（R119 #254/#255 已合并）本地叠加 #256/#257（冲突仅 `docs/PROGRESS.md` 双 Round 120 条目）。全量门禁通过：go build/vet/fmt/test、contracts 14、frontend 45 文件 305 用例、collector 18、build:admin/collector、`check:ui-copy --strict`；CI=1 admin/e2e 268 passed / 3 skipped。Docker 全栈 + `seed:demo:full` 实测 R57 主链路、R119 自动化规则（含确认支付触发、日志/重试、时间线 tab/深链、审单/多仓/导入叠加面）、R119 买家消息闭环、R120 选品面板/走势/对比 CSV；双租户三角色三视口硬指标全零；clean+verify 零残留。唯一未覆盖：自动生成采购单正向样本（demo seed 无本地 SKU 匹配订单，负向安全拦截已验证）。

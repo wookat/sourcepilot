@@ -8,7 +8,7 @@ description: TradeMind Docker 全栈 demo 环境手工走查要点：seed 账号
 ## 环境
 - `docker compose -f docker-compose.full.yml up -d`：Admin http://127.0.0.1:8000，后端 :8080（容器跑的是构建时的分支代码）。
 - 灌数据：`DB_HOST=127.0.0.1 pnpm seed:demo:full`；收尾 `seed:demo:full:clean` 后再 `seed:demo:full:verify`（verify 只在 clean 后有意义，期望输出 `zero DEMO- residual rows`）。
-- demo 账号：`demo_admin@trademind.local / DemoAdmin123!`（operator/readonly 同前缀）。
+- demo 账号：`demo_admin@trademind.local / DemoAdmin123!`、`demo_operator@trademind.local / DemoOperator123!`、`demo_readonly@trademind.local / DemoReadonly123!`（密码各不相同，见 scripts/seed-demo-permissions.ps1）。
 
 ## 关键路由
 - 自动化规则 `/settings/order-automation-rules`；执行日志 `/orders/automation-logs`；订单详情自动化轨迹深链 `/orders/<uuid>?tab=automation`。
@@ -18,7 +18,7 @@ description: TradeMind Docker 全栈 demo 环境手工走查要点：seed 账号
 - 采购列表入口在侧栏「货源与采购」，`/purchase/orders` 是 404，不要用该路径深链。
 
 ## 真实触发自动化
-- 找 unpaid、审单通过、带商品行的订单（seed: DEMO-AT-1001）→ 订单列表批量「标记已付款」→ automation-logs 出现新记录。seed 数据的订单行无本地 SKU 匹配，「生成采购单」动作必然被安全阻断（负样本），要验证正样本需先做 SKU 匹配。
+- 找 unpaid、审单通过、带商品行的订单 → 订单列表批量「标记已付款」→ automation-logs 出现新记录。seed 样本映射：DEMO-AT-1001 = 自动确认付款成功；DEMO-AT-1002 = 「生成采购单」因 SKU 未匹配货源被安全阻断（负样本）；DEMO-AT-1004 = 商品行已匹配本地 SKU 的正样本，标记已付款后应生成采购单并可跳转。
 - pending_review/held 订单（DEMO-AT-1003）会被记录为「跳过」。
 
 ## 常见坑
