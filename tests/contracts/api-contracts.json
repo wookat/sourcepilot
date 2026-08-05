@@ -505,6 +505,97 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/customer/buyer-message-rules",
+      "auth": true,
+      "responseData": "{ list: BuyerMessageRule[], canWrite: boolean }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/customer/buyer-message-rules",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "node",
+        "templateId",
+        "enabled",
+        "platforms",
+        "shopIds"
+      ],
+      "responseData": "BuyerMessageRule"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/customer/buyer-message-rules/:id",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "node",
+        "templateId",
+        "enabled",
+        "platforms",
+        "shopIds"
+      ],
+      "responseData": "BuyerMessageRule"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/customer/buyer-message-rules/:id",
+      "auth": true,
+      "responseData": "{ ok: boolean }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/customer/buyer-messages/drafts",
+      "auth": true,
+      "query": [
+        "page",
+        "pageSize",
+        "node",
+        "status",
+        "platform",
+        "shopId",
+        "keyword"
+      ],
+      "responseData": "{ list: BuyerMessageDraft[], total: number, page: number, pageSize: number, canWrite: boolean }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/customer/buyer-messages/generate",
+      "auth": true,
+      "responseData": "{ created: number }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/customer/buyer-messages/drafts/:id",
+      "auth": true,
+      "requestBody": [
+        "content"
+      ],
+      "responseData": "BuyerMessageDraft"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/customer/buyer-messages/drafts/:id/mark-sent",
+      "auth": true,
+      "responseData": "BuyerMessageDraft"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/customer/buyer-messages/drafts/:id/ignore",
+      "auth": true,
+      "responseData": "BuyerMessageDraft"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/customer/buyer-messages/drafts/batch-mark-sent",
+      "auth": true,
+      "requestBody": [
+        "ids"
+      ],
+      "responseData": "{ updated: number, skipped: number }"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/waybill-templates",
       "auth": true,
       "responseData": "{ items: WaybillTemplate[] }"

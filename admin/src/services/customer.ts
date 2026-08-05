@@ -419,3 +419,135 @@ export async function reorderReplyTemplates(payload: {
 }): Promise<{ ok: boolean }> {
   return postJSON('/api/v1/customer/reply-templates/reorder', payload);
 }
+
+// ---- 买家自动消息（节点规则 + 待发草稿，站内人工确认闭环，绝不自动外发） ----
+
+export type BuyerMsgNode = 'paid' | 'shipped' | 'delivered' | 'logistics_exception' | 'refunded';
+
+export const BUYER_MSG_NODES: { key: BuyerMsgNode; label: string }[] = [
+  { key: 'paid', label: '已付款' },
+  { key: 'shipped', label: '已发货' },
+  { key: 'delivered', label: '已签收' },
+  { key: 'logistics_exception', label: '物流异常' },
+  { key: 'refunded', label: '退款' },
+];
+
+export function buyerMsgNodeLabel(node: string): string {
+  return BUYER_MSG_NODES.find((n) => n.key === node)?.label || node;
+}
+
+export type BuyerMsgDraftStatus = 'pending' | 'sent' | 'ignored';
+
+export const BUYER_MSG_DRAFT_STATUSES: { key: BuyerMsgDraftStatus; label: string }[] = [
+  { key: 'pending', label: '待发送' },
+  { key: 'sent', label: '已发送' },
+  { key: 'ignored', label: '已忽略' },
+];
+
+export function buyerMsgDraftStatusLabel(status: string): string {
+  return BUYER_MSG_DRAFT_STATUSES.find((s) => s.key === status)?.label || status;
+}
+
+export type BuyerMsgRuleRow = {
+  id: string;
+  name: string;
+  node: BuyerMsgNode;
+  templateId: string;
+  templateName: string;
+  enabled: boolean;
+  platforms: string[];
+  shopIds: string[];
+};
+
+export type BuyerMsgRuleBody = {
+  name?: string;
+  node?: BuyerMsgNode;
+  templateId?: string;
+  enabled?: boolean;
+  platforms?: string[];
+  shopIds?: string[];
+};
+
+export async function queryBuyerMsgRules(): Promise<{ list: BuyerMsgRuleRow[]; canWrite: boolean }> {
+  return getJSON('/api/v1/customer/buyer-message-rules');
+}
+
+export async function createBuyerMsgRule(body: BuyerMsgRuleBody): Promise<BuyerMsgRuleRow> {
+  return postJSON('/api/v1/customer/buyer-message-rules', body);
+}
+
+export async function updateBuyerMsgRule(id: string, body: BuyerMsgRuleBody): Promise<BuyerMsgRuleRow> {
+  return putJSON(`/api/v1/customer/buyer-message-rules/${id}`, body);
+}
+
+export async function deleteBuyerMsgRule(id: string): Promise<{ ok: boolean }> {
+  return deleteJSON(`/api/v1/customer/buyer-message-rules/${id}`);
+}
+
+export type BuyerMsgDraftRow = {
+  id: string;
+  orderId: string;
+  orderNo: string;
+  customerName: string;
+  node: BuyerMsgNode;
+  ruleId: string;
+  templateId: string;
+  templateName: string;
+  platform: string;
+  shopId?: string;
+  shopName?: string;
+  content: string;
+  missingVars: string[];
+  status: BuyerMsgDraftStatus;
+  conversationId?: string;
+  sentAt?: string;
+  ignoredAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function queryBuyerMsgDrafts(params: {
+  page?: number;
+  pageSize?: number;
+  node?: string;
+  status?: string;
+  platform?: string;
+  shopId?: string;
+  keyword?: string;
+}): Promise<{
+  list: BuyerMsgDraftRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  canWrite: boolean;
+}> {
+  return getWithParams('/api/v1/customer/buyer-messages/drafts', {
+    page: params.page,
+    pageSize: params.pageSize,
+    node: params.node,
+    status: params.status,
+    platform: params.platform,
+    shopId: params.shopId,
+    keyword: params.keyword,
+  });
+}
+
+export async function generateBuyerMsgDrafts(): Promise<{ created: number }> {
+  return postJSON('/api/v1/customer/buyer-messages/generate', {});
+}
+
+export async function updateBuyerMsgDraft(id: string, content: string): Promise<BuyerMsgDraftRow> {
+  return putJSON(`/api/v1/customer/buyer-messages/drafts/${id}`, { content });
+}
+
+export async function markBuyerMsgDraftSent(id: string): Promise<BuyerMsgDraftRow> {
+  return postJSON(`/api/v1/customer/buyer-messages/drafts/${id}/mark-sent`, {});
+}
+
+export async function ignoreBuyerMsgDraft(id: string): Promise<BuyerMsgDraftRow> {
+  return postJSON(`/api/v1/customer/buyer-messages/drafts/${id}/ignore`, {});
+}
+
+export async function batchMarkBuyerMsgDraftsSent(ids: string[]): Promise<{ updated: number; skipped: number }> {
+  return postJSON('/api/v1/customer/buyer-messages/drafts/batch-mark-sent', { ids });
+}
