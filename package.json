@@ -7,6 +7,8 @@
     "overrides": {
       "@babel/core": "^7.29.7",
       "@babel/runtime": "^7.29.7",
+      "axios": "0.33.0",
+      "immer": "9.0.21",
       "path-to-regexp@1": "1.9.0",
       "path-to-regexp@8": "8.4.0",
       "postcss": "^8.5.18",

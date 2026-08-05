@@ -1670,3 +1670,9 @@ Final Production Acceptance Deferred to P10
 - **seed verify 软删除口径**（UX v6 P2-2）：`VerifyClean` 各表检查拆分 live（`deleted_at IS NULL`，计入残留）与 soft-deleted（单独上报 `softDeleted` 字段，不计残留）；`seeddemo verify` 仅对 live 残留失败，软删除历史残留以 stderr note 提示。回归 `TestVerifyCleanIgnoresSoftDeletedResidue`。
 - **权限空态与 404 语义分离**（UX v6 P2-3）：`RouteAccessGuard` 无权限改为「暂无访问权限」+ 联系管理员开通权限/授权店铺引导（403 Result），`404.tsx` 改为「页面不存在」纯 404 语义，不再共用「页面不存在，或当前账号无权访问」混合文案；单测覆盖无权限/真实 404/有权限/未登录四态，相关 E2E 文案同步。
 - **顺带（#240 已合入 main）**：移动首页快捷入口新增「审单工作台」（`/orders/review`，按 `ORDER_VIEW` 权限显隐；`menuAccess` 补该路由权限映射），round113-mobile-h5 E2E 断言补充。
+
+### 变更记录（2026-08-05）第 116 轮：R116 安全审计依赖补丁（security-auditor）
+
+- 前端构建链 `pnpm.overrides` / `pnpm-workspace.yaml` 补 `axios 0.33.0`、`immer 9.0.21`（两者均为 `@umijs/plugins` 传递依赖，仓库未直接声明）：`pnpm audit --prod` critical 1→0、high 14→3、moderate 21→9、low 5→4；`axios` 覆盖 SSRF / 代理绕过 / 原型污染 / 头注入 / 凭据泄露等 9 条通告，`immer` 覆盖唯一一条 critical 原型污染。`pnpm build:admin`、`pnpm test:frontend`（41 套 283 用例）、`pnpm test:contracts` 全绿。
+- 未处理并列入 P2（均为构建期或框架内部固定版本，补丁需跨大版本或与 umi 4 绑定）：`react-router 6.3.0`（umi 4 内部固定）、`node-fetch 1.7.3`（dva → isomorphic-fetch 传递）、`vite` / `esbuild`（devDependencies）、`send`、`elliptic`、`hono` / `@hono/node-server`。
+- `govulncheck ./...`：0 命中（另有 1 条仅存在于 require 图、代码未调用）。
