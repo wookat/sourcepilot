@@ -5518,9 +5518,9 @@
       "admin": "allow",
       "crossTenantAdmin": "allow",
       "operator": "allow",
-      "readonly": "forbid"
+      "readonly": "allow"
     },
-    "note": "发货规则试算：POST 仅承载参数不落库，但未列入 readonly 白名单，契约保持 readonly=forbid"
+    "note": "发货规则试算：纯计算例外——POST 仅承载参数不落业务数据，round117 起列入 readonly 白名单（与 pricing/calculate 同口径）"
   },
   {
     "method": "GET",
@@ -5630,9 +5630,9 @@
       "admin": "allow",
       "crossTenantAdmin": "allow",
       "operator": "allow",
-      "readonly": "forbid"
+      "readonly": "allow"
     },
-    "note": "发货推荐：写口径 403；订单解析受店铺授权范围限制"
+    "note": "发货推荐：纯计算例外——不落业务数据，round117 起列入 readonly 白名单；订单解析仍受店铺授权范围限制（readonly 无店铺授权时解析不到任何订单）"
   },
   {
     "method": "GET",

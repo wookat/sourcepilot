@@ -32,6 +32,8 @@ var readonlyWriteAllowlist = map[string]bool{
 	"POST /api/v1/products/ai-images/batches/check":                   true,
 	"POST /api/v1/products/ai-text/batches/check":                     true,
 	"POST /api/v1/products/banned-words/check-batch":                  true,
+	"POST /api/v1/shipping-rules/recommend":                           true,
+	"POST /api/v1/orders/shipping-recommendations":                    true,
 	"POST /api/v1/products/:id/platform-configs/douyin_shop/validate": true,
 }
 

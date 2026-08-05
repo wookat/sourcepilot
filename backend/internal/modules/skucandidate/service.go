@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -53,6 +55,37 @@ func (acc *candidateAcc) addPart(key string, val int, signals ...string) {
 			acc.signals = append(acc.signals, sig)
 		}
 	}
+}
+
+// EnsureOrderVisible checks the order belongs to the request tenant and is
+// within the caller's store grants; it returns gorm.ErrRecordNotFound-style
+// errors so handlers can answer 404 without leaking existence.
+func (s *Service) EnsureOrderVisible(c *gin.Context, orderID uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("skucandidate: unavailable")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	var o order.Order
+	if err := s.DB.WithContext(c.Request.Context()).
+		First(&o, "id = ? AND tenant_id = ? AND deleted_at IS NULL", orderID, tid).Error; err != nil {
+		return err
+	}
+	return adminperm.EnsureStoreVisible(c, s.DB, o.ShopID)
+}
+
+// OrderIDForItem resolves an order line's parent order id.
+func (s *Service) OrderIDForItem(c *gin.Context, itemID uuid.UUID) (uuid.UUID, error) {
+	if s == nil || s.DB == nil {
+		return uuid.Nil, fmt.Errorf("skucandidate: unavailable")
+	}
+	var it order.OrderItem
+	if err := s.DB.WithContext(c.Request.Context()).First(&it, "id = ?", itemID).Error; err != nil {
+		return uuid.Nil, err
+	}
+	return it.OrderID, nil
 }
 
 // SuggestForOrderItem returns ranked candidates for one order line.

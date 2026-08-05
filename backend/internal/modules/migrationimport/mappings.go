@@ -40,6 +40,14 @@ func (s *Service) SaveMappingPreset(c *gin.Context, body MappingPresetBody, admi
 	if len(body.Mapping) == 0 {
 		return nil, fmt.Errorf("mapping is required")
 	}
+	if len(body.Mapping) > MaxMappingColumns || len(body.Columns) > MaxMappingColumns {
+		return nil, fmt.Errorf("映射方案最多支持 %d 列", MaxMappingColumns)
+	}
+	for key, idx := range body.Mapping {
+		if idx < 0 || idx >= MaxMappingColumns {
+			return nil, fmt.Errorf("字段 %s 的列序号超出范围（0-%d）", key, MaxMappingColumns-1)
+		}
+	}
 	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		return nil, err
@@ -81,6 +89,11 @@ func (s *Service) SaveMappingPreset(c *gin.Context, body MappingPresetBody, admi
 
 // MaxMappingPresetsPerKind bounds saved mapping schemes per tenant + kind.
 const MaxMappingPresetsPerKind = 50
+
+// MaxMappingColumns bounds the column count and the column indices a mapping
+// preset may reference. Import files never have anywhere near this many
+// columns; the bound keeps stored presets from carrying arbitrary indices.
+const MaxMappingColumns = 200
 
 // ListMappingPresets returns the tenant's mapping presets for one kind.
 func (s *Service) ListMappingPresets(c *gin.Context, kind string) ([]ImportMappingPreset, error) {

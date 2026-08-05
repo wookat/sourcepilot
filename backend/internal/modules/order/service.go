@@ -1194,8 +1194,8 @@ func (s *Service) Delete(c *gin.Context, orderID uuid.UUID, adminID *uuid.UUID) 
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("order: no db")
 	}
-	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	o, err := s.findOrderBare(c, orderID)
+	if err != nil {
 		return err
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Delete(&Order{}, "id = ?", orderID).Error; err != nil {

@@ -205,3 +205,12 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - 预期口径按人工评审写入，未采用生成器的 observed allow：读路由四角色 `allow`（租户/店铺 scope 在查询内应用），写路由 `readonly: forbid`；`shipping-rules/recommend`、`orders/shipping-recommendations` 虽为只读计算，但未列入只读白名单，契约按现网守卫保持 `forbid`。
 - `POST /api/v1/products/banned-words/check-batch` 此前矩阵登记 `readonly: allow` 而守卫 403（登记与实现不一致）。该端点是纯扫描计算（不落业务数据，仅写操作日志），语义与已允许的 `GET /products/:id/banned-words/check` 及 `products/ai-text/batches/check` 一致，故加入 `write_guard.go` 只读白名单，契约保持 `allow`。
 - 本轮矩阵复跑未发现「预期 403/404 实际 200」的路由级缺口；数据级缺口（审单决定与发货推荐的店铺 scope）见 `order` 模块 `review_store_scope_test.go`。
+
+## round117 R116 审计 P2 收口
+
+- **只读试算口径**：`POST /shipping-rules/recommend`、`POST /orders/shipping-recommendations` 均为纯计算（仅承载参数、不落业务数据），按「纯计算例外」加入 `write_guard.go` 只读白名单，矩阵两条登记改为 `readonly: allow`。发货推荐的订单解析仍走 `EnsureStoreVisible` / `ApplyStoreScope`，readonly 无店铺授权时解析不到任何订单。
+- **订单按 id 写路径通用契约测试**（审计观察项 8）：新增 `order_write_scope_test.go` `TestOrderByIDWriteStoreScope`，对全部 `/orders/:id*` 写路由与 `order-items/:itemId` 路由做「未授权店铺订单 / 跨租户订单 → 404 且无副作用」断言，并带路由完整性检查（新增此类路由未登记探针即失败）。该测试暴露并修复了四处数据级缺口：
+  - `DELETE /orders/:id`：service `Delete` 原查单无 tenant / 店铺条件，跨租户可删单；改走 `findOrderBare`。
+  - `POST /orders/:id/match-skus`：直接进撮合引擎（引擎按裸 id 查单），未授权/跨租户订单可触发重建；handler 先 `findOrderBare`。
+  - `POST /orders/:id/deduct-inventory`、`restore-inventory`：`Inv.*ForOrder` 按裸 id 执行，未授权订单可扣/回补库存；handler 先 `findOrderBare`。
+  - `POST /order-items/:itemId/bind-sku` 与 sku-candidates 两条读路由（`GET /order-items/:itemId/sku-candidates`、`POST /orders/:id/sku-candidates/batch`）：订单行/候选查询无租户与店铺条件；`GetOrderItemByID` 补父订单 `findOrderBare`，skucandidate 模块新增 `EnsureOrderVisible`（tenant + `EnsureStoreVisible`）。
