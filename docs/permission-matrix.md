@@ -198,3 +198,10 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - `image` 组整组回退租户化（口径同 ai）：租户配置任一自有凭据（任一 `*_api_key` 或 ComfyUI 的 `comfyui_base_url`）则整组以租户配置为准，否则整组回退平台默认；平台凭据不与租户参数混流。读写路由与角色登记不变（`GET/PUT /api/v1/settings` 沿用 #216 口径：写一律落调用方租户、显式传别租户 403；读仅返回本租户行）。
 - `taskcenter` 告警策略组逐 key 合并租户化：告警生成与外发通知触发策略按告警来源/归属租户解析，租户在 `GET /task-center/alerts` 看到自身聚合告警（round104/105 已按 `tenant_id` 过滤），tenant 0 为平台桶。扫描 worker 运行键（`enable_alert_scan_worker` / `alert_scan_interval_seconds`）保留平台级，系统设置页仅平台管理员可见可存。
 - 残留平台级 `PlainByGroup(ctx, 0, ...)` 保留项：storage、mail/email、system、platform_*（平台应用凭据/发布配置 schema）、inventory 平台限流键、taskcenter 扫描 worker 运行键。
+
+## round116 R109–R115 新端点登记（安全审计复跑）
+
+- 补登记 40 条 `TestRouteRegistryComplete` 报缺的路由，覆盖 R109–R115 新增面：客服话术模板（`/customer-service/reply-templates`、`/customer/reply-templates` 各 5 条）、深度报表（`/reports/profit|profit/export.csv|procurement|inventory`）、面单模板与发货规则（`/waybill-templates` 4 条、`/shipping-rules` 5 条）、多仓与调拨（`/inventory/warehouses*` 7 条、`/inventory/transfers`、`/inventory/sku-warehouse-stocks`）、打单与发货推荐（`/orders/print/mark`、`/orders/shipping-recommendations`）、数据搬家映射方案与模板/导出（`/imports/mappings*`、`/imports/templates/:kind`、`/imports/export/:kind`），以及公开健康检查 `GET /healthz`（`public: true`）。
+- 预期口径按人工评审写入，未采用生成器的 observed allow：读路由四角色 `allow`（租户/店铺 scope 在查询内应用），写路由 `readonly: forbid`；`shipping-rules/recommend`、`orders/shipping-recommendations` 虽为只读计算，但未列入只读白名单，契约按现网守卫保持 `forbid`。
+- `POST /api/v1/products/banned-words/check-batch` 此前矩阵登记 `readonly: allow` 而守卫 403（登记与实现不一致）。该端点是纯扫描计算（不落业务数据，仅写操作日志），语义与已允许的 `GET /products/:id/banned-words/check` 及 `products/ai-text/batches/check` 一致，故加入 `write_guard.go` 只读白名单，契约保持 `allow`。
+- 本轮矩阵复跑未发现「预期 403/404 实际 200」的路由级缺口；数据级缺口（审单决定与发货推荐的店铺 scope）见 `order` 模块 `review_store_scope_test.go`。
