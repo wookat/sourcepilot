@@ -19,6 +19,17 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	rr.PUT("/:ruleId", w, h.PutReviewRule)
 	rr.DELETE("/:ruleId", w, h.DeleteReviewRule)
 
+	ar := g.Group("/order-automation-rules")
+	ar.GET("", h.GetAutomationRules)
+	ar.POST("", w, h.PostAutomationRule)
+	ar.POST("/dry-run", h.PostAutomationRuleDryRun)
+	ar.PUT("/:ruleId", w, h.PutAutomationRule)
+	ar.DELETE("/:ruleId", w, h.DeleteAutomationRule)
+
+	al := g.Group("/order-automation-logs")
+	al.GET("", h.GetAutomationLogs)
+	al.POST("/:logId/retry", w, h.PostAutomationLogRetry)
+
 	rw := g.Group("/order-review")
 	rw.GET("", h.GetReviewWorkbench)
 	rw.POST("/approve", w, h.PostReviewApprove)
@@ -37,6 +48,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	o.POST("/:id/restore-inventory", w, h.PostRestoreInventory)
 	o.GET("/:id/inventory-effects", h.GetOrderInventoryEffects)
 	o.GET("/:id/sku-matches", h.GetOrderSKUMatches)
+	o.GET("/:id/automation-logs", h.GetOrderAutomationTrail)
 	o.POST("/:id/match-skus", w, h.PostMatchOrderSKUs)
 
 	o.GET("/stats/sales", h.GetSalesStats)

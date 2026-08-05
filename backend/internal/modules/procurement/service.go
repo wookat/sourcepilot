@@ -25,12 +25,37 @@ var (
 	ErrConflict   = errors.New("procurement: conflict")
 )
 
+// OrderEventNotifier fires order automation state events (自动化订单规则).
+type OrderEventNotifier interface {
+	FireOrderEvent(ctx context.Context, tenantID int64, orderID uuid.UUID, event string)
+}
+
 // Service implements purchase-order collaboration (manual-order mode).
 type Service struct {
 	DB       *gorm.DB
 	OpLog    *operationlog.Service
 	Provider trade.Provider
 	Settings SettingsReader
+	// OrderEvents receives采购状态事件 for the order automation engine (nil
+	// disables the automation triggers).
+	OrderEvents OrderEventNotifier
+}
+
+// fireOrderEvents notifies the automation engine for every distinct sales
+// order covered by the purchase order.
+func (s *Service) fireOrderEvents(ctx context.Context, po *PurchaseOrder, event string) {
+	if s == nil || s.DB == nil || s.OrderEvents == nil || po == nil {
+		return
+	}
+	var ids []uuid.UUID
+	if err := s.DB.WithContext(ctx).Model(&PurchaseOrderItem{}).
+		Where("purchase_order_id = ? AND sales_order_id IS NOT NULL", po.ID).
+		Distinct().Pluck("sales_order_id", &ids).Error; err != nil {
+		return
+	}
+	for _, oid := range ids {
+		s.OrderEvents.FireOrderEvent(ctx, po.TenantID, oid, event)
+	}
 }
 
 func (s *Service) provider() trade.Provider {
@@ -750,6 +775,7 @@ func (s *Service) FillLogistics(ctx context.Context, id uuid.UUID, body Logistic
 		_ = mock.AdvanceShip(po.ExternalOrderID, body.Carrier, tn)
 	}
 	s.logOp(ctx, operator, "procurement.fill_logistics", id.String(), tn)
+	s.fireOrderEvents(ctx, po, order.AutomationEventLogisticsCollected)
 	return po, nil
 }
 
@@ -783,6 +809,7 @@ func (s *Service) MarkDelivered(ctx context.Context, id uuid.UUID, operator *uui
 		}
 	}
 	s.logOp(ctx, operator, "procurement.mark_delivered", id.String(), fmt.Sprintf("inboundQty=%d", inbound))
+	s.fireOrderEvents(ctx, po, order.AutomationEventProcurementDelivered)
 	return po, nil
 }
 
