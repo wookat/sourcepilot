@@ -4,6 +4,7 @@ import type { MenuDataItem } from '@umijs/route-utils';
 import { history, request as umiRequest } from '@umijs/max';
 import type { RequestConfig, RunTimeLayoutConfig } from '@/typings/umi-runtime';
 import AppMessageBridge from '@/components/AppMessageBridge';
+import MobileTabBar from '@/components/mobile/MobileTabBar';
 import BrandLogo from '@/components/BrandLogo';
 import RouteAccessGuard from '@/components/RouteAccessGuard';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
@@ -285,7 +286,12 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     siderWidth: 224,
   },
   menu: { locale: false },
-  childrenRender: (children: ReactNode) => <RouteAccessGuard>{children}</RouteAccessGuard>,
+  childrenRender: (children: ReactNode) => (
+    <RouteAccessGuard>
+      {children}
+      <MobileTabBar />
+    </RouteAccessGuard>
+  ),
   menuDataRender: (menuData: MenuDataItem[]) =>
     filterMenuByPermission(
       menuData,

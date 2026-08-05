@@ -1812,3 +1812,181 @@ body,
     font-size: 14px !important;
   }
 }
+
+/* ===== 移动端轻端（R113）：底部导航 + 移动首页 ===== */
+.tm-mobile-tabbar,
+.tm-mobile-tabbar__spacer {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .tm-mobile-tabbar {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 120;
+    display: flex;
+    align-items: stretch;
+    background: var(--ant-color-bg-container, #fff);
+    border-top: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    box-shadow: 0 -1px 4px rgba(15, 23, 42, 0.05);
+  }
+
+  .tm-mobile-tabbar__spacer {
+    display: block;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .tm-mobile-tabbar__item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    border: 0;
+    background: transparent;
+    color: var(--ant-color-text-secondary, #64748b);
+    cursor: pointer;
+    padding: 6px 0;
+  }
+
+  .tm-mobile-tabbar__item--active {
+    color: var(--ant-color-primary, #2563eb);
+  }
+
+  .tm-mobile-tabbar__icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .tm-mobile-tabbar__label {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+}
+
+.tm-mobile-home {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.tm-mobile-home__pull-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ant-color-text-secondary);
+  padding: 8px 0;
+}
+
+.tm-mobile-home__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.tm-mobile-touch-btn {
+  min-height: 44px;
+  padding-inline: 16px;
+}
+
+.tm-mobile-metric-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  background: var(--ant-color-bg-container, #fff);
+}
+
+.tm-mobile-metric-card__body {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tm-mobile-metric-card__item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tm-mobile-metric-card__label {
+  font-size: 12px;
+  color: var(--ant-color-text-secondary);
+}
+
+.tm-mobile-metric-card__value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ant-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-mobile-section {
+  margin-top: 20px;
+}
+
+.tm-mobile-section__title {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.tm-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tm-mobile-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  background: var(--ant-color-bg-container, #fff);
+  cursor: pointer;
+  text-align: start;
+  font-size: 14px;
+  color: var(--ant-color-text);
+}
+
+.tm-mobile-list-row__title {
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-mobile-list-row__extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tm-mobile-list-row__arrow {
+  color: var(--ant-color-text-quaternary, #cbd5e1);
+  font-size: 12px;
+}
+
+.tm-mobile-me__profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  background: var(--ant-color-bg-container, #fff);
+}

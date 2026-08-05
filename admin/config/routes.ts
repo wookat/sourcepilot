@@ -31,6 +31,27 @@ export default [
     ],
   },
   {
+    path: '/m',
+    name: '移动工作台',
+    hideInMenu: true,
+    routes: [
+      {
+        path: '/m',
+        redirect: '/m/home',
+      },
+      {
+        path: '/m/home',
+        name: '移动首页',
+        component: './Mobile/Home',
+      },
+      {
+        path: '/m/me',
+        name: '我的',
+        component: './Mobile/Me',
+      },
+    ],
+  },
+  {
     path: '/system/operation-logs',
     name: '操作日志',
     icon: 'AuditOutlined',

@@ -8,7 +8,8 @@ import { AUTH_TOKEN_KEY } from '@/constants/auth';
 export default function IndexPage() {
   useLayoutEffect(() => {
     if (localStorage.getItem(AUTH_TOKEN_KEY)) {
-      history.replace('/dashboard');
+      // 窄屏（手机）默认进入移动工作台，宽屏进入桌面工作台
+      history.replace(window.innerWidth < 768 ? '/m/home' : '/dashboard');
     } else {
       history.replace('/user/login?redirect=/');
     }
