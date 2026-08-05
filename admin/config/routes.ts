@@ -393,6 +393,11 @@ export default [
         component: './Orders/Exceptions',
       },
       {
+        path: '/orders/review',
+        name: '审单工作台',
+        component: './Orders/Review',
+      },
+      {
         path: '/orders/print',
         name: '拣货发货单打印',
         hideInMenu: true,
@@ -616,6 +621,11 @@ export default [
         path: '/settings/shipping-rules',
         name: '发货规则',
         component: './Settings/ShippingRules',
+      },
+      {
+        path: '/settings/order-review-rules',
+        name: '审单规则',
+        component: './Settings/OrderReviewRules',
       },
       {
         path: '/settings/banned-words',

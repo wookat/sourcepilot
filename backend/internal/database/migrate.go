@@ -180,6 +180,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&order.OrderItem{},
 		&order.OrderShipment{},
 		&order.OrderItemSKUMatch{},
+		&order.OrderReviewRule{},
+		&order.OrderReviewHit{},
 		&orderexception.OrderExceptionMark{},
 		&sourcing.Supplier{},
 		&sourcing.ProductSource{},

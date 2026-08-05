@@ -24,7 +24,8 @@ func openImportTestDB(t *testing.T) *gorm.DB {
 	}
 	sqlDB, _ := db.DB()
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&order.Order{}, &order.OrderItem{}, &order.OrderShipment{}, &shop.Shop{}); err != nil {
+	if err := db.AutoMigrate(&order.Order{}, &order.OrderItem{}, &order.OrderShipment{},
+		&order.OrderReviewRule{}, &order.OrderReviewHit{}, &shop.Shop{}); err != nil {
 		t.Fatal(err)
 	}
 	return db

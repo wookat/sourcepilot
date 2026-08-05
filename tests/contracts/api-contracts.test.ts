@@ -76,6 +76,14 @@ describe('TradeMind API contract registry', () => {
         'POST /api/v1/shipping-rules/recommend',
         'PUT /api/v1/shipping-rules/:id',
         'DELETE /api/v1/shipping-rules/:id',
+        'GET /api/v1/order-review-rules',
+        'POST /api/v1/order-review-rules',
+        'POST /api/v1/order-review-rules/dry-run',
+        'PUT /api/v1/order-review-rules/:ruleId',
+        'DELETE /api/v1/order-review-rules/:ruleId',
+        'GET /api/v1/order-review',
+        'POST /api/v1/order-review/approve',
+        'POST /api/v1/order-review/reject',
         'POST /api/v1/orders/print/mark',
         'POST /api/v1/orders/shipping-recommendations',
       ]),
@@ -210,8 +218,40 @@ describe('TradeMind API contract registry', () => {
     expect(reorder?.requestBody).toEqual(['groupKey', 'ids']);
   });
 
+  it('defines payload/query contracts for order review rule and workbench APIs', () => {
+    const createRule = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/order-review-rules');
+    const updateRule = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/order-review-rules/:ruleId');
+    const dryRun = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/order-review-rules/dry-run');
+    const workbench = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/order-review');
+    const approve = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/order-review/approve');
+    const reject = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/order-review/reject');
+
+    const ruleBody = [
+      'name',
+      'priority',
+      'enabled',
+      'action',
+      'minAmount',
+      'maxAmount',
+      'addressKeywords',
+      'remarkKeywords',
+      'platforms',
+      'shopIds',
+      'maxTotalQuantity',
+      'maxSkuQuantity',
+      'repeatReceiverMinOrders',
+      'repeatReceiverWindowDays',
+    ];
+    expect(createRule?.requestBody).toEqual(ruleBody);
+    expect(updateRule?.requestBody).toEqual(ruleBody);
+    expect(dryRun?.requestBody).toEqual(ruleBody);
+    expect(workbench?.query).toEqual(['page', 'pageSize', 'reviewStatus', 'keyword']);
+    expect(approve?.requestBody).toEqual(['orderIds', 'remark']);
+    expect(reject?.requestBody).toEqual(['orderIds', 'remark']);
+  });
+
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(63);
+    expect(contracts.endpoints).toHaveLength(71);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

@@ -220,6 +220,17 @@ func (s *Service) Generate(ctx context.Context, body GenerateBody, operator *uui
 	bySupplier := map[uuid.UUID][]aggLine{}
 
 	for _, oid := range orderIDs {
+		var so order.Order
+		if err := s.DB.WithContext(ctx).Select("id", "review_status").First(&so, "id = ?", oid).Error; err == nil {
+			if order.ReviewBlocked(so.ReviewStatus) {
+				msg := "订单待人工审核，不能生成采购单；请先在审单工作台放行"
+				if so.ReviewStatus == order.ReviewStatusHeld {
+					msg = "订单已被审单规则挂起，不能生成采购单；请先在审单工作台放行"
+				}
+				res.Blockers = append(res.Blockers, Blocker{OrderID: oid.String(), Code: "review.blocked", Message: msg})
+				continue
+			}
+		}
 		var items []order.OrderItem
 		if err := s.DB.WithContext(ctx).Where("order_id = ?", oid).Find(&items).Error; err != nil {
 			return nil, err

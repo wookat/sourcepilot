@@ -58,6 +58,7 @@ import {
   type OrderListRow,
   type OrderShipmentRow,
 } from '@/services/orders';
+import { REVIEW_STATUS_COLORS, REVIEW_STATUS_LABELS } from '@/services/orderReview';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
 import ImportOrdersModal from '@/pages/Orders/ImportOrdersModal';
 import BatchShipModal from '@/pages/Orders/BatchShipModal';
@@ -496,7 +497,16 @@ export default function OrdersPage() {
         width: 108,
         valueType: 'select',
         valueEnum: ORDER_STATUS,
-        render: (_, r) => statusTag(r.status, ORDER_STATUS),
+        render: (_, r) => (
+          <Space size={2} direction="vertical">
+            {statusTag(r.status, ORDER_STATUS)}
+            {r.reviewStatus && REVIEW_STATUS_LABELS[r.reviewStatus] && (
+              <Tag color={REVIEW_STATUS_COLORS[r.reviewStatus] || 'default'}>
+                {REVIEW_STATUS_LABELS[r.reviewStatus]}
+              </Tag>
+            )}
+          </Space>
+        ),
       },
       {
         title: '支付',
