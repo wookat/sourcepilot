@@ -5685,5 +5685,85 @@
       "readonly": "allow"
     },
     "note": "数据导出 CSV：租户 + 店铺 scope 在查询内应用，公式前缀由 csvsafe 中和"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/order-automation-rules",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/order-automation-rules",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/order-automation-rules/dry-run",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/order-automation-rules/:ruleId",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/order-automation-rules/:ruleId",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/order-automation-logs",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/order-automation-logs/:logId/retry",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/orders/:id/automation-logs",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
   }
 ]

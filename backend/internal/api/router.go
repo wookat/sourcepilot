@@ -733,8 +733,26 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	migrationimport.Register(authed, &migrationimport.Handler{Svc: migrationImportSvc})
 	sourcingH := &sourcing.Handler{Svc: sourcingSvc}
 	sourcing.Register(authed, sourcingH)
-	procurementSvc := &procurement.Service{DB: dep.DB, OpLog: opLogSvc, Provider: trade.NewMock1688(), Settings: settingsSvc}
+	procurementSvc := &procurement.Service{DB: dep.DB, OpLog: opLogSvc, Provider: trade.NewMock1688(), Settings: settingsSvc, OrderEvents: orderSvc}
 	excSvc.Cost = procurementSvc
+	orderSvc.Automation = &order.AutomationHooks{
+		GenerateProcurement: func(ctx context.Context, tenantID int64, orderID uuid.UUID, idempotencyKey string) (string, error) {
+			res, err := procurementSvc.Generate(ctx, procurement.GenerateBody{
+				OrderIDs:       []string{orderID.String()},
+				IdempotencyKey: idempotencyKey,
+			}, nil)
+			if err != nil {
+				return "", err
+			}
+			if len(res.Blockers) > 0 {
+				return "", fmt.Errorf("生成采购单被阻断：%s", res.Blockers[0].Message)
+			}
+			if len(res.Orders) == 0 {
+				return "订单已有有效采购单，无需重复生成", nil
+			}
+			return fmt.Sprintf("已自动生成 %d 张采购单", len(res.Orders)), nil
+		},
+	}
 	procurementH := &procurement.Handler{Svc: procurementSvc}
 	procurement.Register(authed, procurementH)
 	reportsH := &reports.Handler{Svc: &reports.Service{DB: dep.DB, Settings: settingsSvc, Proc: procurementSvc}}

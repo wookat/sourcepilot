@@ -34,13 +34,17 @@ type Order struct {
 	ShippedAt         *time.Time `json:"shippedAt,omitempty"`
 	// WaybillPrintedAt marks when picking/waybill sheets were last printed
 	// (打单状态); it never gates the shipping flow.
-	WaybillPrintedAt  *time.Time     `gorm:"index" json:"waybillPrintedAt,omitempty"`
-	DeliveredAt       *time.Time     `json:"deliveredAt,omitempty"`
-	PlatformUpdatedAt *time.Time     `gorm:"index" json:"platformUpdatedAt,omitempty"`
-	PlatformRevision  string         `gorm:"size:128;index" json:"platformRevision,omitempty"`
-	Remark            string         `gorm:"type:text" json:"remark,omitempty"`
-	RawData           datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
-	CreatedBy         *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	WaybillPrintedAt *time.Time `gorm:"index" json:"waybillPrintedAt,omitempty"`
+	// ShipReadyNotifiedAt marks when the shipping workbench was notified that
+	// the order's procurement was signed in (自动化「通知发货工作台」动作); it
+	// is informational and never gates the shipping flow.
+	ShipReadyNotifiedAt *time.Time     `gorm:"index" json:"shipReadyNotifiedAt,omitempty"`
+	DeliveredAt         *time.Time     `json:"deliveredAt,omitempty"`
+	PlatformUpdatedAt   *time.Time     `gorm:"index" json:"platformUpdatedAt,omitempty"`
+	PlatformRevision    string         `gorm:"size:128;index" json:"platformRevision,omitempty"`
+	Remark              string         `gorm:"type:text" json:"remark,omitempty"`
+	RawData             datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
+	CreatedBy           *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 
 	Items     []OrderItem     `gorm:"foreignKey:OrderID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"items,omitempty"`
 	Shipments []OrderShipment `gorm:"foreignKey:OrderID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"shipments,omitempty"`
