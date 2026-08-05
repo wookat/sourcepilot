@@ -31,6 +31,8 @@ const ALLOWED_QUERY_KEYS = new Set([
   // round110 — 深度报表
   'dimension',
   'slowDays',
+  // round112 — 多仓
+  'warehouseId',
   // H1.2 — orders / products / inventory / customer
   'payStatus',
   'skuStatus',

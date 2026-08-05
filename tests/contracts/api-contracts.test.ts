@@ -49,6 +49,14 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/reports/profit/export.csv',
         'GET /api/v1/reports/procurement',
         'GET /api/v1/reports/inventory',
+        'GET /api/v1/inventory/warehouses',
+        'GET /api/v1/inventory/warehouses/summary',
+        'GET /api/v1/inventory/warehouses/migration-preview',
+        'POST /api/v1/inventory/warehouses',
+        'PUT /api/v1/inventory/warehouses/:id',
+        'DELETE /api/v1/inventory/warehouses/:id',
+        'POST /api/v1/inventory/transfers',
+        'GET /api/v1/inventory/sku-warehouse-stocks',
         'GET /api/v1/customer/reply-templates',
         'POST /api/v1/customer/reply-templates',
         'PUT /api/v1/customer/reply-templates/:id',
@@ -175,7 +183,7 @@ describe('TradeMind API contract registry', () => {
     expect(profitCsv?.responseData).toBe('CSV');
     expect(procurement?.query).toEqual(['days', 'start', 'end']);
     expect(procurement?.responseData).toBe('ProcurementReportDTO');
-    expect(inventory?.query).toEqual(['slowDays']);
+    expect(inventory?.query).toEqual(['slowDays', 'warehouseId']);
     expect(inventory?.responseData).toBe('InventoryReportDTO');
     for (const endpoint of [profit, profitCsv, procurement, inventory]) {
       expect(endpoint?.method).toBe('GET');
@@ -198,7 +206,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(50);
+    expect(contracts.endpoints).toHaveLength(58);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

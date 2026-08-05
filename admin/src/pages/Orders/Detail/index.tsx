@@ -1,3 +1,4 @@
+import WarehouseSelect from '@/components/inventory/WarehouseSelect';
 import { PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import { platformLabel } from '@/constants/userFriendly';
 import {
@@ -125,6 +126,7 @@ export default function OrderDetailPage() {
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [invActionLoading, setInvActionLoading] = useState(false);
+  const [deductWarehouseId, setDeductWarehouseId] = useState<string | undefined>();
   const [costEst, setCostEst] = useState<OrderCostEstimate | null>(null);
   const [relatedPOs, setRelatedPOs] = useState<PurchaseOrder[]>([]);
   const [genLoading, setGenLoading] = useState(false);
@@ -714,12 +716,22 @@ export default function OrderDetailPage() {
                     </Typography.Link>
                     {writable ? (
                       <>
+                        <WarehouseSelect
+                          size="small"
+                          style={{ minWidth: 180 }}
+                          placeholder="扣减仓库（默认按仓库优先级）"
+                          value={deductWarehouseId}
+                          onChange={(v) => setDeductWarehouseId(v || undefined)}
+                        />
                         <Popconfirm
                           title="扣减绑定 SKU 的本地库存（幂等，重复执行不会重复扣减）"
                           onConfirm={async () => {
                             setInvActionLoading(true);
                             try {
-                              const r = await deductOrderInventory(detail.id, { syncInventory: false });
+                              const r = await deductOrderInventory(detail.id, {
+                                syncInventory: false,
+                                warehouseId: deductWarehouseId,
+                              });
                               message.success(
                                 summarizeInvResp('库存扣减', r.inventoryDeduction as Record<string, unknown>),
                               );

@@ -953,7 +953,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 				b.InventoryAlerts = append(b.InventoryAlerts, RecentItem{
 					Type:       "inventory_alert",
 					Title:      clip(e.ProductTitle, 80) + " · " + e.SKUCode,
-					Subtitle:   "低库存",
+					Subtitle:   inventory.LowStockAlertCopy(e.WarehouseStocks),
 					Status:     "预警",
 					OccurredAt: ts,
 					Link:       "/inventory/alerts",

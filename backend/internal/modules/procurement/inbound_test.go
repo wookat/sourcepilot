@@ -48,7 +48,7 @@ func TestMarkDeliveredInboundsStock(t *testing.T) {
 	if _, err := f.svc.FillLogistics(ctx, po.ID, LogisticsBody{TrackingNo: "SF-INB"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.MarkDelivered(ctx, po.ID, nil); err != nil {
+	if _, err := f.svc.MarkDelivered(ctx, po.ID, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -73,7 +73,7 @@ func TestMarkDeliveredInboundsStock(t *testing.T) {
 	if err := db.First(&poRow, "id = ?", po.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	lines, err := inboundStockTx(db, &poRow, nil)
+	lines, err := inboundStockTx(db, &poRow, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

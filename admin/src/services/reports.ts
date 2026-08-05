@@ -153,6 +153,8 @@ export type InventoryReportDTO = {
   generatedAt: string;
   slowDays: number;
   currency: string;
+  warehouseId?: string;
+  warehouseName?: string;
   summary: {
     skuCount: number;
     totalStock: number;
@@ -169,7 +171,10 @@ export type InventoryReportDTO = {
   lowStock: InventorySKURow[];
 };
 
-export async function fetchInventoryReport(slowDays?: number): Promise<InventoryReportDTO> {
-  const q = slowDays ? `?slowDays=${slowDays}` : '';
+export async function fetchInventoryReport(slowDays?: number, warehouseId?: string): Promise<InventoryReportDTO> {
+  const parts: string[] = [];
+  if (slowDays) parts.push(`slowDays=${slowDays}`);
+  if (warehouseId) parts.push(`warehouseId=${encodeURIComponent(warehouseId)}`);
+  const q = parts.length ? `?${parts.join('&')}` : '';
   return getJSON(`/api/v1/reports/inventory${q}`);
 }

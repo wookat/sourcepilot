@@ -1,4 +1,5 @@
 import CarrierSelect, { useEnabledCarriers } from '@/components/CarrierSelect';
+import WarehouseSelect from '@/components/inventory/WarehouseSelect';
 import { TmPageContainer } from '@/components/ui';
 import {
   cancelPurchaseOrder,
@@ -59,6 +60,8 @@ export default function ProcurementOrderDetailPage() {
   const { carriers, loading: carriersLoading } = useEnabledCarriers(logisticsOpen);
   const [paidOpen, setPaidOpen] = useState(false);
   const [paidForm] = Form.useForm();
+  const [deliverOpen, setDeliverOpen] = useState(false);
+  const [deliverForm] = Form.useForm<{ warehouseId?: string }>();
   const [priceEdit, setPriceEdit] = useState<{ itemId: string; value?: number } | null>(null);
   const [priceSaving, setPriceSaving] = useState(false);
 
@@ -188,7 +191,7 @@ export default function ProcurementOrderDetailPage() {
           </Button>
         )}
         {po.status === 'shipped' && (
-          <Button type="primary" onClick={() => void run(() => markPurchaseOrderDelivered(po.id), '已标记签收，采购数量已入库到本地库存')}>
+          <Button type="primary" onClick={() => setDeliverOpen(true)}>
             标记签收
           </Button>
         )}
@@ -420,6 +423,33 @@ export default function ProcurementOrderDetailPage() {
                 { value: 'other', label: '其他' },
               ]}
             />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="标记签收"
+        open={deliverOpen}
+        destroyOnHidden
+        okText="确认签收"
+        onCancel={() => setDeliverOpen(false)}
+        onOk={async () => {
+          const values = await deliverForm.validateFields();
+          await run(
+            () => markPurchaseOrderDelivered(po.id, values.warehouseId),
+            '已标记签收，采购数量已入库到所选仓库',
+          );
+          setDeliverOpen(false);
+        }}
+      >
+        <Form form={deliverForm} layout="vertical">
+          <Form.Item
+            name="warehouseId"
+            label="入库仓库"
+            extra="默认仓预选；采购数量将入库到所选仓库"
+            rules={[{ required: true, message: '请选择入库仓库' }]}
+          >
+            <WarehouseSelect preselectDefault />
           </Form.Item>
         </Form>
       </Modal>

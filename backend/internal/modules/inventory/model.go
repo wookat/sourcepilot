@@ -11,9 +11,12 @@ import (
 // InventoryChangeLog is an append-only local stock / sync audit trail (hard-deleted rows only via admin tooling).
 type InventoryChangeLog struct {
 	model.HardDeleteBase
-	TenantID         int64      `gorm:"not null;default:0;index" json:"tenantId"`
-	ProductID        uuid.UUID  `gorm:"type:char(36);index;not null" json:"productId"`
-	ProductSKUID     uuid.UUID  `gorm:"column:product_sku_id;type:char(36);index;not null" json:"productSkuId"`
+	TenantID     int64     `gorm:"not null;default:0;index" json:"tenantId"`
+	ProductID    uuid.UUID `gorm:"type:char(36);index;not null" json:"productId"`
+	ProductSKUID uuid.UUID `gorm:"column:product_sku_id;type:char(36);index;not null" json:"productSkuId"`
+	// WarehouseID scopes the movement to one warehouse; NULL means the tenant's
+	// default warehouse (all pre-multi-warehouse history).
+	WarehouseID      *uuid.UUID `gorm:"type:char(36);index" json:"warehouseId,omitempty"`
 	ChangeType       string     `gorm:"size:48;index;not null" json:"changeType"`
 	BeforeStock      int        `gorm:"not null" json:"beforeStock"`
 	AfterStock       int        `gorm:"not null" json:"afterStock"`

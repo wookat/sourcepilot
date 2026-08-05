@@ -377,7 +377,7 @@ export async function refreshShipmentTracking(
 
 export async function deductOrderInventory(
   orderId: string,
-  body?: { syncInventory?: boolean },
+  body?: { syncInventory?: boolean; warehouseId?: string },
 ): Promise<{ order: OrderDetailDTO; inventoryDeduction: Record<string, unknown> }> {
   return postJSON(`/api/v1/orders/${orderId}/deduct-inventory`, body ?? {});
 }

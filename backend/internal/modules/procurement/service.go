@@ -744,7 +744,7 @@ func (s *Service) FillLogistics(ctx context.Context, id uuid.UUID, body Logistic
 
 // MarkDelivered moves shipped → delivered (cloud warehouse inbound) and adds
 // each purchase line quantity to local SKU stock (idempotent per line).
-func (s *Service) MarkDelivered(ctx context.Context, id uuid.UUID, operator *uuid.UUID) (*PurchaseOrder, error) {
+func (s *Service) MarkDelivered(ctx context.Context, id uuid.UUID, operator *uuid.UUID, warehouseID *uuid.UUID) (*PurchaseOrder, error) {
 	payload := map[string]any{}
 	po, err := s.transition(ctx, id, StatusDelivered, EventSourceManual, payload, func(tx *gorm.DB, po *PurchaseOrder) error {
 		now := time.Now().UTC()
@@ -753,7 +753,7 @@ func (s *Service) MarkDelivered(ctx context.Context, id uuid.UUID, operator *uui
 			Updates(map[string]any{"status": "delivered", "inbound_at": now}).Error; err != nil {
 			return err
 		}
-		lines, err := inboundStockTx(tx, po, operator)
+		lines, err := inboundStockTx(tx, po, operator, warehouseID)
 		if err != nil {
 			return err
 		}

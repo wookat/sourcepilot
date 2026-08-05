@@ -195,6 +195,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&inventory.InventorySyncTask{},
 		&inventory.InventoryChangeLog{},
 		&inventory.OrderInventoryEffect{},
+		&inventory.Warehouse{},
+		&inventory.WarehouseStock{},
 		&shop.Shop{},
 		&shop.ShopAuthToken{},
 		&shop.PlatformCategory{},
@@ -310,7 +312,51 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateRound105AlertTenant(db); err != nil {
 		return err
 	}
+	if err := migrateRound112DefaultWarehouses(db); err != nil {
+		return err
+	}
 	return migrateP7Performance(db)
+}
+
+// migrateRound112DefaultWarehouses backfills one default warehouse per tenant.
+// Legacy stock stays on product_skus.stock and is attributed to the default
+// warehouse (derived, zero data movement), so the migration is idempotent and
+// loss-free by construction. The tenant-scoped preflight is exposed as
+// GET /inventory/warehouses/migration-preview.
+func migrateRound112DefaultWarehouses(db *gorm.DB) error {
+	if !db.Migrator().HasTable("warehouses") {
+		return nil
+	}
+	var tenantIDs []int64
+	if err := db.Raw(`
+SELECT DISTINCT p.tenant_id FROM products p WHERE p.deleted_at IS NULL
+UNION
+SELECT t.id FROM tenants t`).Scan(&tenantIDs).Error; err != nil {
+		warnMigrateSkipped("round112_default_warehouses", err)
+		return nil
+	}
+	for _, tid := range tenantIDs {
+		var n int64
+		if err := db.Model(&inventory.Warehouse{}).
+			Where("tenant_id = ? AND is_default = ?", tid, true).
+			Count(&n).Error; err != nil {
+			return err
+		}
+		if n > 0 {
+			continue
+		}
+		w := inventory.Warehouse{
+			TenantID:  tid,
+			Code:      inventory.DefaultWarehouseCode,
+			Name:      inventory.DefaultWarehouseName,
+			IsDefault: true,
+			Enabled:   true,
+		}
+		if err := db.Create(&w).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // warnMigrateSkipped logs a non-fatal migration step failure. Such steps are

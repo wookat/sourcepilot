@@ -194,8 +194,11 @@ export async function updatePurchaseItemPrice(id: string, itemId: string, expect
   );
 }
 
-export async function markPurchaseOrderDelivered(id: string) {
-  return postJSON<PurchaseOrder>(`/api/v1/procurement/orders/${id}/mark-delivered`);
+export async function markPurchaseOrderDelivered(id: string, warehouseId?: string) {
+  return postJSON<PurchaseOrder>(
+    `/api/v1/procurement/orders/${id}/mark-delivered`,
+    warehouseId ? { warehouseId } : {},
+  );
 }
 
 export type BatchLineResult = {

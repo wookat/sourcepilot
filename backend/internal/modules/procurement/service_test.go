@@ -29,6 +29,7 @@ func openTestDB(t *testing.T) *gorm.DB {
 		&product.Product{}, &product.ProductSKU{},
 		&PurchaseOrder{}, &PurchaseOrderItem{}, &PurchaseOrderEvent{}, &PurchaseLogistics{},
 		&inventory.InventoryChangeLog{},
+		&inventory.Warehouse{}, &inventory.WarehouseStock{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -270,7 +271,7 @@ func TestManualFlowHappyPath(t *testing.T) {
 	if got, err = f.svc.FillLogistics(ctx, po.ID, LogisticsBody{TrackingNo: "SF123", Carrier: "SF"}, nil); err != nil || got.Status != StatusShipped {
 		t.Fatalf("fill logistics: %v %+v", err, got)
 	}
-	if got, err = f.svc.MarkDelivered(ctx, po.ID, nil); err != nil || got.Status != StatusDelivered {
+	if got, err = f.svc.MarkDelivered(ctx, po.ID, nil, nil); err != nil || got.Status != StatusDelivered {
 		t.Fatalf("mark delivered: %v %+v", err, got)
 	}
 

@@ -10,6 +10,7 @@ import { Link } from '@umijs/max';
 import { useLocation } from '@umijs/renderer-react';
 import type { InventoryChangeLogRow } from '@/services/inventory';
 import { queryGlobalInventoryLogs } from '@/services/inventory';
+import WarehouseSelect from '@/components/inventory/WarehouseSelect';
 
 function renderDelta(delta: number) {
   const color = delta > 0 ? 'green' : delta < 0 ? 'red' : 'default';
@@ -58,6 +59,20 @@ export default function InventoryLogsPage() {
       { title: '商品 ID', dataIndex: 'productId', hideInTable: true },
       { title: '规格编号', dataIndex: 'productSkuId', hideInTable: true },
       { title: '订单 ID', dataIndex: 'orderId', hideInTable: true },
+      {
+        title: '仓库',
+        dataIndex: 'warehouseId',
+        hideInTable: true,
+        renderFormItem: () => <WarehouseSelect includeAll includeDisabled placeholder="全部仓库" />,
+      },
+      {
+        title: '仓库',
+        dataIndex: 'warehouseName',
+        width: 100,
+        ellipsis: true,
+        search: false,
+        render: (_, r) => r.warehouseName || '默认仓',
+      },
       {
         title: '商品',
         dataIndex: 'productTitle',
@@ -180,6 +195,7 @@ export default function InventoryLogsPage() {
             productSkuId: (params.productSkuId as string)?.trim() || undefined,
             orderId: (params.orderId as string)?.trim() || undefined,
             changeType: (params.changeType as string)?.trim() || undefined,
+            warehouseId: (params.warehouseId as string)?.trim() || undefined,
             start: typeof params.start === 'string' ? params.start : undefined,
             end: typeof params.end === 'string' ? params.end : undefined,
           });

@@ -13,6 +13,9 @@ import (
 
 type orderInvSyncBody struct {
 	SyncInventory bool `json:"syncInventory"`
+	// WarehouseID pins the deduction to one warehouse; empty means deduct by
+	// warehouse priority (default warehouse first by priority ordering).
+	WarehouseID string `json:"warehouseId"`
 }
 
 type orderRestoreBody struct {
@@ -36,11 +39,21 @@ func (h *Handler) PostDeductInventory(c *gin.Context) {
 	}
 	var body orderInvSyncBody
 	_ = c.ShouldBindJSON(&body)
+	var warehouseID *uuid.UUID
+	if raw := strings.TrimSpace(body.WarehouseID); raw != "" {
+		u, perr := uuid.Parse(raw)
+		if perr != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "warehouseId 参数无效")
+			return
+		}
+		warehouseID = &u
+	}
 
 	sum, err := h.Inv.DeductInventoryForOrder(c.Request.Context(), id, inventory.OrderInventoryOptions{
 		Reason:        "manual_api",
 		SyncPlatforms: body.SyncInventory,
 		CreatedBy:     adminUUID(c),
+		WarehouseID:   warehouseID,
 	})
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

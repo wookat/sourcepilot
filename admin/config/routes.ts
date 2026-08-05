@@ -456,6 +456,11 @@ export default [
         component: './Inventory/Alerts',
       },
       {
+        path: '/inventory/warehouses',
+        name: '仓库管理',
+        component: './Inventory/Warehouses',
+      },
+      {
         path: '/inventory/deductions',
         name: '库存扣减记录',
         component: './Inventory/Deductions',

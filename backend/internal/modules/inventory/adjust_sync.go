@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
@@ -29,12 +30,32 @@ func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid
 	body.Remark = clampStr(body.Remark, 520)
 	ctx := c.Request.Context()
 
+	tenantID, tidErr := adminperm.TenantIDFromGin(c)
+	if tidErr != nil {
+		return nil, tidErr
+	}
+
+	var targetWh *Warehouse
+	if raw := strings.TrimSpace(body.WarehouseID); raw != "" {
+		wid, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid warehouseId")
+		}
+		wh, err := s.GetWarehouse(ctx, tenantID, wid)
+		if err != nil {
+			return nil, err
+		}
+		if !wh.Enabled {
+			return nil, ErrWarehouseDisabled
+		}
+		targetWh = wh
+	}
+
 	var sku product.ProductSKU
 	if err := s.DB.WithContext(ctx).First(&sku, "id = ? AND product_id = ?", skuID, productID).Error; err != nil {
 		return nil, err
 	}
-	before := derefStock(sku.Stock)
-	delta := body.Stock - before
+	totalBefore := derefStock(sku.Stock)
 
 	tx := s.DB.WithContext(ctx).Begin()
 	defer func() {
@@ -43,14 +64,41 @@ func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid
 		}
 	}()
 
+	// Legacy semantics without warehouseId: set the SKU total (movement
+	// attributed to the default warehouse). With warehouseId: set that
+	// warehouse line and move the SKU total by the same delta.
+	before := totalBefore
+	newTotal := body.Stock
+	var whID *uuid.UUID
+	if targetWh != nil {
+		whBefore, _, err := s.addWarehouseStockTx(tx, tenantID, targetWh, productID, skuID, 0, totalBefore)
+		if err != nil {
+			return nil, err
+		}
+		before = whBefore
+		newTotal = totalBefore + (body.Stock - whBefore)
+		if newTotal < 0 {
+			return nil, fmt.Errorf("stock must be >= 0")
+		}
+		if !targetWh.IsDefault {
+			if _, _, err := s.addWarehouseStockTx(tx, tenantID, targetWh, productID, skuID, body.Stock-whBefore, totalBefore); err != nil {
+				return nil, err
+			}
+		}
+		whID = ptrUUID(targetWh.ID)
+	}
+	delta := body.Stock - before
+
 	if err := tx.Model(&product.ProductSKU{}).Where("id = ? AND product_id = ?", skuID, productID).
-		Updates(map[string]any{"stock": body.Stock, "updated_at": time.Now().UTC()}).Error; err != nil {
+		Updates(map[string]any{"stock": newTotal, "updated_at": time.Now().UTC()}).Error; err != nil {
 		s.ObserveInventory("local", "adjust", "adjust", "failure", "database", 1, time.Since(start))
 		return nil, err
 	}
 	logRow := InventoryChangeLog{
+		TenantID:     tenantID,
 		ProductID:    productID,
 		ProductSKUID: skuID,
+		WarehouseID:  whID,
 		ChangeType:   ChangeManualAdjust,
 		BeforeStock:  before,
 		AfterStock:   body.Stock,
@@ -83,7 +131,7 @@ func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid
 	}
 
 	if body.Sync {
-		n, syncErr := s.CreateInventorySyncTasksForSKUStock(ctx, productID, skuID, body.Stock, admin)
+		n, syncErr := s.CreateInventorySyncTasksForSKUStock(ctx, productID, skuID, newTotal, admin)
 		if syncErr != nil {
 			s.ObserveInventory("local", "push", "push_failure", "failure", "enqueue_failed", 1, time.Since(start))
 			return nil, syncErr

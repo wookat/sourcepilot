@@ -270,6 +270,11 @@ func (h *Handler) ListGlobalLogs(c *gin.Context) {
 			q.RefOrderID = &u
 		}
 	}
+	if raw := strings.TrimSpace(c.Query("warehouseId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.WarehouseID = &u
+		}
+	}
 	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
 		if t, err := time.Parse(time.RFC3339, raw); err == nil {
 			q.Start = &t
@@ -388,8 +393,20 @@ func (h *Handler) ListCenter(c *gin.Context) {
 			q.ShopID = &u
 		}
 	}
+	if raw := strings.TrimSpace(c.Query("warehouseId")); raw != "" {
+		u, err := uuid.Parse(raw)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid warehouseId")
+			return
+		}
+		q.WarehouseID = &u
+	}
 	res, err := h.Svc.ListInventoryCenter(c.Request.Context(), q)
 	if err != nil {
+		if errors.Is(err, ErrWarehouseNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "仓库不存在")
+			return
+		}
 		if code := pagination.ErrorCode(err); code != "" {
 			response.JSON(c, 400, response.CodeBadRequest, code, gin.H{"errorCode": code})
 			return

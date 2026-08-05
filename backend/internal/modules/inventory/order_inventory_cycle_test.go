@@ -23,6 +23,7 @@ func setupCycleFixture(t *testing.T) (*Service, uuid.UUID, uuid.UUID) {
 		&orderMirror{}, &orderLineMirror{},
 		&product.Product{}, &product.ProductSKU{},
 		&InventoryChangeLog{}, &OrderInventoryEffect{},
+		&Warehouse{}, &WarehouseStock{},
 		&idempotency.Record{},
 	); err != nil {
 		t.Fatal(err)

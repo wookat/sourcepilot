@@ -75,6 +75,10 @@ type OrderInventoryOptions struct {
 	SyncPlatforms      bool
 	AllowNegativeStock *bool // nil = policy default
 	CreatedBy          *uuid.UUID
+	// WarehouseID forces the deduction to come from one warehouse; nil lets
+	// the allocator take stock by warehouse priority (default warehouse ties
+	// first), splitting across warehouses when needed.
+	WarehouseID *uuid.UUID
 }
 
 func allowNegative(policy StockOrderPolicy, opt *bool) bool {
@@ -207,22 +211,52 @@ func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID u
 		return out, nil
 	}
 
-	rm := remarkForOrderStock(o.OrderNo, it.ID.String(), it.ExternalItemID)
-	chg := InventoryChangeLog{
-		ProductID:        sku.ProductID,
-		ProductSKUID:     sku.ID,
-		ChangeType:       ChangeOrderDeduct,
-		BeforeStock:      before,
-		AfterStock:       after,
-		Delta:            -qty,
-		Reason:           reasonBase,
-		Remark:           rm,
-		CreatedBy:        opts.CreatedBy,
-		RefOrderID:       &orderID,
-		RefOrderItemID:   &it.ID,
-		BusinessEventKey: eventKey,
+	allocs, allocErr := s.allocateDeduction(ctx, tx, o.TenantID, sku.ID, before, qty, opts.WarehouseID, allowNeg)
+	if allocErr != nil {
+		if errors.Is(allocErr, ErrInsufficientWarehouse) {
+			if err := upsertFailedDeductEffect(tx, orderID, it, sku.ID, reasonBase, qty, true, opts.CreatedBy); err != nil {
+				return out, err
+			}
+			s.failDeductLine(ctx, tx, deductJob, "INSUFFICIENT_STOCK", false)
+			out.failedInsufficient = true
+			return out, nil
+		}
+		return out, allocErr
 	}
-	if err := tx.Create(&chg).Error; err != nil {
+
+	rm := remarkForOrderStock(o.OrderNo, it.ID.String(), it.ExternalItemID)
+	var chg InventoryChangeLog
+	running := before
+	for i, al := range allocs {
+		key := eventKey
+		if i > 0 {
+			key = fmt.Sprintf("%s:wh:%s", eventKey, al.Warehouse.ID.String())
+		}
+		row := InventoryChangeLog{
+			TenantID:         o.TenantID,
+			ProductID:        sku.ProductID,
+			ProductSKUID:     sku.ID,
+			WarehouseID:      ptrUUID(al.Warehouse.ID),
+			ChangeType:       ChangeOrderDeduct,
+			BeforeStock:      running,
+			AfterStock:       running - al.Quantity,
+			Delta:            -al.Quantity,
+			Reason:           reasonBase,
+			Remark:           clampStr(rm+" warehouse="+al.Warehouse.Name, 520),
+			CreatedBy:        opts.CreatedBy,
+			RefOrderID:       &orderID,
+			RefOrderItemID:   &it.ID,
+			BusinessEventKey: key,
+		}
+		if err := tx.Create(&row).Error; err != nil {
+			return out, err
+		}
+		running -= al.Quantity
+		if i == 0 {
+			chg = row
+		}
+	}
+	if err := s.applyWarehouseDeductionTx(tx, o.TenantID, sku.ProductID, sku.ID, allocs, -1); err != nil {
 		return out, err
 	}
 	if err := tx.Model(&product.ProductSKU{}).Where("id = ?", sku.ID).
@@ -483,22 +517,89 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 			before := derefStock(sku.Stock)
 			after := before + qty
 
-			chg := InventoryChangeLog{
-				ProductID:        sku.ProductID,
-				ProductSKUID:     sku.ID,
-				ChangeType:       ChangeOrderCancel,
-				BeforeStock:      before,
-				AfterStock:       after,
-				Delta:            qty,
-				Reason:           reason,
-				Remark:           clampStr(strings.TrimSpace(rmBase)+" orderItem="+it.ID.String(), 520),
-				CreatedBy:        opts.CreatedBy,
-				RefOrderID:       &orderID,
-				RefOrderItemID:   &it.ID,
-				BusinessEventKey: idempotency.InventoryRestoreRound(orderID.String(), it.ID.String(), sku.ID.String(), int(st.restoreRounds)),
+			// Mirror the warehouses the matching deduct round took stock from,
+			// so restores return stock to the same warehouses.
+			round := int(st.restoreRounds)
+			deductKey := idempotency.InventoryDeductRound(orderID.String(), it.ID.String(), sku.ID.String(), round)
+			restoreKey := idempotency.InventoryRestoreRound(orderID.String(), it.ID.String(), sku.ID.String(), round)
+			var deductLogs []InventoryChangeLog
+			_ = tx.Where("business_event_key = ? OR business_event_key LIKE ?", deductKey, deductKey+":wh:%").
+				Order("created_at ASC, id ASC").Find(&deductLogs).Error
+
+			type restoreSlice struct {
+				warehouseID *uuid.UUID
+				qty         int
 			}
-			if err := tx.Create(&chg).Error; err != nil {
-				return err
+			slices := make([]restoreSlice, 0, 2)
+			covered := 0
+			for _, dl := range deductLogs {
+				if dl.Delta >= 0 {
+					continue
+				}
+				slices = append(slices, restoreSlice{warehouseID: dl.WarehouseID, qty: -dl.Delta})
+				covered += -dl.Delta
+			}
+			if covered != qty {
+				// Legacy deduction (pre-multi-warehouse) or partial ledger: restore
+				// the full quantity to the default warehouse.
+				slices = []restoreSlice{{warehouseID: nil, qty: qty}}
+			}
+
+			whIDs := make([]uuid.UUID, 0, len(slices))
+			for _, sl := range slices {
+				if sl.warehouseID != nil {
+					whIDs = append(whIDs, *sl.warehouseID)
+				}
+			}
+			whByID := map[uuid.UUID]Warehouse{}
+			if len(whIDs) > 0 {
+				var whs []Warehouse
+				_ = tx.Where("id IN ? AND tenant_id = ?", whIDs, o.TenantID).Find(&whs).Error
+				for _, w := range whs {
+					whByID[w.ID] = w
+				}
+			}
+
+			var chg InventoryChangeLog
+			running := before
+			for i, sl := range slices {
+				key := restoreKey
+				if i > 0 && sl.warehouseID != nil {
+					key = fmt.Sprintf("%s:wh:%s", restoreKey, sl.warehouseID.String())
+				}
+				row := InventoryChangeLog{
+					TenantID:         o.TenantID,
+					ProductID:        sku.ProductID,
+					ProductSKUID:     sku.ID,
+					WarehouseID:      sl.warehouseID,
+					ChangeType:       ChangeOrderCancel,
+					BeforeStock:      running,
+					AfterStock:       running + sl.qty,
+					Delta:            sl.qty,
+					Reason:           reason,
+					Remark:           clampStr(strings.TrimSpace(rmBase)+" orderItem="+it.ID.String(), 520),
+					CreatedBy:        opts.CreatedBy,
+					RefOrderID:       &orderID,
+					RefOrderItemID:   &it.ID,
+					BusinessEventKey: key,
+				}
+				if err := tx.Create(&row).Error; err != nil {
+					return err
+				}
+				running += sl.qty
+				if i == 0 {
+					chg = row
+				}
+				// Add back to non-default warehouse rows (warehouse may have been
+				// deleted since: the quantity then stays on the derived default).
+				if sl.warehouseID != nil {
+					if w, ok := whByID[*sl.warehouseID]; ok && !w.IsDefault {
+						wh := w
+						if _, _, err := s.addWarehouseStockTx(tx, o.TenantID, &wh, sku.ProductID, sku.ID, sl.qty, 0); err != nil {
+							return err
+						}
+					}
+				}
 			}
 			if err := tx.Model(&product.ProductSKU{}).Where("id = ?", sku.ID).
 				Updates(map[string]any{"stock": after, "updated_at": now}).Error; err != nil {
