@@ -1,11 +1,14 @@
 package migrationimport
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
 
 	"github.com/trademind-ai/trademind/backend/internal/pkg/csvsafe"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -30,9 +33,9 @@ func templateSample(kind string) []string {
 	}
 }
 
-// TemplateCSV GET /imports/templates/:kind — standard import template
-// (header = canonical field labels + one example row). The CSV opens in
-// Excel directly, so one template serves both CSV and Excel flows.
+// TemplateCSV GET /imports/templates/:kind?format=csv|xlsx — standard import
+// template (header = canonical field labels + one example row). CSV carries a
+// UTF-8 BOM so Excel opens it directly; format=xlsx returns a real workbook.
 func (h *Handler) TemplateCSV(c *gin.Context) {
 	kind, err := normalizeKind(c.Param("kind"))
 	if err != nil {
@@ -44,6 +47,17 @@ func (h *Handler) TemplateCSV(c *gin.Context) {
 	for _, f := range fields {
 		header = append(header, f.Label)
 	}
+	if strings.TrimSpace(c.Query("format")) == "xlsx" {
+		buf, err := buildTemplateXLSX(header, templateSample(kind))
+		if err != nil {
+			response.Fail(c, 500, response.CodeInternalError, "XLSX 模板生成失败")
+			return
+		}
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=trademind-import-template-%s.xlsx", kind))
+		c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buf)
+		return
+	}
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=trademind-import-template-%s.csv", kind))
 	c.Status(http.StatusOK)
@@ -52,4 +66,29 @@ func (h *Handler) TemplateCSV(c *gin.Context) {
 	_ = w.Write(csvsafe.Row(header))
 	_ = w.Write(csvsafe.Row(templateSample(kind)))
 	w.Flush()
+}
+
+// buildTemplateXLSX renders header + sample rows into a single-sheet workbook.
+func buildTemplateXLSX(header, sample []string) ([]byte, error) {
+	f := excelize.NewFile()
+	defer f.Close()
+	sheet := f.GetSheetName(0)
+	for i, rowVals := range [][]string{header, sample} {
+		cells := make([]interface{}, len(rowVals))
+		for j, v := range rowVals {
+			cells[j] = v
+		}
+		addr, err := excelize.CoordinatesToCellName(1, i+1)
+		if err != nil {
+			return nil, err
+		}
+		if err := f.SetSheetRow(sheet, addr, &cells); err != nil {
+			return nil, err
+		}
+	}
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

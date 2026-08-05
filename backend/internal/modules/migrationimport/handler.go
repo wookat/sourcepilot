@@ -60,6 +60,8 @@ func (h *Handler) failFrom(c *gin.Context, err error) {
 		response.Fail(c, 404, response.CodeNotFound, "店铺不存在或不可见")
 	case errors.Is(err, errShopNotOperable):
 		response.Fail(c, 403, response.CodeStorePermissionDenied, err.Error())
+	case errors.Is(err, errCommitInFlight):
+		response.Fail(c, 409, response.CodeBadRequest, err.Error())
 	default:
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 	}

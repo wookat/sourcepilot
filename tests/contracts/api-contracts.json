@@ -287,7 +287,20 @@
       "method": "GET",
       "path": "/api/v1/imports/templates/:kind",
       "auth": true,
-      "responseData": "CSV"
+      "query": [
+        "format"
+      ],
+      "responseData": "CSV | XLSX"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/progress",
+      "auth": true,
+      "query": [
+        "kind",
+        "fileHash"
+      ],
+      "responseData": "{ active, processed, total }"
     },
     {
       "method": "GET",

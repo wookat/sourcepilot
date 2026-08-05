@@ -1,11 +1,11 @@
 package migrationimport
 
 import (
-	"archive/zip"
 	"bytes"
 	"strings"
 	"testing"
 
+	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
@@ -60,23 +60,29 @@ func TestParseImportFileUnsupported(t *testing.T) {
 
 func buildTestXLSX(t *testing.T) []byte {
 	t.Helper()
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	write := func(name, content string) {
-		w, err := zw.Create(name)
+	return buildXLSX(t, [][]interface{}{
+		{"商品名称", "SKU", "售价"},
+		{"测试商品", "SKU-9", 19.9},
+	})
+}
+
+// buildXLSX renders rows into a real single-sheet workbook for tests.
+func buildXLSX(t *testing.T, rows [][]interface{}) []byte {
+	t.Helper()
+	f := excelize.NewFile()
+	defer f.Close()
+	sheet := f.GetSheetName(0)
+	for i := range rows {
+		addr, err := excelize.CoordinatesToCellName(1, i+1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := w.Write([]byte(content)); err != nil {
+		if err := f.SetSheetRow(sheet, addr, &rows[i]); err != nil {
 			t.Fatal(err)
 		}
 	}
-	write("xl/sharedStrings.xml", `<?xml version="1.0"?><sst><si><t>商品名称</t></si><si><t>SKU</t></si><si><t>测试商品</t></si><si><r><t>SKU-</t></r><r><t>9</t></r></si></sst>`)
-	write("xl/worksheets/sheet1.xml", `<?xml version="1.0"?><worksheet><sheetData>`+
-		`<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="inlineStr"><is><t>售价</t></is></c></row>`+
-		`<row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2" t="s"><v>3</v></c><c r="C2"><v>19.9</v></c></row>`+
-		`</sheetData></worksheet>`)
-	if err := zw.Close(); err != nil {
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
 		t.Fatal(err)
 	}
 	return buf.Bytes()

@@ -19,6 +19,8 @@ type AllowRule = {
   path: RegExp;
   response?: unknown | ((record: WriteRecord) => unknown);
   status?: number;
+  /** 延迟返回（毫秒），用于模拟长时间写操作 */
+  delayMs?: number;
 };
 
 export class NetworkWriteGuard {
@@ -91,6 +93,9 @@ export class NetworkWriteGuard {
 
     record.operation = matched.operation;
     this.records.push(record);
+    if (matched.delayMs) {
+      await new Promise((resolve) => setTimeout(resolve, matched.delayMs));
+    }
     const response = typeof matched.response === 'function' ? matched.response(record) : matched.response ?? ok({});
     await route.fulfill({ status: matched.status ?? 200, contentType: 'application/json', body: JSON.stringify(response) });
   }

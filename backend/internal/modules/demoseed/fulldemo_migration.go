@@ -90,7 +90,7 @@ func migrationImportVerifyChecks(tx *gorm.DB, like string, demoShopIDs func() *g
 			return n, tx.Model(&migrationimport.ImportJobRow{}).
 				Where("job_id IN (?)", jobIDs).Count(&n).Error
 		}},
-		{"import_mapping_presets", func() (int64, error) {
+		{table: "import_mapping_presets", count: func() (int64, error) {
 			var n int64
 			if !tx.Migrator().HasTable("import_mapping_presets") {
 				return 0, nil
