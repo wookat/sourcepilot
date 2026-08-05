@@ -1,6 +1,7 @@
 package customerchat
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
+
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
@@ -199,11 +202,20 @@ func (s *Service) UpdateBuyerMsgDraft(c *gin.Context, id uuid.UUID, content stri
 	if row.Status != BuyerMsgDraftPending {
 		return nil, fmt.Errorf("仅待发送状态的草稿可编辑")
 	}
+	// 重算缺失变量：编辑后仍保留的 {变量} 占位即为缺失，补全后警告消除
+	_, missing := FillBuyerMsgTemplate(content, nil)
+	var missingJSON datatypes.JSON
+	if len(missing) > 0 {
+		if b, err := json.Marshal(missing); err == nil {
+			missingJSON = datatypes.JSON(b)
+		}
+	}
 	if err := s.DB.WithContext(c.Request.Context()).Model(row).
-		Update("content", content).Error; err != nil {
+		Updates(map[string]interface{}{"content": content, "missing_vars": missingJSON}).Error; err != nil {
 		return nil, err
 	}
 	row.Content = content
+	row.MissingVars = missingJSON
 	s.writeBuyerMsgOpLog(c, adminID, "customer.buyer_message_draft.update", row.ID.String(), row.OrderNo)
 	out := s.buyerMsgDraftRow(*row, s.buyerMsgShopNamesForDraft(c, row))
 	return &out, nil

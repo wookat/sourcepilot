@@ -378,3 +378,88 @@ func TestBatchMarkBuyerMsgDraftsSent(t *testing.T) {
 		t.Fatal("empty ids must be rejected")
 	}
 }
+
+func TestUpdateBuyerMsgDraftRecomputesMissingVars(t *testing.T) {
+	svc := newBuyerMsgTestSvc(t)
+	c := buyerMsgCtx(t, 7)
+	tpl := mustTemplate(t, svc, c, "e2e-签收", "订单{订单号}已签收，单号{物流单号}")
+	if _, err := svc.CreateBuyerMsgRule(c, BuyerMsgRuleBody{
+		Name: "e2e-签收", Node: BuyerMsgNodeDelivered, TemplateID: tpl.ID.String(),
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	o := seedBuyerMsgOrder(t, svc, 7, "SO-MV-1", order.StatusDelivered, order.PaymentPaid, nil)
+	if _, err := svc.GenerateBuyerMsgDrafts(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	var d BuyerMessageDraft
+	if err := svc.DB.First(&d, "order_id = ? AND node = ?", o.ID, BuyerMsgNodeDelivered).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got := jsonToStrings(d.MissingVars); len(got) != 1 || got[0] != "物流单号" {
+		t.Fatalf("initial missing vars: %v", got)
+	}
+
+	// 补全变量后警告重算清零
+	upd, err := svc.UpdateBuyerMsgDraft(c, d.ID, "订单SO-MV-1已签收，单号SF123456", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(upd.MissingVars) != 0 {
+		t.Fatalf("missing vars must be cleared after补全: %v", upd.MissingVars)
+	}
+
+	// 重新引入占位则重新出现
+	upd, err = svc.UpdateBuyerMsgDraft(c, d.ID, "订单{订单号}已签收，单号{物流单号}", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(upd.MissingVars) != 2 {
+		t.Fatalf("missing vars must be recomputed: %v", upd.MissingVars)
+	}
+}
+
+func TestBuyerMsgRuleTemplateMissingAfterDelete(t *testing.T) {
+	svc := newBuyerMsgTestSvc(t)
+	c := buyerMsgCtx(t, 7)
+	tpl := mustTemplate(t, svc, c, "e2e-发货", "订单{订单号}已发货")
+	rule, err := svc.CreateBuyerMsgRule(c, BuyerMsgRuleBody{
+		Name: "e2e-发货", Node: BuyerMsgNodeShipped, TemplateID: tpl.ID.String(),
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := svc.ListBuyerMsgRules(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].TemplateMissing || rows[0].TemplateName != "e2e-发货" {
+		t.Fatalf("before delete: %+v", rows)
+	}
+
+	if err := svc.DeleteTemplate(c, tpl.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = svc.ListBuyerMsgRules(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || !rows[0].TemplateMissing {
+		t.Fatalf("after delete rule must be marked templateMissing: %+v", rows)
+	}
+
+	// 引用已删模板的更新（不换模板）仍允许启停；换成已删模板必须被拒
+	if _, err := svc.UpdateBuyerMsgRule(c, rule.ID, BuyerMsgRuleBody{TemplateID: tpl.ID.String()}, nil); err == nil {
+		t.Fatal("selecting a deleted template must be rejected")
+	}
+
+	// 已删模板规则不生成草稿（inert，不报错）
+	seedBuyerMsgOrder(t, svc, 7, "SO-TD-1", order.StatusShipped, order.PaymentPaid, nil)
+	created, err := svc.GenerateBuyerMsgDrafts(context.Background(), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created != 0 {
+		t.Fatalf("rule with deleted template must be inert, created=%d", created)
+	}
+}

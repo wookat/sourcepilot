@@ -168,8 +168,8 @@ function DraftsTab({ shops }: { shops: ShopListRow[] }) {
   };
 
   const submitEdit = async () => {
-    const v = await editForm.validateFields();
-    if (!editModal.row) return;
+    const v = await editForm.validateFields().catch(() => null);
+    if (!v || !editModal.row) return;
     setSavingEdit(true);
     try {
       await updateBuyerMsgDraft(editModal.row.id, v.content);
@@ -440,7 +440,8 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
         ? {
             name: row.name,
             node: row.node,
-            templateId: row.templateId,
+            // 原模板已删除时不预填，强制重新选择可用模板
+            templateId: row.templateMissing ? undefined : row.templateId,
             platforms: row.platforms,
             shopIds: row.shopIds,
           }
@@ -449,7 +450,8 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
   };
 
   const submit = async () => {
-    const v = await form.validateFields();
+    const v = await form.validateFields().catch(() => null);
+    if (!v) return;
     setSaving(true);
     try {
       if (modal.row) {
@@ -531,7 +533,20 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
             width: 110,
             render: (v: string) => <Tag color={NODE_TAG_COLORS[v]}>{buyerMsgNodeLabel(v)}</Tag>,
           },
-          { title: '话术模板', dataIndex: 'templateName', width: 180, ellipsis: true },
+          {
+            title: '话术模板',
+            dataIndex: 'templateName',
+            width: 180,
+            ellipsis: true,
+            render: (v: string, row) =>
+              row.templateMissing ? (
+                <Tooltip title="该规则引用的话术模板已被删除，不会再生成草稿；请编辑规则重新选择模板">
+                  <Tag color="red">模板已删除</Tag>
+                </Tooltip>
+              ) : (
+                v || '—'
+              ),
+          },
           {
             title: '平台过滤',
             dataIndex: 'platforms',
@@ -559,13 +574,23 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
             dataIndex: 'enabled',
             width: 80,
             render: (v: boolean, row) => (
-              <Switch
-                checked={v}
-                size="small"
-                disabled={!canWrite}
-                loading={togglingId === row.id}
-                onChange={(checked) => void toggleEnabled(row, checked)}
-              />
+              <Tooltip
+                title={
+                  row.templateMissing
+                    ? v
+                      ? '模板已删除，该规则已不再生成草稿；可停用或编辑规则重新选择模板'
+                      : '模板已删除，请先编辑规则重新选择模板后再启用'
+                    : ''
+                }
+              >
+                <Switch
+                  checked={v}
+                  size="small"
+                  disabled={!canWrite || (row.templateMissing && !v)}
+                  loading={togglingId === row.id}
+                  onChange={(checked) => void toggleEnabled(row, checked)}
+                />
+              </Tooltip>
             ),
           },
           {
@@ -601,6 +626,15 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
         forceRender
       >
         <Form form={form} layout="vertical">
+          {modal.row?.templateMissing ? (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="原话术模板已被删除"
+              description="该规则当前不会生成草稿，请重新选择一个可用的话术模板后保存"
+            />
+          ) : null}
           <Form.Item name="name" label="规则名称" rules={[{ required: true, message: '请填写规则名称' }]}>
             <Input placeholder="如：发货后自动通知买家" />
           </Form.Item>

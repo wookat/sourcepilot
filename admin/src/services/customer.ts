@@ -454,6 +454,7 @@ export type BuyerMsgRuleRow = {
   node: BuyerMsgNode;
   templateId: string;
   templateName: string;
+  templateMissing?: boolean;
   enabled: boolean;
   platforms: string[];
   shopIds: string[];
