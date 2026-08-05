@@ -82,6 +82,15 @@ export type OrderDetailDTO = {
   items: OrderItemRow[];
   shipments: OrderShipmentRow[];
   inventorySummary?: OrderInventorySummary | null;
+  plannedCarrierCode?: string;
+  plannedCarrierName?: string;
+  plannedCarrierMode?: string;
+  plannedCarrierRule?: string;
+  plannedCarrierAt?: string;
+  assignedWarehouseId?: string;
+  assignedWarehouseName?: string;
+  assignedWarehouseStrategy?: string;
+  warehouseAssignedAt?: string;
 };
 
 export type OrderListRow = {

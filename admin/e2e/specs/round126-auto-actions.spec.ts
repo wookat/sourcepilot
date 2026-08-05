@@ -118,7 +118,7 @@ test.describe('@round126 自动分仓失败留痕日志', () => {
     await admin.goto('/orders/automation-logs');
     await expect(page.getByRole('cell', { name: 'SO-E2E-AT-4' })).toBeVisible({ timeout: 20000 });
     await expect(
-      page.getByText('执行失败（已重试 3 次）：库存不足，无法分配发货仓：SKU-1 需 999 件仅 6 件'),
+      page.getByText('执行失败（本轮尝试 3 次）：库存不足，无法分配发货仓：SKU-1 需 999 件仅 6 件'),
     ).toBeVisible();
     const row = page.getByRole('row', { name: /SO-E2E-AT-4/ });
     await expect(row.getByRole('button', { name: '重试' })).toBeEnabled();

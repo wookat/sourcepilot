@@ -153,7 +153,7 @@ func (s *Service) executeAutomationAction(ctx context.Context, r OrderAutomation
 		}
 		lastErr = err
 	}
-	return AutomationLogFailed, fmt.Sprintf("执行失败（已重试 %d 次）：%s", attempts, lastErr.Error()), attempts
+	return AutomationLogFailed, fmt.Sprintf("执行失败（本轮尝试 %d 次）：%s", attempts, lastErr.Error()), attempts
 }
 
 // automationAlreadyDone reports whether a success/skipped log already exists
