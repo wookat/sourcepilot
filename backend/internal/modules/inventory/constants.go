@@ -47,6 +47,9 @@ const (
 	ChangeOrderDeduct  = "order_deduct"
 	ChangeOrderCancel  = "order_cancel_restore"
 	ChangeImport       = "import"
+	// ChangeImportOpening: migration opening-balance import (per SKU+warehouse,
+	// idempotent via business_event_key).
+	ChangeImportOpening = "import_opening"
 	// ChangePurchaseInbound is written by the procurement module when a
 	// purchase order is marked delivered (cloud warehouse inbound).
 	ChangePurchaseInbound = "purchase_inbound"

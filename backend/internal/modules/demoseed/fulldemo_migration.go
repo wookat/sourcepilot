@@ -49,6 +49,12 @@ func cleanupMigrationImports(tx *gorm.DB, res *FullDemoResult, like string, demo
 			Delete(&migrationimport.ImportJob{})); err != nil {
 		return err
 	}
+	if tx.Migrator().HasTable("import_mapping_presets") {
+		if err := del("import_mapping_presets",
+			tx.Unscoped().Where("name LIKE ?", like).Delete(&migrationimport.ImportMappingPreset{})); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -83,6 +89,14 @@ func migrationImportVerifyChecks(tx *gorm.DB, like string, demoShopIDs func() *g
 				Where("file_name LIKE ? OR batch_key LIKE ? OR shop_id IN (?)", like, like, demoShopIDs())
 			return n, tx.Model(&migrationimport.ImportJobRow{}).
 				Where("job_id IN (?)", jobIDs).Count(&n).Error
+		}},
+		{"import_mapping_presets", func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("import_mapping_presets") {
+				return 0, nil
+			}
+			return n, tx.Model(&migrationimport.ImportMappingPreset{}).
+				Where("name LIKE ?", like).Count(&n).Error
 		}},
 	}
 }

@@ -24,6 +24,19 @@ const (
 	FSourceURL   = "sourceUrl"
 )
 
+// Inventory opening import canonical field keys (quantity reuses FQuantity).
+const (
+	FWarehouseCode = "warehouseCode"
+)
+
+// Source archive import canonical field keys.
+const (
+	FSupplierName  = "supplierName"
+	FSourceLink    = "sourceLink"
+	FRefPrice      = "refPrice"
+	FExternalSKUID = "externalSkuId"
+)
+
 // Order canonical field keys.
 const (
 	FOrderNo         = "orderNo"
@@ -122,12 +135,50 @@ func OrderFields() []FieldDef {
 	}
 }
 
+// InventoryFields lists canonical inventory opening import fields (one file
+// row = one SKU + warehouse opening quantity).
+func InventoryFields() []FieldDef {
+	return []FieldDef{
+		{Key: FSKUCode, Label: "SKU编码", Required: true,
+			Aliases: []string{"sku", "sku编码", "sku编号", "商品sku", "商品编号", "库存sku", "货号", "seller sku"}},
+		{Key: FWarehouseCode, Label: "仓库编码",
+			Aliases: []string{"仓库", "仓库编码", "仓库代码", "仓库名称", "warehouse", "warehouse code"}},
+		{Key: FQuantity, Label: "期初数量", Required: true,
+			Aliases: []string{"数量", "库存", "库存数量", "期初数量", "期初库存", "可用库存", "quantity", "stock", "qty"}},
+		{Key: FCostPrice, Label: "参考进价",
+			Aliases: []string{"成本", "成本价", "进价", "参考进价", "采购价", "采购参考价", "cost", "cost price"}},
+	}
+}
+
+// SourceFields lists canonical source-archive import fields (one file row =
+// one supplier offer ↔ local SKU mapping).
+func SourceFields() []FieldDef {
+	return []FieldDef{
+		{Key: FSupplierName, Label: "供应商名称", Required: true,
+			Aliases: []string{"供应商", "供应商名称", "厂家", "档口", "supplier", "supplier name"}},
+		{Key: FSKUCode, Label: "SKU编码", Required: true,
+			Aliases: []string{"sku", "sku编码", "sku编号", "商品sku", "商品编号", "库存sku", "货号", "seller sku"}},
+		{Key: FSourceLink, Label: "货源链接",
+			Aliases: []string{"货源链接", "1688链接", "采购链接", "商品链接", "链接", "url", "source url"}},
+		{Key: FRefPrice, Label: "参考价",
+			Aliases: []string{"参考价", "采购价", "参考单价", "进价", "单价", "price", "ref price"}},
+		{Key: FExternalSKUID, Label: "货源SKU",
+			Aliases: []string{"货源sku", "外部sku", "供应商sku", "external sku"}},
+	}
+}
+
 // FieldsForKind returns the canonical field list for an import kind.
 func FieldsForKind(kind string) []FieldDef {
-	if kind == KindOrder {
+	switch kind {
+	case KindOrder:
 		return OrderFields()
+	case KindInventory:
+		return InventoryFields()
+	case KindSource:
+		return SourceFields()
+	default:
+		return ProductFields()
 	}
-	return ProductFields()
 }
 
 func normalizeHeader(h string) string {

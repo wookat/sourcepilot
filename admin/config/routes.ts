@@ -564,7 +564,7 @@ export default [
       },
       {
         path: '/settings/migration',
-        name: '迁移导入',
+        name: '数据搬家',
         component: './Settings/Migration',
       },
       {

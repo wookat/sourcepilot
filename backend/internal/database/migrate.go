@@ -175,6 +175,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&bannedwords.BannedWordCategoryState{},
 		&migrationimport.ImportJob{},
 		&migrationimport.ImportJobRow{},
+		&migrationimport.ImportMappingPreset{},
 		&order.Order{},
 		&order.OrderItem{},
 		&order.OrderShipment{},

@@ -1,6 +1,9 @@
-import { getWithParams, postFormData, postJSON } from '@/services/request';
+import { deleteJSON, getWithParams, postFormData, postJSON } from '@/services/request';
 import { responseErrorMessage } from '@/utils/httpErrorCopy';
 import { fetchWithSessionGuard } from '@/utils/sessionGuard';
+
+/** 导入类型：商品 / 订单 / 库存期初 / 货源档案 */
+export type ImportKind = 'product' | 'order' | 'inventory' | 'source';
 
 /** 迁移导入字段定义（后端 FieldDef） */
 export type ImportFieldDef = {
@@ -11,7 +14,7 @@ export type ImportFieldDef = {
 
 /** POST /api/v1/imports/parse 响应 */
 export type ImportParseResult = {
-  kind: 'product' | 'order';
+  kind: ImportKind;
   fileName: string;
   fileHash: string;
   sourceFormat: 'dianxiaomi' | 'mabang' | 'custom';
@@ -24,7 +27,8 @@ export type ImportParseResult = {
 
 /** validate / commit 公共请求体 */
 export type ImportWizardBody = {
-  kind: 'product' | 'order';
+  kind: ImportKind;
+  /** 商品 / 订单导入必选；库存 / 货源导入为租户级可留空 */
   shopId: string;
   columns: string[];
   rows: string[][];
@@ -63,7 +67,7 @@ export type ImportCommitResult = {
 /** GET /api/v1/imports 单条历史 */
 export type ImportJobRow = {
   id: string;
-  kind: 'product' | 'order';
+  kind: ImportKind;
   batchKey: string;
   shopId?: string;
   sourceFormat: string;
@@ -89,7 +93,7 @@ export type ImportJobErrorRow = {
   rawValues?: Record<string, string>;
 };
 
-export async function parseImportFile(kind: 'product' | 'order', file: File): Promise<ImportParseResult> {
+export async function parseImportFile(kind: ImportKind, file: File): Promise<ImportParseResult> {
   const form = new FormData();
   form.append('kind', kind);
   form.append('file', file);
@@ -116,18 +120,60 @@ export async function getImportJob(id: string): Promise<{ job: ImportJobRow; err
   return getWithParams(`/api/v1/imports/${id}`, {});
 }
 
-export async function downloadImportErrorsCsv(id: string) {
-  const resp = await fetchWithSessionGuard(`/api/v1/imports/${id}/errors.csv`);
+async function downloadCsv(url: string, fileName: string) {
+  const resp = await fetchWithSessionGuard(url);
   if (!resp.ok) {
     throw new Error(await responseErrorMessage(resp));
   }
   const blob = await resp.blob();
-  const url = URL.createObjectURL(blob);
+  const objectUrl = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = `import-errors-${id.slice(0, 8)}.csv`;
+  a.href = objectUrl;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(objectUrl);
+}
+
+export async function downloadImportErrorsCsv(id: string) {
+  return downloadCsv(`/api/v1/imports/${id}/errors.csv`, `import-errors-${id.slice(0, 8)}.csv`);
+}
+
+/** GET /api/v1/imports/templates/:kind — 下载通用导入模板 */
+export async function downloadImportTemplateCsv(kind: ImportKind) {
+  return downloadCsv(`/api/v1/imports/templates/${kind}`, `trademind-import-template-${kind}.csv`);
+}
+
+/** GET /api/v1/imports/export/:kind — 全量数据 CSV 导出 */
+export async function downloadExportCsv(kind: ImportKind) {
+  return downloadCsv(`/api/v1/imports/export/${kind}`, `trademind-export-${kind}.csv`);
+}
+
+/** 租户级列映射方案 */
+export type ImportMappingPreset = {
+  id: string;
+  kind: ImportKind;
+  name: string;
+  columns?: string[];
+  mapping: Record<string, number>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function queryImportMappingPresets(kind: ImportKind): Promise<{ list: ImportMappingPreset[] }> {
+  return getWithParams('/api/v1/imports/mappings', { kind });
+}
+
+export async function saveImportMappingPreset(body: {
+  kind: ImportKind;
+  name: string;
+  columns: string[];
+  mapping: Record<string, number>;
+}): Promise<ImportMappingPreset> {
+  return postJSON<ImportMappingPreset>('/api/v1/imports/mappings', body);
+}
+
+export async function deleteImportMappingPreset(id: string): Promise<{ deleted: boolean }> {
+  return deleteJSON<{ deleted: boolean }>(`/api/v1/imports/mappings/${id}`);
 }

@@ -45,6 +45,11 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/imports',
         'GET /api/v1/imports/:id',
         'GET /api/v1/imports/:id/errors.csv',
+        'GET /api/v1/imports/templates/:kind',
+        'GET /api/v1/imports/export/:kind',
+        'GET /api/v1/imports/mappings',
+        'POST /api/v1/imports/mappings',
+        'DELETE /api/v1/imports/mappings/:id',
         'GET /api/v1/reports/profit',
         'GET /api/v1/reports/profit/export.csv',
         'GET /api/v1/reports/procurement',
@@ -246,7 +251,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(66);
+    expect(contracts.endpoints).toHaveLength(71);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });
