@@ -278,6 +278,23 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 | `DELETE` | `/api/v1/customer/reply-templates/:id` | 删除模板（软删除）。返回 `{ ok: true }`。 |
 | `POST` | `/api/v1/customer/reply-templates/reorder` | 组内重排。body：`groupKey`、`ids`（该组完整有序 ID 列表，校验归属后按顺序写 `sortOrder`）。 |
 
+### 买家自动消息（round119）
+
+租户级订单节点消息规则与「待发送草稿」工作台。系统按节点（`paid` / `shipped` / `delivered` / `logistics_exception` / `refunded`）× 话术模板自动生成站内草稿，变量按订单/物流上下文自动填充（缺失变量保留占位并记录 `missingVars`）；**绝不自动外发**，人工在平台后台发送后回执「标记已发送」。生成入口：定时扫描（`BUYER_MESSAGE_SCAN_*`）与手动 `generate`；同一 `tenant+order+node` 幂等只生成一条。写端点复用客服操作权限口径（`adminperm.CanWriteCustomer`），readonly 返回 **403**；全部端点按当前租户隔离，跨租户/不存在返回 **404**。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/customer/buyer-message-rules` | 规则列表。返回 `{ list, canWrite }`。 |
+| `POST` | `/api/v1/customer/buyer-message-rules` | 新建规则。body：`name`、`node`、`templateId`（须为当前租户模板）、可选 `enabled`（默认启用）、`platforms`、`shopIds`（空数组表示全部）。 |
+| `PUT` | `/api/v1/customer/buyer-message-rules/:id` | 更新规则（部分字段：改名、换节点/模板、启停、平台/店铺过滤）。 |
+| `DELETE` | `/api/v1/customer/buyer-message-rules/:id` | 删除规则（软删除）。返回 `{ ok: true }`。 |
+| `GET` | `/api/v1/customer/buyer-messages/drafts` | 草稿列表。query：`page`、`pageSize`、`node`、`status`（`pending`/`sent`/`ignored`）、`platform`、`shopId`、`keyword`。返回 `{ list, total, page, pageSize, canWrite }`。 |
+| `POST` | `/api/v1/customer/buyer-messages/generate` | 按当前租户启用规则立即扫描生成草稿。返回 `{ created }`。 |
+| `PUT` | `/api/v1/customer/buyer-messages/drafts/:id` | 编辑草稿内容（仅 `pending` 可编辑）。body：`content`。 |
+| `POST` | `/api/v1/customer/buyer-messages/drafts/:id/mark-sent` | 人工回执：标记已发送（幂等；记录操作人与时间）。 |
+| `POST` | `/api/v1/customer/buyer-messages/drafts/:id/ignore` | 忽略草稿（幂等；仅 `pending` 可忽略）。 |
+| `POST` | `/api/v1/customer/buyer-messages/drafts/batch-mark-sent` | 批量标记已发送。body：`ids`；仅更新当前租户 `pending` 行，返回 `{ updated, skipped }`。 |
+
 ## Dev / Demo 种子（非 production）
 
 | 方法 | 路径 | 说明 |

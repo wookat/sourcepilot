@@ -549,6 +549,11 @@ export default [
         name: '话术模板',
         component: './Customer/ReplyTemplates',
       },
+      {
+        path: '/customer/buyer-messages',
+        name: '买家自动消息',
+        component: './Customer/BuyerMessages',
+      },
     ],
   },
   {
