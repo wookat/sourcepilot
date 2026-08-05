@@ -8,7 +8,7 @@ import { publishResponse, skuBindingsResponse } from '../mocks/publish';
 import { inventoryResponse } from '../mocks/inventory';
 import { imageProviderCapabilities } from '../mocks/image-providers';
 import { operationLogsResponse } from '../mocks/operation-logs';
-import { selectionResponse } from '../mocks/selection';
+import { selectionInsightsResponse, selectionResponse } from '../mocks/selection';
 import { waybillResponse } from '../mocks/waybill';
 import { orderReviewResponse } from '../mocks/order-review';
 import { orderAutomationResponse } from '../mocks/order-automation';
@@ -47,6 +47,7 @@ export async function routeAdminApi(page: Page) {
       inventoryResponse(path) ??
       operationLogsResponse(path, url.searchParams) ??
       selectionResponse(path, url.searchParams.get('status')) ??
+      selectionInsightsResponse(path, url.searchParams) ??
       waybillResponse(path, url.searchParams) ??
       orderReviewResponse(path) ??
       orderAutomationResponse(path) ??

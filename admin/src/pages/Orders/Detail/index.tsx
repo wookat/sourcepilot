@@ -79,6 +79,14 @@ import {
   type PurchaseOrder,
 } from '@/services/procurement';
 import { PO_STATUS_TAG } from '@/pages/Procurement';
+import {
+  AUTOMATION_ACTION_LABELS,
+  AUTOMATION_EVENT_LABELS,
+  AUTOMATION_LOG_STATUS_COLORS,
+  AUTOMATION_LOG_STATUS_LABELS,
+  listOrderAutomationTrail,
+  type OrderAutomationLogRow,
+} from '@/services/orderAutomation';
 
 function tagFromMap(raw: string, map: Record<string, { text: string; color: string }>) {
   const cfg = map[raw];
@@ -132,6 +140,9 @@ export default function OrderDetailPage() {
   const [relatedPOs, setRelatedPOs] = useState<PurchaseOrder[]>([]);
   const [genLoading, setGenLoading] = useState(false);
   const [genResult, setGenResult] = useState<GenerateResult | null>(null);
+  const [automationRows, setAutomationRows] = useState<OrderAutomationLogRow[] | null>(null);
+  const [automationLoading, setAutomationLoading] = useState(false);
+  const [automationError, setAutomationError] = useState('');
 
   const openShipModal = (row?: OrderShipmentRow) => {
     shipForm.resetFields();
@@ -204,7 +215,21 @@ export default function OrderDetailPage() {
     if (tab === 'inventory' || tab === 'inv') setActiveTab('inv');
     else if (tab === 'sku') setActiveTab('sku');
     else if (tab === 'exceptions') setActiveTab('exceptions');
+    else if (tab === 'automation') setActiveTab('automation');
   }, [searchParams]);
+
+  useEffect(() => {
+    if (activeTab !== 'automation' || !id || automationRows !== null) return;
+    setAutomationLoading(true);
+    setAutomationError('');
+    listOrderAutomationTrail(id)
+      .then((rows) => setAutomationRows(rows))
+      .catch((e: unknown) => {
+        setAutomationRows([]);
+        setAutomationError((e as Error)?.message || '加载自动化轨迹失败');
+      })
+      .finally(() => setAutomationLoading(false));
+  }, [activeTab, id, automationRows]);
 
   const listSummary = useMemo(() => {
     if (!detail) return null;
@@ -920,6 +945,73 @@ export default function OrderDetailPage() {
                     ]}
                   />
                 </>
+              ),
+            },
+            {
+              key: 'automation',
+              label: '自动化轨迹',
+              children: (
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                    该订单命中的自动化订单规则执行记录（成功/失败/跳过）；全部规则日志见「订单管理 → 自动化执行日志」。
+                  </Typography.Paragraph>
+                  {automationError ? <Alert type="error" showIcon message={automationError} /> : null}
+                  <Table<OrderAutomationLogRow>
+                    rowKey="id"
+                    size="small"
+                    loading={automationLoading}
+                    dataSource={automationRows ?? []}
+                    pagination={false}
+                    locale={{ emptyText: '该订单暂无自动化执行记录' }}
+                    columns={[
+                      {
+                        title: '时间',
+                        dataIndex: 'createdAt',
+                        width: 170,
+                        render: (v: string) => formatDateTime(v),
+                      },
+                      {
+                        title: '触发时机',
+                        dataIndex: 'triggerEvent',
+                        width: 160,
+                        render: (v: string) =>
+                          AUTOMATION_EVENT_LABELS[v as keyof typeof AUTOMATION_EVENT_LABELS] || v,
+                      },
+                      { title: '规则', dataIndex: 'ruleName', width: 180 },
+                      {
+                        title: '动作',
+                        dataIndex: 'action',
+                        width: 150,
+                        render: (v: string) =>
+                          AUTOMATION_ACTION_LABELS[v as keyof typeof AUTOMATION_ACTION_LABELS] || v,
+                      },
+                      {
+                        title: '结果',
+                        dataIndex: 'status',
+                        width: 90,
+                        render: (v: string) => (
+                          <Tag color={AUTOMATION_LOG_STATUS_COLORS[v as keyof typeof AUTOMATION_LOG_STATUS_COLORS]}>
+                            {AUTOMATION_LOG_STATUS_LABELS[v as keyof typeof AUTOMATION_LOG_STATUS_LABELS] || v}
+                          </Tag>
+                        ),
+                      },
+                      { title: '说明', dataIndex: 'reason', ellipsis: true },
+                      { title: '尝试次数', dataIndex: 'attempts', width: 90 },
+                    ]}
+                  />
+                  <Button
+                    onClick={() =>
+                      history.push(
+                        appendSourceToUrl(
+                          `/orders/automation-logs?keyword=${encodeURIComponent(detail.orderNo || '')}`,
+                          'order_detail',
+                        ),
+                      )
+                    }
+                  >
+                    打开自动化执行日志
+                  </Button>
+                </Space>
               ),
             },
             {

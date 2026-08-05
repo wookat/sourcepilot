@@ -105,6 +105,10 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/orders/:id/automation-logs',
         'POST /api/v1/orders/print/mark',
         'POST /api/v1/orders/shipping-recommendations',
+        'GET /api/v1/selection/candidates/:id/insights',
+        'GET /api/v1/selection/candidates/:id/price-trend',
+        'GET /api/v1/selection/compare',
+        'GET /api/v1/selection/market-sources',
         'GET /api/v1/finance/expense-types',
         'GET /api/v1/finance/payments',
         'POST /api/v1/finance/payments',
@@ -339,6 +343,26 @@ describe('TradeMind API contract registry', () => {
     expect(reject?.requestBody).toEqual(['orderIds', 'remark']);
   });
 
+  it('defines query contracts for the selection insights read APIs (GET-only)', () => {
+    const insights = contracts.endpoints.find(
+      (item) => routeKey(item) === 'GET /api/v1/selection/candidates/:id/insights',
+    );
+    const trend = contracts.endpoints.find(
+      (item) => routeKey(item) === 'GET /api/v1/selection/candidates/:id/price-trend',
+    );
+    const compare = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/selection/compare');
+    const sources = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/selection/market-sources');
+
+    expect(insights?.responseData).toBe('CandidateInsights');
+    expect(trend?.responseData).toBe('PriceTrend');
+    expect(compare?.query).toEqual(['ids']);
+    expect(compare?.responseData).toBe('CompareRow[]');
+    expect(sources?.responseData).toBe('MarketSourceStatus[]');
+    for (const endpoint of [insights, trend, compare, sources]) {
+      expect(endpoint?.method).toBe('GET');
+    }
+  });
+
   it('defines payload/query contracts for order automation rule and execution log APIs', () => {
     const createRule = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/order-automation-rules');
     const updateRule = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/order-automation-rules/:ruleId');
@@ -376,7 +400,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(105);
+    expect(contracts.endpoints).toHaveLength(109);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });
