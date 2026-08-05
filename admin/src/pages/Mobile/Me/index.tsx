@@ -1,6 +1,9 @@
 import {
+  AlertOutlined,
   AuditOutlined,
+  BarChartOutlined,
   DesktopOutlined,
+  ExceptionOutlined,
   LogoutOutlined,
   RightOutlined,
   SettingOutlined,
@@ -29,6 +32,9 @@ export default function MobileMe() {
   const loginId = user?.email?.trim() || user?.username?.trim() || '';
 
   const links = [
+    { title: '经营报表', path: '/orders/reports', icon: <BarChartOutlined /> },
+    { title: '异常工作台', path: '/orders/exceptions', icon: <ExceptionOutlined /> },
+    { title: '告警中心', path: '/ops/task-center/alerts', icon: <AlertOutlined /> },
     { title: '操作日志', path: '/system/operation-logs', icon: <AuditOutlined /> },
     { title: '系统设置', path: '/settings/system', icon: <SettingOutlined /> },
     { title: '桌面版工作台', path: '/dashboard', icon: <DesktopOutlined /> },

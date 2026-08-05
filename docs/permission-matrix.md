@@ -214,3 +214,13 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
   - `POST /orders/:id/match-skus`：直接进撮合引擎（引擎按裸 id 查单），未授权/跨租户订单可触发重建；handler 先 `findOrderBare`。
   - `POST /orders/:id/deduct-inventory`、`restore-inventory`：`Inv.*ForOrder` 按裸 id 执行，未授权订单可扣/回补库存；handler 先 `findOrderBare`。
   - `POST /order-items/:itemId/bind-sku` 与 sku-candidates 两条读路由（`GET /order-items/:itemId/sku-candidates`、`POST /orders/:id/sku-candidates/batch`）：订单行/候选查询无租户与店铺条件；`GetOrderItemByID` 补父订单 `findOrderBare`，skucandidate 模块新增 `EnsureOrderVisible`（tenant + `EnsureStoreVisible`）。
+
+## round125 安全审计季度复跑（R117 后新增面）
+
+- **矩阵补登记**：`TestRouteRegistryComplete` 报缺 4 条选品数据面读路由（`GET /selection/compare`、`/selection/market-sources`、`/selection/candidates/:id/insights|price-trend`），按读路由口径四角色 `allow` 登记（租户 scope 在查询内应用）。
+- **规则 shopIds 越权（P1，已修复）**：自动化规则、审单规则、买家消息规则的 create/update 原样存储 `shopIds`，可写入跨租户/未授权店铺 id 使规则作用于越权店铺。新增 `adminperm.EnsureStoresOperable`（跨租户/不存在/不可见 → 404 不泄露存在性；仅可见不可操作 → 403），三处 create/update 统一接入。
+- **dry-run 数据泄露（P1，已修复）**：自动化/审单规则 dry-run 原扫描全租户订单，operator 可预览未授权店铺订单号与金额；两处补 `ApplyStoreScope`。
+- **执行日志越权（P1，已修复）**：`GET /order-automation-logs` 原仅按租户过滤，operator 可见未授权店铺订单的日志；补按订单店铺 scope 子查询过滤。`POST /order-automation-logs/:id/retry` 原不校验订单店铺授权即可重放动作；补 `findOrderBare`（404 口径）。`GET /orders/:id/automation-logs` 越权时误返 500，改 404。
+- **买家消息草稿越权（P1，已修复）**：草稿 list 原仅按租户过滤，泄露未授权店铺草稿内容；详情写路径（update/mark-sent/ignore/batch-mark-sent）原仅校验租户。list/batch 补 `ApplyStoreScope`，详情查找补 `EnsureStoreVisible`（404 口径）。
+- **新增契约测试** `automation_message_scope_test.go`：`TestAutomationRuleShopIDsScope`、`TestAutomationDryRunStoreScope`、`TestAutomationLogStoreScope`（含 404 后无副作用断言）、`TestBuyerMsgScope`（含草稿内容不泄露断言）、`TestSelectionCandidateTenantScope`。
+- **加固**：`config.NormalizeEnv` 将 `prod` 归一为 `production`，demoseed/perfseed 生产拒绝判定统一走 `config.IsProduction`；浏览器端 CSV 导出（`admin/src/utils/csv.ts`）补公式注入前缀中和（与后端 `csvsafe` 同口径）。

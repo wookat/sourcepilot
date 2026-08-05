@@ -154,6 +154,11 @@ func (s *Service) CreateAutomationRule(c *gin.Context, body AutomationRuleBody, 
 	if err := applyAutomationRuleBody(&row, body, true); err != nil {
 		return nil, err
 	}
+	if body.ShopIDs != nil {
+		if err := adminperm.EnsureStoresOperable(c, s.DB, normalizeReviewStrings(*body.ShopIDs)); err != nil {
+			return nil, err
+		}
+	}
 	wantEnabled := row.Enabled
 	if err := s.DB.WithContext(c.Request.Context()).Create(&row).Error; err != nil {
 		return nil, err
@@ -179,6 +184,11 @@ func (s *Service) UpdateAutomationRule(c *gin.Context, id uuid.UUID, body Automa
 	}
 	if err := applyAutomationRuleBody(row, body, false); err != nil {
 		return nil, err
+	}
+	if body.ShopIDs != nil {
+		if err := adminperm.EnsureStoresOperable(c, s.DB, normalizeReviewStrings(*body.ShopIDs)); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Save(row).Error; err != nil {
 		return nil, err
@@ -259,10 +269,14 @@ func (s *Service) DryRunAutomationRule(c *gin.Context, body AutomationRuleBody) 
 	}
 
 	ctx := c.Request.Context()
+	tx := s.DB.WithContext(ctx).
+		Where("tenant_id = ? AND deleted_at IS NULL", tid)
+	tx, err = adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
+	if err != nil {
+		return nil, err
+	}
 	var orders []Order
-	if err := s.DB.WithContext(ctx).
-		Where("tenant_id = ? AND deleted_at IS NULL", tid).
-		Order("created_at DESC, id DESC").
+	if err := tx.Order("created_at DESC, id DESC").
 		Limit(reviewDryRunScanLimit).Find(&orders).Error; err != nil {
 		return nil, err
 	}
@@ -287,6 +301,24 @@ func (s *Service) DryRunAutomationRule(c *gin.Context, body AutomationRuleBody) 
 		}
 	}
 	return res, nil
+}
+
+// applyOrderStoreScopeVia limits a query on order-child rows (order_id
+// column) to orders within the caller's store scope; admins see everything.
+func (s *Service) applyOrderStoreScopeVia(c *gin.Context, tx *gorm.DB, tid int64) (*gorm.DB, error) {
+	p, err := adminperm.LoadPrincipal(c, s.DB)
+	if err != nil {
+		return nil, err
+	}
+	if p.IsAdmin() {
+		return tx, nil
+	}
+	sub := s.DB.Model(&Order{}).Select("id").Where("tenant_id = ? AND deleted_at IS NULL", tid)
+	sub, err = adminperm.ApplyStoreScope(c, s.DB, sub, "shop_id")
+	if err != nil {
+		return nil, err
+	}
+	return tx.Where("order_id IN (?)", sub), nil
 }
 
 // AutomationLogQuery filters GET /order-automation-logs.
@@ -324,6 +356,10 @@ func (s *Service) ListAutomationLogs(c *gin.Context, q AutomationLogQuery) (*Aut
 	}
 	tx := s.DB.WithContext(c.Request.Context()).Model(&OrderAutomationLog{}).
 		Where("tenant_id = ?", tid)
+	tx, err = s.applyOrderStoreScopeVia(c, tx, tid)
+	if err != nil {
+		return nil, err
+	}
 	if st := strings.TrimSpace(q.Status); st != "" {
 		tx = tx.Where("status = ?", st)
 	}
@@ -401,6 +437,12 @@ func (s *Service) RetryAutomationLog(c *gin.Context, logID uuid.UUID, adminID *u
 	var row OrderAutomationLog
 	if err := s.DB.WithContext(c.Request.Context()).
 		First(&row, "id = ? AND tenant_id = ?", logID, tid).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAutomationLogNotFound
+		}
+		return nil, err
+	}
+	if _, err := s.findOrderBare(c, row.OrderID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrAutomationLogNotFound
 		}

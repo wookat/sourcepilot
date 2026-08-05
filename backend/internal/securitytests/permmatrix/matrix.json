@@ -4395,6 +4395,46 @@
   },
   {
     "method": "GET",
+    "path": "/api/v1/selection/candidates/:id/insights",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/selection/candidates/:id/price-trend",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/selection/compare",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/selection/market-sources",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/selection/tasks",
     "personas": {
       "admin": "allow",

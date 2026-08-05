@@ -116,6 +116,29 @@ func TestGenerateAggregatesBySupplierAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestDetailFillsSalesOrderNo(t *testing.T) {
+	f := setupFixture(t)
+	res := generate(t, f, "key-detail-no")
+	if len(res.Orders) != 1 {
+		t.Fatalf("expected 1 purchase order, got %+v", res)
+	}
+	po, err := f.svc.Detail(context.Background(), res.Orders[0].ID)
+	if err != nil {
+		t.Fatalf("detail: %v", err)
+	}
+	if len(po.Items) == 0 {
+		t.Fatal("expected items")
+	}
+	for _, it := range po.Items {
+		if it.SalesOrderID == nil {
+			continue
+		}
+		if it.SalesOrderNo != "SO-1" {
+			t.Fatalf("expected salesOrderNo SO-1, got %q", it.SalesOrderNo)
+		}
+	}
+}
+
 func TestGenerateSkipsLinesCoveredByActivePO(t *testing.T) {
 	f := setupFixture(t)
 	first := generate(t, f, "key-covered-1")

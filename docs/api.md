@@ -721,7 +721,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `GET` | `/api/v1/procurement/orders?status=&salesOrderId=` | 采购单列表；`salesOrderId` 按来源销售订单过滤（订单详情「关联采购单」用），非法 UUID 返回 400。 |
 | `GET` | `/api/v1/procurement/cost-estimates/:id` | 销售订单成本/毛利估算（id 为销售订单）：按主货源 SKU 映射参考价（缺价回退最近历史进价）逐行估算 CNY 成本；订单币种为 CNY、报表手工汇率表（`report_currency`，与销售报表同一口径，优先）可折算 CNY→订单币种、或配置了 `settings.pricing.exchangeRate`（CNY→订单币种，兜底）时折算 `estimatedCost/grossProfit/marginPercent`，任一行缺价时不计算毛利，问题行以 `issueCode`（`sku.unmatched`/`source.missing`/`mapping.missing`/`price.missing`）返回。 |
 | `POST` | `/api/v1/procurement/cost-estimates/batch` | 批量成本/毛利估算（订单列表用）：body `{"orderIds": ["..."]}`（≤50 个），返回 `items`（orderId → 汇总：`estimatedCostCny/exchangeRate/estimatedCost/grossProfit/marginPercent/missingLines`），不存在的订单被省略。 |
-| `GET` | `/api/v1/procurement/orders/:id` | 详情（items / events / logistics）。 |
+| `GET` | `/api/v1/procurement/orders/:id` | 详情（items / events / logistics）；items 内 `salesOrderId` 存在时附带 `salesOrderNo`（来源销售订单号，同租户查询回填，仅展示用，新增可选字段向后兼容）。 |
 | `GET` | `/api/v1/procurement/orders/:id/export.csv` | 导出采购清单 CSV（含 1688 链接、外部 SKU、数量、参考价，UTF-8 BOM）。 |
 | `GET` | `/api/v1/procurement/purchase-lists/export.csv?ids=` | 批量导出合并采购清单 CSV：`ids` 为逗号分隔采购单 UUID（去重后 ≤50 个），逐单合并明细行（「采购单号」列区分来源），任一 id 不存在返回 404。 |
 | `POST` | `/api/v1/procurement/orders/:id/submit` | draft → pending_confirm（经 Provider PreviewOrder）。 |

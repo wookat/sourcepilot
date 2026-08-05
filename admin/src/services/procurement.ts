@@ -6,6 +6,8 @@ export type PurchaseOrderItem = {
   id: string;
   purchaseOrderId: string;
   salesOrderId?: string;
+  /** 来源销售订单的订单号（详情接口回填，仅展示用） */
+  salesOrderNo?: string;
   localSkuId: string;
   sourceSkuId: string;
   externalOfferId?: string;
