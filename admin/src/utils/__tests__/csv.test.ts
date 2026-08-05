@@ -18,4 +18,13 @@ describe('buildCSV', () => {
   it('renders null/undefined as empty cells (未采集 stays blank, not 0)', () => {
     expect(buildCSV([[null, undefined, 0]])).toBe(',,0');
   });
+
+  it('neutralizes formula-injection prefixes (=+-@ and tab/CR)', () => {
+    expect(buildCSV([['=CMD()', '+SUM(A1)', '@foo', '-bar']])).toBe("'=CMD(),'+SUM(A1),'@foo,'-bar");
+    expect(buildCSV([['\thi', '\rhi']])).toBe(`'\thi,"'\rhi"`);
+  });
+
+  it('keeps plain negative/positive numbers unescaped', () => {
+    expect(buildCSV([['-12.9', '+3', -5]])).toBe('-12.9,+3,-5');
+  });
 });

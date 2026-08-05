@@ -8,9 +8,9 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"strings"
 	"time"
 
+	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/demoseed"
 	"github.com/trademind-ai/trademind/backend/internal/modules/finance"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -86,8 +86,7 @@ type Seeder struct {
 }
 
 func (s *Seeder) guard() error {
-	env := strings.ToLower(strings.TrimSpace(s.AppEnv))
-	if env == "production" || env == "prod" {
+	if config.IsProduction(s.AppEnv) {
 		return fmt.Errorf("perfseed refuses to run in production")
 	}
 	return nil

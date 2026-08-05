@@ -39,6 +39,9 @@ func (h *Handler) PostReviewRule(c *gin.Context) {
 	}
 	row, err := h.Svc.CreateReviewRule(c, body, adminUUID(c))
 	if err != nil {
+		if failRuleShopScope(c, err) {
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -60,6 +63,9 @@ func (h *Handler) PutReviewRule(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, ErrReviewRuleNotFound) {
 			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "审单规则不存在")
+			return
+		}
+		if failRuleShopScope(c, err) {
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())

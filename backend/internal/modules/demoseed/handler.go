@@ -2,6 +2,7 @@ package demoseed
 
 import (
 	"errors"
+	"github.com/trademind-ai/trademind/backend/internal/config"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -33,7 +34,7 @@ func (h *Handler) requireDevAdmin(c *gin.Context) bool {
 		response.Fail(c, 500, response.CodeInternalError, "Demo 种子服务不可用")
 		return false
 	}
-	if strings.EqualFold(strings.TrimSpace(h.Svc.AppEnv), "production") {
+	if config.IsProduction(h.Svc.AppEnv) {
 		response.Fail(c, 403, response.CodeForbidden, "生产环境禁止 Demo 种子接口")
 		return false
 	}

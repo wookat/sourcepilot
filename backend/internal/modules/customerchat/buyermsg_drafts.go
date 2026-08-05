@@ -95,6 +95,10 @@ func (s *Service) ListBuyerMsgDrafts(c *gin.Context, q BuyerMsgDraftQuery) (*Buy
 	}
 	db := s.DB.WithContext(c.Request.Context()).Model(&BuyerMessageDraft{}).
 		Where("tenant_id = ?", tid)
+	db, err = adminperm.ApplyStoreScope(c, s.DB, db, "shop_id")
+	if err != nil {
+		return nil, err
+	}
 	if n := strings.TrimSpace(q.Node); n != "" {
 		if !IsValidBuyerMsgNode(n) {
 			return nil, fmt.Errorf("订单节点不合法，可选值：%s", strings.Join(BuyerMsgNodes, "/"))
@@ -179,6 +183,9 @@ func (s *Service) findTenantDraft(c *gin.Context, id uuid.UUID) (*BuyerMessageDr
 	var row BuyerMessageDraft
 	if err := s.DB.WithContext(c.Request.Context()).
 		Where("id = ? AND tenant_id = ?", id, tid).First(&row).Error; err != nil {
+		return nil, ErrBuyerMsgDraftNotFound
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, row.ShopID); err != nil {
 		return nil, ErrBuyerMsgDraftNotFound
 	}
 	return &row, nil
@@ -301,9 +308,13 @@ func (s *Service) BatchMarkBuyerMsgDraftsSent(c *gin.Context, ids []uuid.UUID, a
 		return nil, fmt.Errorf("单次最多批量处理 200 条")
 	}
 	now := time.Now().UTC()
-	res := s.DB.WithContext(c.Request.Context()).Model(&BuyerMessageDraft{}).
-		Where("tenant_id = ? AND id IN ? AND status = ?", tid, ids, BuyerMsgDraftPending).
-		Updates(map[string]any{"status": BuyerMsgDraftSent, "sent_at": now, "sent_by": adminID})
+	tx := s.DB.WithContext(c.Request.Context()).Model(&BuyerMessageDraft{}).
+		Where("tenant_id = ? AND id IN ? AND status = ?", tid, ids, BuyerMsgDraftPending)
+	tx, err = adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
+	if err != nil {
+		return nil, err
+	}
+	res := tx.Updates(map[string]any{"status": BuyerMsgDraftSent, "sent_at": now, "sent_by": adminID})
 	if res.Error != nil {
 		return nil, res.Error
 	}

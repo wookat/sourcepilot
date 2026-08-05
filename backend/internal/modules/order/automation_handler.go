@@ -8,8 +8,24 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"gorm.io/gorm"
 )
+
+// failRuleShopScope maps rule shopIds scope violations: unknown / cross-tenant
+// / invisible shops → 404 (no existence leak), view-only shops → 403.
+func failRuleShopScope(c *gin.Context, err error) bool {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "资源不存在")
+		return true
+	}
+	if errors.Is(err, adminperm.ErrStoreNotOperable) {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "店铺无操作权限")
+		return true
+	}
+	return false
+}
 
 func parseAutomationRuleID(c *gin.Context) (uuid.UUID, bool) {
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("ruleId")))
@@ -39,6 +55,9 @@ func (h *Handler) PostAutomationRule(c *gin.Context) {
 	}
 	row, err := h.Svc.CreateAutomationRule(c, body, adminUUID(c))
 	if err != nil {
+		if failRuleShopScope(c, err) {
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -60,6 +79,9 @@ func (h *Handler) PutAutomationRule(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, ErrAutomationRuleNotFound) {
 			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "自动化规则不存在")
+			return
+		}
+		if failRuleShopScope(c, err) {
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
@@ -148,7 +170,7 @@ func (h *Handler) GetOrderAutomationTrail(c *gin.Context) {
 	}
 	items, err := h.Svc.ListOrderAutomationTrail(c, id)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, ErrNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "订单不存在")
 			return
 		}

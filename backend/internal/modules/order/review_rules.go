@@ -207,6 +207,11 @@ func (s *Service) CreateReviewRule(c *gin.Context, body ReviewRuleBody, adminID 
 	if err := applyReviewRuleBody(&row, body, true); err != nil {
 		return nil, err
 	}
+	if body.ShopIDs != nil {
+		if err := adminperm.EnsureStoresOperable(c, s.DB, normalizeReviewStrings(*body.ShopIDs)); err != nil {
+			return nil, err
+		}
+	}
 	wantEnabled := row.Enabled
 	if err := s.DB.WithContext(c.Request.Context()).Create(&row).Error; err != nil {
 		return nil, err
@@ -232,6 +237,11 @@ func (s *Service) UpdateReviewRule(c *gin.Context, id uuid.UUID, body ReviewRule
 	}
 	if err := applyReviewRuleBody(row, body, false); err != nil {
 		return nil, err
+	}
+	if body.ShopIDs != nil {
+		if err := adminperm.EnsureStoresOperable(c, s.DB, normalizeReviewStrings(*body.ShopIDs)); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Save(row).Error; err != nil {
 		return nil, err
@@ -315,10 +325,14 @@ func (s *Service) DryRunReviewRule(c *gin.Context, body ReviewRuleBody) (*Review
 	rule.Enabled = true
 
 	ctx := c.Request.Context()
+	scoped := s.DB.WithContext(ctx).
+		Where("tenant_id = ? AND deleted_at IS NULL", tid)
+	scoped, err = adminperm.ApplyStoreScope(c, s.DB, scoped, "shop_id")
+	if err != nil {
+		return nil, err
+	}
 	var orders []Order
-	if err := s.DB.WithContext(ctx).
-		Where("tenant_id = ? AND deleted_at IS NULL", tid).
-		Order("created_at DESC, id DESC").
+	if err := scoped.Order("created_at DESC, id DESC").
 		Limit(reviewDryRunScanLimit).Find(&orders).Error; err != nil {
 		return nil, err
 	}
