@@ -834,6 +834,33 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/selection/candidates/:id/insights",
+      "auth": true,
+      "responseData": "CandidateInsights"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/selection/candidates/:id/price-trend",
+      "auth": true,
+      "responseData": "PriceTrend"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/selection/compare",
+      "auth": true,
+      "query": [
+        "ids"
+      ],
+      "responseData": "CompareRow[]"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/selection/market-sources",
+      "auth": true,
+      "responseData": "MarketSourceStatus[]"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/order-automation-rules",
       "auth": true,
       "responseData": "{ items: OrderAutomationRule[] }"

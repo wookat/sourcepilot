@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/bannedwords"
 	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -877,6 +878,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- 选品数据面：多次采集留痕 + 同类目经营数据关联（Round 120）----
+	if err := s.seedRound120SourcingInsights(tx, res, now, products); err != nil {
+		return err
+	}
+
 	// ---- AI 客服：DEMO- 会话/消息/AI 建议草稿 + 同步任务成功/失败 ----
 	if err := s.seedCustomerService(tx, res, now, shops); err != nil {
 		return err
@@ -1189,6 +1195,9 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			}
 		}
 
+		if err := cleanupRound120CollectTasks(tx, res); err != nil {
+			return err
+		}
 		if err := cleanupSelection(tx, res, like); err != nil {
 			return err
 		}
@@ -1473,6 +1482,14 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 			return n, tx.Model(&selection.SelectionEvaluation{}).Unscoped().
 				Where("candidate_id IN (?)", tx.Model(&selection.SelectionCandidate{}).Unscoped().
 					Select("id").Where("title LIKE ?", like)).Count(&n).Error
+		}},
+		{table: "collect_tasks", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("collect_tasks") {
+				return 0, nil
+			}
+			return n, tx.Model(&collect.CollectTask{}).Unscoped().
+				Where("source_url LIKE ?", demoMarketURLPrefix+"%").Count(&n).Error
 		}},
 	}
 	checks = append(checks, operationTaskVerifyChecks(tx, like)...)

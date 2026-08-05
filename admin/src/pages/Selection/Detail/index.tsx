@@ -15,6 +15,8 @@ import {
   type SelectionTaskRow,
 } from '@/services/selection';
 import { extractApiErrorMessage } from '@/services/request';
+import CompareDrawer from './CompareDrawer';
+import InsightsDrawer from './InsightsDrawer';
 
 const POLL_MS = 4000;
 
@@ -48,6 +50,9 @@ export default function SelectionTaskDetailPage() {
   const [task, setTask] = useState<SelectionTaskRow | null>(null);
   const [rows, setRows] = useState<SelectionCandidateItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [insightsTarget, setInsightsTarget] = useState<SelectionCandidateItem | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -231,19 +236,35 @@ export default function SelectionTaskDetailPage() {
     },
     {
       title: '操作',
-      width: 220,
+      width: 260,
       render: (_, row) => {
         const cid = row.candidate.id;
         const ev = row.evaluation;
         const scored = row.candidate.status === 'scored';
+        const insightsLink = (
+          <a aria-label={`查看数据面板：${row.candidate.title}`} onClick={() => setInsightsTarget(row)}>
+            数据面板
+          </a>
+        );
         if (ev?.draftProductId) {
-          return <Link to={`/product/drafts/${ev.draftProductId}`}>查看草稿</Link>;
+          return (
+            <Space>
+              {insightsLink}
+              <Link to={`/product/drafts/${ev.draftProductId}`}>查看草稿</Link>
+            </Space>
+          );
         }
         if (readonly) {
-          return <Typography.Text type="secondary">只读</Typography.Text>;
+          return (
+            <Space>
+              {insightsLink}
+              <Typography.Text type="secondary">只读</Typography.Text>
+            </Space>
+          );
         }
         return (
           <Space>
+            {insightsLink}
             {scored && ev?.decision !== 'approved' && (
               <a onClick={() => decide(cid, 'approved')}>通过</a>
             )}
@@ -269,6 +290,14 @@ export default function SelectionTaskDetailPage() {
       subTitle="按 AI 评分排序的可上架清单"
       onBack={() => window.history.back()}
       extra={[
+        <Button
+          key="compare"
+          type="primary"
+          disabled={selectedIds.length < 2}
+          onClick={() => setCompareOpen(true)}
+        >
+          对比所选（{selectedIds.length}）
+        </Button>,
         <Button key="refresh" onClick={() => void load()}>
           刷新
         </Button>,
@@ -327,6 +356,28 @@ export default function SelectionTaskDetailPage() {
         search={false}
         pagination={{ pageSize: 20 }}
         toolBarRender={false}
+        rowSelection={{
+          selectedRowKeys: selectedIds,
+          onChange: (keys) => setSelectedIds(keys.map(String).slice(0, 5)),
+          getCheckboxProps: (row) => ({
+            'aria-label': `选择候选：${row.candidate.title}`,
+          }),
+        }}
+        tableAlertRender={false}
+      />
+      {selectedIds.length === 1 ? (
+        <Typography.Text type="secondary">再勾选至少 1 个候选即可发起对比（最多 5 个）。</Typography.Text>
+      ) : null}
+      <InsightsDrawer
+        open={!!insightsTarget}
+        candidateId={insightsTarget?.candidate.id}
+        title={insightsTarget?.candidate.title}
+        onClose={() => setInsightsTarget(null)}
+      />
+      <CompareDrawer
+        open={compareOpen}
+        candidateIds={selectedIds}
+        onClose={() => setCompareOpen(false)}
       />
     </TmPageContainer>
   );

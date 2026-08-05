@@ -10,6 +10,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/bannedwords"
 	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -93,6 +94,7 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&selection.SelectionCandidate{},
 		&selection.SelectionSourceMatch{},
 		&selection.SelectionEvaluation{},
+		&collect.CollectTask{},
 		&migrationimport.ImportJob{},
 		&migrationimport.ImportJobRow{},
 		&bannedwords.BannedWord{},
