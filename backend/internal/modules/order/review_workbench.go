@@ -112,6 +112,11 @@ func (s *Service) ListReviewWorkbench(c *gin.Context, q ReviewWorkbenchQuery) (*
 	pendingTx := s.DB.WithContext(ctx).Model(&Order{}).
 		Where("tenant_id = ? AND review_status IN ?", tid,
 			[]string{ReviewStatusPending, ReviewStatusHeld})
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, pendingTx, "shop_id"); err != nil {
+		return nil, err
+	} else {
+		pendingTx = scoped
+	}
 	var pendingTotal int64
 	if err := pendingTx.Count(&pendingTotal).Error; err != nil {
 		return nil, err

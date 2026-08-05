@@ -9,8 +9,8 @@ const inventoryXlsxParseResult = {
   sourceFormat: 'custom',
   columns: ['SKU编码', '仓库编码', '期初数量', '参考进价'],
   rows: [
-    ['SKU-X100-BLK', 'WH-MAIN', '120', '45.00'],
-    ['SKU-X100-WHT', '', '80', ''],
+    ['DEMO-SKU-1-1', 'default', '120', '45.00'],
+    ['DEMO-SKU-1-2', '', '80', ''],
   ],
   totalRows: 2,
   mapping: { skuCode: 0, warehouseCode: 1, quantity: 2, costPrice: 3 },
@@ -69,7 +69,7 @@ test.describe('R116 数据搬家：XLSX 导入与进度反馈', () => {
     await expect(page.getByText('数据预览（前 5 行）')).toBeVisible();
     await expect(page.getByText('generic-inventory.xlsx')).toBeVisible();
     // 空单元格渲染“—”占位符，避免视觉上列错位
-    const previewRow = page.getByRole('row').filter({ hasText: 'SKU-X100-WHT' });
+    const previewRow = page.getByRole('row').filter({ hasText: 'DEMO-SKU-1-2' });
     await expect(previewRow.getByText('—').first()).toBeVisible();
     await writeGuard.expectRequestCount('import-parse', 1);
   });
