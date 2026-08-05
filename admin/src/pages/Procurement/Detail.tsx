@@ -113,9 +113,12 @@ export default function ProcurementOrderDetailPage() {
   const missingPriceCount = (po.items || []).filter(
     (it) => it.expectedPrice === undefined || it.expectedPrice === null,
   ).length;
-  const salesOrderIds = Array.from(
-    new Set((po.items || []).map((it) => it.salesOrderId).filter((v): v is string => !!v)),
-  );
+  const salesOrders = new Map<string, string>();
+  for (const it of po.items || []) {
+    if (it.salesOrderId && !salesOrders.has(it.salesOrderId)) {
+      salesOrders.set(it.salesOrderId, it.salesOrderNo || it.salesOrderId.slice(0, 8));
+    }
+  }
 
   const savePrice = async (itemId: string, value?: number) => {
     if (value === undefined || value === null || value <= 0) {
@@ -220,12 +223,12 @@ export default function ProcurementOrderDetailPage() {
         <Descriptions.Item label="创建时间">{formatDateTime(po.createdAt)}</Descriptions.Item>
         <Descriptions.Item label="确认时间">{formatDateTime(po.confirmedAt, '-')}</Descriptions.Item>
         <Descriptions.Item label="来源销售订单" span={2}>
-          {salesOrderIds.length === 0 ? (
+          {salesOrders.size === 0 ? (
             '-'
           ) : (
             <Space wrap>
-              {salesOrderIds.map((sid) => (
-                <Link key={sid} to={`/orders/${sid}`}>{sid.slice(0, 8)}</Link>
+              {Array.from(salesOrders, ([sid, label]) => (
+                <Link key={sid} to={`/orders/${sid}`}>{label}</Link>
               ))}
             </Space>
           )}
@@ -273,8 +276,9 @@ export default function ProcurementOrderDetailPage() {
           {
             title: '来源订单',
             dataIndex: 'salesOrderId',
-            width: 110,
-            render: (v?: string) => (v ? <Link to={`/orders/${v}`}>{v.slice(0, 8)}</Link> : '-'),
+            width: 150,
+            render: (v: string | undefined, row: PurchaseOrderItem) =>
+              v ? <Link to={`/orders/${v}`}>{row.salesOrderNo || v.slice(0, 8)}</Link> : '-',
           },
           {
             title: '参考价',

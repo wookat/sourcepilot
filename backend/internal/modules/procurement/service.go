@@ -631,7 +631,42 @@ func (s *Service) Detail(ctx context.Context, id uuid.UUID) (*PurchaseOrder, err
 		}
 		return nil, err
 	}
+	s.fillSalesOrderNos(ctx, &po)
 	return &po, nil
+}
+
+// fillSalesOrderNos enriches items with the human-readable order number of
+// their source sales order so the UI can show it instead of a raw UUID.
+func (s *Service) fillSalesOrderNos(ctx context.Context, po *PurchaseOrder) {
+	ids := make([]uuid.UUID, 0, len(po.Items))
+	seen := map[uuid.UUID]bool{}
+	for _, it := range po.Items {
+		if it.SalesOrderID != nil && !seen[*it.SalesOrderID] {
+			seen[*it.SalesOrderID] = true
+			ids = append(ids, *it.SalesOrderID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	var rows []struct {
+		ID      uuid.UUID
+		OrderNo string
+	}
+	if err := s.DB.WithContext(ctx).Model(&order.Order{}).
+		Where("id IN ? AND tenant_id = ?", ids, po.TenantID).
+		Select("id", "order_no").Find(&rows).Error; err != nil {
+		return
+	}
+	nos := make(map[uuid.UUID]string, len(rows))
+	for _, r := range rows {
+		nos[r.ID] = r.OrderNo
+	}
+	for i := range po.Items {
+		if sid := po.Items[i].SalesOrderID; sid != nil {
+			po.Items[i].SalesOrderNo = nos[*sid]
+		}
+	}
 }
 
 // Submit re-checks price/stock via the trade provider and moves draft →

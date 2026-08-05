@@ -721,7 +721,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `GET` | `/api/v1/procurement/orders?status=&salesOrderId=` | 采购单列表；`salesOrderId` 按来源销售订单过滤（订单详情「关联采购单」用），非法 UUID 返回 400。 |
 | `GET` | `/api/v1/procurement/cost-estimates/:id` | 销售订单成本/毛利估算（id 为销售订单）：按主货源 SKU 映射参考价（缺价回退最近历史进价）逐行估算 CNY 成本；订单币种为 CNY、报表手工汇率表（`report_currency`，与销售报表同一口径，优先）可折算 CNY→订单币种、或配置了 `settings.pricing.exchangeRate`（CNY→订单币种，兜底）时折算 `estimatedCost/grossProfit/marginPercent`，任一行缺价时不计算毛利，问题行以 `issueCode`（`sku.unmatched`/`source.missing`/`mapping.missing`/`price.missing`）返回。 |
 | `POST` | `/api/v1/procurement/cost-estimates/batch` | 批量成本/毛利估算（订单列表用）：body `{"orderIds": ["..."]}`（≤50 个），返回 `items`（orderId → 汇总：`estimatedCostCny/exchangeRate/estimatedCost/grossProfit/marginPercent/missingLines`），不存在的订单被省略。 |
-| `GET` | `/api/v1/procurement/orders/:id` | 详情（items / events / logistics）。 |
+| `GET` | `/api/v1/procurement/orders/:id` | 详情（items / events / logistics）；items 内 `salesOrderId` 存在时附带 `salesOrderNo`（来源销售订单号，同租户查询回填，仅展示用，新增可选字段向后兼容）。 |
 | `GET` | `/api/v1/procurement/orders/:id/export.csv` | 导出采购清单 CSV（含 1688 链接、外部 SKU、数量、参考价，UTF-8 BOM）。 |
 | `GET` | `/api/v1/procurement/purchase-lists/export.csv?ids=` | 批量导出合并采购清单 CSV：`ids` 为逗号分隔采购单 UUID（去重后 ≤50 个），逐单合并明细行（「采购单号」列区分来源），任一 id 不存在返回 404。 |
 | `POST` | `/api/v1/procurement/orders/:id/submit` | draft → pending_confirm（经 Provider PreviewOrder）。 |
@@ -831,7 +831,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `PUT` | `/api/v1/order-automation-rules/:ruleId` | 更新规则（部分更新；`clearMinAmount`/`clearMaxAmount` 清除金额条件）；越权/不存在 404。 |
 | `DELETE` | `/api/v1/order-automation-rules/:ruleId` | 删除规则；越权/不存在 404；历史执行日志保留。 |
 | `POST` | `/api/v1/order-automation-rules/dry-run` | 测试跑（不落库、不执行动作）：请求体同新增规则，对租户最近订单 dry-run → `{scanned, matched, blocked, samples:[{orderId, orderNo, amount, reason, blocked}]}`；`blocked` 为将被审单安全边界跳过的数量。 |
-| `GET` | `/api/v1/order-automation-logs` | 执行日志查询：`?page=&pageSize=&status=&triggerEvent=&action=&ruleId=&keyword=`；`status` ∈ `success`/`failed`/`skipped`；返回 `{items:[{id, ruleId, ruleName, orderId, orderNo, triggerEvent, action, status, reason, attempts}], total, page, pageSize, totalPages}`。 |
+| `GET` | `/api/v1/order-automation-logs` | 执行日志查询：`?page=&pageSize=&status=&triggerEvent=&action=&ruleId=&keyword=`；`status` ∈ `success`/`failed`/`skipped`；返回 `{items:[{id, ruleId, ruleName, orderId, orderNo, shopId?, triggerEvent, action, status, reason, attempts}], total, page, pageSize, totalPages}`（店铺范围直接按日志冗余 `shop_id` 过滤）。 |
 | `POST` | `/api/v1/order-automation-logs/:logId/retry` | 人工重试失败日志（仅 `failed` 可重试）→ 更新后的日志行；越权/不存在 404。 |
 | `GET` | `/api/v1/orders/:id/automation-logs` | 单订单自动化轨迹：`{items: 日志行[]}`（租户+店铺范围隔离，越权 404）。 |
 
