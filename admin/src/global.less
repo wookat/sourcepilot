@@ -1819,6 +1819,14 @@ body,
   display: none;
 }
 
+/* <768 移动模式以底部导航为唯一主导航，与侧栏抽屉汉堡互斥；
+   全部功能经「我的」页入口到达。≥768 恢复侧栏（含收起切换）。 */
+@media (max-width: 767px) {
+  .ant-pro-layout:has(.tm-mobile-tabbar) .ant-pro-global-header-collapsed-button {
+    display: none;
+  }
+}
+
 @media (max-width: 767px) {
   .tm-mobile-tabbar {
     position: fixed;

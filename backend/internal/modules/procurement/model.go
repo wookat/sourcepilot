@@ -83,6 +83,9 @@ type PurchaseOrderItem struct {
 	Quantity        int        `gorm:"not null" json:"quantity"`
 	ExpectedPrice   *float64   `gorm:"type:decimal(12,2)" json:"expectedPrice,omitempty"`
 	ActualPrice     *float64   `gorm:"type:decimal(12,2)" json:"actualPrice,omitempty"`
+	// SalesOrderNo is the human-readable order number of SalesOrderID,
+	// enriched on detail reads for display (not a stored column).
+	SalesOrderNo string `gorm:"-" json:"salesOrderNo,omitempty"`
 }
 
 func (PurchaseOrderItem) TableName() string { return "purchase_order_items" }
