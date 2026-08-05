@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -389,13 +390,9 @@ func filterAggRows(rows []aggRow, marks map[string]markPair, req ListOrderExcept
 }
 
 func sortAggRows(rows []aggRow) {
-	for i := 1; i < len(rows); i++ {
-		j := i
-		for j > 0 && rows[j-1].updatedAt.Before(rows[j].updatedAt) {
-			rows[j-1], rows[j] = rows[j], rows[j-1]
-			j--
-		}
-	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		return rows[j].updatedAt.Before(rows[i].updatedAt)
+	})
 }
 
 // exceptionToDTO renders one aggregated row; shops (optional) is a

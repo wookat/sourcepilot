@@ -203,6 +203,14 @@ pnpm seed:demo:full:verify   # verify demo data
 pnpm seed:demo:full:clean    # remove only DEMO- prefixed data
 ```
 
+Performance load-test seed (`PERF-` prefixed 10k-scale data, isolated from demo data; see [docs/development.md](docs/development.md)):
+
+```bash
+pnpm seed:perf               # 10k-scale load-test data (PERF- prefix, idempotent)
+pnpm seed:perf:clean         # clean only PERF- prefixed data
+pnpm seed:perf:verify        # verify zero PERF- residual rows
+```
+
 On Linux / macOS, install [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) first, then run `bash scripts/seed-demo-data.sh`. See [docs/DEMO_SEEDING_GUIDE.md](docs/DEMO_SEEDING_GUIDE.md) for details.
 
 ### Local Development
