@@ -5204,5 +5204,85 @@
       "operator": "allow",
       "readonly": "forbid"
     }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/order-review-rules",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/order-review-rules",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/order-review-rules/dry-run",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/order-review-rules/:ruleId",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/order-review-rules/:ruleId",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/order-review",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/order-review/approve",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/order-review/reject",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
   }
 ]

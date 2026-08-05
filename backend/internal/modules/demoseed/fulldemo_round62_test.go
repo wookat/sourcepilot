@@ -64,6 +64,8 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&order.OrderItem{},
 		&order.OrderItemSKUMatch{},
 		&order.OrderShipment{},
+		&order.OrderReviewRule{},
+		&order.OrderReviewHit{},
 		&procurement.PurchaseOrder{},
 		&procurement.PurchaseOrderItem{},
 		&procurement.PurchaseOrderEvent{},

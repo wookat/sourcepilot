@@ -67,6 +67,7 @@ export type OrderDetailDTO = {
   customerEmail?: string;
   customerPhone?: string;
   status: string;
+  reviewStatus?: string;
   paymentStatus: string;
   fulfillmentStatus: string;
   currency: string;
@@ -92,6 +93,7 @@ export type OrderListRow = {
   orderNo: string;
   customerName: string;
   status: string;
+  reviewStatus?: string;
   paymentStatus: string;
   fulfillmentStatus: string;
   currency: string;

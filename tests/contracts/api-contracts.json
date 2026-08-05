@@ -562,6 +562,116 @@
       "responseData": "{ ok: boolean }"
     },
     {
+      "method": "GET",
+      "path": "/api/v1/order-review-rules",
+      "auth": true,
+      "responseData": "{ items: OrderReviewRule[] }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/order-review-rules",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "priority",
+        "enabled",
+        "action",
+        "minAmount",
+        "maxAmount",
+        "addressKeywords",
+        "remarkKeywords",
+        "platforms",
+        "shopIds",
+        "maxTotalQuantity",
+        "maxSkuQuantity",
+        "repeatReceiverMinOrders",
+        "repeatReceiverWindowDays"
+      ],
+      "responseData": "OrderReviewRule"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/order-review-rules/dry-run",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "priority",
+        "enabled",
+        "action",
+        "minAmount",
+        "maxAmount",
+        "addressKeywords",
+        "remarkKeywords",
+        "platforms",
+        "shopIds",
+        "maxTotalQuantity",
+        "maxSkuQuantity",
+        "repeatReceiverMinOrders",
+        "repeatReceiverWindowDays"
+      ],
+      "responseData": "{ scanned: number, matched: number, samples: { orderId, orderNo, amount, reason }[] }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/order-review-rules/:ruleId",
+      "auth": true,
+      "requestBody": [
+        "name",
+        "priority",
+        "enabled",
+        "action",
+        "minAmount",
+        "maxAmount",
+        "addressKeywords",
+        "remarkKeywords",
+        "platforms",
+        "shopIds",
+        "maxTotalQuantity",
+        "maxSkuQuantity",
+        "repeatReceiverMinOrders",
+        "repeatReceiverWindowDays"
+      ],
+      "responseData": "OrderReviewRule"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/order-review-rules/:ruleId",
+      "auth": true,
+      "responseData": "{ ok: boolean }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/order-review",
+      "auth": true,
+      "query": [
+        "page",
+        "pageSize",
+        "reviewStatus",
+        "keyword"
+      ],
+      "responseData": "{ items: ReviewOrderRow[], total, page, pageSize, totalPages, pendingTotal }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/order-review/approve",
+      "auth": true,
+      "requestBody": [
+        "orderIds",
+        "remark"
+      ],
+      "responseData": "{ total, done, failed, results: { orderId, orderNo?, ok, error? }[] }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/order-review/reject",
+      "auth": true,
+      "requestBody": [
+        "orderIds",
+        "remark"
+      ],
+      "responseData": "{ total, done, failed, results: { orderId, orderNo?, ok, error? }[] }"
+    },
+    {
       "method": "POST",
       "path": "/api/v1/orders/print/mark",
       "auth": true,

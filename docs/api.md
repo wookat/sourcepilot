@@ -783,6 +783,21 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 
 `GET /api/v1/orders/print/sheets` round111 起支持 `&templateId=`，返回增加 `template`（所选模板；缺省为租户默认模板），打印页按模板尺寸/显示字段/页眉页脚渲染并适配浏览器打印分页边距。
 
+### 审单规则与审单工作台（order-review，round114）
+
+租户级可配置审单规则：订单进入（导入 / 手工 / 批量粘贴，统一走订单创建动线）时按优先级升序跑规则引擎，规则内多条件为 AND，首个命中规则决定动作（`pass` 自动通过 / `review` 打标待人工审核 / `hold` 挂起拦截），全部命中均落 `order_review_hits` 快照（规则删除后原因仍可读）。订单新增 `reviewStatus`（`''`（未进审）/ `auto_passed` / `pending_review` / `held` / `approved` / `rejected`）；`pending_review` / `held` 订单**后端强制**不允许生成采购单（`review.blocked` blocker）和新增发货（可读中文提示），放行后回到正常流。既有固定异常拦截（缺主货源 / 缺 SKU 映射 / 负毛利 / 重复单号）保持不变，仍在异常工作台处理，文案上与可配置审单规则区分来源。写端点要求非 readonly；全部按租户隔离，越权规则更新/删除返回 404。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/order-review-rules` | 审单规则列表（租户隔离，按 `priority` 升序）：返回 `{items:[{id, name, priority, enabled, action, minAmount?, maxAmount?, addressKeywords?, remarkKeywords?, platforms?, shopIds?, maxTotalQuantity?, maxSkuQuantity?, repeatReceiverMinOrders?, repeatReceiverWindowDays?}]}`。 |
+| `POST` | `/api/v1/order-review-rules` | 新增规则：`{name, priority?, enabled?, action, minAmount?, maxAmount?, addressKeywords?, remarkKeywords?, platforms?, shopIds?, maxTotalQuantity?, maxSkuQuantity?, repeatReceiverMinOrders?, repeatReceiverWindowDays?}`；`action` ∈ `pass`/`review`/`hold`；金额区间非负且 min≤max；数量/单数/窗口阈值为正整数；至少配置一个条件。 |
+| `PUT` | `/api/v1/order-review-rules/:ruleId` | 更新规则（同上字段；数值条件传 `null` 清除）；越权/不存在 404。 |
+| `DELETE` | `/api/v1/order-review-rules/:ruleId` | 删除规则；越权/不存在 404；历史命中快照保留。 |
+| `POST` | `/api/v1/order-review-rules/dry-run` | 测试跑（不落库）：请求体同新增规则，对租户最近订单（≤500 单）dry-run → `{scanned, matched, samples:[{orderId, orderNo, amount, reason}]}`（样本 ≤10 条）。 |
+| `GET` | `/api/v1/order-review` | 审单工作台列表：`?page=&pageSize=&reviewStatus=&keyword=`；`reviewStatus` 缺省时只看 `pending_review`+`held`；返回 `{items:[{...订单字段, reviewStatus, itemCount, hits:[{ruleId, ruleName, action, reason, decisive}]}], total, page, pageSize, totalPages, pendingTotal}`（租户+店铺范围隔离）。 |
+| `POST` | `/api/v1/order-review/approve` | 单个/批量放行：`{orderIds:[UUID]}`（≤100）→ `{total, done, failed, results:[{orderId, orderNo?, ok, error?}]}`；仅待审/挂起订单可放行，放行后 `reviewStatus=approved` 回正常流。 |
+| `POST` | `/api/v1/order-review/reject` | 单个/批量拒绝（入取消动线）：请求/返回同放行；拒绝后 `reviewStatus=rejected` 且订单 `status=cancelled`。 |
+
 ### 违禁词合规检测（banned-words，round109）
 
 | 方法 | 路径 | 说明 |
