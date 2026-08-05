@@ -14,12 +14,14 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/bannedwords"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 	"github.com/trademind-ai/trademind/backend/internal/providers/marketprice"
+	"github.com/trademind-ai/trademind/backend/internal/providers/markettrend"
 	"github.com/trademind-ai/trademind/backend/internal/providers/sourcematch"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
@@ -48,6 +50,13 @@ type Service struct {
 
 	AIGateway AIGatewayIface
 	Prompts   PromptReader
+
+	// Banned scans candidate titles against the tenant banned-word library
+	// for the选品对比 risk column (optional).
+	Banned *bannedwords.Service
+	// Trend exposes external market-data source status (hot-list providers,
+	// currently declared slots that degrade to "not configured").
+	Trend *markettrend.Registry
 
 	MarketMock  marketprice.Provider
 	SourceMock  sourcematch.Provider

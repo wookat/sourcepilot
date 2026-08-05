@@ -24,4 +24,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/selection/tasks/:id/retry", w, h.Retry)
 	g.POST("/selection/candidates/:id/decision", w, h.Decide)
 	g.POST("/selection/candidates/:id/to-draft", w, h.ToDraft)
+	g.GET("/selection/compare", h.CompareCandidates)
+	g.GET("/selection/candidates/:id/insights", h.GetCandidateInsights)
+	g.GET("/selection/candidates/:id/price-trend", h.GetCandidatePriceTrend)
+	g.GET("/selection/market-sources", h.GetMarketSources)
 }
