@@ -3,7 +3,7 @@ import { ok } from '../mocks/envelope';
 import { expectNoRootOverflow } from '../utils/assertions';
 
 const LONG_REASON =
-  '执行失败（已重试 3 次）：生成采购单被阻断：订单行未匹配本地 SKU，请先完成 SKU 匹配；' +
+  '执行失败（本轮尝试 3 次）：生成采购单被阻断：订单行未匹配本地 SKU，请先完成 SKU 匹配；' +
   '请在订单详情完成本地 SKU 匹配并绑定主货源后，再从执行日志手动重试该记录。';
 
 const longReasonLog = {
@@ -37,7 +37,7 @@ test.describe('@round122 P2① 执行日志结果列移动端不撑高', () => {
       });
     });
     await admin.goto('/orders/automation-logs');
-    const cell = page.locator('td.ant-table-cell-ellipsis', { hasText: '执行失败（已重试 3 次）' });
+    const cell = page.locator('td.ant-table-cell-ellipsis', { hasText: '执行失败（本轮尝试 3 次）' });
     await expect(cell).toBeAttached({ timeout: 30000 });
     await cell.scrollIntoViewIfNeeded();
     await expect(cell).toBeVisible();

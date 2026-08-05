@@ -7,9 +7,13 @@ import {
   deleteOrderAutomationRule,
   dryRunOrderAutomationRule,
   listOrderAutomationRules,
+  SHIPPING_APPLY_MODE_LABELS,
   updateOrderAutomationRule,
+  WAREHOUSE_STRATEGY_LABELS,
   type AutomationAction,
   type AutomationTriggerEvent,
+  type ShippingApplyMode,
+  type WarehouseStrategy,
   type OrderAutomationDryRunResult,
   type OrderAutomationRuleBody,
   type OrderAutomationRuleRow,
@@ -54,7 +58,17 @@ const ACTION_COLORS: Record<AutomationAction, string> = {
   generate_procurement: 'purple',
   mark_printed: 'cyan',
   notify_shipping: 'green',
+  apply_shipping_rule: 'geekblue',
+  assign_warehouse: 'orange',
 };
+
+const SHIPPING_MODE_OPTIONS = (
+  Object.keys(SHIPPING_APPLY_MODE_LABELS) as ShippingApplyMode[]
+).map((v) => ({ value: v, label: SHIPPING_APPLY_MODE_LABELS[v] }));
+
+const WAREHOUSE_STRATEGY_OPTIONS = (
+  Object.keys(WAREHOUSE_STRATEGY_LABELS) as WarehouseStrategy[]
+).map((v) => ({ value: v, label: WAREHOUSE_STRATEGY_LABELS[v] }));
 
 function fmtRange(min?: number, max?: number, unit = '') {
   if (min == null && max == null) return '';
@@ -75,6 +89,8 @@ function formToBody(v: Record<string, any>): OrderAutomationRuleBody {
     clearMaxAmount: v.maxAmount == null,
     platforms: v.platforms || [],
     requireReviewPassed: !!v.requireReviewPassed,
+    shippingApplyMode: v.action === 'apply_shipping_rule' ? v.shippingApplyMode : undefined,
+    warehouseStrategy: v.action === 'assign_warehouse' ? v.warehouseStrategy : undefined,
   };
 }
 
@@ -127,6 +143,8 @@ export default function OrderAutomationRulesPage() {
             maxAmount: row.maxAmount,
             platforms: row.platforms || [],
             requireReviewPassed: row.requireReviewPassed,
+            shippingApplyMode: row.shippingApplyMode || 'recommend',
+            warehouseStrategy: row.warehouseStrategy || 'default_warehouse',
           }
         : {
             name: '',
@@ -137,6 +155,8 @@ export default function OrderAutomationRulesPage() {
             maxAmount: undefined,
             platforms: [],
             requireReviewPassed: false,
+            shippingApplyMode: 'recommend',
+            warehouseStrategy: 'default_warehouse',
           },
     );
   };
@@ -208,6 +228,8 @@ export default function OrderAutomationRulesPage() {
     return tags;
   };
 
+  const action = Form.useWatch('action', form) as AutomationAction | undefined;
+
   const actionOptions = useMemo(
     () =>
       (triggerEvent ? AUTOMATION_EVENT_ACTIONS[triggerEvent] || [] : []).map((a) => ({
@@ -275,9 +297,17 @@ export default function OrderAutomationRulesPage() {
             {
               title: '自动动作',
               dataIndex: 'action',
-              width: 150,
-              render: (v: AutomationAction) => (
-                <Tag color={ACTION_COLORS[v]}>{AUTOMATION_ACTION_LABELS[v] || v}</Tag>
+              width: 190,
+              render: (v: AutomationAction, row) => (
+                <Space size={4} wrap>
+                  <Tag color={ACTION_COLORS[v]}>{AUTOMATION_ACTION_LABELS[v] || v}</Tag>
+                  {v === 'apply_shipping_rule' && row.shippingApplyMode ? (
+                    <Tag>{SHIPPING_APPLY_MODE_LABELS[row.shippingApplyMode]}</Tag>
+                  ) : null}
+                  {v === 'assign_warehouse' && row.warehouseStrategy ? (
+                    <Tag>{WAREHOUSE_STRATEGY_LABELS[row.warehouseStrategy]}</Tag>
+                  ) : null}
+                </Space>
               ),
             },
             {
@@ -375,6 +405,24 @@ export default function OrderAutomationRulesPage() {
           >
             <Select options={actionOptions} placeholder="选择命中后的自动动作" />
           </Form.Item>
+          {action === 'apply_shipping_rule' ? (
+            <Form.Item
+              name="shippingApplyMode"
+              label="发货规则应用方式（仅推荐 / 直接应用；发货时均可人工改选）"
+              rules={[{ required: true, message: '请选择应用方式' }]}
+            >
+              <Select options={SHIPPING_MODE_OPTIONS} placeholder="选择应用方式" />
+            </Form.Item>
+          ) : null}
+          {action === 'assign_warehouse' ? (
+            <Form.Item
+              name="warehouseStrategy"
+              label="分仓策略（库存不足时执行失败并留痕，可在执行日志重试）"
+              rules={[{ required: true, message: '请选择分仓策略' }]}
+            >
+              <Select options={WAREHOUSE_STRATEGY_OPTIONS} placeholder="选择分仓策略" />
+            </Form.Item>
+          ) : null}
           <Form.Item label="订单金额区间（自动确认付款必须填上限，作为低风险限定）">
             <Space.Compact block>
               <Form.Item name="minAmount" noStyle>

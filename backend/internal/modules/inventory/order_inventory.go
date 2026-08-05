@@ -357,6 +357,11 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 	if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", orderID).Error; err != nil {
 		return nil, err
 	}
+	if opts.WarehouseID == nil && o.AssignedWarehouseID != nil && *o.AssignedWarehouseID != uuid.Nil {
+		// 自动分仓联动：assigned warehouse becomes the default deduction pin
+		// unless the caller explicitly picked one.
+		opts.WarehouseID = o.AssignedWarehouseID
+	}
 	if opts.PlatformAuto {
 		if !policy.AutoDeductPlatformOrders {
 			return &DeductionSummary{Skipped: true, SkipReason: "auto_deduct_platform_orders disabled"}, nil

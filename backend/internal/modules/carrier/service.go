@@ -217,19 +217,32 @@ func (s *Service) ResolveEnabled(c *gin.Context, key string) (*Carrier, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := EnsurePresets(c.Request.Context(), s.DB, tid); err != nil {
+	return s.ResolveEnabledTenant(c.Request.Context(), tid, k)
+}
+
+// ResolveEnabledTenant is ResolveEnabled for non-HTTP callers (background /
+// automation flows) that already carry a tenant id.
+func (s *Service) ResolveEnabledTenant(ctx context.Context, tenantID int64, key string) (*Carrier, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("carrier: no db")
+	}
+	k := strings.TrimSpace(key)
+	if k == "" {
+		return nil, ErrNotFound
+	}
+	if err := EnsurePresets(ctx, s.DB, tenantID); err != nil {
 		return nil, err
 	}
 	var row Carrier
-	err = s.DB.WithContext(c.Request.Context()).
-		Where("tenant_id = ? AND enabled = ? AND (code = ? OR name = ?)", tid, true, strings.ToLower(k), k).
+	err := s.DB.WithContext(ctx).
+		Where("tenant_id = ? AND enabled = ? AND (code = ? OR name = ?)", tenantID, true, strings.ToLower(k), k).
 		Order("is_preset DESC, sort_order ASC").
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Loose fallback: pasted names are often shorter than the official
 		// one (顺丰 → 顺丰速运), so try a name-prefix match before giving up.
-		err = s.DB.WithContext(c.Request.Context()).
-			Where("tenant_id = ? AND enabled = ? AND name LIKE ?", tid, true, k+"%").
+		err = s.DB.WithContext(ctx).
+			Where("tenant_id = ? AND enabled = ? AND name LIKE ?", tenantID, true, k+"%").
 			Order("is_preset DESC, sort_order ASC").
 			First(&row).Error
 	}

@@ -11,7 +11,25 @@ export type AutomationAction =
   | 'confirm_payment'
   | 'generate_procurement'
   | 'mark_printed'
-  | 'notify_shipping';
+  | 'notify_shipping'
+  | 'apply_shipping_rule'
+  | 'assign_warehouse';
+
+// 自动应用发货规则：仅推荐 / 直接应用（发货时均可人工改选）
+export type ShippingApplyMode = 'recommend' | 'apply';
+
+// 自动分仓策略：默认仓 / 库存充足优先
+export type WarehouseStrategy = 'default_warehouse' | 'stock_first';
+
+export const SHIPPING_APPLY_MODE_LABELS: Record<ShippingApplyMode, string> = {
+  recommend: '仅推荐物流商',
+  apply: '直接应用物流商',
+};
+
+export const WAREHOUSE_STRATEGY_LABELS: Record<WarehouseStrategy, string> = {
+  default_warehouse: '默认仓',
+  stock_first: '库存充足优先',
+};
 
 export type AutomationLogStatus = 'success' | 'failed' | 'skipped';
 
@@ -27,6 +45,8 @@ export const AUTOMATION_ACTION_LABELS: Record<AutomationAction, string> = {
   generate_procurement: '自动生成采购单',
   mark_printed: '自动标记打单',
   notify_shipping: '自动通知发货工作台',
+  apply_shipping_rule: '自动应用发货规则',
+  assign_warehouse: '自动分仓',
 };
 
 export const AUTOMATION_LOG_STATUS_LABELS: Record<AutomationLogStatus, string> = {
@@ -43,10 +63,15 @@ export const AUTOMATION_LOG_STATUS_COLORS: Record<AutomationLogStatus, string> =
 
 // 每个触发时机允许的动作（与后端 AutomationActionAllowed 对齐）
 export const AUTOMATION_EVENT_ACTIONS: Record<AutomationTriggerEvent, AutomationAction[]> = {
-  order_created: ['confirm_payment', 'mark_printed'],
-  order_paid: ['generate_procurement', 'mark_printed'],
-  procurement_delivered: ['notify_shipping', 'mark_printed'],
-  logistics_collected: ['notify_shipping'],
+  order_created: ['confirm_payment', 'mark_printed', 'apply_shipping_rule'],
+  order_paid: ['generate_procurement', 'mark_printed', 'apply_shipping_rule', 'assign_warehouse'],
+  procurement_delivered: [
+    'notify_shipping',
+    'mark_printed',
+    'apply_shipping_rule',
+    'assign_warehouse',
+  ],
+  logistics_collected: ['notify_shipping', 'apply_shipping_rule'],
 };
 
 export type OrderAutomationRuleRow = {
@@ -62,6 +87,8 @@ export type OrderAutomationRuleRow = {
   platforms?: string[];
   shopIds?: string[];
   requireReviewPassed: boolean;
+  shippingApplyMode?: ShippingApplyMode;
+  warehouseStrategy?: WarehouseStrategy;
   createdAt: string;
   updatedAt: string;
 };
@@ -77,6 +104,8 @@ export type OrderAutomationRuleBody = {
   platforms?: string[];
   shopIds?: string[];
   requireReviewPassed?: boolean;
+  shippingApplyMode?: ShippingApplyMode;
+  warehouseStrategy?: WarehouseStrategy;
   clearMinAmount?: boolean;
   clearMaxAmount?: boolean;
 };

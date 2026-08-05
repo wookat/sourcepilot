@@ -386,6 +386,8 @@ describe('TradeMind API contract registry', () => {
       'platforms',
       'shopIds',
       'requireReviewPassed',
+      'shippingApplyMode',
+      'warehouseStrategy',
       'clearMinAmount',
       'clearMaxAmount',
     ];

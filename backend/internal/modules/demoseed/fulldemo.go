@@ -910,6 +910,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- 自动化动作面扩展演示：自动应用发货规则 + 自动分仓（Round 126）----
+	if err := s.seedRound126AutoActions(tx, res, now, shops, products, skus); err != nil {
+		return err
+	}
+
 	// ---- 买家自动消息演示：节点规则 + 待发/已发送/已忽略草稿样本（Round 119）----
 	if err := s.seedRound119BuyerMessages(tx, res, now, shops); err != nil {
 		return err

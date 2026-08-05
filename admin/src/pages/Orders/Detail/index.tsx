@@ -454,6 +454,37 @@ export default function OrderDetailPage() {
                         <Descriptions.Item label="金额">
                           {detail.currency} {detail.totalAmount}
                         </Descriptions.Item>
+                        <Descriptions.Item label="计划物流商">
+                          {detail.plannedCarrierName || detail.plannedCarrierCode ? (
+                            <Space size={4} wrap>
+                              <span>{detail.plannedCarrierName || detail.plannedCarrierCode}</span>
+                              <Tag color={detail.plannedCarrierMode === 'apply' ? 'green' : 'blue'}>
+                                {detail.plannedCarrierMode === 'apply' ? '自动应用' : '自动推荐'}
+                              </Tag>
+                              {detail.plannedCarrierRule ? (
+                                <Typography.Text type="secondary">
+                                  规则：{detail.plannedCarrierRule}
+                                </Typography.Text>
+                              ) : null}
+                            </Space>
+                          ) : (
+                            '—'
+                          )}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="分配仓库">
+                          {detail.assignedWarehouseName ? (
+                            <Space size={4} wrap>
+                              <span>{detail.assignedWarehouseName}</span>
+                              <Tag color="blue">
+                                {detail.assignedWarehouseStrategy === 'stock_first'
+                                  ? '库存充足优先'
+                                  : '默认仓'}
+                              </Tag>
+                            </Space>
+                          ) : (
+                            '—'
+                          )}
+                        </Descriptions.Item>
                         <Descriptions.Item label="下单时间">
                           {detail.orderedAt ? formatDateTime(detail.orderedAt) : '—'}
                         </Descriptions.Item>

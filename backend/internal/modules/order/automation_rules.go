@@ -31,6 +31,8 @@ type AutomationRuleBody struct {
 	Platforms           *[]string `json:"platforms"`
 	ShopIDs             *[]string `json:"shopIds"`
 	RequireReviewPassed *bool     `json:"requireReviewPassed"`
+	ShippingApplyMode   *string   `json:"shippingApplyMode"`
+	WarehouseStrategy   *string   `json:"warehouseStrategy"`
 	ClearMinAmount      bool      `json:"clearMinAmount,omitempty"`
 	ClearMaxAmount      bool      `json:"clearMaxAmount,omitempty"`
 }
@@ -117,10 +119,39 @@ func applyAutomationRuleBody(row *OrderAutomationRule, body AutomationRuleBody, 
 	if body.RequireReviewPassed != nil {
 		row.RequireReviewPassed = *body.RequireReviewPassed
 	}
+	if body.ShippingApplyMode != nil {
+		mode := strings.TrimSpace(*body.ShippingApplyMode)
+		if mode != "" && !listContains(ValidShippingApplyModes(), mode) {
+			return fmt.Errorf("无效的发货规则应用方式：%s", mode)
+		}
+		row.ShippingApplyMode = mode
+	}
+	if body.WarehouseStrategy != nil {
+		st := strings.TrimSpace(*body.WarehouseStrategy)
+		if st != "" && !listContains(ValidAutomationWarehouseStrategies(), st) {
+			return fmt.Errorf("无效的分仓策略：%s", st)
+		}
+		row.WarehouseStrategy = st
+	}
+	if row.Action == AutomationActionApplyShippingRule && row.ShippingApplyMode == "" {
+		row.ShippingApplyMode = ShippingApplyModeRecommend
+	}
+	if row.Action == AutomationActionAssignWarehouse && row.WarehouseStrategy == "" {
+		row.WarehouseStrategy = AutomationWarehouseStrategyDefault
+	}
 	if row.Action == AutomationActionConfirmPayment && row.MaxAmount == nil {
 		return fmt.Errorf("自动确认付款属于低风险限定动作，必须配置金额上限")
 	}
 	return nil
+}
+
+func listContains(list []string, v string) bool {
+	for _, item := range list {
+		if item == v {
+			return true
+		}
+	}
+	return false
 }
 
 // ListAutomationRules returns tenant automation rules ordered by priority.

@@ -122,7 +122,7 @@ test.describe('@round119 自动化执行日志页', () => {
     await admin.goto('/orders/automation-logs');
     await expect(page.getByRole('cell', { name: 'SO-E2E-AT-1' })).toBeVisible({ timeout: 20000 });
     await expect(page.getByText('成功', { exact: true })).toBeVisible();
-    await expect(page.getByText('失败', { exact: true })).toBeVisible();
+    await expect(page.getByText('失败', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('跳过', { exact: true })).toBeVisible();
     await expect(page.getByText('生成采购单被阻断：SKU 未匹配货源')).toBeVisible();
     await expect(

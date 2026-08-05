@@ -315,6 +315,17 @@ type DetailDTO struct {
 	Items       []OrderItem      `json:"items"`
 	Shipments   []OrderShipment  `json:"shipments"`
 
+	PlannedCarrierCode string     `json:"plannedCarrierCode,omitempty"`
+	PlannedCarrierName string     `json:"plannedCarrierName,omitempty"`
+	PlannedCarrierMode string     `json:"plannedCarrierMode,omitempty"`
+	PlannedCarrierRule string     `json:"plannedCarrierRule,omitempty"`
+	PlannedCarrierAt   *time.Time `json:"plannedCarrierAt,omitempty"`
+
+	AssignedWarehouseID       *uuid.UUID `json:"assignedWarehouseId,omitempty"`
+	AssignedWarehouseName     string     `json:"assignedWarehouseName,omitempty"`
+	AssignedWarehouseStrategy string     `json:"assignedWarehouseStrategy,omitempty"`
+	WarehouseAssignedAt       *time.Time `json:"warehouseAssignedAt,omitempty"`
+
 	InventorySummary *InventoryUIMini `json:"inventorySummary,omitempty"`
 }
 
@@ -928,6 +939,17 @@ func (s *Service) loadDetailDTO(c *gin.Context, orderID uuid.UUID) (*DetailDTO, 
 		DeliveredAt: o.DeliveredAt,
 		Items:       items,
 		Shipments:   ships,
+
+		PlannedCarrierCode: o.PlannedCarrierCode,
+		PlannedCarrierName: o.PlannedCarrierName,
+		PlannedCarrierMode: o.PlannedCarrierMode,
+		PlannedCarrierRule: o.PlannedCarrierRule,
+		PlannedCarrierAt:   o.PlannedCarrierAt,
+
+		AssignedWarehouseID:       o.AssignedWarehouseID,
+		AssignedWarehouseName:     o.AssignedWarehouseName,
+		AssignedWarehouseStrategy: o.AssignedWarehouseStrategy,
+		WarehouseAssignedAt:       o.WarehouseAssignedAt,
 	}
 	if o.ShopID != nil && s.Shops != nil {
 		sum, _ := s.Shops.GetSummary(c, *o.ShopID)
