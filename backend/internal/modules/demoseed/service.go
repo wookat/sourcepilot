@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"github.com/trademind-ai/trademind/backend/internal/config"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,7 +47,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 	if s == nil {
 		return nil, fmt.Errorf("demoseed: service unavailable")
 	}
-	if strings.EqualFold(strings.TrimSpace(s.AppEnv), "production") {
+	if config.IsProduction(s.AppEnv) {
 		return nil, ErrProductionForbidden
 	}
 	if s.DB == nil {

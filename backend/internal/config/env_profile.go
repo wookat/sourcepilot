@@ -12,11 +12,15 @@ const (
 	EnvProduction  = "production"
 )
 
-// NormalizeEnv lowercases and trims APP_ENV; empty becomes development.
+// NormalizeEnv lowercases and trims APP_ENV; empty becomes development and
+// the common "prod" shorthand maps to production so hardening gates hold.
 func NormalizeEnv(v string) string {
 	v = strings.ToLower(strings.TrimSpace(v))
-	if v == "" {
+	switch v {
+	case "":
 		return EnvDevelopment
+	case "prod":
+		return EnvProduction
 	}
 	return v
 }

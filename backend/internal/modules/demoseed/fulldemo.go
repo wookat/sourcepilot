@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/trademind-ai/trademind/backend/internal/config"
 	"regexp"
 	"strings"
 	"time"
@@ -236,7 +237,7 @@ func (s *FullDemoSeeder) guard() error {
 	if s == nil {
 		return fmt.Errorf("demoseed: service unavailable")
 	}
-	if strings.EqualFold(strings.TrimSpace(s.AppEnv), "production") {
+	if config.IsProduction(s.AppEnv) {
 		return ErrProductionForbidden
 	}
 	if s.DB == nil {

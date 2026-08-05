@@ -173,6 +173,9 @@ func (s *Service) CreateBuyerMsgRule(c *gin.Context, body BuyerMsgRuleBody, admi
 		}
 	}
 	if body.ShopIDs != nil {
+		if err := adminperm.EnsureStoresOperable(c, s.DB, *body.ShopIDs); err != nil {
+			return nil, err
+		}
 		if row.ShopIDs, err = stringsToJSON(*body.ShopIDs); err != nil {
 			return nil, err
 		}
@@ -228,6 +231,9 @@ func (s *Service) UpdateBuyerMsgRule(c *gin.Context, id uuid.UUID, body BuyerMsg
 		updates["platforms"] = v
 	}
 	if body.ShopIDs != nil {
+		if err := adminperm.EnsureStoresOperable(c, s.DB, *body.ShopIDs); err != nil {
+			return nil, err
+		}
 		v, err := stringsToJSON(*body.ShopIDs)
 		if err != nil {
 			return nil, err

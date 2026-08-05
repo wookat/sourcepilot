@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"gorm.io/gorm"
 )
 
 func (h *Handler) buyerMsgUnavailable(c *gin.Context) bool {
@@ -28,8 +29,13 @@ func (h *Handler) buyerMsgDenyWrite(c *gin.Context, action string) bool {
 }
 
 func buyerMsgHandleErr(c *gin.Context, err error) {
-	if errors.Is(err, ErrBuyerMsgRuleNotFound) || errors.Is(err, ErrBuyerMsgDraftNotFound) {
+	if errors.Is(err, ErrBuyerMsgRuleNotFound) || errors.Is(err, ErrBuyerMsgDraftNotFound) ||
+		errors.Is(err, gorm.ErrRecordNotFound) {
 		response.Fail(c, 404, response.CodeNotFound, "not found")
+		return
+	}
+	if errors.Is(err, adminperm.ErrStoreNotOperable) {
+		response.Fail(c, 403, response.CodeForbidden, "店铺无操作权限")
 		return
 	}
 	response.Fail(c, 400, response.CodeBadRequest, err.Error())
