@@ -1,6 +1,7 @@
 package waybill
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -118,9 +119,18 @@ func (s *Service) Recommend(c *gin.Context, attrs MatchAttrs) (*Recommendation, 
 	if err != nil {
 		return nil, err
 	}
+	return s.RecommendTenant(c.Request.Context(), tid, attrs)
+}
+
+// RecommendTenant is Recommend for non-HTTP callers (background / automation
+// flows) that already carry a tenant id.
+func (s *Service) RecommendTenant(ctx context.Context, tenantID int64, attrs MatchAttrs) (*Recommendation, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("waybill: no db")
+	}
 	var rules []ShippingRule
-	if err := s.DB.WithContext(c.Request.Context()).
-		Where("tenant_id = ? AND enabled = ?", tid, true).
+	if err := s.DB.WithContext(ctx).
+		Where("tenant_id = ? AND enabled = ?", tenantID, true).
 		Order("priority ASC, created_at ASC").Find(&rules).Error; err != nil {
 		return nil, err
 	}
@@ -135,7 +145,7 @@ func (s *Service) Recommend(c *gin.Context, attrs MatchAttrs) (*Recommendation, 
 			CarrierCode: rules[i].CarrierCode,
 		}
 		if s.Carriers != nil {
-			cr, err := s.Carriers.ResolveEnabled(c, rules[i].CarrierCode)
+			cr, err := s.Carriers.ResolveEnabledTenant(ctx, tenantID, rules[i].CarrierCode)
 			if err != nil {
 				// Rule points at a disabled / removed carrier: keep
 				// evaluating lower-priority rules instead of failing.

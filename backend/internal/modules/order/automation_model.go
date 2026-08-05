@@ -45,7 +45,44 @@ const (
 	// AutomationActionNotifyShipping通知发货工作台 (ship_ready_notified_at，
 	// 打单发货工作台可按此筛选提示).
 	AutomationActionNotifyShipping = "notify_shipping"
+	// AutomationActionApplyShippingRule evaluates the R111发货规则 and lands
+	// the matched carrier onto the order's planned-carrier fields. The mode
+	// (仅推荐 / 直接应用) comes from the rule's ShippingApplyMode; the ship
+	// flow keeps free carrier choice (人工覆盖).
+	AutomationActionApplyShippingRule = "apply_shipping_rule"
+	// AutomationActionAssignWarehouse picks a发货仓 per the rule's
+	// WarehouseStrategy and stores it on the order; later deductions pin to it
+	// (多仓扣减联动). Insufficient stock is a visible failed log.
+	AutomationActionAssignWarehouse = "assign_warehouse"
 )
+
+// Shipping apply modes for AutomationActionApplyShippingRule.
+const (
+	// ShippingApplyModeRecommend records the matched carrier as a推荐 only.
+	ShippingApplyModeRecommend = "recommend"
+	// ShippingApplyModeApply lands the matched carrier as the order's物流商计划.
+	ShippingApplyModeApply = "apply"
+)
+
+// ValidShippingApplyModes lists accepted apply modes.
+func ValidShippingApplyModes() []string {
+	return []string{ShippingApplyModeRecommend, ShippingApplyModeApply}
+}
+
+// Warehouse strategies for AutomationActionAssignWarehouse (kept in sync with
+// inventory.ValidWarehousePlanStrategies via the router-wired hook).
+const (
+	// AutomationWarehouseStrategyDefault assigns the tenant's默认仓.
+	AutomationWarehouseStrategyDefault = "default_warehouse"
+	// AutomationWarehouseStrategyStockFirst picks the first warehouse (by
+	// deduction priority) whose stock covers every order line.
+	AutomationWarehouseStrategyStockFirst = "stock_first"
+)
+
+// ValidAutomationWarehouseStrategies lists accepted strategies.
+func ValidAutomationWarehouseStrategies() []string {
+	return []string{AutomationWarehouseStrategyDefault, AutomationWarehouseStrategyStockFirst}
+}
 
 // ValidAutomationActions lists accepted actions.
 func ValidAutomationActions() []string {
@@ -54,16 +91,18 @@ func ValidAutomationActions() []string {
 		AutomationActionGenerateProcurement,
 		AutomationActionMarkPrinted,
 		AutomationActionNotifyShipping,
+		AutomationActionApplyShippingRule,
+		AutomationActionAssignWarehouse,
 	}
 }
 
 // automationEventActions maps each trigger event to its allowed actions,
 // keeping actions meaningful for the lifecycle stage they run in.
 var automationEventActions = map[string][]string{
-	AutomationEventOrderCreated:         {AutomationActionConfirmPayment, AutomationActionMarkPrinted},
-	AutomationEventOrderPaid:            {AutomationActionGenerateProcurement, AutomationActionMarkPrinted},
-	AutomationEventProcurementDelivered: {AutomationActionNotifyShipping, AutomationActionMarkPrinted},
-	AutomationEventLogisticsCollected:   {AutomationActionNotifyShipping},
+	AutomationEventOrderCreated:         {AutomationActionConfirmPayment, AutomationActionMarkPrinted, AutomationActionApplyShippingRule},
+	AutomationEventOrderPaid:            {AutomationActionGenerateProcurement, AutomationActionMarkPrinted, AutomationActionApplyShippingRule, AutomationActionAssignWarehouse},
+	AutomationEventProcurementDelivered: {AutomationActionNotifyShipping, AutomationActionMarkPrinted, AutomationActionApplyShippingRule, AutomationActionAssignWarehouse},
+	AutomationEventLogisticsCollected:   {AutomationActionNotifyShipping, AutomationActionApplyShippingRule},
 }
 
 // AutomationActionAllowed reports whether the action may bind to the event.
@@ -108,6 +147,12 @@ type OrderAutomationRule struct {
 	// RequireReviewPassed limits the rule to orders whose审单 status is
 	// approved / auto_passed (待审/挂起 orders are always excluded regardless).
 	RequireReviewPassed bool `gorm:"default:false" json:"requireReviewPassed"`
+	// ShippingApplyMode parameterizes apply_shipping_rule：recommend (仅推荐)
+	// or apply (直接应用). Empty means recommend.
+	ShippingApplyMode string `gorm:"size:16;default:''" json:"shippingApplyMode,omitempty"`
+	// WarehouseStrategy parameterizes assign_warehouse：default_warehouse or
+	// stock_first. Empty means default_warehouse.
+	WarehouseStrategy string `gorm:"size:32;default:''" json:"warehouseStrategy,omitempty"`
 }
 
 // TableName maps to order_automation_rules.

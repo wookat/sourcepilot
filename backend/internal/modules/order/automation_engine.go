@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/waybill"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -21,6 +22,23 @@ type AutomationHooks struct {
 	// the same path as the manual批量生成采购单. It returns a human-readable
 	// summary or an error carrying the blocker reasons.
 	GenerateProcurement func(ctx context.Context, tenantID int64, orderID uuid.UUID, idempotencyKey string) (string, error)
+	// PlanWarehouse picks one发货仓 able to cover every demand line under the
+	// strategy (inventory.PlanOrderWarehouse). Insufficient stock surfaces as
+	// an error so the engine records a visible failed log.
+	PlanWarehouse func(ctx context.Context, tenantID int64, strategy string, demands []AutomationWarehouseDemand) (*AutomationWarehousePlan, error)
+}
+
+// AutomationWarehouseDemand is one SKU quantity the order needs (matched lines only).
+type AutomationWarehouseDemand struct {
+	ProductSKUID uuid.UUID
+	SKUCode      string
+	Quantity     int
+}
+
+// AutomationWarehousePlan is the chosen warehouse for one order.
+type AutomationWarehousePlan struct {
+	WarehouseID   uuid.UUID
+	WarehouseName string
 }
 
 const (
@@ -163,6 +181,10 @@ func (s *Service) runAutomationActionOnce(ctx context.Context, r OrderAutomation
 		return s.autoMarkPrinted(ctx, o)
 	case AutomationActionNotifyShipping:
 		return s.autoNotifyShipping(ctx, o)
+	case AutomationActionApplyShippingRule:
+		return s.autoApplyShippingRule(ctx, r, o)
+	case AutomationActionAssignWarehouse:
+		return s.autoAssignWarehouse(ctx, r, o)
 	default:
 		return AutomationLogFailed, "", fmt.Errorf("未知动作：%s", r.Action)
 	}
@@ -242,6 +264,144 @@ func (s *Service) autoNotifyShipping(ctx context.Context, o *Order) (string, str
 	}
 	o.ShipReadyNotifiedAt = &now
 	return AutomationLogSuccess, "已通知发货工作台备货发货", nil
+}
+
+// autoApplyShippingRule evaluates the tenant's R111发货规则 and lands the
+// matched carrier onto the order's planned-carrier fields. An existing plan
+// is never overwritten (人工覆盖 / earlier automation wins).
+func (s *Service) autoApplyShippingRule(ctx context.Context, r OrderAutomationRule, o *Order) (string, string, error) {
+	if s.Waybill == nil {
+		return AutomationLogFailed, "", errors.New("发货规则能力未接入")
+	}
+	if o.ShippedAt != nil {
+		return AutomationLogSkipped, "订单已发货，无需再应用发货规则", nil
+	}
+	if o.PlannedCarrierCode != "" {
+		label := o.PlannedCarrierName
+		if label == "" {
+			label = o.PlannedCarrierCode
+		}
+		return AutomationLogSkipped, fmt.Sprintf("订单已有物流商计划（%s），保留现有选择", label), nil
+	}
+	amount := o.TotalAmount
+	rec, err := s.Waybill.RecommendTenant(ctx, o.TenantID, waybill.MatchAttrs{
+		Platform: o.Platform,
+		Amount:   &amount,
+	})
+	if err != nil {
+		return AutomationLogFailed, "", err
+	}
+	if !rec.Matched {
+		return AutomationLogSkipped, "没有命中任何发货规则，未推荐物流商", nil
+	}
+	mode := strings.TrimSpace(r.ShippingApplyMode)
+	if mode == "" {
+		mode = ShippingApplyModeRecommend
+	}
+	now := time.Now().UTC()
+	res := s.DB.WithContext(ctx).Model(&Order{}).
+		Where("id = ? AND tenant_id = ? AND (planned_carrier_code = '' OR planned_carrier_code IS NULL)", o.ID, o.TenantID).
+		Updates(map[string]any{
+			"planned_carrier_code": rec.CarrierCode,
+			"planned_carrier_name": rec.CarrierName,
+			"planned_carrier_mode": mode,
+			"planned_carrier_rule": rec.RuleName,
+			"planned_carrier_at":   now,
+		})
+	if res.Error != nil {
+		return AutomationLogFailed, "", res.Error
+	}
+	if res.RowsAffected == 0 {
+		return AutomationLogSkipped, "订单已有物流商计划，保留现有选择", nil
+	}
+	o.PlannedCarrierCode = rec.CarrierCode
+	o.PlannedCarrierName = rec.CarrierName
+	o.PlannedCarrierMode = mode
+	o.PlannedCarrierRule = rec.RuleName
+	o.PlannedCarrierAt = &now
+	label := rec.CarrierName
+	if label == "" {
+		label = rec.CarrierCode
+	}
+	if mode == ShippingApplyModeApply {
+		return AutomationLogSuccess, fmt.Sprintf("已按发货规则「%s」应用物流商：%s（发货时仍可人工改选）", rec.RuleName, label), nil
+	}
+	return AutomationLogSuccess, fmt.Sprintf("已按发货规则「%s」推荐物流商：%s（仅推荐，发货时人工确认）", rec.RuleName, label), nil
+}
+
+// autoAssignWarehouse plans a发货仓 for the order's matched SKU lines and
+// stores it; insufficient stock is a visible failed log (retryable after补货).
+func (s *Service) autoAssignWarehouse(ctx context.Context, r OrderAutomationRule, o *Order) (string, string, error) {
+	if s.Automation == nil || s.Automation.PlanWarehouse == nil {
+		return AutomationLogFailed, "", errors.New("分仓能力未接入")
+	}
+	if o.ShippedAt != nil {
+		return AutomationLogSkipped, "订单已发货，无需自动分仓", nil
+	}
+	if o.AssignedWarehouseID != nil {
+		label := o.AssignedWarehouseName
+		if label == "" {
+			label = o.AssignedWarehouseID.String()
+		}
+		return AutomationLogSkipped, fmt.Sprintf("订单已分配发货仓（%s），保留现有分配", label), nil
+	}
+	var items []OrderItem
+	if err := s.DB.WithContext(ctx).
+		Where("order_id = ?", o.ID).Find(&items).Error; err != nil {
+		return AutomationLogFailed, "", err
+	}
+	demands := make([]AutomationWarehouseDemand, 0, len(items))
+	for _, it := range items {
+		if it.ProductSKUID == nil || *it.ProductSKUID == uuid.Nil || it.Quantity <= 0 {
+			continue
+		}
+		demands = append(demands, AutomationWarehouseDemand{
+			ProductSKUID: *it.ProductSKUID,
+			SKUCode:      it.SKUCode,
+			Quantity:     it.Quantity,
+		})
+	}
+	if len(demands) == 0 {
+		return AutomationLogSkipped, "订单没有已匹配本地 SKU 的商品行，无法自动分仓", nil
+	}
+	strategy := strings.TrimSpace(r.WarehouseStrategy)
+	if strategy == "" {
+		strategy = AutomationWarehouseStrategyDefault
+	}
+	plan, err := s.Automation.PlanWarehouse(ctx, o.TenantID, strategy, demands)
+	if err != nil {
+		return AutomationLogFailed, "", err
+	}
+	now := time.Now().UTC()
+	res := s.DB.WithContext(ctx).Model(&Order{}).
+		Where("id = ? AND tenant_id = ? AND assigned_warehouse_id IS NULL", o.ID, o.TenantID).
+		Updates(map[string]any{
+			"assigned_warehouse_id":       plan.WarehouseID,
+			"assigned_warehouse_name":     plan.WarehouseName,
+			"assigned_warehouse_strategy": strategy,
+			"warehouse_assigned_at":       now,
+		})
+	if res.Error != nil {
+		return AutomationLogFailed, "", res.Error
+	}
+	if res.RowsAffected == 0 {
+		return AutomationLogSkipped, "订单已分配发货仓，保留现有分配", nil
+	}
+	wh := plan.WarehouseID
+	o.AssignedWarehouseID = &wh
+	o.AssignedWarehouseName = plan.WarehouseName
+	o.AssignedWarehouseStrategy = strategy
+	o.WarehouseAssignedAt = &now
+	return AutomationLogSuccess, fmt.Sprintf("已自动分仓：%s（策略：%s，后续扣减默认从该仓出库）", plan.WarehouseName, automationWarehouseStrategyLabel(strategy)), nil
+}
+
+func automationWarehouseStrategyLabel(strategy string) string {
+	switch strategy {
+	case AutomationWarehouseStrategyStockFirst:
+		return "库存充足优先"
+	default:
+		return "默认仓"
+	}
 }
 
 func automationDedupKey(r OrderAutomationRule, orderID uuid.UUID) string {
