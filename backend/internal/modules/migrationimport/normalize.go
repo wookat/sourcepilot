@@ -333,6 +333,109 @@ func BuildOrders(columns []string, rows [][]string, mapping map[string]int) ([]O
 	return out, errs
 }
 
+// InventoryInput is one normalized inventory opening row.
+type InventoryInput struct {
+	RowNumber     int
+	SKUCode       string
+	WarehouseCode string
+	Quantity      int
+	CostPrice     *float64
+}
+
+// BuildInventoryRows validates inventory opening rows. Duplicate SKU+warehouse
+// pairs inside one file are rejected up front.
+func BuildInventoryRows(columns []string, rows [][]string, mapping map[string]int) ([]InventoryInput, []RowError) {
+	mapping = normalizedMapping(KindInventory, mapping)
+	var errs []RowError
+	var out []InventoryInput
+	seen := map[string]int{}
+	for i, row := range rows {
+		rowNo := i + 1
+		skuCode := cellAt(row, mapping[FSKUCode])
+		if skuCode == "" {
+			errs = append(errs, RowError{rowNo, FSKUCode, "SKU 编码不能为空"})
+			continue
+		}
+		whCode := cellAt(row, mapping[FWarehouseCode])
+		key := skuCode + "\x00" + whCode
+		if prev, dup := seen[key]; dup {
+			errs = append(errs, RowError{rowNo, FSKUCode, fmt.Sprintf("SKU+仓库与第 %d 行重复", prev)})
+			continue
+		}
+		seen[key] = rowNo
+		qty, err := parseIntCell(cellAt(row, mapping[FQuantity]))
+		if err != nil || qty == nil {
+			errs = append(errs, RowError{rowNo, FQuantity, "期初数量需为非负整数"})
+			continue
+		}
+		cost, err := parseFloatCell(cellAt(row, mapping[FCostPrice]))
+		if err != nil {
+			errs = append(errs, RowError{rowNo, FCostPrice, "参考进价" + err.Error()})
+			continue
+		}
+		out = append(out, InventoryInput{
+			RowNumber:     rowNo,
+			SKUCode:       skuCode,
+			WarehouseCode: whCode,
+			Quantity:      *qty,
+			CostPrice:     cost,
+		})
+	}
+	return out, errs
+}
+
+// SourceInput is one normalized source-archive row (supplier offer ↔ SKU).
+type SourceInput struct {
+	RowNumber     int
+	SupplierName  string
+	SKUCode       string
+	SourceURL     string
+	RefPrice      *float64
+	ExternalSKUID string
+}
+
+// BuildSourceRows validates source-archive rows. Duplicate supplier+SKU pairs
+// inside one file are rejected up front.
+func BuildSourceRows(columns []string, rows [][]string, mapping map[string]int) ([]SourceInput, []RowError) {
+	mapping = normalizedMapping(KindSource, mapping)
+	var errs []RowError
+	var out []SourceInput
+	seen := map[string]int{}
+	for i, row := range rows {
+		rowNo := i + 1
+		supplier := cellAt(row, mapping[FSupplierName])
+		if supplier == "" {
+			errs = append(errs, RowError{rowNo, FSupplierName, "供应商名称不能为空"})
+			continue
+		}
+		skuCode := cellAt(row, mapping[FSKUCode])
+		if skuCode == "" {
+			errs = append(errs, RowError{rowNo, FSKUCode, "SKU 编码不能为空"})
+			continue
+		}
+		key := supplier + "\x00" + skuCode
+		if prev, dup := seen[key]; dup {
+			errs = append(errs, RowError{rowNo, FSKUCode, fmt.Sprintf("供应商+SKU 与第 %d 行重复", prev)})
+			continue
+		}
+		seen[key] = rowNo
+		price, err := parseFloatCell(cellAt(row, mapping[FRefPrice]))
+		if err != nil {
+			errs = append(errs, RowError{rowNo, FRefPrice, "参考价" + err.Error()})
+			continue
+		}
+		out = append(out, SourceInput{
+			RowNumber:     rowNo,
+			SupplierName:  supplier,
+			SKUCode:       skuCode,
+			SourceURL:     cellAt(row, mapping[FSourceLink]),
+			RefPrice:      price,
+			ExternalSKUID: cellAt(row, mapping[FExternalSKUID]),
+		})
+	}
+	return out, errs
+}
+
 func derefFloat(f *float64) float64 {
 	if f == nil {
 		return 0

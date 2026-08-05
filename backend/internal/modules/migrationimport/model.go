@@ -11,8 +11,10 @@ import (
 
 // Import kinds.
 const (
-	KindProduct = "product"
-	KindOrder   = "order"
+	KindProduct   = "product"
+	KindOrder     = "order"
+	KindInventory = "inventory"
+	KindSource    = "source"
 )
 
 // Source formats (detected from headers or chosen by the user).
@@ -71,3 +73,18 @@ type ImportJobRow struct {
 
 // TableName maps ImportJobRow to import_job_rows.
 func (ImportJobRow) TableName() string { return "import_job_rows" }
+
+// ImportMappingPreset is a tenant-level saved column-mapping scheme for one
+// import kind, so the next upload of the same file layout can reuse it.
+type ImportMappingPreset struct {
+	model.HardDeleteBase
+	TenantID  int64          `gorm:"default:0;index;uniqueIndex:idx_import_mapping_presets" json:"tenantId"`
+	Kind      string         `gorm:"size:16;not null;uniqueIndex:idx_import_mapping_presets" json:"kind"`
+	Name      string         `gorm:"size:128;not null;uniqueIndex:idx_import_mapping_presets" json:"name"`
+	Columns   datatypes.JSON `gorm:"type:jsonb" json:"columns,omitempty"`
+	Mapping   datatypes.JSON `gorm:"type:jsonb;not null" json:"mapping"`
+	CreatedBy *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+}
+
+// TableName maps ImportMappingPreset to import_mapping_presets.
+func (ImportMappingPreset) TableName() string { return "import_mapping_presets" }

@@ -725,12 +725,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
-	migrationImportSvc := &migrationimport.Service{DB: dep.DB, Products: productSvc, Orders: orderSvc, OpLog: opLogSvc}
-	migrationimport.Register(authed, &migrationimport.Handler{Svc: migrationImportSvc})
 	carrier.Register(authed, carrierH)
 	waybill.Register(authed, waybillH)
 	bannedwords.Register(authed, bannedWordsH)
 	sourcingSvc := &sourcing.Service{DB: dep.DB, Settings: settingsSvc, OpLog: opLogSvc, Provider: &sourceinfo.Mock{}}
+	migrationImportSvc := &migrationimport.Service{DB: dep.DB, Products: productSvc, Orders: orderSvc, Sourcing: sourcingSvc, OpLog: opLogSvc}
+	migrationimport.Register(authed, &migrationimport.Handler{Svc: migrationImportSvc})
 	sourcingH := &sourcing.Handler{Svc: sourcingSvc}
 	sourcing.Register(authed, sourcingH)
 	procurementSvc := &procurement.Service{DB: dep.DB, OpLog: opLogSvc, Provider: trade.NewMock1688(), Settings: settingsSvc}

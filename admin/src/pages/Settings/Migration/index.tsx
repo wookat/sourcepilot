@@ -1,21 +1,28 @@
 import { TmPageContainer } from '@/components/ui';
 import {
   commitImport,
+  deleteImportMappingPreset,
+  downloadExportCsv,
   downloadImportErrorsCsv,
+  downloadImportTemplateCsv,
   getImportJob,
   parseImportFile,
   queryImportJobs,
+  queryImportMappingPresets,
+  saveImportMappingPreset,
   validateImport,
   type ImportFieldDef,
   type ImportJobErrorRow,
   type ImportJobRow,
+  type ImportKind,
+  type ImportMappingPreset,
   type ImportParseResult,
   type ImportValidateResult,
 } from '@/services/imports';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { canWriteOrders } from '@/utils/permission';
 import { formatDateTime } from '@/utils/formatTime';
-import { InboxOutlined } from '@ant-design/icons';
+import { DownloadOutlined, InboxOutlined } from '@ant-design/icons';
 import { useModel, useSearchParams } from '@umijs/max';
 import {
   Alert,
@@ -23,6 +30,8 @@ import {
   Card,
   Drawer,
   Empty,
+  Input,
+  Popconfirm,
   Radio,
   Result,
   Select,
@@ -37,7 +46,25 @@ import {
 } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-const KIND_LABEL: Record<string, string> = { product: '商品', order: '订单' };
+const KIND_LABEL: Record<string, string> = {
+  product: '商品',
+  order: '订单',
+  inventory: '库存期初',
+  source: '货源档案',
+};
+const KIND_NEEDS_SHOP: Record<ImportKind, boolean> = {
+  product: true,
+  order: true,
+  inventory: false,
+  source: false,
+};
+const IMPORT_KINDS: ImportKind[] = ['product', 'order', 'inventory', 'source'];
+const GROUP_DESC: Record<ImportKind, (n: number) => string> = {
+  product: (n) => `将创建 ${n} 个商品草稿；有问题的行不会入库`,
+  order: (n) => `将合并为 ${n} 个订单；有问题的行不会入库`,
+  inventory: (n) => `将写入 ${n} 条期初库存（含库存流水）；有问题的行不会入库`,
+  source: (n) => `将写入 ${n} 条货源档案与 SKU 映射；有问题的行不会入库`,
+};
 const SOURCE_LABEL: Record<string, string> = {
   dianxiaomi: '店小秘',
   mabang: '马帮',
@@ -57,8 +84,11 @@ type WizardStep = 0 | 1 | 2 | 3;
 
 function ImportWizard({ writable }: { writable: boolean }) {
   const [searchParams] = useSearchParams();
-  const initialKind = searchParams.get('kind') === 'order' ? 'order' : 'product';
-  const [kind, setKind] = useState<'product' | 'order'>(initialKind);
+  const paramKind = searchParams.get('kind');
+  const initialKind: ImportKind = IMPORT_KINDS.includes(paramKind as ImportKind)
+    ? (paramKind as ImportKind)
+    : 'product';
+  const [kind, setKind] = useState<ImportKind>(initialKind);
   const [step, setStep] = useState<WizardStep>(0);
   const [parsing, setParsing] = useState(false);
   const [parsed, setParsed] = useState<ImportParseResult | null>(null);
@@ -77,6 +107,22 @@ function ImportWizard({ writable }: { writable: boolean }) {
     duplicateRows: number;
     replayed: boolean;
   } | null>(null);
+  const [presets, setPresets] = useState<ImportMappingPreset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | undefined>(undefined);
+  const [presetName, setPresetName] = useState('');
+  const [savingPreset, setSavingPreset] = useState(false);
+  const needsShop = KIND_NEEDS_SHOP[kind];
+
+  const loadPresets = useCallback((k: ImportKind) => {
+    queryImportMappingPresets(k)
+      .then((res) => setPresets(res.list || []))
+      .catch(() => setPresets([]));
+  }, []);
+
+  useEffect(() => {
+    setSelectedPresetId(undefined);
+    loadPresets(kind);
+  }, [kind, loadPresets]);
 
   useEffect(() => {
     let alive = true;
@@ -143,7 +189,7 @@ function ImportWizard({ writable }: { writable: boolean }) {
 
   const handleValidate = useCallback(async () => {
     if (!wizardBody) return;
-    if (!shopId) {
+    if (needsShop && !shopId) {
       message.warning('请选择归属店铺');
       return;
     }
@@ -161,7 +207,7 @@ function ImportWizard({ writable }: { writable: boolean }) {
     } finally {
       setValidating(false);
     }
-  }, [wizardBody, shopId, missingRequired]);
+  }, [wizardBody, needsShop, shopId, missingRequired]);
 
   const handleCommit = useCallback(async () => {
     if (!wizardBody) return;
@@ -221,10 +267,30 @@ function ImportWizard({ writable }: { writable: boolean }) {
                 options={[
                   { label: '商品（导入为草稿）', value: 'product' },
                   { label: '历史订单', value: 'order' },
+                  { label: '库存期初', value: 'inventory' },
+                  { label: '货源档案', value: 'source' },
                 ]}
                 optionType="button"
               />
             </Space>
+            <Alert
+              type="info"
+              showIcon
+              message="不是店小秘 / 马帮导出文件？下载通用模板，按模板整理后上传即可"
+              action={
+                <Button
+                  size="small"
+                  icon={<DownloadOutlined />}
+                  onClick={() =>
+                    downloadImportTemplateCsv(kind).catch((e) =>
+                      message.error(e instanceof Error ? e.message : '模板下载失败'),
+                    )
+                  }
+                >
+                  下载{KIND_LABEL[kind]}模板
+                </Button>
+              }
+            />
             <Upload.Dragger
               accept=".csv,.xlsx"
               maxCount={1}
@@ -240,7 +306,7 @@ function ImportWizard({ writable }: { writable: boolean }) {
               </p>
               <p className="ant-upload-text">{parsing ? '解析中…' : '点击或拖拽上传 CSV / XLSX 文件'}</p>
               <p className="ant-upload-hint">
-                支持店小秘 / 马帮导出文件，自动识别列；单批最多 1000 行，文件不超过 10MB
+                支持店小秘 / 马帮导出文件与通用模板，自动识别列；单批最多 1000 行，文件不超过 10MB
               </p>
             </Upload.Dragger>
           </Space>
@@ -257,20 +323,94 @@ function ImportWizard({ writable }: { writable: boolean }) {
                 {parsed.fileName} · 共 {parsed.totalRows} 行
               </Typography.Text>
             </Space>
+            {needsShop && (
+              <Space wrap>
+                <Typography.Text>
+                  归属店铺<Typography.Text type="danger">*</Typography.Text>：
+                </Typography.Text>
+                <Select
+                  style={{ minWidth: 240 }}
+                  placeholder="请选择归属店铺"
+                  value={shopId || undefined}
+                  onChange={(v) => setShopId(v)}
+                  showSearch
+                  optionFilterProp="label"
+                  options={shops.map((s) => ({ value: s.id, label: s.shopName }))}
+                  notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可选店铺" />}
+                />
+              </Space>
+            )}
             <Space wrap>
-              <Typography.Text>
-                归属店铺<Typography.Text type="danger">*</Typography.Text>：
-              </Typography.Text>
+              <Typography.Text>映射方案：</Typography.Text>
               <Select
-                style={{ minWidth: 240 }}
-                placeholder="请选择归属店铺"
-                value={shopId || undefined}
-                onChange={(v) => setShopId(v)}
-                showSearch
-                optionFilterProp="label"
-                options={shops.map((s) => ({ value: s.id, label: s.shopName }))}
-                notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可选店铺" />}
+                style={{ minWidth: 220 }}
+                placeholder={presets.length > 0 ? '选择已保存的映射方案' : '暂无已保存方案'}
+                allowClear
+                value={selectedPresetId}
+                onChange={(id?: string) => {
+                  setSelectedPresetId(id);
+                  const p = presets.find((x) => x.id === id);
+                  if (p) {
+                    setMapping(p.mapping || {});
+                    message.success(`已套用映射方案「${p.name}」`);
+                  }
+                }}
+                options={presets.map((p) => ({ value: p.id, label: p.name }))}
+                notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无已保存方案" />}
               />
+              <Input
+                style={{ width: 180 }}
+                placeholder="方案名称（如：店小秘库存）"
+                value={presetName}
+                maxLength={64}
+                onChange={(e) => setPresetName(e.target.value)}
+              />
+              <Button
+                loading={savingPreset}
+                onClick={async () => {
+                  if (!presetName.trim()) {
+                    message.warning('请先填写方案名称');
+                    return;
+                  }
+                  setSavingPreset(true);
+                  try {
+                    await saveImportMappingPreset({
+                      kind,
+                      name: presetName.trim(),
+                      columns: parsed.columns,
+                      mapping,
+                    });
+                    message.success('映射方案已保存，下次导入可直接套用');
+                    setPresetName('');
+                    loadPresets(kind);
+                  } catch (e) {
+                    message.error(e instanceof Error ? e.message : '保存失败');
+                  } finally {
+                    setSavingPreset(false);
+                  }
+                }}
+              >
+                保存当前映射
+              </Button>
+              {selectedPresetId && (
+                <Popconfirm
+                  title="删除映射方案"
+                  description={`删除方案「${presets.find((p) => p.id === selectedPresetId)?.name ?? ''}」？`}
+                  onConfirm={() =>
+                    deleteImportMappingPreset(selectedPresetId)
+                      .then(() => {
+                        message.success('已删除');
+                        setSelectedPresetId(undefined);
+                        loadPresets(kind);
+                      })
+                      .catch((e) => message.error(e instanceof Error ? e.message : '删除失败'))
+                  }
+                >
+                  <Button danger type="text" size="small">
+                    删除方案
+                  </Button>
+                </Popconfirm>
+              )}
             </Space>
             <Table
               size="small"
@@ -336,11 +476,7 @@ function ImportWizard({ writable }: { writable: boolean }) {
               type={validated.errorRows === 0 ? 'success' : 'warning'}
               showIcon
               message={`共 ${validated.totalRows} 行：可导入 ${validated.validRows} 行，存在问题 ${validated.errorRows} 行`}
-              description={
-                kind === 'order'
-                  ? `将合并为 ${validated.groupCount} 个订单；有问题的行不会入库`
-                  : `将创建 ${validated.groupCount} 个商品草稿；有问题的行不会入库`
-              }
+              description={GROUP_DESC[kind](validated.groupCount)}
             />
             {validated.errors.length > 0 && (
               <Table
@@ -450,6 +586,8 @@ function ImportHistory({ onGoWizard }: { onGoWizard: () => void }) {
           { label: '全部', value: '' },
           { label: '商品', value: 'product' },
           { label: '订单', value: 'order' },
+          { label: '库存期初', value: 'inventory' },
+          { label: '货源档案', value: 'source' },
         ]}
         optionType="button"
       />
@@ -471,7 +609,7 @@ function ImportHistory({ onGoWizard }: { onGoWizard: () => void }) {
         }}
         locale={{
           emptyText: (
-            <Empty description="暂无导入记录，从导入向导上传店小秘 / 马帮导出文件开始迁移">
+            <Empty description="暂无导入记录，从导入向导上传店小秘 / 马帮导出文件或通用模板开始迁移">
               <Button type="primary" onClick={onGoWizard}>
                 去导入向导
               </Button>
@@ -595,6 +733,72 @@ function ImportHistory({ onGoWizard }: { onGoWizard: () => void }) {
   );
 }
 
+function ExportCenter() {
+  const [downloading, setDownloading] = useState<ImportKind | null>(null);
+  const EXPORT_DESC: Record<ImportKind, string> = {
+    product: '全部商品草稿，每个 SKU 一行，含售价 / 成本 / 库存与商品币种',
+    order: '全部订单，每个商品行一行，含订单币种与金额口径',
+    inventory: '全部 SKU 库存，按仓库逐行展开，含默认仓与各仓库存',
+    source: '全部货源档案与 SKU 映射，含供应商 / 链接 / 参考价',
+  };
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Alert
+        type="info"
+        showIcon
+        message="数据搬出"
+        description="四类数据均可全量导出为 CSV（UTF-8，Excel 可直接打开），列口径与导入模板兼容，便于迁入其他系统。"
+      />
+      <Table
+        size="small"
+        rowKey="kind"
+        pagination={false}
+        scroll={{ x: 'max-content' }}
+        dataSource={IMPORT_KINDS.map((k) => ({ kind: k }))}
+        columns={[
+          {
+            title: '数据类型',
+            dataIndex: 'kind',
+            width: 140,
+            render: (k: ImportKind) => <Tag color="blue">{KIND_LABEL[k]}</Tag>,
+          },
+          {
+            title: '导出内容',
+            dataIndex: 'kind',
+            key: 'desc',
+            render: (k: ImportKind) => EXPORT_DESC[k],
+          },
+          {
+            title: '操作',
+            dataIndex: 'kind',
+            key: 'ops',
+            width: 160,
+            render: (k: ImportKind) => (
+              <Button
+                size="small"
+                icon={<DownloadOutlined />}
+                loading={downloading === k}
+                onClick={async () => {
+                  setDownloading(k);
+                  try {
+                    await downloadExportCsv(k);
+                  } catch (e) {
+                    message.error(e instanceof Error ? e.message : '导出失败');
+                  } finally {
+                    setDownloading(null);
+                  }
+                }}
+              >
+                导出 CSV
+              </Button>
+            ),
+          },
+        ]}
+      />
+    </Space>
+  );
+}
+
 export default function MigrationImportPage() {
   const { initialState } = useModel('@@initialState') as {
     initialState?: { currentUser?: API.CurrentUser };
@@ -606,7 +810,10 @@ export default function MigrationImportPage() {
   const [activeTab, setActiveTab] = useState('wizard');
 
   return (
-    <TmPageContainer title="迁移导入" subTitle="从店小秘 / 马帮导出文件导入存量商品与历史订单">
+    <TmPageContainer
+      title="数据搬家"
+      subTitle="支持店小秘 / 马帮与通用模板导入商品、订单、库存期初、货源档案，并可全量导出"
+    >
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
@@ -617,6 +824,7 @@ export default function MigrationImportPage() {
             label: '导入历史',
             children: <ImportHistory onGoWizard={() => setActiveTab('wizard')} />,
           },
+          { key: 'export', label: '数据导出', children: <ExportCenter /> },
         ]}
       />
     </TmPageContainer>

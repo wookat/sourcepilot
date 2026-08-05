@@ -285,6 +285,45 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/imports/templates/:kind",
+      "auth": true,
+      "responseData": "CSV"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/export/:kind",
+      "auth": true,
+      "responseData": "CSV"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/mappings",
+      "auth": true,
+      "query": [
+        "kind"
+      ],
+      "responseData": "ImportMappingPresetList"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/mappings",
+      "auth": true,
+      "requestBody": [
+        "kind",
+        "name",
+        "columns",
+        "mapping"
+      ],
+      "responseData": "ImportMappingPreset"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/imports/mappings/:id",
+      "auth": true,
+      "responseData": "{ deleted }"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/reports/profit",
       "auth": true,
       "query": [

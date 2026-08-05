@@ -14,15 +14,18 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
-// Service implements the migration import flows on top of the product and
-// order module services (scope checks and persistence reuse their logic).
+// Service implements the migration import flows on top of the product,
+// order and sourcing module services (scope checks and persistence reuse
+// their logic).
 type Service struct {
 	DB       *gorm.DB
 	Products *product.Service
 	Orders   *order.Service
+	Sourcing *sourcing.Service
 	OpLog    *operationlog.Service
 }
 
@@ -79,13 +82,17 @@ type JobDTO struct {
 
 func normalizeKind(kind string) (string, error) {
 	switch strings.TrimSpace(kind) {
-	case KindProduct:
-		return KindProduct, nil
-	case KindOrder:
-		return KindOrder, nil
+	case KindProduct, KindOrder, KindInventory, KindSource:
+		return strings.TrimSpace(kind), nil
 	default:
-		return "", fmt.Errorf("kind 需为 product 或 order")
+		return "", fmt.Errorf("kind 需为 product、order、inventory 或 source")
 	}
+}
+
+// kindNeedsShop reports whether an import kind is shop-scoped. Inventory and
+// source-archive imports are tenant-level (SKU / supplier data has no shop).
+func kindNeedsShop(kind string) bool {
+	return kind == KindProduct || kind == KindOrder
 }
 
 func normalizeSourceFormat(v string) string {
@@ -160,18 +167,29 @@ func (s *Service) Validate(c *gin.Context, body WizardBody) (*ValidateResult, er
 	if err := body.validateShape(); err != nil {
 		return nil, err
 	}
-	if _, err := s.resolveShop(c, body.ShopID); err != nil {
-		return nil, err
+	if kindNeedsShop(kind) {
+		if _, err := s.resolveShop(c, body.ShopID); err != nil {
+			return nil, err
+		}
 	}
 	res := &ValidateResult{TotalRows: len(body.Rows)}
-	if kind == KindProduct {
+	switch kind {
+	case KindProduct:
 		products, errs := BuildProducts(body.Columns, body.Rows, body.Mapping)
 		res.Errors = errs
 		res.GroupCount = len(products)
-	} else {
+	case KindOrder:
 		orders, errs := BuildOrders(body.Columns, body.Rows, body.Mapping)
 		res.Errors = errs
 		res.GroupCount = len(orders)
+	case KindInventory:
+		rows, errs := BuildInventoryRows(body.Columns, body.Rows, body.Mapping)
+		res.Errors = errs
+		res.GroupCount = len(rows)
+	case KindSource:
+		rows, errs := BuildSourceRows(body.Columns, body.Rows, body.Mapping)
+		res.Errors = errs
+		res.GroupCount = len(rows)
 	}
 	if res.Errors == nil {
 		res.Errors = []RowError{}
@@ -195,9 +213,12 @@ func (s *Service) Commit(c *gin.Context, body WizardBody, adminID *uuid.UUID) (*
 	if strings.TrimSpace(body.FileHash) == "" {
 		return nil, fmt.Errorf("fileHash is required")
 	}
-	shopID, err := s.resolveShop(c, body.ShopID)
-	if err != nil {
-		return nil, err
+	var shopID *uuid.UUID
+	if kindNeedsShop(kind) {
+		shopID, err = s.resolveShop(c, body.ShopID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
@@ -234,14 +255,23 @@ func (s *Service) Commit(c *gin.Context, body WizardBody, adminID *uuid.UUID) (*
 		}
 	}
 
-	if kind == KindProduct {
+	switch kind {
+	case KindProduct:
 		products, errs := BuildProducts(body.Columns, body.Rows, body.Mapping)
 		appendErrors(errs)
 		s.commitProducts(c, job, &errorRows, body, products, adminID)
-	} else {
+	case KindOrder:
 		orders, errs := BuildOrders(body.Columns, body.Rows, body.Mapping)
 		appendErrors(errs)
 		s.commitOrders(c, job, &errorRows, body, orders, adminID)
+	case KindInventory:
+		rows, errs := BuildInventoryRows(body.Columns, body.Rows, body.Mapping)
+		appendErrors(errs)
+		s.commitInventory(c, job, &errorRows, body, rows, adminID)
+	case KindSource:
+		rows, errs := BuildSourceRows(body.Columns, body.Rows, body.Mapping)
+		appendErrors(errs)
+		s.commitSources(c, job, &errorRows, body, rows, adminID)
 	}
 
 	switch {
@@ -475,8 +505,8 @@ func (s *Service) ListJobs(c *gin.Context, kind string, page, pageSize int) ([]J
 		return nil, 0, err
 	}
 	if k := strings.TrimSpace(kind); k != "" {
-		if k != KindProduct && k != KindOrder {
-			return nil, 0, fmt.Errorf("kind 需为 product 或 order")
+		if _, err := normalizeKind(k); err != nil {
+			return nil, 0, err
 		}
 		tx = tx.Where("kind = ?", k)
 	}
