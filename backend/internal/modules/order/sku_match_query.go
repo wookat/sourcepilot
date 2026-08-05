@@ -264,13 +264,17 @@ func (s *Service) BindOrderItemSKU(ctx context.Context, in BindOrderItemSKUInput
 	return &out, nil
 }
 
-// GetOrderItemByID loads a single order line.
+// GetOrderItemByID loads a single order line. The parent order must belong to
+// the request tenant and be within the caller's store grants.
 func (s *Service) GetOrderItemByID(c *gin.Context, itemID uuid.UUID) (*OrderItem, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
 	var it OrderItem
 	if err := s.DB.WithContext(c.Request.Context()).First(&it, "id = ?", itemID).Error; err != nil {
+		return nil, err
+	}
+	if _, err := s.findOrderBare(c, it.OrderID); err != nil {
 		return nil, err
 	}
 	return &it, nil

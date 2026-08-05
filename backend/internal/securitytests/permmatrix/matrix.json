@@ -5284,5 +5284,406 @@
       "operator": "allow",
       "readonly": "forbid"
     }
+  },
+  {
+    "method": "GET",
+    "path": "/healthz",
+    "public": true,
+    "note": "健康检查：无鉴权公开端点，仅返回依赖健康状态，不含租户数据"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/customer-service/reply-templates",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/customer-service/reply-templates",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/customer-service/reply-templates/reorder",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/customer-service/reply-templates/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/customer-service/reply-templates/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/customer/reply-templates",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/customer/reply-templates",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/customer/reply-templates/reorder",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/customer/reply-templates/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/customer/reply-templates/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/profit",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/profit/export.csv",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/procurement",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/inventory",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/waybill-templates",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/waybill-templates",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/waybill-templates/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/waybill-templates/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/shipping-rules",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/shipping-rules",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/shipping-rules/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/shipping-rules/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/shipping-rules/recommend",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    },
+    "note": "发货规则试算：纯计算例外——POST 仅承载参数不落业务数据，round117 起列入 readonly 白名单（与 pricing/calculate 同口径）"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/warehouses",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/warehouses/summary",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/warehouses/migration-preview",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/sku-warehouse-stocks",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/warehouses",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/inventory/warehouses/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/warehouses/:id/set-default",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/inventory/warehouses/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/transfers",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    },
+    "note": "仓间调拨写路径：readonly 403；调出/调入仓与 SKU 均按 tenant_id 强校验"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/orders/print/mark",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/orders/shipping-recommendations",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    },
+    "note": "发货推荐：纯计算例外——不落业务数据，round117 起列入 readonly 白名单；订单解析仍受店铺授权范围限制（readonly 无店铺授权时解析不到任何订单）"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/imports/mappings",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/imports/mappings",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/imports/mappings/:id",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/imports/templates/:kind",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    },
+    "note": "导入模板 CSV：仅表头与示例行，不含租户数据"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/imports/export/:kind",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    },
+    "note": "数据导出 CSV：租户 + 店铺 scope 在查询内应用，公式前缀由 csvsafe 中和"
   }
 ]

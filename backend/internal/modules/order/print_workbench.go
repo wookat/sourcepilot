@@ -184,15 +184,21 @@ func (s *Service) lookupRecommendationOrder(c *gin.Context, tid int64, it Shippi
 		if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, id); err != nil {
 			return nil, "没有找到该订单"
 		}
+		if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
+			return nil, "没有找到该订单"
+		}
 		return &o, ""
 	}
 	no := strings.TrimSpace(it.OrderNo)
 	if no == "" {
 		return nil, "缺少订单 ID 或订单号"
 	}
+	tx, err := adminperm.ApplyStoreScope(c, s.DB, s.DB.WithContext(c.Request.Context()).Model(&Order{}), "shop_id")
+	if err != nil {
+		return nil, "查询订单失败"
+	}
 	var orders []Order
-	if err := s.DB.WithContext(c.Request.Context()).
-		Where("tenant_id = ? AND order_no = ?", tid, no).Limit(2).Find(&orders).Error; err != nil {
+	if err := tx.Where("tenant_id = ? AND order_no = ?", tid, no).Limit(2).Find(&orders).Error; err != nil {
 		return nil, "查询订单失败"
 	}
 	switch len(orders) {

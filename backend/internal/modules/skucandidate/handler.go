@@ -27,6 +27,15 @@ func (h *Handler) GetByItem(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid itemId")
 		return
 	}
+	oid, err := h.Svc.OrderIDForItem(c, iid)
+	if err != nil {
+		response.Fail(c, 404, response.CodeNotFound, "not found")
+		return
+	}
+	if err := h.Svc.EnsureOrderVisible(c, oid); err != nil {
+		response.Fail(c, 404, response.CodeNotFound, "not found")
+		return
+	}
 	limit := atoiCandidateQuery(c.Query("limit"), 10)
 	if limit > 20 {
 		limit = 20
@@ -54,6 +63,10 @@ func (h *Handler) PostBatch(c *gin.Context) {
 	oid, err := uuid.Parse(oidStr)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid order id")
+		return
+	}
+	if err := h.Svc.EnsureOrderVisible(c, oid); err != nil {
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
 		return
 	}
 	var body BatchRequest

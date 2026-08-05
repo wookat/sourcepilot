@@ -1672,3 +1672,24 @@ Final Production Acceptance Deferred to P10
 - **seed verify 软删除口径**（UX v6 P2-2）：`VerifyClean` 各表检查拆分 live（`deleted_at IS NULL`，计入残留）与 soft-deleted（单独上报 `softDeleted` 字段，不计残留）；`seeddemo verify` 仅对 live 残留失败，软删除历史残留以 stderr note 提示。回归 `TestVerifyCleanIgnoresSoftDeletedResidue`。
 - **权限空态与 404 语义分离**（UX v6 P2-3）：`RouteAccessGuard` 无权限改为「暂无访问权限」+ 联系管理员开通权限/授权店铺引导（403 Result），`404.tsx` 改为「页面不存在」纯 404 语义，不再共用「页面不存在，或当前账号无权访问」混合文案；单测覆盖无权限/真实 404/有权限/未登录四态，相关 E2E 文案同步。
 - **顺带（#240 已合入 main）**：移动首页快捷入口新增「审单工作台」（`/orders/review`，按 `ORDER_VIEW` 权限显隐；`menuAccess` 补该路由权限映射），round113-mobile-h5 E2E 断言补充。
+
+### 变更记录（2026-08-05）第 117 轮：R116 审计 P2×8 批次收口（fullstack-engineer）
+
+逐条处理 R116 审计 P2 / 观察清单 8 项（详见 `docs/permission-matrix.md` round117）：
+
+- **部分修（1 依赖通告）**：`pnpm.overrides` / `pnpm-workspace.yaml` 补 `isomorphic-fetch>node-fetch → 2.6.7`（作用域覆盖，仅替换 dva → isomorphic-fetch 传递的 1.7.3；浏览器包不含 node-fetch，@umijs/test 的 node-fetch 3 不受影响；覆盖唯一一条运行时 high「secure headers 转发」通告）。`react-router 6.30.2` 覆盖已实测并放弃：6.30.x 引入 `@remix-run/router` 新增 1 high + 3 moderate 通告（其 7.x 才修复），净变差，维持 6.3.0 并登记已知风险。`build:admin`、`test:frontend`、`test:contracts` 全绿。
+- **已修（2 只读试算口径）**：`shipping-rules/recommend`、`orders/shipping-recommendations` 入只读白名单，矩阵同步 `readonly: allow`。
+- **已修（4 映射列上界）**：`import_mapping_presets` 保存时校验列数与列索引 `0 ≤ idx < MaxMappingColumns(200)`，回归 `TestMappingPresetColumnBounds`。
+- **已修（8 通用契约测试）**：permmatrix 新增 `TestOrderByIDWriteStoreScope`（按 id 取单再写路径全覆盖 + 完整性检查），并修复其暴露的 4 处数据级缺口（`DELETE /orders/:id` 跨租户可删单、`match-skus` / `deduct-inventory` / `restore-inventory` 裸 id 执行、`bind-sku` 与 sku-candidates 订单行无租户/店铺条件）。
+- **已知风险登记（不修 / 观察）**：
+  - （1 余项）`react-router 6.3.0` 两条 moderate（外部/反斜杠跳转）：6.x 线内升级实测净变差（见上），彻底修复需 RR 7（umi 4 不兼容，大版本冒进，不做）；`vite` / `esbuild` / `send` / `hono` / `@hono/node-server` 均为构建或本地 dev server 依赖（经 `@utoo/pack` / `@umijs/test` 传递），不进产物、不对外网监听，接受；`elliptic` 无修复版本（patched `<0.0.0`），构建期传递依赖，接受。跟进条件：umi 官方升级内部固定版本或发布兼容 patch 时复评。
+  - （3 打单页眉页脚）当前仍为 JSX 纯文本渲染，无 XSS 面；若未来改 HTML 渲染必须引入净化白名单（登记为变更前置条件）。
+  - （5 check-batch 日志灌水）每请求一条操作日志，受全局限流（20 r/s burst 40）约束，日志表可清理，低风险接受；如放量再加端点级频控。
+  - （6 迁移预览租户级口径）库存/仓库为租户级资源，`migration-preview` 与现有库存口径一致，不按店铺收敛，维持现状。
+  - （7 `order_review_hits`）仍未在任何列表接口暴露，无缺口；后续若开放查询须补店铺 scope（与 F-1 同类，登记为开放前置条件）。
+
+### 变更记录（2026-08-05）第 116 轮：R116 安全审计依赖补丁（security-auditor）
+
+- 前端构建链 `pnpm.overrides` / `pnpm-workspace.yaml` 补 `axios 0.33.0`、`immer 9.0.21`（两者均为 `@umijs/plugins` 传递依赖，仓库未直接声明）：`pnpm audit --prod` critical 1→0、high 14→3、moderate 21→9、low 5→4；`axios` 覆盖 SSRF / 代理绕过 / 原型污染 / 头注入 / 凭据泄露等 9 条通告，`immer` 覆盖唯一一条 critical 原型污染。`pnpm build:admin`、`pnpm test:frontend`（41 套 283 用例）、`pnpm test:contracts` 全绿。
+- 未处理并列入 P2（均为构建期或框架内部固定版本，补丁需跨大版本或与 umi 4 绑定）：`react-router 6.3.0`（umi 4 内部固定）、`node-fetch 1.7.3`（dva → isomorphic-fetch 传递）、`vite` / `esbuild`（devDependencies）、`send`、`elliptic`、`hono` / `@hono/node-server`。
+- `govulncheck ./...`：0 命中（另有 1 条仅存在于 require 图、代码未调用）。

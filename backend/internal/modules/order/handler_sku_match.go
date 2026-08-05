@@ -64,6 +64,14 @@ func (h *Handler) PostMatchOrderSKUs(c *gin.Context) {
 	}
 	var body matchSkusBody
 	_ = c.ShouldBindJSON(&body)
+	if _, err := h.Svc.findOrderBare(c, oid); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
 	sum, err := h.Svc.MatchOrderItemsForOrder(c.Request.Context(), oid, MatchOrderItemsOptions{
 		Overwrite: body.Overwrite,
 		Force:     body.Force,
