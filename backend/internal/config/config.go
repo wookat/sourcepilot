@@ -41,6 +41,13 @@ type Config struct {
 	// UploadMaxMB limits multipart image uploads (default 10 MB).
 	UploadMaxMB int
 
+	// MCPEnabled gates the read-only MCP entry at POST /api/mcp (default on).
+	MCPEnabled bool
+	// MCPRateRPS is the per-token sustained request rate for MCP calls (default 5).
+	MCPRateRPS int
+	// MCPRateBurst is the per-token burst allowance for MCP calls (default 10).
+	MCPRateBurst int
+
 	// CollectorBaseURL is the Node collector HTTP base (e.g. http://127.0.0.1:3100).
 	CollectorBaseURL string
 	// CollectorTimeoutSeconds caps outbound HTTP calls to the collector (default 60).
@@ -246,6 +253,10 @@ func Load() (*Config, error) {
 		BootstrapAdminTenantID: int64(atoiOrDefault(os.Getenv("ADMIN_BOOTSTRAP_TENANT_ID"), 0)),
 
 		UploadMaxMB: atoiOrDefault(os.Getenv("UPLOAD_MAX_MB"), 10),
+
+		MCPEnabled:   envBool(os.Getenv("MCP_ENABLED"), true),
+		MCPRateRPS:   atoiOrDefault(os.Getenv("MCP_RATE_RPS"), 5),
+		MCPRateBurst: atoiOrDefault(os.Getenv("MCP_RATE_BURST"), 10),
 
 		CollectorBaseURL:        strings.TrimRight(strings.TrimSpace(firstNonEmpty(os.Getenv("COLLECTOR_BASE_URL"), "http://127.0.0.1:3100")), "/"),
 		CollectorTimeoutSeconds: atoiOrDefault(os.Getenv("COLLECTOR_TIMEOUT_SECONDS"), 120),

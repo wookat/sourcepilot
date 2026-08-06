@@ -45,6 +45,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventorysyncp9"
+	"github.com/trademind-ai/trademind/backend/internal/modules/mcpserver"
+	"github.com/trademind-ai/trademind/backend/internal/modules/mcptoken"
 	"github.com/trademind-ai/trademind/backend/internal/modules/migrationimport"
 	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
@@ -795,6 +797,20 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
 	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)
+
+	// MCP read-only entry: tenant API token management + POST /api/mcp endpoint.
+	mcpTokenSvc := &mcptoken.Service{DB: dep.DB}
+	mcptoken.Register(authed, &mcptoken.Handler{Svc: mcpTokenSvc, OpLog: opLogSvc})
+	if dep.Config == nil || dep.Config.MCPEnabled {
+		mcpDeps := &mcpserver.Deps{DB: dep.DB, Tokens: mcpTokenSvc, Exceptions: excSvc}
+		if dep.Config != nil {
+			mcpDeps.RateRPS = float64(dep.Config.MCPRateRPS)
+			mcpDeps.RateBurst = dep.Config.MCPRateBurst
+			mcpDeps.Version = dep.Config.AppVersion
+		}
+		r.POST("/api/mcp", mcpserver.GinHandler(mcpDeps))
+	}
+
 	ordersync.Register(authed, orderSyncH)
 	customersync.Register(authed, customerSyncH)
 	customerchat.Register(authed, customerChatH)

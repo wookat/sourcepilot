@@ -606,6 +606,11 @@ export default [
         component: './Settings/Security',
       },
       {
+        path: '/settings/mcp-tokens',
+        name: 'MCP 只读接入',
+        component: './Settings/McpTokens',
+      },
+      {
         path: '/settings/email',
         name: '邮箱设置',
         component: './Settings/Email',

@@ -1827,3 +1827,9 @@ Final Production Acceptance Deferred to P10
 - **测试**：改 `TestExportDailyStatsCSV`/`TestExportDailyStatsCSVConvertedColumns` 断言为「未折算」；`TestProfitCSVExport` 补无汇率行断言；新增 `TestFinanceCSVUnconvertedExplicit`（report/reconciliation CSV 双导出列级断言，含「0.00 不误标」「店铺月费留空」负口径）。`docs/api.md` 四处导出说明同步。
 - **杂项巡检（R132–R136 合入面）**：`check:ui-copy --strict` 通过、无 console.log 残留、订单标签/自动化规则页空态含引导文案；无低成本待修项，无新增登记项。
 - **门禁**：go 全套 + vet + gofmt、contracts 15、frontend 327、build:admin、ui-copy strict、E2E（orders-reports / round110-deep-reports / round121-finance 共 22 条）全绿。基于 #284（未合并）本地叠加。
+
+### 变更记录（2026-08-06）第 144 轮线1：MCP 只读入口（fullstack-engineer）
+
+- **MCP 只读 server 入口**：官方 Go SDK（Streamable HTTP，stateless）挂载 `POST /api/mcp`，暴露 4 个只读工具（订单查询/库存查询/经营摘要/异常待办），全部强制租户 scope，输出脱敏，无任何写操作。
+- **租户级只读 API token**：`mcp_api_tokens`（SHA-256 哈希存储、明文仅创建返回一次、脱敏展示、吊销幂等、操作日志、每 token 限流），设置页新增「MCP 只读接入」；权限矩阵登记 4 条。
+- 详见 `docs/progress/R144.md` 与 `docs/mcp.md`。
