@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/bannedwords"
 	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/finance"
@@ -915,6 +916,16 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- 采集规则演示：启用/停用自定义规则样本（Round 135）----
+	if err := s.seedRound135CollectRules(tx, res); err != nil {
+		return err
+	}
+
+	// ---- 订单标签演示：租户标签 + 打标样本 + 自动打标签规则（Round 135）----
+	if err := s.seedRound135OrderTags(tx, res, shops); err != nil {
+		return err
+	}
+
 	// ---- 买家自动消息演示：节点规则 + 待发/已发送/已忽略草稿样本（Round 119）----
 	if err := s.seedRound119BuyerMessages(tx, res, now, shops); err != nil {
 		return err
@@ -1059,6 +1070,9 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			return err
 		}
 		if len(orderIDs) > 0 {
+			if err := del("order_tag_links", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderTagLink{})); err != nil {
+				return err
+			}
 			if err := del("order_review_hits", tx.Unscoped().Where("order_id IN ?", orderIDs).Delete(&order.OrderReviewHit{})); err != nil {
 				return err
 			}
@@ -1089,6 +1103,23 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			return err
 		}
 		if err := del("order_automation_rules", tx.Unscoped().Where("name LIKE ?", like).Delete(&order.OrderAutomationRule{})); err != nil {
+			return err
+		}
+
+		var demoTagIDs []uuid.UUID
+		if err := tx.Model(&order.OrderTag{}).Unscoped().Where("name LIKE ?", like).Pluck("id", &demoTagIDs).Error; err != nil {
+			return err
+		}
+		if len(demoTagIDs) > 0 {
+			if err := del("order_tag_links", tx.Unscoped().Where("tag_id IN ?", demoTagIDs).Delete(&order.OrderTagLink{})); err != nil {
+				return err
+			}
+			if err := del("order_tags", tx.Unscoped().Where("id IN ?", demoTagIDs).Delete(&order.OrderTag{})); err != nil {
+				return err
+			}
+		}
+
+		if err := del("collect_rules", tx.Unscoped().Where("name LIKE ?", like).Delete(&collectrule.CollectRule{})); err != nil {
 			return err
 		}
 
@@ -1477,6 +1508,31 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 				Where("rule_name LIKE ? OR order_id IN (?)", like,
 					tx.Model(&order.Order{}).Unscoped().Select("id").Where("order_no LIKE ?", like)).
 				Count(&n).Error
+		}},
+		{table: "order_tags", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("order_tags") {
+				return 0, nil
+			}
+			return n, tx.Model(&order.OrderTag{}).Where("name LIKE ?", like).Count(&n).Error
+		}},
+		{table: "order_tag_links", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("order_tag_links") {
+				return 0, nil
+			}
+			return n, tx.Model(&order.OrderTagLink{}).
+				Where("tag_id IN (?) OR order_id IN (?)",
+					tx.Model(&order.OrderTag{}).Unscoped().Select("id").Where("name LIKE ?", like),
+					tx.Model(&order.Order{}).Unscoped().Select("id").Where("order_no LIKE ?", like)).
+				Count(&n).Error
+		}},
+		{table: "collect_rules", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("collect_rules") {
+				return 0, nil
+			}
+			return n, tx.Model(&collectrule.CollectRule{}).Where("name LIKE ?", like).Count(&n).Error
 		}},
 		{table: "order_exception_marks", count: func() (int64, error) {
 			var n int64

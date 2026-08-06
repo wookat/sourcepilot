@@ -1778,3 +1778,10 @@ Final Production Acceptance Deferred to P10
 - **全站 CSV 导出隐性行上限扫描**：同类问题命中报表毛利导出——`reports.ExportProfitCSV` 原复用页面 `profitMaxRows=500` 截断，同口径改为全量（`profitReport(..., maxRows=0)` + 订单维度 keyset 分批加载）。其余导出登记为有意上限：商品刊登导出 50（显式勾选批量上限，超限 400）、数据搬家导出 `MaxExportRows=50000`（防御性上限，已分批实现且有注释说明）、订单发货/采购导出为显式勾选 ID 集合、日报导出按天聚合，均无隐性报表级截断。
 - **PERF 实测（万级 seed，10000 订单/6999 已付款）**：对账导出 `?days=120` 全量 6999 数据行 + 表头，耗时 0.56s；毛利订单维度导出 6999 行耗时 0.42s；行数=DB 计数（6999），随机抽样 3 单应收/已回款与 DB 逐值一致；页面接口维持 500 行 + `truncated=true` 且汇总仍覆盖全量（orderCount=6999）。`seedperf clean` + `verify` 零 PERF- 残留。
 - **测试**：新增 `TestReconciliationCSVFullExport` / `TestProfitCSVExportFullRows`（1005 单：页面 500 截断、CSV 全量无重复、跨 keyset 批次边界）。门禁：go 全套（52 包）、contracts 15、frontend、build:admin、`round121-finance` E2E 8 条通过（首跑 2 条冷启动超时，复跑全绿）。
+
+### 变更记录（2026-08-06）第 135 轮线1：R134 复评收口 + 订单自动打标签（fullstack-engineer）
+
+- **R134 复评收口①（DEMO-AT-1004 SKU 提示口径）**：订单详情「库存影响」阻断提示按实际规格匹配状态区分文案——`unmatched/unbound` 提示「SKU 未绑定」、`ambiguous` 提示「匹配歧义」（`inventoryBindBlockHint`），不再同时展示两种互斥提示；与列表/前置描述口径一致。
+- **R134 复评收口②（demo 采集规则样本）**：`seed:demo:full` 新增采集规则样本（开箱可见非空态），`clean`/`verify` 覆盖零残留，幂等可重复执行（单测覆盖）。
+- **订单标签（round135 新功能）**：新表 `order_tags`（租户级名称/颜色，租户内重名 400）+ `order_tag_links`（`(order_id, tag_id)` 唯一，来源 manual/automation）。API：标签 CRUD（`/api/v1/order-tags`）、订单打标/去标（`/orders/:id/tags`）、批量打标/去标（`/orders/batch-tags`，≤200 单，返回 applied/removed 幂等计数）；订单列表/详情返回 `tags`，列表支持 `?tagId=` 过滤（进 keyset 指纹）。自动化规则新增 `add_tag` 动作（`tagIds` 校验当前租户存在性；沿用条件引擎/幂等/执行日志/时间线/dry-run/审单闸门/tenant+shop scope 口径）。Admin：设置→订单标签管理页、订单列表标签列 + 按标签筛选（URL query 唯一来源，`tagId` 进 ALLOWED_QUERY_KEYS）、批量打标签、详情手工打标/去标、自动化规则表单配置标签；readonly 只读（写入口隐藏/禁用）。demo seed 补 3 个标签样本 + 订单打标 + `add_tag` 自动规则与成功日志。
+- **E2E**：新增 `round135-order-tags.spec.ts` 13 条——标签管理增删改、readonly 禁用、列表标签列/筛选 URL 写回与深链刷新、批量打标、详情手工打标/去标（含 readonly 无写入口）、自动化规则 add_tag 配置、五档视口无根节点横向溢出；全部非 GET 写请求显式拦截声明。

@@ -57,6 +57,12 @@ import {
   type OrderShipmentRow,
   type OrderSkuMatchRow,
 } from '@/services/orders';
+import {
+  addOrderTags,
+  listOrderTags,
+  removeOrderTag,
+  type OrderTagRow,
+} from '@/services/orderTags';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import { recommendForOrders } from '@/services/waybill';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
@@ -66,6 +72,7 @@ import {
   INVENTORY_DEDUCT_STATUS,
   INVENTORY_SKU_AMBIGUOUS_MESSAGE,
   INVENTORY_SKU_NOT_BOUND_MESSAGE,
+  inventoryBindBlockHint,
   inventoryTagFromMap,
 } from '@/constants/inventoryLabels';
 import { canWriteOrders } from '@/utils/orderPerm';
@@ -140,6 +147,8 @@ export default function OrderDetailPage() {
   const [relatedPOs, setRelatedPOs] = useState<PurchaseOrder[]>([]);
   const [genLoading, setGenLoading] = useState(false);
   const [genResult, setGenResult] = useState<GenerateResult | null>(null);
+  const [allTags, setAllTags] = useState<OrderTagRow[]>([]);
+  const [tagUpdating, setTagUpdating] = useState(false);
   const [automationRows, setAutomationRows] = useState<OrderAutomationLogRow[] | null>(null);
   const [automationLoading, setAutomationLoading] = useState(false);
   const [automationError, setAutomationError] = useState('');
@@ -230,6 +239,43 @@ export default function OrderDetailPage() {
       })
       .finally(() => setAutomationLoading(false));
   }, [activeTab, id, automationRows]);
+
+  useEffect(() => {
+    if (!writable) return;
+    void (async () => {
+      try {
+        setAllTags(await listOrderTags());
+      } catch {
+        /* 标签加载失败不阻塞详情 */
+      }
+    })();
+  }, [writable]);
+
+  const handleAddTag = async (tagId: string) => {
+    if (!detail) return;
+    setTagUpdating(true);
+    try {
+      const tags = await addOrderTags(detail.id, [tagId]);
+      setDetail({ ...detail, tags });
+    } catch (e) {
+      message.error((e as Error)?.message || '添加标签失败');
+    } finally {
+      setTagUpdating(false);
+    }
+  };
+
+  const handleRemoveTag = async (tagId: string) => {
+    if (!detail) return;
+    setTagUpdating(true);
+    try {
+      const tags = await removeOrderTag(detail.id, tagId);
+      setDetail({ ...detail, tags });
+    } catch (e) {
+      message.error((e as Error)?.message || '移除标签失败');
+    } finally {
+      setTagUpdating(false);
+    }
+  };
 
   const listSummary = useMemo(() => {
     if (!detail) return null;
@@ -450,6 +496,42 @@ export default function OrderDetailPage() {
                         </Descriptions.Item>
                         <Descriptions.Item label="履约状态">
                           {tagFromMap(detail.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="标签">
+                          <Space size={4} wrap>
+                            {(detail.tags || []).map((t) => (
+                              <Tag
+                                key={t.id}
+                                color={t.color === 'default' ? undefined : t.color}
+                                closable={writable && !tagUpdating}
+                                onClose={(e) => {
+                                  e.preventDefault();
+                                  void handleRemoveTag(t.id);
+                                }}
+                              >
+                                {t.name}
+                              </Tag>
+                            ))}
+                            {writable ? (
+                              <Select
+                                size="small"
+                                style={{ minWidth: 140 }}
+                                placeholder="添加标签"
+                                value={null}
+                                loading={tagUpdating}
+                                disabled={tagUpdating}
+                                showSearch
+                                optionFilterProp="label"
+                                options={allTags
+                                  .filter((t) => !(detail.tags || []).some((x) => x.id === t.id))
+                                  .map((t) => ({ value: t.id, label: t.name }))}
+                                notFoundContent="暂无可添加标签，可在「系统设置 → 订单标签」维护"
+                                onSelect={(v) => void handleAddTag(String(v))}
+                              />
+                            ) : (detail.tags || []).length === 0 ? (
+                              '—'
+                            ) : null}
+                          </Space>
                         </Descriptions.Item>
                         <Descriptions.Item label="金额">
                           {detail.currency} {detail.totalAmount}
@@ -738,7 +820,8 @@ export default function OrderDetailPage() {
                       message="SKU 未就绪，暂不能扣减库存"
                       description={
                         <>
-                          {INVENTORY_SKU_NOT_BOUND_MESSAGE} {INVENTORY_SKU_AMBIGUOUS_MESSAGE}{' '}
+                          {inventoryBindBlockHint(listSummary?.skuStatus) ||
+                            `${INVENTORY_SKU_NOT_BOUND_MESSAGE} ${INVENTORY_SKU_AMBIGUOUS_MESSAGE}`}{' '}
                           <Typography.Link onClick={() => setActiveTab('sku')}>前往规格匹配</Typography.Link>
                         </>
                       }

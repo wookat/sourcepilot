@@ -13,7 +13,8 @@ export type AutomationAction =
   | 'mark_printed'
   | 'notify_shipping'
   | 'apply_shipping_rule'
-  | 'assign_warehouse';
+  | 'assign_warehouse'
+  | 'add_tag';
 
 // 自动应用发货规则：仅推荐 / 直接应用（发货时均可人工改选）
 export type ShippingApplyMode = 'recommend' | 'apply';
@@ -47,6 +48,7 @@ export const AUTOMATION_ACTION_LABELS: Record<AutomationAction, string> = {
   notify_shipping: '自动通知发货工作台',
   apply_shipping_rule: '自动应用发货规则',
   assign_warehouse: '自动分仓',
+  add_tag: '自动打标签',
 };
 
 export const AUTOMATION_LOG_STATUS_LABELS: Record<AutomationLogStatus, string> = {
@@ -63,15 +65,22 @@ export const AUTOMATION_LOG_STATUS_COLORS: Record<AutomationLogStatus, string> =
 
 // 每个触发时机允许的动作（与后端 AutomationActionAllowed 对齐）
 export const AUTOMATION_EVENT_ACTIONS: Record<AutomationTriggerEvent, AutomationAction[]> = {
-  order_created: ['confirm_payment', 'mark_printed', 'apply_shipping_rule'],
-  order_paid: ['generate_procurement', 'mark_printed', 'apply_shipping_rule', 'assign_warehouse'],
+  order_created: ['confirm_payment', 'mark_printed', 'apply_shipping_rule', 'add_tag'],
+  order_paid: [
+    'generate_procurement',
+    'mark_printed',
+    'apply_shipping_rule',
+    'assign_warehouse',
+    'add_tag',
+  ],
   procurement_delivered: [
     'notify_shipping',
     'mark_printed',
     'apply_shipping_rule',
     'assign_warehouse',
+    'add_tag',
   ],
-  logistics_collected: ['notify_shipping', 'apply_shipping_rule'],
+  logistics_collected: ['notify_shipping', 'apply_shipping_rule', 'add_tag'],
 };
 
 export type OrderAutomationRuleRow = {
@@ -89,6 +98,7 @@ export type OrderAutomationRuleRow = {
   requireReviewPassed: boolean;
   shippingApplyMode?: ShippingApplyMode;
   warehouseStrategy?: WarehouseStrategy;
+  tagIds?: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -106,6 +116,7 @@ export type OrderAutomationRuleBody = {
   requireReviewPassed?: boolean;
   shippingApplyMode?: ShippingApplyMode;
   warehouseStrategy?: WarehouseStrategy;
+  tagIds?: string[];
   clearMinAmount?: boolean;
   clearMaxAmount?: boolean;
 };

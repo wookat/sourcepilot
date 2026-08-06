@@ -1,6 +1,7 @@
 package order
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -33,6 +34,7 @@ type AutomationRuleBody struct {
 	RequireReviewPassed *bool     `json:"requireReviewPassed"`
 	ShippingApplyMode   *string   `json:"shippingApplyMode"`
 	WarehouseStrategy   *string   `json:"warehouseStrategy"`
+	TagIDs              *[]string `json:"tagIds"`
 	ClearMinAmount      bool      `json:"clearMinAmount,omitempty"`
 	ClearMaxAmount      bool      `json:"clearMaxAmount,omitempty"`
 }
@@ -133,6 +135,18 @@ func applyAutomationRuleBody(row *OrderAutomationRule, body AutomationRuleBody, 
 		}
 		row.WarehouseStrategy = st
 	}
+	if body.TagIDs != nil {
+		ids := normalizeReviewStrings(*body.TagIDs)
+		for _, raw := range ids {
+			if _, err := uuid.Parse(raw); err != nil {
+				return fmt.Errorf("无效的标签 ID：%s", raw)
+			}
+		}
+		row.TagIDs = mustJSONList(ids)
+	}
+	if row.Action == AutomationActionAddTag && len(jsonStringList(json.RawMessage(row.TagIDs))) == 0 {
+		return fmt.Errorf("自动打标签动作必须选择至少一个标签")
+	}
 	if row.Action == AutomationActionApplyShippingRule && row.ShippingApplyMode == "" {
 		row.ShippingApplyMode = ShippingApplyModeRecommend
 	}
@@ -141,6 +155,27 @@ func applyAutomationRuleBody(row *OrderAutomationRule, body AutomationRuleBody, 
 	}
 	if row.Action == AutomationActionConfirmPayment && row.MaxAmount == nil {
 		return fmt.Errorf("自动确认付款属于低风险限定动作，必须配置金额上限")
+	}
+	return nil
+}
+
+// ensureRuleTagsExist validates the add_tag rule's TagIDs against the
+// tenant's order_tags (missing / cross-tenant ids are rejected).
+func (s *Service) ensureRuleTagsExist(c *gin.Context, tid int64, row *OrderAutomationRule) error {
+	if row.Action != AutomationActionAddTag {
+		return nil
+	}
+	ids := jsonStringList(json.RawMessage(row.TagIDs))
+	if len(ids) == 0 {
+		return fmt.Errorf("自动打标签动作必须选择至少一个标签")
+	}
+	var n int64
+	if err := s.DB.WithContext(c.Request.Context()).Model(&OrderTag{}).
+		Where("tenant_id = ? AND id IN ?", tid, ids).Count(&n).Error; err != nil {
+		return err
+	}
+	if n != int64(len(ids)) {
+		return fmt.Errorf("存在无效或已删除的标签，请重新选择")
 	}
 	return nil
 }
@@ -190,6 +225,9 @@ func (s *Service) CreateAutomationRule(c *gin.Context, body AutomationRuleBody, 
 			return nil, err
 		}
 	}
+	if err := s.ensureRuleTagsExist(c, tid, &row); err != nil {
+		return nil, err
+	}
 	wantEnabled := row.Enabled
 	if err := s.DB.WithContext(c.Request.Context()).Create(&row).Error; err != nil {
 		return nil, err
@@ -220,6 +258,9 @@ func (s *Service) UpdateAutomationRule(c *gin.Context, id uuid.UUID, body Automa
 		if err := adminperm.EnsureStoresOperable(c, s.DB, normalizeReviewStrings(*body.ShopIDs)); err != nil {
 			return nil, err
 		}
+	}
+	if err := s.ensureRuleTagsExist(c, row.TenantID, row); err != nil {
+		return nil, err
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Save(row).Error; err != nil {
 		return nil, err
@@ -296,6 +337,9 @@ func (s *Service) DryRunAutomationRule(c *gin.Context, body AutomationRuleBody) 
 		body.Name = "dry-run"
 	}
 	if err := applyAutomationRuleBody(&rule, body, true); err != nil {
+		return nil, err
+	}
+	if err := s.ensureRuleTagsExist(c, tid, &rule); err != nil {
 		return nil, err
 	}
 

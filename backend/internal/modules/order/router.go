@@ -26,6 +26,12 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	ar.PUT("/:ruleId", w, h.PutAutomationRule)
 	ar.DELETE("/:ruleId", w, h.DeleteAutomationRule)
 
+	ot := g.Group("/order-tags")
+	ot.GET("", h.GetOrderTags)
+	ot.POST("", w, h.PostOrderTag)
+	ot.PUT("/:tagId", w, h.PutOrderTag)
+	ot.DELETE("/:tagId", w, h.DeleteOrderTag)
+
 	al := g.Group("/order-automation-logs")
 	al.GET("", h.GetAutomationLogs)
 	al.POST("/:logId/retry", w, h.PostAutomationLogRetry)
@@ -50,6 +56,9 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	o.GET("/:id/sku-matches", h.GetOrderSKUMatches)
 	o.GET("/:id/automation-logs", h.GetOrderAutomationTrail)
 	o.POST("/:id/match-skus", w, h.PostMatchOrderSKUs)
+	o.POST("/:id/tags", w, h.PostOrderTagsAttach)
+	o.DELETE("/:id/tags/:tagId", w, h.DeleteOrderTagLink)
+	o.POST("/batch-tags", w, h.PostBatchOrderTags)
 
 	o.GET("/stats/sales", h.GetSalesStats)
 	o.GET("/stats/daily", h.GetDailyStats)
