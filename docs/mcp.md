@@ -21,8 +21,10 @@ TradeMind 提供一个符合 MCP（Model Context Protocol）标准的只读 serv
 安全性质：
 
 - token 与创建它的租户绑定，所有工具查询强制该租户范围；涉及店铺的数据只会返回该租户名下店铺的数据。
-- token 只有 `readonly` scope，不能调用任何写接口。
-- 每个 token 独立限流（默认 5 req/s、突发 10）。
+- token 只有 `readonly` scope，不能调用任何写接口；鉴权时强制校验 scope，非 `readonly` 的 token 行一律按无效处理。
+- token 不设自动过期：只能显式吊销（吊销即时生效）。请按用途拆分 token，不再使用时及时吊销。
+- 每个租户最多同时持有 20 个未吊销 token（超出时创建返回 400，需先吊销），因为每个 token 自带限流桶。
+- 三层限流：每 token（默认 5 req/s、突发 10）、每租户聚合（token 额度的 2 倍，防止多 token 叠加绕过）、每来源 IP 的鉴权失败预算（1 req/s、突发 10，仅失败请求计费，合法流量不受影响）。超限统一 `429`，envelope `code=42901`。
 - 输出经过脱敏：不含密钥、密码、内部 UUID，客户姓名只保留首字符。
 
 ## 只读工具列表
@@ -72,5 +74,6 @@ npx @modelcontextprotocol/inspector
 | 现象 | 处理 |
 | --- | --- |
 | `401 invalid or revoked token` | token 拼写错误、已吊销或未带 `Bearer` 前缀；到设置页重建 token |
-| `429 rate limit exceeded` | 触发每 token 限流，稍后重试或调大 `MCP_RATE_RPS` / `MCP_RATE_BURST` |
+| `429 rate limit exceeded`（`code=42901`） | 触发 token / 租户 / 鉴权失败任一限流；稍后重试或调大 `MCP_RATE_RPS` / `MCP_RATE_BURST`。连续使用无效 token 也会触发 |
+| `400 活跃 token 数量已达上限` | 该租户未吊销 token 已达 20 个，先到设置页吊销不再使用的 token |
 | `404`（入口不存在） | `MCP_ENABLED=false` 时入口不注册，确认环境变量后重启 backend |

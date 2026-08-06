@@ -80,6 +80,23 @@ func (l *LocalLimiter) Allow(ctx context.Context, rawKey string) Decision {
 	return Decision{Allowed: false, RetryAfter: l.policy.RetryHint, PolicyID: l.policy.ID, KeyHash: key}
 }
 
+// HasBudget reports whether the key currently has at least one token left,
+// without consuming it. Callers use it to reject work before doing it while
+// charging the bucket only for the outcome they want to limit.
+func (l *LocalLimiter) HasBudget(rawKey string) bool {
+	if l == nil {
+		return true
+	}
+	key := safeKey(rawKey)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	e := l.entries[key]
+	if e == nil {
+		return true
+	}
+	return e.lim.TokensAt(l.now()) >= 1
+}
+
 func (l *LocalLimiter) evictLocked(now time.Time) {
 	for k, e := range l.entries {
 		if now.Sub(e.lastSeen) > l.policy.TTL {

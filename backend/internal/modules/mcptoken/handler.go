@@ -106,6 +106,11 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	res, err := h.Svc.Create(c.Request.Context(), tid, body.Name, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, ErrTooManyTokens) {
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest,
+				"活跃 token 数量已达上限（20 个），请先吊销不再使用的 token")
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}

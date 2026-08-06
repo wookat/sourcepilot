@@ -5,6 +5,7 @@ package mcpserver
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +21,16 @@ import (
 
 // serverName identifies this MCP server to clients.
 const serverName = "sourcepilot-readonly"
+
+// tenantRateFactor is how much aggregate budget one tenant gets relative to a
+// single token, bounding the gain from spreading traffic over several tokens.
+const tenantRateFactor = 2
+
+// authFailRPS / authFailBurst bound rejected-credential attempts per client IP.
+const (
+	authFailRPS   = 1
+	authFailBurst = 10
+)
 
 // Deps wires the MCP entry into existing services.
 type Deps struct {
@@ -57,6 +68,25 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 		TTL:       10 * time.Minute,
 		RetryHint: time.Second,
 	})
+	// A tenant may hold several tokens, each with its own bucket; this bucket
+	// caps what one tenant can consume in aggregate.
+	tenantLimiter := ratelimit.NewLocalLimiter(ratelimit.Policy{
+		ID:        "mcp_readonly_tenant",
+		Rate:      rate.Limit(rps * tenantRateFactor),
+		Burst:     burst * tenantRateFactor,
+		TTL:       10 * time.Minute,
+		RetryHint: time.Second,
+	})
+	// Authentication failures are bounded per client IP: the per-token bucket
+	// can only apply after a token resolves, so unauthenticated callers would
+	// otherwise get unlimited token-hash lookups.
+	authFailLimiter := ratelimit.NewLocalLimiter(ratelimit.Policy{
+		ID:        "mcp_readonly_authfail",
+		Rate:      rate.Limit(authFailRPS),
+		Burst:     authFailBurst,
+		TTL:       10 * time.Minute,
+		RetryHint: time.Second,
+	})
 
 	streamable := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		tok, ok := tokenFromContext(r.Context())
@@ -76,21 +106,38 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 		DisableLocalhostProtection: true,
 	})
 
+	tooMany := func(c *gin.Context) {
+		c.Header("Retry-After", "1")
+		response.Fail(c, http.StatusTooManyRequests, response.CodeTooManyRequests, "rate limit exceeded")
+	}
+
 	return func(c *gin.Context) {
+		clientKey := "ip:" + c.ClientIP()
+		// The failure budget is only charged for rejected credentials, so valid
+		// traffic is never throttled by it; it is checked first so a client that
+		// burned its budget stops costing token lookups.
+		if !authFailLimiter.HasBudget(clientKey) {
+			tooMany(c)
+			return
+		}
 		raw := bearerToken(c.GetHeader("Authorization"))
 		if raw == "" {
+			authFailLimiter.Allow(c.Request.Context(), clientKey)
 			response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing bearer token")
 			return
 		}
 		tok, err := d.Tokens.Authenticate(c.Request.Context(), raw)
 		if err != nil {
+			authFailLimiter.Allow(c.Request.Context(), clientKey)
 			response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "invalid or revoked token")
 			return
 		}
-		dec := limiter.Allow(c.Request.Context(), tok.ID.String())
-		if !dec.Allowed {
-			c.Header("Retry-After", "1")
-			response.Fail(c, http.StatusTooManyRequests, response.CodeBadRequest, "rate limit exceeded")
+		if !limiter.Allow(c.Request.Context(), tok.ID.String()).Allowed {
+			tooMany(c)
+			return
+		}
+		if !tenantLimiter.Allow(c.Request.Context(), strconv.FormatInt(tok.TenantID, 10)).Allowed {
+			tooMany(c)
 			return
 		}
 		d.Tokens.TouchLastUsed(c.Request.Context(), tok.ID)
