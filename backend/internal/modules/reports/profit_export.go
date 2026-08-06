@@ -23,7 +23,7 @@ var profitDimensionLabels = map[string]string{
 // per-row numbers match GET /reports/profit; unlike the page (top
 // profitMaxRows rows) the CSV carries every row.
 func (s *Service) ExportProfitCSV(c *gin.Context, dimension string, r DateRange) ([]byte, string, error) {
-	res, err := s.profitReport(c, dimension, r, 0)
+	res, err := s.profitReport(c, dimension, r, 0, ProfitFilter{})
 	if err != nil {
 		return nil, "", err
 	}

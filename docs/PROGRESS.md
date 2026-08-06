@@ -1872,3 +1872,12 @@ Final Production Acceptance Deferred to P10
 - **零发现项**：跨租户数据泄露、MCP 写路径可达、token 明文入库/入日志/入响应、SQL/参数注入、平台租户接口越权、R139 修复项回退，均无。
 - **P2 清单**：MCP 审计写失败仅告警不阻断；大屏 today 销售/毛利口径忽略 shopId/platform 筛选；大屏非法 shopId 静默降级不报 400；MCP token 上限 count→insert 竞态及其回归测试缺失；前端工具链依赖告警 13 条（2 high，均为构建/开发期）。
 - 详见 `docs/SECURITY_AUDIT_R148.md`。
+
+### 变更记录（2026-08-06）第 149 轮线1：R148 安全审计 P2 批次收口（fullstack-engineer）
+
+- **P2-1 MCP 审计写失败收口**：`mcpserver.auditMiddleware` 由 best-effort 改为 fail-closed——审计行写入失败时扣留成功结果并拒绝该次调用（工具只读、可安全重试），同时 `slog.Error` 留可见告警；取舍：审计完整性优先于可用性。
+- **P2-2 MCP token 上限竞态**：`mcptoken.Create` 的 count→insert 改为事务内检查 + 进程内 per-tenant 互斥 + PostgreSQL `pg_advisory_xact_lock`（跨副本），并新增 SQLite/PostgreSQL 并发回归测试（还原旧实现时测试失败，确认能捕捉竞态）。
+- **P2 大屏口径**：`/dashboard/screen` today 销售/毛利改走 `reports.ProfitReportFiltered`，与订单数一致地应用 shopId/platform 过滤（过滤只收窄、不放宽租户/店铺授权）；非法 `shopId` 由静默降级改为 HTTP 400（`CodeBadRequest`），适用于全部 dashboard 端点。
+- **P2 权限矩阵 CI 漂移预警**：`project-tests.yml` PostgreSQL 集成 job 新增 `pnpm test:permmatrix` 步骤（APP_ENV=test + TEST_DATABASE_URL），消除套件在 CI 静默 skip。
+- **登记（本轮不改）**：operator 是否可管理 MCP token 收紧为 admin-only 属产品决策，待老板拍板。
+- 前端工具链依赖告警（P2-3/审计编号）不在本轮范围。
