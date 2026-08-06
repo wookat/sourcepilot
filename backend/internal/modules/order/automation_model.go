@@ -84,6 +84,58 @@ func ValidAutomationWarehouseStrategies() []string {
 	return []string{AutomationWarehouseStrategyDefault, AutomationWarehouseStrategyStockFirst}
 }
 
+// AutomationEventLabel returns the operator-facing中文 label for a trigger
+// event (same wording as admin/src/services/orderAutomation.ts, so操作日志 /
+// 订单时间线 never surface raw English enum values).
+func AutomationEventLabel(event string) string {
+	switch event {
+	case AutomationEventOrderCreated:
+		return "订单创建"
+	case AutomationEventOrderPaid:
+		return "进入待采购（已付款）"
+	case AutomationEventProcurementDelivered:
+		return "采购签收入库"
+	case AutomationEventLogisticsCollected:
+		return "采购物流揽收"
+	default:
+		return event
+	}
+}
+
+// AutomationActionLabel returns the operator-facing中文 label for an action
+// (same wording as the admin UI label map).
+func AutomationActionLabel(action string) string {
+	switch action {
+	case AutomationActionConfirmPayment:
+		return "自动确认付款"
+	case AutomationActionGenerateProcurement:
+		return "自动生成采购单"
+	case AutomationActionMarkPrinted:
+		return "自动标记打单"
+	case AutomationActionNotifyShipping:
+		return "自动通知发货工作台"
+	case AutomationActionApplyShippingRule:
+		return "自动应用发货规则"
+	case AutomationActionAssignWarehouse:
+		return "自动分仓"
+	default:
+		return action
+	}
+}
+
+// ShippingApplyModeLabel returns the operator-facing中文 label for an apply
+// mode (recommend / apply), matching the admin UI label map.
+func ShippingApplyModeLabel(mode string) string {
+	switch mode {
+	case ShippingApplyModeApply:
+		return "直接应用物流商"
+	case ShippingApplyModeRecommend:
+		return "仅推荐物流商"
+	default:
+		return mode
+	}
+}
+
 // ValidAutomationActions lists accepted actions.
 func ValidAutomationActions() []string {
 	return []string{

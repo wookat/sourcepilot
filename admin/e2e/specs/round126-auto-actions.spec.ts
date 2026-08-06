@@ -1,8 +1,49 @@
+import type { Page, Locator } from '@playwright/test';
 import { test, expect } from '../fixtures/admin.fixture';
 import { ok } from '../mocks/envelope';
 import { e2eUser } from '../mocks/auth';
 import { expectNoRootOverflow } from '../utils/assertions';
 import { e2eOrderAutomationRules } from '../mocks/order-automation';
+
+// 打开 Select 后先等下拉真正展开、目标选项可见，再点击，避免下拉动画
+// 尚未完成时点击落空的竞态（R127 v18 登记的 1440 视口 flake）。
+// 页面 hydration 未完成时点击「新增规则」可能落空，重试直到弹窗真正打开。
+// 重试前先确认弹窗仍未打开：迟到的打开会让补点击落在遮罩上把弹窗关掉。
+async function openCreateRuleDialog(page: Page): Promise<Locator> {
+  const dialog = page.getByRole('dialog', { name: '新增自动化规则' });
+  for (let attempt = 0; ; attempt++) {
+    if (!(await dialog.isVisible())) {
+      await page.getByRole('button', { name: '新增规则' }).click();
+    }
+    try {
+      await expect(dialog).toBeVisible({ timeout: 2500 });
+      return dialog;
+    } catch (error) {
+      if (attempt >= 4) throw error;
+    }
+  }
+}
+
+async function selectAntOption(page: Page, trigger: Locator, optionText: string) {
+  const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
+  // 弹层动画期间点击可能落空（下拉未真正展开），重试直到展开；
+  // 重试前先确认下拉仍未展开：迟到的展开会让补点击把下拉重新收起。
+  for (let attempt = 0; ; attempt++) {
+    if (!(await dropdown.isVisible())) {
+      await trigger.click({ force: true });
+    }
+    try {
+      await expect(dropdown).toBeVisible({ timeout: 2500 });
+      break;
+    } catch (error) {
+      if (attempt >= 4) throw error;
+    }
+  }
+  const option = dropdown.locator('.ant-select-item-option', { hasText: optionText }).first();
+  await expect(option).toBeVisible();
+  await option.click();
+  await expect(dropdown).toBeHidden();
+}
 
 test.describe('@round126 自动化动作面扩展：规则页展示', () => {
   test('展示自动应用发货规则 / 自动分仓动作及参数标签', async ({ admin, page }) => {
@@ -29,18 +70,11 @@ test.describe('@round126 自动化动作面扩展：规则页展示', () => {
       }),
     });
     await admin.goto('/settings/order-automation-rules');
-    await page.getByRole('button', { name: '新增规则' }).click();
-    const dialog = page.getByRole('dialog', { name: '新增自动化规则' });
+    const dialog = await openCreateRuleDialog(page);
     await dialog.getByLabel('规则名称').fill('新发货规则动作');
-    await dialog.getByLabel('触发时机').click({ force: true });
-    await page
-      .locator('.ant-select-item-option', { hasText: '进入待采购（已付款）' })
-      .first()
-      .click();
-    await dialog.getByLabel('自动动作').click();
-    await page.locator('.ant-select-item-option', { hasText: '自动应用发货规则' }).first().click();
-    await dialog.getByLabel(/发货规则应用方式/).click({ force: true });
-    await page.locator('.ant-select-item-option', { hasText: '直接应用物流商' }).first().click();
+    await selectAntOption(page, dialog.getByLabel('触发时机'), '进入待采购（已付款）');
+    await selectAntOption(page, dialog.getByLabel('自动动作'), '自动应用发货规则');
+    await selectAntOption(page, dialog.getByLabel(/发货规则应用方式/), '直接应用物流商');
     await dialog.getByRole('button', { name: '保 存' }).click();
     await admin.writeGuard.expectRequestCount('createRule', 1);
     const [call] = admin.writeGuard.calls('createRule');
@@ -64,18 +98,11 @@ test.describe('@round126 自动化动作面扩展：规则页展示', () => {
       }),
     });
     await admin.goto('/settings/order-automation-rules');
-    await page.getByRole('button', { name: '新增规则' }).click();
-    const dialog = page.getByRole('dialog', { name: '新增自动化规则' });
+    const dialog = await openCreateRuleDialog(page);
     await dialog.getByLabel('规则名称').fill('新自动分仓动作');
-    await dialog.getByLabel('触发时机').click({ force: true });
-    await page
-      .locator('.ant-select-item-option', { hasText: '进入待采购（已付款）' })
-      .first()
-      .click();
-    await dialog.getByLabel('自动动作').click();
-    await page.locator('.ant-select-item-option', { hasText: '自动分仓' }).first().click();
-    await dialog.getByLabel(/分仓策略/).click({ force: true });
-    await page.locator('.ant-select-item-option', { hasText: '库存充足优先' }).first().click();
+    await selectAntOption(page, dialog.getByLabel('触发时机'), '进入待采购（已付款）');
+    await selectAntOption(page, dialog.getByLabel('自动动作'), '自动分仓');
+    await selectAntOption(page, dialog.getByLabel(/分仓策略/), '库存充足优先');
     await dialog.getByRole('button', { name: '保 存' }).click();
     await admin.writeGuard.expectRequestCount('createRule', 1);
     const [call] = admin.writeGuard.calls('createRule');
@@ -89,8 +116,7 @@ test.describe('@round126 自动化动作面扩展：规则页展示', () => {
 
   test('订单创建事件不提供自动分仓动作（口径与后端一致）', async ({ admin, page }) => {
     await admin.goto('/settings/order-automation-rules');
-    await page.getByRole('button', { name: '新增规则' }).click();
-    const dialog = page.getByRole('dialog', { name: '新增自动化规则' });
+    const dialog = await openCreateRuleDialog(page);
     await dialog.getByLabel('自动动作').click();
     await expect(
       page.locator('.ant-select-item-option', { hasText: '自动应用发货规则' }),
@@ -142,15 +168,9 @@ test.describe('@round126 响应式视口', () => {
         timeout: 20000,
       });
       await expectNoRootOverflow(page);
-      await page.getByRole('button', { name: '新增规则' }).click();
-      const dialog = page.getByRole('dialog', { name: '新增自动化规则' });
-      await dialog.getByLabel('触发时机').click({ force: true });
-      await page
-        .locator('.ant-select-item-option', { hasText: '进入待采购（已付款）' })
-        .first()
-        .click();
-      await dialog.getByLabel('自动动作').click();
-      await page.locator('.ant-select-item-option', { hasText: '自动分仓' }).first().click();
+      const dialog = await openCreateRuleDialog(page);
+      await selectAntOption(page, dialog.getByLabel('触发时机'), '进入待采购（已付款）');
+      await selectAntOption(page, dialog.getByLabel('自动动作'), '自动分仓');
       await expect(dialog.getByLabel(/分仓策略/)).toBeVisible();
       await expectNoRootOverflow(page);
     });

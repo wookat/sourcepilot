@@ -57,6 +57,16 @@ Linux / macOS：
 
 > 口径统一：`pnpm seed:demo:full`（Go seeddemo，跨平台、无需 PowerShell）也会幂等保证以上三个账号存在且密码为 `DemoAdmin123!` / `DemoOperator123!` / `DemoReadonly123!`；若密码漂移会重置回文档值并使旧会话失效。仅限非 production。
 
+### 第二演示租户（多租户隔离回归）
+
+`pnpm seed:demo:full` 额外创建独立业务租户「DEMO-第二租户」，用于开箱验证双租户隔离：
+
+| 账号 | 角色 | 用途 |
+| --- | --- | --- |
+| `demo_tenant2_admin@trademind.local` / `DemoTenant2Admin123!` | admin | 第二租户全权限，登录只见 `DEMO-T2-` 数据 |
+
+数据：1 店铺（`DEMO-T2-SHOP-1`）、2 订单（`DEMO-T2-SO-*`）、1 发货规则、1 自动化规则。正向：第二租户账号可见自己的数据；负向：主租户账号看不到 `DEMO-T2-` 数据、第二租户账号看不到主租户数据。clean/verify 覆盖该租户及账号（零残留），重跑幂等。
+
 ## 验证
 
 ```powershell
