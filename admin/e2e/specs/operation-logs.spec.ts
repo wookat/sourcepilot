@@ -11,6 +11,14 @@ test.describe('@p1 操作日志页', () => {
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
 
+  test('操作类型与资源列显示中文映射（原值不直出）', async ({ admin, page }) => {
+    await admin.goto('/system/operation-logs');
+    await expect(page.getByText('订单自动化执行').first()).toBeVisible();
+    await expect(page.getByText('订单自动化', { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'order_automation.execute', exact: true })).toHaveCount(0);
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
   test('筛选操作人写入 URL 深链，刷新后恢复筛选', async ({ admin, page }) => {
     await admin.goto('/system/operation-logs');
     await expect(page.getByText('e2e-admin').first()).toBeVisible();

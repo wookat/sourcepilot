@@ -118,5 +118,84 @@ func (s *FullDemoSeeder) seedRound126AutoActions(tx *gorm.DB, res *FullDemoResul
 	count("orders", 2)
 	count("order_items", 2)
 	count("order_automation_logs", 2)
+
+	// recommend 模式与 operator 可见样本：挂到手工渠道店（operator/readonly
+	// 演示账号被授权的店铺），执行日志页在 operator 视角不再空态，且覆盖
+	// apply_shipping_rule recommend（仅推荐）模式的成功文案与规则未命中跳过文案。
+	if len(shops) > 1 {
+		recommendRule := order.OrderAutomationRule{
+			TenantID: s.TenantID, Name: "DEMO-付款后推荐物流商（仅推荐）", Priority: 7, Enabled: true,
+			TriggerEvent:      order.AutomationEventOrderPaid,
+			Action:            order.AutomationActionApplyShippingRule,
+			ShippingApplyMode: order.ShippingApplyModeRecommend,
+		}
+		if err := tx.Create(&recommendRule).Error; err != nil {
+			return fmt.Errorf("demoseed: automation recommend rule: %w", err)
+		}
+		count("order_automation_rules", 1)
+
+		manualShop := shops[1]
+		samples := []struct {
+			orderNo string
+			amount  float64
+			status  string
+			reason  string
+			rule    *order.OrderAutomationRule
+			planned bool
+		}{
+			{"DEMO-AT-1301", 668, order.AutomationLogSuccess,
+				"已按发货规则「DEMO-高客单价订单走顺丰」推荐物流商：顺丰速运（仅推荐，发货时人工确认）",
+				&recommendRule, true},
+			{"DEMO-AT-1302", 45, order.AutomationLogSkipped,
+				"没有命中任何发货规则，未推荐物流商", &recommendRule, false},
+			{"DEMO-AT-1303", 208, order.AutomationLogFailed,
+				fmt.Sprintf("执行失败（本轮尝试 3 次）：库存不足，无法分配发货仓：所有仓库均无法整单覆盖（如 %s：%s 需 %d 件）", "默认仓", "DEMO-AT-SKU", 999),
+				&warehouseRule, false},
+		}
+		for i, sp := range samples {
+			paidAt := now.Add(-time.Duration(35-i*5) * time.Minute)
+			o := order.Order{
+				TenantID: s.TenantID, Platform: manualShop.Platform, ShopID: &manualShop.ID,
+				OrderNo: sp.orderNo, CustomerName: "DEMO-自动化买家", CustomerPhone: "13800000126",
+				Status: order.StatusPaid, ReviewStatus: order.ReviewStatusAutoPassed,
+				PaymentStatus: order.PaymentPaid, FulfillmentStatus: order.FulfillmentUnfulfilled,
+				Currency: "CNY", TotalAmount: sp.amount, OrderedAt: &paidAt, PaidAt: &paidAt,
+			}
+			if sp.planned {
+				o.PlannedCarrierCode = "sf"
+				o.PlannedCarrierName = "顺丰速运"
+				o.PlannedCarrierMode = order.ShippingApplyModeRecommend
+				o.PlannedCarrierRule = "DEMO-高客单价订单走顺丰"
+				o.PlannedCarrierAt = &paidAt
+			}
+			if err := tx.Create(&o).Error; err != nil {
+				return fmt.Errorf("demoseed: manual-shop automation order %s: %w", sp.orderNo, err)
+			}
+			item := order.OrderItem{
+				OrderID: o.ID, ProductTitle: "DEMO-自动化演示商品", SKUCode: "DEMO-AT-SKU",
+				Quantity: 1, UnitPrice: sp.amount, TotalPrice: sp.amount,
+			}
+			if err := tx.Create(&item).Error; err != nil {
+				return fmt.Errorf("demoseed: manual-shop automation item: %w", err)
+			}
+			attempts := 1
+			if sp.status == order.AutomationLogFailed {
+				attempts = 3
+			}
+			log := order.OrderAutomationLog{
+				TenantID: s.TenantID, RuleID: sp.rule.ID, RuleName: sp.rule.Name,
+				OrderID: o.ID, OrderNo: o.OrderNo,
+				TriggerEvent: sp.rule.TriggerEvent, Action: sp.rule.Action,
+				Status: sp.status, Reason: sp.reason, Attempts: attempts,
+				DedupKey: fmt.Sprintf("%d:%s:%s:%s", s.TenantID, sp.rule.ID, o.ID, sp.rule.TriggerEvent),
+			}
+			if err := tx.Create(&log).Error; err != nil {
+				return fmt.Errorf("demoseed: manual-shop automation log: %w", err)
+			}
+			count("orders", 1)
+			count("order_items", 1)
+			count("order_automation_logs", 1)
+		}
+	}
 	return nil
 }

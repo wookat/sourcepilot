@@ -22,8 +22,8 @@ func TestFullDemoSeedOrderAutomationSamples(t *testing.T) {
 	if err := db.Where("tenant_id = ?", 1).Find(&rules).Error; err != nil {
 		t.Fatal(err)
 	}
-	if len(rules) != 6 {
-		t.Fatalf("expected 6 demo automation rules (4 round119 + 2 round126), got %d", len(rules))
+	if len(rules) != 7 {
+		t.Fatalf("expected 7 demo automation rules (4 round119 + 2 round126 + 1 round130 recommend), got %d", len(rules))
 	}
 	var disabled int
 	for _, r := range rules {

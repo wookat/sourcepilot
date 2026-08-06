@@ -136,6 +136,81 @@ func (s *FullDemoSeeder) seedSecondTenant(tx *gorm.DB, res *FullDemoResult) erro
 		}
 		count("order_items", 1)
 	}
+
+	// 第二租户执行日志样本（成功/失败/跳过）：/orders/automation-logs 在
+	// 第二租户视角不再空态，且覆盖 apply_shipping_rule recommend（仅推荐）
+	// 模式的成功文案。日志经 rule_name / order_no 的 DEMO- 前缀被 Cleanup 清除。
+	t2RecommendRule := order.OrderAutomationRule{
+		TenantID: tenant.ID, Name: "DEMO-T2-付款后推荐物流商（仅推荐）", Priority: 2, Enabled: true,
+		TriggerEvent:      order.AutomationEventOrderPaid,
+		Action:            order.AutomationActionApplyShippingRule,
+		ShippingApplyMode: order.ShippingApplyModeRecommend,
+	}
+	if err := tx.Create(&t2RecommendRule).Error; err != nil {
+		return fmt.Errorf("demoseed: second tenant recommend rule: %w", err)
+	}
+	count("order_automation_rules", 1)
+
+	logSamples := []struct {
+		orderNo string
+		amount  float64
+		review  string
+		rule    *order.OrderAutomationRule
+		status  string
+		reason  string
+	}{
+		{"DEMO-T2-AT-0001", 668, order.ReviewStatusAutoPassed, &t2RecommendRule,
+			order.AutomationLogSuccess,
+			"已按发货规则「DEMO-T2-高客单价订单走顺丰」推荐物流商：顺丰速运（仅推荐，发货时人工确认）"},
+		{"DEMO-T2-AT-0002", 120, order.ReviewStatusAutoPassed, &t2AutoRule,
+			order.AutomationLogFailed,
+			"执行失败（本轮尝试 3 次）：自动确认付款被阻断：订单金额超出规则上限"},
+		{"DEMO-T2-AT-0003", 88, order.ReviewStatusPending, &t2AutoRule,
+			order.AutomationLogSkipped, "订单审单待审/挂起，按安全边界跳过自动化"},
+	}
+	for i, sp := range logSamples {
+		created := now.Add(-time.Duration(i+1) * time.Hour)
+		o := order.Order{TenantID: tenant.ID, Platform: t2Shop.Platform, ShopID: &t2Shop.ID,
+			OrderNo:      sp.orderNo,
+			CustomerName: "DEMO-T2-自动化买家", Status: order.StatusPending,
+			ReviewStatus:  sp.review,
+			PaymentStatus: order.PaymentUnpaid, FulfillmentStatus: order.FulfillmentUnfulfilled,
+			Currency: "CNY", TotalAmount: sp.amount, OrderedAt: &created,
+			Remark: "DEMO- 第二租户自动化演示订单（种子数据）"}
+		if sp.status == order.AutomationLogSuccess {
+			o.PlannedCarrierCode = "sf"
+			o.PlannedCarrierName = "顺丰速运"
+			o.PlannedCarrierMode = order.ShippingApplyModeRecommend
+			o.PlannedCarrierRule = t2ShippingRule.Name
+			o.PlannedCarrierAt = &created
+		}
+		if err := tx.Create(&o).Error; err != nil {
+			return fmt.Errorf("demoseed: second tenant automation order %s: %w", sp.orderNo, err)
+		}
+		item := order.OrderItem{OrderID: o.ID,
+			ProductTitle: "DEMO-T2-第二租户演示商品", SKUCode: "DEMO-T2-SKU-1",
+			Quantity: 1, UnitPrice: sp.amount, TotalPrice: sp.amount}
+		if err := tx.Create(&item).Error; err != nil {
+			return fmt.Errorf("demoseed: second tenant automation item: %w", err)
+		}
+		attempts := 1
+		if sp.status == order.AutomationLogFailed {
+			attempts = 3
+		}
+		log := order.OrderAutomationLog{
+			TenantID: tenant.ID, RuleID: sp.rule.ID, RuleName: sp.rule.Name,
+			OrderID: o.ID, OrderNo: o.OrderNo,
+			TriggerEvent: sp.rule.TriggerEvent, Action: sp.rule.Action,
+			Status: sp.status, Reason: sp.reason, Attempts: attempts,
+			DedupKey: fmt.Sprintf("%d:%s:%s:%s", tenant.ID, sp.rule.ID, o.ID, sp.rule.TriggerEvent),
+		}
+		if err := tx.Create(&log).Error; err != nil {
+			return fmt.Errorf("demoseed: second tenant automation log: %w", err)
+		}
+		count("orders", 1)
+		count("order_items", 1)
+		count("order_automation_logs", 1)
+	}
 	return nil
 }
 
