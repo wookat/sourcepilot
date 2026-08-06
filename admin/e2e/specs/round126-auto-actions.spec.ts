@@ -8,29 +8,35 @@ import { e2eOrderAutomationRules } from '../mocks/order-automation';
 // 打开 Select 后先等下拉真正展开、目标选项可见，再点击，避免下拉动画
 // 尚未完成时点击落空的竞态（R127 v18 登记的 1440 视口 flake）。
 // 页面 hydration 未完成时点击「新增规则」可能落空，重试直到弹窗真正打开。
+// 重试前先确认弹窗仍未打开：迟到的打开会让补点击落在遮罩上把弹窗关掉。
 async function openCreateRuleDialog(page: Page): Promise<Locator> {
   const dialog = page.getByRole('dialog', { name: '新增自动化规则' });
   for (let attempt = 0; ; attempt++) {
-    await page.getByRole('button', { name: '新增规则' }).click();
+    if (!(await dialog.isVisible())) {
+      await page.getByRole('button', { name: '新增规则' }).click();
+    }
     try {
       await expect(dialog).toBeVisible({ timeout: 2500 });
       return dialog;
     } catch (error) {
-      if (attempt >= 2) throw error;
+      if (attempt >= 4) throw error;
     }
   }
 }
 
 async function selectAntOption(page: Page, trigger: Locator, optionText: string) {
   const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
-  // 弹层动画期间点击可能落空（下拉未真正展开），最多重试 3 次直到展开。
+  // 弹层动画期间点击可能落空（下拉未真正展开），重试直到展开；
+  // 重试前先确认下拉仍未展开：迟到的展开会让补点击把下拉重新收起。
   for (let attempt = 0; ; attempt++) {
-    await trigger.click({ force: true });
+    if (!(await dropdown.isVisible())) {
+      await trigger.click({ force: true });
+    }
     try {
       await expect(dropdown).toBeVisible({ timeout: 2500 });
       break;
     } catch (error) {
-      if (attempt >= 2) throw error;
+      if (attempt >= 4) throw error;
     }
   }
   const option = dropdown.locator('.ant-select-item-option', { hasText: optionText }).first();
