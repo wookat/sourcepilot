@@ -384,3 +384,34 @@ func TestFetchFromObjectStoreRejectsPathOutsideWorkRoot(t *testing.T) {
 		t.Fatal("no file may be written outside the backup work directory")
 	}
 }
+
+func TestVerifyFetchesMissingArtifactFromObjectStore(t *testing.T) {
+	svc := newTestService(t)
+	store := newMemStore()
+	svc.Store = store
+	svc.Cfg.Backup.StoragePrefix = "backups/test"
+
+	row := seedCompletedBackup(t, svc, false)
+	var artifact Artifact
+	if err := svc.DB.Where("backup_id = ?", row.BackupID).First(&artifact).Error; err != nil {
+		t.Fatal(err)
+	}
+	svc.uploadArtifact(context.Background(), row, &artifact)
+	if row.UploadStatus != UploadUploaded {
+		t.Fatalf("expected uploaded, got %q (%s)", row.UploadStatus, row.UploadError)
+	}
+	if err := os.Remove(artifact.LocalPath); err != nil {
+		t.Fatal(err)
+	}
+
+	v, err := svc.Verify(context.Background(), row.BackupID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.ChecksumPassed {
+		t.Fatalf("verify must fetch the artifact from object storage and pass checksum, got status %q (%s)", v.Status, v.ErrorSummary)
+	}
+	if _, statErr := os.Stat(artifact.LocalPath); statErr != nil {
+		t.Fatal("artifact must be re-materialized locally after verify")
+	}
+}

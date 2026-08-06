@@ -213,6 +213,11 @@ func (s *Service) runPgRestore(ctx context.Context, row *Job, targetDB string) e
 	if strings.TrimSpace(artifact.LocalPath) == "" {
 		return fmt.Errorf("RESTORE_ARTIFACT_UNAVAILABLE: backup artifact local path is unavailable")
 	}
+	if s.Backup != nil {
+		if err := s.Backup.EnsureLocalArtifact(ctx, &artifact); err != nil {
+			return fmt.Errorf("RESTORE_ARTIFACT_UNAVAILABLE: backup artifact file missing: %w", err)
+		}
+	}
 	if err := backupruntime.VerifySHA256File(artifact.LocalPath, artifact.SHA256, 1); err != nil {
 		return fmt.Errorf("RESTORE_CHECKSUM_MISMATCH: %w", err)
 	}
