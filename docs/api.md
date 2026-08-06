@@ -285,9 +285,10 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/customer/buyer-message-rules` | 规则列表。返回 `{ list, canWrite }`；行内 `templateMissing=true` 表示引用的话术模板已删除（规则不再生成草稿，需重选模板）。 |
-| `POST` | `/api/v1/customer/buyer-message-rules` | 新建规则。body：`name`、`node`、`templateId`（须为当前租户模板）、可选 `enabled`（默认启用）、`platforms`、`shopIds`（空数组表示全部）。 |
-| `PUT` | `/api/v1/customer/buyer-message-rules/:id` | 更新规则（部分字段：改名、换节点/模板、启停、平台/店铺过滤）。 |
+| `POST` | `/api/v1/customer/buyer-message-rules` | 新建规则。body：`name`、`node`、`templateId`（须为当前租户模板）、可选 `enabled`（默认启用）、`platforms`、`shopIds`（空数组表示全部）、可选 `backfill`（默认 `false`：仅对规则生效后的新订单节点事件生成草稿，不回溯存量；`true` 回溯全部存量订单）。返回行含 `effectiveFrom`（空表示回溯存量）与 `backfill`。 |
+| `PUT` | `/api/v1/customer/buyer-message-rules/:id` | 更新规则（部分字段：改名、换节点/模板、启停、平台/店铺过滤、`backfill`）。停用→重新启用会重置生效时间（不回溯停用期间存量）；`backfill=true` 清空生效时间并回溯存量。 |
 | `DELETE` | `/api/v1/customer/buyer-message-rules/:id` | 删除规则（软删除）。返回 `{ ok: true }`。 |
+| `GET` | `/api/v1/customer/buyer-message-rules/backfill-estimate` | 「回溯存量」开启时将生成的草稿数量预估（只读）。query：`node`（必填）、`platforms`、`shopIds`（逗号分隔）。返回 `{ estimated }`。 |
 | `GET` | `/api/v1/customer/buyer-messages/drafts` | 草稿列表。query：`page`、`pageSize`、`node`、`status`（`pending`/`sent`/`ignored`）、`platform`、`shopId`、`keyword`。返回 `{ list, total, page, pageSize, canWrite }`。 |
 | `POST` | `/api/v1/customer/buyer-messages/generate` | 按当前租户启用规则立即扫描生成草稿。返回 `{ created }`。 |
 | `PUT` | `/api/v1/customer/buyer-messages/drafts/:id` | 编辑草稿内容（仅 `pending` 可编辑）。body：`content`；保存时按内容中剩余 `{变量}` 占位重算 `missingVars`。 |

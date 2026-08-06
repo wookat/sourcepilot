@@ -519,7 +519,8 @@
         "templateId",
         "enabled",
         "platforms",
-        "shopIds"
+        "shopIds",
+        "backfill"
       ],
       "responseData": "BuyerMessageRule"
     },
@@ -533,7 +534,8 @@
         "templateId",
         "enabled",
         "platforms",
-        "shopIds"
+        "shopIds",
+        "backfill"
       ],
       "responseData": "BuyerMessageRule"
     },
@@ -542,6 +544,17 @@
       "path": "/api/v1/customer/buyer-message-rules/:id",
       "auth": true,
       "responseData": "{ ok: boolean }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/customer/buyer-message-rules/backfill-estimate",
+      "auth": true,
+      "query": [
+        "node",
+        "platforms",
+        "shopIds"
+      ],
+      "responseData": "{ estimated: number }"
     },
     {
       "method": "GET",

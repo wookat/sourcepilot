@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -56,6 +59,69 @@ func buyerMsgNodeCondition(db *gorm.DB, node string) *gorm.DB {
 	default:
 		return db.Where("1 = 0")
 	}
+}
+
+// buyerMsgEffectiveCondition restricts an orders query to node events that
+// happened at/after eff（规则生效时间）。事件时间取节点对应时间戳，缺失时
+// 退回 orders.created_at（无事件时间戳的存量订单不回溯）。
+func buyerMsgEffectiveCondition(db *gorm.DB, node string, eff time.Time) *gorm.DB {
+	switch node {
+	case BuyerMsgNodePaid:
+		return db.Where("COALESCE(orders.paid_at, orders.created_at) >= ?", eff)
+	case BuyerMsgNodeShipped:
+		return db.Where("COALESCE(orders.shipped_at, orders.created_at) >= ?", eff)
+	case BuyerMsgNodeDelivered:
+		return db.Where("COALESCE(orders.delivered_at, orders.created_at) >= ?", eff)
+	case BuyerMsgNodeLogisticsException:
+		return db.Where("EXISTS (SELECT 1 FROM order_shipments se WHERE se.order_id = orders.id AND se.status = ? AND se.updated_at >= ?)",
+			order.ShipmentException, eff)
+	case BuyerMsgNodeRefunded:
+		// 退款无独立时间戳：退款状态变更会刷新 updated_at，以此判定事件时间。
+		return db.Where("orders.updated_at >= ?", eff)
+	default:
+		return db.Where("1 = 0")
+	}
+}
+
+// buyerMsgOrdersQuery builds the shared orders query for draft generation and
+// backfill estimation: node + platform/shop filters, minus orders that already
+// have a draft for the node; effectiveFrom (when non-nil) excludes存量事件。
+func (s *Service) buyerMsgOrdersQuery(ctx context.Context, tenantID int64, node string, platforms, shopIDs []string, effectiveFrom *time.Time) *gorm.DB {
+	q := s.DB.WithContext(ctx).Model(&order.Order{}).
+		Where("orders.tenant_id = ?", tenantID)
+	q = buyerMsgNodeCondition(q, node)
+	if effectiveFrom != nil {
+		q = buyerMsgEffectiveCondition(q, node, *effectiveFrom)
+	}
+	if len(platforms) > 0 {
+		q = q.Where("orders.platform IN ?", platforms)
+	}
+	if len(shopIDs) > 0 {
+		q = q.Where("orders.shop_id IN ?", shopIDs)
+	}
+	return q.Where("NOT EXISTS (SELECT 1 FROM buyer_message_drafts d WHERE d.tenant_id = orders.tenant_id AND d.order_id = orders.id AND d.node = ?)", node)
+}
+
+// EstimateBuyerMsgBackfill counts存量订单 that would get a draft if a rule
+// with the given node / filters ran with「回溯存量」开启 (no effective-from
+// cutoff). Used by the admin UI to show the confirmation estimate.
+func (s *Service) EstimateBuyerMsgBackfill(c *gin.Context, node string, platforms, shopIDs []string) (int64, error) {
+	if s == nil || s.DB == nil {
+		return 0, fmt.Errorf("customerchat: no db")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return 0, err
+	}
+	if !IsValidBuyerMsgNode(node) {
+		return 0, fmt.Errorf("订单节点不合法，可选值：%s", strings.Join(BuyerMsgNodes, "/"))
+	}
+	var n int64
+	if err := s.buyerMsgOrdersQuery(c.Request.Context(), tid, node, platforms, shopIDs, nil).
+		Count(&n).Error; err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 type buyerMsgOrderCtx struct {
@@ -135,16 +201,8 @@ func (s *Service) GenerateBuyerMsgDrafts(ctx context.Context, tenantID int64) (i
 const buyerMsgScanBatch = 200
 
 func (s *Service) generateForRule(ctx context.Context, rule BuyerMessageRule, tpl CustomerReplyTemplate) (int, error) {
-	q := s.DB.WithContext(ctx).Model(&order.Order{}).
-		Where("orders.tenant_id = ?", rule.TenantID)
-	q = buyerMsgNodeCondition(q, rule.Node)
-	if platforms := jsonToStrings(rule.Platforms); len(platforms) > 0 {
-		q = q.Where("orders.platform IN ?", platforms)
-	}
-	if shopIDs := jsonToStrings(rule.ShopIDs); len(shopIDs) > 0 {
-		q = q.Where("orders.shop_id IN ?", shopIDs)
-	}
-	q = q.Where("NOT EXISTS (SELECT 1 FROM buyer_message_drafts d WHERE d.tenant_id = orders.tenant_id AND d.order_id = orders.id AND d.node = ?)", rule.Node)
+	q := s.buyerMsgOrdersQuery(ctx, rule.TenantID, rule.Node,
+		jsonToStrings(rule.Platforms), jsonToStrings(rule.ShopIDs), rule.EffectiveFrom)
 
 	var orders []order.Order
 	if err := q.Order("orders.created_at ASC").Limit(buyerMsgScanBatch).Find(&orders).Error; err != nil {

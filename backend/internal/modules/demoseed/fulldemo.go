@@ -1285,14 +1285,15 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 		}
 
 		// demo customer conversations: prefixed rows on any tenant, plus (for
-		// the default DEMO- prefix only) tenant-0 orphans created by older demo
-		// seeds/scripts before conversations stamped tenant_id.
+		// the default DEMO- prefix only) F8 edge-case demo rows on any tenant
+		// and tenant-0 orphans created by older demo seeds/scripts before
+		// conversations stamped tenant_id.
 		var convIDs []uuid.UUID
 		convQ := tx.Model(&customerchat.CustomerConversation{}).Unscoped().
 			Where("customer_name LIKE ?", like)
 		if defaultPrefix {
 			convQ = tx.Model(&customerchat.CustomerConversation{}).Unscoped().
-				Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %")
+				Where("customer_name LIKE ? OR customer_name LIKE ? OR (tenant_id = 0 AND customer_name LIKE ?)", like, "F8 Demo%", "Demo %")
 		}
 		if err := convQ.Pluck("id", &convIDs).Error; err != nil {
 			return err
@@ -1551,7 +1552,7 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		splitSoftDeleted("customer_conversations", func() *gorm.DB {
 			if defaultPrefix {
 				return tx.Model(&customerchat.CustomerConversation{}).Unscoped().
-					Where("customer_name LIKE ? OR (tenant_id = 0 AND (customer_name LIKE ? OR customer_name LIKE ?))", like, "F8 Demo%", "Demo %")
+					Where("customer_name LIKE ? OR customer_name LIKE ? OR (tenant_id = 0 AND customer_name LIKE ?)", like, "F8 Demo%", "Demo %")
 			}
 			return tx.Model(&customerchat.CustomerConversation{}).Unscoped().
 				Where("customer_name LIKE ?", like)

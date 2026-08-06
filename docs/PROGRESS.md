@@ -1802,6 +1802,14 @@ Final Production Acceptance Deferred to P10
 - **订单标签（round135 新功能）**：新表 `order_tags`（租户级名称/颜色，租户内重名 400）+ `order_tag_links`（`(order_id, tag_id)` 唯一，来源 manual/automation）。API：标签 CRUD（`/api/v1/order-tags`）、订单打标/去标（`/orders/:id/tags`）、批量打标/去标（`/orders/batch-tags`，≤200 单，返回 applied/removed 幂等计数）；订单列表/详情返回 `tags`，列表支持 `?tagId=` 过滤（进 keyset 指纹）。自动化规则新增 `add_tag` 动作（`tagIds` 校验当前租户存在性；沿用条件引擎/幂等/执行日志/时间线/dry-run/审单闸门/tenant+shop scope 口径）。Admin：设置→订单标签管理页、订单列表标签列 + 按标签筛选（URL query 唯一来源，`tagId` 进 ALLOWED_QUERY_KEYS）、批量打标签、详情手工打标/去标、自动化规则表单配置标签；readonly 只读（写入口隐藏/禁用）。demo seed 补 3 个标签样本 + 订单打标 + `add_tag` 自动规则与成功日志。
 - **E2E**：新增 `round135-order-tags.spec.ts` 13 条——标签管理增删改、readonly 禁用、列表标签列/筛选 URL 写回与深链刷新、批量打标、详情手工打标/去标（含 readonly 无写入口）、自动化规则 add_tag 配置、五档视口无根节点横向溢出；全部非 GET 写请求显式拦截声明。
 
+### 变更记录（2026-08-06）第 142 轮线1：买家自动消息生效范围 + 768 客服直达 + demo 失败样例标注（fullstack-engineer）
+
+- **规则生效范围（R141 观察项收口）**：`buyer_message_rules` 新增 `effective_from`（空=回溯存量）；创建/停用→重新启用规则默认写入当前时间，只对生效后的订单节点事件生成草稿（事件时间口径：paid/shipped/delivered 用对应时间戳 COALESCE created_at；logistics_exception 用异常 shipment 更新时间；refunded 用订单 updated_at），不回溯存量订单。新增可选 `backfill` 开关（默认关）：开启时清空 `effective_from` 回溯全部存量；新增只读预估端点 `GET /customer/buyer-message-rules/backfill-estimate`（node 必填 + platforms/shopIds 过滤，口径与生成查询一致）。Admin 规则弹窗新增「回溯存量订单」开关（默认关，开启提交时先调预估并弹确认展示将生成数量），规则表新增「生效范围」列（仅新订单/回溯存量）。草稿仍仅站内生成、绝不自动外发。
+- **P2-1（768px 客服直达）**：移动「我的」页新增「客服中心」入口；E2E 断言 768px 侧栏含客服菜单可直达 `/customer/hub`、无底部导航、无根节点横向溢出（与 round124 断点口径一致）。
+- **P2-2（demo 发送失败样例标注）**：F8 种子的客服发送失败会话/消息/失败事件统一带「演示样例·非真实故障」标注（含未授权店铺失败事件），避免误判为真实故障；`clean`/`verify` 的 F8 会话清理由仅 tenant-0 孤儿扩展为任意租户 `F8 Demo%`（默认 DEMO- 前缀时），Docker 实测 seed→clean→verify 后 F8 会话/消息/失败事件零残留。
+- **测试**：后端新增 `buyermsg_scope_test.go`（默认不回溯、事件时间口径、回溯预估与生成一致 + 幂等 + 租户隔离、停用重启重置生效时间、预估路由鉴权/跨租户/非法节点）；contracts +1 端点；前端服务单测补 backfill/预估；新增 `round142-msg-scope.spec.ts` E2E 4 条（开关默认关、预估确认、768 侧栏直达、375 我的入口）。
+- **门禁**：go 全套 + vet + gofmt、contracts 15（端点 110）、frontend 339、build:admin、ui-copy strict、E2E（round142 4 条 + round119/round124 回归 29 条）全绿；Docker 实测默认规则 generate=0、开启回溯 generate=28（与预估一致、二次扫描 0）。
+
 ### 变更记录（2026-08-06）第 138 轮线1：对象存储备份上传（fullstack-engineer）
 
 - **备份对象存储 Provider**：新增 `backend/internal/providers/backupstore`（S3 兼容：AWS S3 / MinIO / 阿里 OSS S3 兼容端点，官方 aws-sdk-go-v2），接口 `Upload/Download/List/Delete/Target`；`Target` 只输出脱敏目标（bucket/prefix/endpoint host），AK/SK 不落日志、不进 API 响应与错误信息。

@@ -143,7 +143,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 		TenantID:         tenantID,
 		Platform:         "mock",
 		ShopID:           &shopRow.ID,
-		CustomerName:     "F8 Demo Send Failed Buyer",
+		CustomerName:     "F8 Demo Send Failed Buyer（演示样例）",
 		CustomerLanguage: "zh-CN",
 		Status:           "open",
 		LastMessageAt:    &now,
@@ -155,7 +155,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 	msg := customerchat.CustomerMessage{
 		ConversationID: conv.ID,
 		Role:           "customer",
-		Content:        "F8 demo: 这条消息用于演示发送失败样本",
+		Content:        "F8 demo:【演示样例·非真实故障】这条消息用于演示「发送失败」处理流程，系种子数据故意构造",
 		Language:       "zh-CN",
 		MessageType:    "text",
 		Source:         "manual",
@@ -172,7 +172,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 		Platform:       "mock",
 		ShopID:         &shopRow.ID,
 		Category:       customerchat.FailureCategoryReplySendFailed,
-		ErrorMessage:   "F8 demo: 平台消息发送失败（dev seed，未调用外部 API）",
+		ErrorMessage:   "F8 demo:【演示样例·非真实故障】平台消息发送失败为种子数据故意构造（dev seed，未调用外部 API）",
 		Status:         customerchat.FailureEventStatusOpen,
 	}
 	id.Ensure(&failEv.ID)
@@ -181,7 +181,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 	}
 	out.Samples = append(out.Samples, EdgeCaseResult{
 		Tag: "customer_reply_send_failed", ID: failEv.ID.String(),
-		Note: "客服发送失败 + 失败任务中心", Status: "created",
+		Note: "客服发送失败 + 失败任务中心（演示样例，故意构造）", Status: "created",
 	})
 
 	unauthShop := shop.Shop{
@@ -202,7 +202,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 		Platform:       "douyin_shop",
 		ShopID:         &unauthShop.ID,
 		Category:       customerchat.FailureCategoryPlatformNotAuthorized,
-		ErrorMessage:   "F8 demo: 店铺未授权，无法发送平台消息",
+		ErrorMessage:   "F8 demo:【演示样例·非真实故障】店铺未授权，无法发送平台消息（种子数据故意构造）",
 		Status:         customerchat.FailureEventStatusOpen,
 	}
 	id.Ensure(&unauthEv.ID)

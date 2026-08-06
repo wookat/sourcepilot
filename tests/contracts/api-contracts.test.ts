@@ -72,6 +72,7 @@ describe('TradeMind API contract registry', () => {
         'POST /api/v1/customer/buyer-message-rules',
         'PUT /api/v1/customer/buyer-message-rules/:id',
         'DELETE /api/v1/customer/buyer-message-rules/:id',
+        'GET /api/v1/customer/buyer-message-rules/backfill-estimate',
         'GET /api/v1/customer/buyer-messages/drafts',
         'POST /api/v1/customer/buyer-messages/generate',
         'PUT /api/v1/customer/buyer-messages/drafts/:id',
@@ -303,9 +304,13 @@ describe('TradeMind API contract registry', () => {
       (item) => routeKey(item) === 'POST /api/v1/customer/buyer-messages/drafts/batch-mark-sent',
     );
 
-    const ruleBody = ['name', 'node', 'templateId', 'enabled', 'platforms', 'shopIds'];
+    const ruleBody = ['name', 'node', 'templateId', 'enabled', 'platforms', 'shopIds', 'backfill'];
     expect(createRule?.requestBody).toEqual(ruleBody);
     expect(updateRule?.requestBody).toEqual(ruleBody);
+    const backfillEstimate = contracts.endpoints.find(
+      (item) => routeKey(item) === 'GET /api/v1/customer/buyer-message-rules/backfill-estimate',
+    );
+    expect(backfillEstimate?.query).toEqual(['node', 'platforms', 'shopIds']);
     expect(listDrafts?.query).toEqual(['page', 'pageSize', 'node', 'status', 'platform', 'shopId', 'keyword']);
     expect(editDraft?.requestBody).toEqual(['content']);
     expect(batchMarkSent?.requestBody).toEqual(['ids']);
@@ -402,7 +407,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(109);
+    expect(contracts.endpoints).toHaveLength(110);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });
