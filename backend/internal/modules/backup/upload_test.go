@@ -139,6 +139,33 @@ func TestUploadArtifactFailureKeepsJobCompleted(t *testing.T) {
 	}
 }
 
+func TestUploadArtifactPersistsFailureAfterContextCancel(t *testing.T) {
+	svc := newTestService(t)
+	store := newMemStore()
+	store.failUploads = 10
+	svc.Store = store
+	svc.Cfg.Backup.UploadMaxAttempts = 3
+
+	row := seedCompletedBackup(t, svc, false)
+	var artifact Artifact
+	if err := svc.DB.Where("backup_id = ?", row.BackupID).First(&artifact).Error; err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	svc.uploadArtifact(ctx, row, &artifact)
+	var saved Job
+	if err := svc.DB.Where("backup_id = ?", row.BackupID).First(&saved).Error; err != nil {
+		t.Fatal(err)
+	}
+	if saved.UploadStatus != UploadFailed {
+		t.Fatalf("failed status must be persisted after ctx cancel, got %q", saved.UploadStatus)
+	}
+	if saved.UploadError == "" {
+		t.Fatal("upload error must be persisted after ctx cancel")
+	}
+}
+
 func TestRetryUploadSucceeds(t *testing.T) {
 	svc := newTestService(t)
 	store := newMemStore()

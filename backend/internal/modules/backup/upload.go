@@ -17,9 +17,12 @@ import (
 // completed with uploadStatus=failed so operators can retry.
 func (s *Service) uploadArtifact(ctx context.Context, row *Job, artifact *Artifact) {
 	now := time.Now().UTC()
+	// Upload state must be persisted even when the request context is already
+	// cancelled (e.g. the HTTP request timed out while the upload hung).
+	saveCtx := context.WithoutCancel(ctx)
 	if s.Store == nil {
 		row.UploadStatus = UploadSkipped
-		_ = s.DB.WithContext(ctx).Save(row).Error
+		_ = s.DB.WithContext(saveCtx).Save(row).Error
 		return
 	}
 	row.UploadTarget = s.Store.Target()
@@ -39,19 +42,19 @@ func (s *Service) uploadArtifact(ctx context.Context, row *Job, artifact *Artifa
 	if lastErr != nil {
 		row.UploadStatus = UploadFailed
 		row.UploadError = backupruntime.RedactCommandOutput(lastErr.Error())
-		_ = s.DB.WithContext(ctx).Save(row).Error
+		_ = s.DB.WithContext(saveCtx).Save(row).Error
 		return
 	}
 	row.UploadStatus = UploadUploaded
 	row.UploadError = ""
 	row.UploadedAt = &now
 	artifact.ObjectKey = key
-	_ = s.DB.WithContext(ctx).Save(artifact).Error
-	_ = s.DB.WithContext(ctx).Save(row).Error
+	_ = s.DB.WithContext(saveCtx).Save(artifact).Error
+	_ = s.DB.WithContext(saveCtx).Save(row).Error
 	if err := s.pruneObjectStore(ctx); err != nil {
 		// Retention pruning is best-effort; record but do not fail the upload.
 		row.UploadError = "retention prune: " + backupruntime.RedactCommandOutput(err.Error())
-		_ = s.DB.WithContext(ctx).Save(row).Error
+		_ = s.DB.WithContext(saveCtx).Save(row).Error
 	}
 }
 
