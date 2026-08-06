@@ -18,7 +18,8 @@ func TestFullDemoSeedRound126AutoActions(t *testing.T) {
 	}
 
 	var shipRule order.OrderAutomationRule
-	if err := db.First(&shipRule, "action = ?", order.AutomationActionApplyShippingRule).Error; err != nil {
+	if err := db.First(&shipRule, "action = ? AND shipping_apply_mode = ?",
+		order.AutomationActionApplyShippingRule, order.ShippingApplyModeApply).Error; err != nil {
 		t.Fatalf("expected apply_shipping_rule demo rule: %v", err)
 	}
 	if shipRule.ShippingApplyMode != order.ShippingApplyModeApply || !shipRule.Enabled {

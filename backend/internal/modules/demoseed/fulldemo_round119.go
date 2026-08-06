@@ -103,7 +103,7 @@ func (s *FullDemoSeeder) seedRound119OrderAutomation(tx *gorm.DB, res *FullDemoR
 		}
 		log := order.OrderAutomationLog{
 			TenantID: s.TenantID, RuleID: sp.rule.ID, RuleName: sp.rule.Name,
-			OrderID: o.ID, OrderNo: o.OrderNo,
+			OrderID: o.ID, OrderNo: o.OrderNo, ShopID: o.ShopID,
 			TriggerEvent: sp.rule.TriggerEvent, Action: sp.rule.Action,
 			Status: sp.status, Reason: sp.reason, Attempts: attempts,
 			DedupKey: fmt.Sprintf("%d:%s:%s:%s", s.TenantID, sp.rule.ID, o.ID, sp.rule.TriggerEvent),
