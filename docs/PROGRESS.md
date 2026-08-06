@@ -1849,7 +1849,6 @@ Final Production Acceptance Deferred to P10
 - **后端 `GET /api/v1/dashboard/screen` 单次聚合**：漏斗/趋势/待办均为分组 SQL 下推（无 N+1），销售额/毛利复用 `/reports/profit` #276 聚合口径；tenant/shop scope 与 dashboard 其余端点一致（空店铺授权 fail closed）；权限矩阵登记四 persona allow。
 - 详见 `docs/progress/R145.md`。
 
->>>>>>> origin/main
 ### 变更记录（2026-08-06）第 145 轮线2：MCP 只读入口安全交叉审查（security-engineer）
 
 - **审查范围**：R144 线1 MCP 只读入口（`POST /api/mcp` + 租户级只读 token）合入前交叉审查，双租户 Docker 全栈实测（token 生命周期/越权/写路径枚举/注入面/限流/输出脱敏/readonly 管理面/日志泄露）。
@@ -1865,3 +1864,11 @@ Final Production Acceptance Deferred to P10
 - **MCP token demo seed**：seed 新增 `DEMO-MCP 演示只读 token`（仅落哈希+脱敏元数据，明文即弃）+ `mcp_token_create` 审计样本（幂等）；Cleanup/VerifyClean 覆盖 `mcp_api_tokens` 零残留。
 - **R146 QA 复核**：零数据租户空态、长租户名/大数值截断 Docker 实测复核。
 - 详见 `docs/progress/R147.md`。
+
+### 变更记录（2026-08-06）第 148 轮线2：安全审计季度复跑（security-engineer）
+
+- **审计范围**：基于 main（#289–#300 已全部合入）复跑季度安全审计——MCP 入口（R145 修复零回退 + R146 过期/逐次审计/Redis 限流边界）、实时经营大屏新 API scope 与聚合注入面、备份定时器与恢复开关越权/配置注入、买家消息回溯开关越权，叠加常规越权/跨租户契约、readonly 403、tenant 0 闸门、CSV/XSS、密钥脱敏与日志 grep、seed 生产拒绝、govulncheck、pnpm audit，以及 R139 四项 S3/备份加固零回退核对与双租户 Docker 全栈实测。
+- **P1 修复（本轮）**：权限矩阵 registry 漂移——`buyer-message-rules/backfill-estimate`（两个挂载点）未登记，且矩阵中 `POST /api/mcp` 因测试 harness 未启用 `MCPEnabled` 被判 stale，`TestRouteRegistryComplete` 失败（安全契约套件红）。修复：补登记两条只读条目 + harness 与生产 router 对齐启用 MCP。
+- **零发现项**：跨租户数据泄露、MCP 写路径可达、token 明文入库/入日志/入响应、SQL/参数注入、平台租户接口越权、R139 修复项回退，均无。
+- **P2 清单**：MCP 审计写失败仅告警不阻断；大屏 today 销售/毛利口径忽略 shopId/platform 筛选；大屏非法 shopId 静默降级不报 400；MCP token 上限 count→insert 竞态及其回归测试缺失；前端工具链依赖告警 13 条（2 high，均为构建/开发期）。
+- 详见 `docs/SECURITY_AUDIT_R148.md`。

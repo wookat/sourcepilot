@@ -6059,6 +6059,17 @@
     }
   },
   {
+    "method": "GET",
+    "path": "/api/v1/customer-service/buyer-message-rules/backfill-estimate",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    },
+    "note": "read-only backfill draft-count estimate; tenant scoped, creates nothing"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/customer-service/buyer-message-rules",
     "personas": {
@@ -6157,6 +6168,17 @@
       "operator": "allow",
       "readonly": "allow"
     }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/customer/buyer-message-rules/backfill-estimate",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    },
+    "note": "read-only backfill draft-count estimate; tenant scoped, creates nothing"
   },
   {
     "method": "POST",
