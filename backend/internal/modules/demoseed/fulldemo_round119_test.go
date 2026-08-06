@@ -18,7 +18,8 @@ func TestFullDemoSeedOrderAutomationSamples(t *testing.T) {
 	}
 
 	var rules []order.OrderAutomationRule
-	if err := db.Find(&rules).Error; err != nil {
+	// Round 128 起 seed 还会给第二演示租户建 1 条规则，这里只核对主租户。
+	if err := db.Where("tenant_id = ?", 1).Find(&rules).Error; err != nil {
 		t.Fatal(err)
 	}
 	if len(rules) != 6 {

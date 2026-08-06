@@ -937,6 +937,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	}
 	count("order_exception_marks", 1)
 
+	// ---- 第二业务租户演示：独立租户 + admin 账号 + 少量业务数据（Round 128）----
+	if err := s.seedSecondTenant(tx, res); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -1287,6 +1292,9 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 		if err := del("waybill_templates", tx.Unscoped().Where("is_preset = ? AND name LIKE ?", false, like).Delete(&waybill.Template{})); err != nil {
 			return err
 		}
+		if err := cleanupSecondTenant(tx, res, like); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -1549,6 +1557,7 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 				Where("source_url LIKE ?", demoMarketURLPrefix+"%").Count(&n).Error
 		}},
 	}
+	checks = append(checks, secondTenantVerifyChecks(tx, like)...)
 	checks = append(checks, operationTaskVerifyChecks(tx, like)...)
 	checks = append(checks, migrationImportVerifyChecks(tx, like, func() *gorm.DB {
 		return tx.Model(&shop.Shop{}).Unscoped().Select("id").Where("shop_code LIKE ?", like)

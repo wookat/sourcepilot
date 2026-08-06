@@ -203,7 +203,7 @@ func (s *Service) CreateAutomationRule(c *gin.Context, body AutomationRuleBody, 
 		row.Enabled = false
 	}
 	s.logAutomation(c, adminID, "order_automation_rule.create", row.ID.String(),
-		fmt.Sprintf("name=%s event=%s action=%s", row.Name, row.TriggerEvent, row.Action))
+		fmt.Sprintf("规则「%s」：%s → %s%s", row.Name, AutomationEventLabel(row.TriggerEvent), AutomationActionLabel(row.Action), automationRuleParamSuffix(&row)))
 	return &row, nil
 }
 
@@ -225,7 +225,7 @@ func (s *Service) UpdateAutomationRule(c *gin.Context, id uuid.UUID, body Automa
 		return nil, err
 	}
 	s.logAutomation(c, adminID, "order_automation_rule.update", row.ID.String(),
-		fmt.Sprintf("name=%s enabled=%v event=%s action=%s", row.Name, row.Enabled, row.TriggerEvent, row.Action))
+		fmt.Sprintf("规则「%s」（%s）：%s → %s%s", row.Name, automationRuleEnabledLabel(row.Enabled), AutomationEventLabel(row.TriggerEvent), AutomationActionLabel(row.Action), automationRuleParamSuffix(row)))
 	return row, nil
 }
 
@@ -239,7 +239,7 @@ func (s *Service) DeleteAutomationRule(c *gin.Context, id uuid.UUID, adminID *uu
 		Where("id = ? AND tenant_id = ?", row.ID, row.TenantID).Delete(&OrderAutomationRule{}).Error; err != nil {
 		return err
 	}
-	s.logAutomation(c, adminID, "order_automation_rule.delete", row.ID.String(), fmt.Sprintf("name=%s", row.Name))
+	s.logAutomation(c, adminID, "order_automation_rule.delete", row.ID.String(), fmt.Sprintf("规则「%s」", row.Name))
 	return nil
 }
 
@@ -472,8 +472,49 @@ func (s *Service) RetryAutomationLog(c *gin.Context, logID uuid.UUID, adminID *u
 		return nil, err
 	}
 	s.logAutomation(c, adminID, "order_automation_log.retry", row.ID.String(),
-		fmt.Sprintf("rule=%s orderNo=%s status=%s", row.RuleName, row.OrderNo, updated.Status))
+		fmt.Sprintf("规则「%s」订单 %s 重试结果：%s", row.RuleName, row.OrderNo, automationLogStatusLabel(updated.Status)))
 	return updated, nil
+}
+
+// automationRuleParamSuffix renders the rule's action parameter (发货规则应用
+// 方式 / 分仓策略) as a中文 suffix for操作日志 messages.
+func automationRuleParamSuffix(r *OrderAutomationRule) string {
+	switch r.Action {
+	case AutomationActionApplyShippingRule:
+		mode := r.ShippingApplyMode
+		if mode == "" {
+			mode = ShippingApplyModeRecommend
+		}
+		return fmt.Sprintf("（应用方式：%s）", ShippingApplyModeLabel(mode))
+	case AutomationActionAssignWarehouse:
+		strategy := r.WarehouseStrategy
+		if strategy == "" {
+			strategy = AutomationWarehouseStrategyDefault
+		}
+		return fmt.Sprintf("（分仓策略：%s）", automationWarehouseStrategyLabel(strategy))
+	default:
+		return ""
+	}
+}
+
+func automationRuleEnabledLabel(enabled bool) string {
+	if enabled {
+		return "已启用"
+	}
+	return "已停用"
+}
+
+func automationLogStatusLabel(status string) string {
+	switch status {
+	case AutomationLogSuccess:
+		return "成功"
+	case AutomationLogFailed:
+		return "失败"
+	case AutomationLogSkipped:
+		return "跳过"
+	default:
+		return status
+	}
 }
 
 func (s *Service) logAutomation(c *gin.Context, adminID *uuid.UUID, action, resourceID, msg string) {
