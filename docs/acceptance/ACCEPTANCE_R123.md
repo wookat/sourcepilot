@@ -1,7 +1,7 @@
-# R123 预验收对照表（R91–R122 功能轮验收包，R128 增补 R124–R127，R132 增补 R128–R131，R136 增补 R132–R135）
+# R123 预验收对照表（R91–R122 功能轮验收包，R128 增补 R124–R127，R132 增补 R128–R131，R136 增补 R132–R135，R141 增补 R136–R140）
 
-- 轮次：R123 线1（technical-writer / product-manager）；R128 线2 增量更新（§一·补、§四、§五）；R132 线1 增量更新（§一/10 合入状态收口、§一/11、§五）；R136 线1 增量更新（§一/12、§四、§五）
-- 日期：2026-08-05
+- 轮次：R123 线1（technical-writer / product-manager）；R128 线2 增量更新（§一·补、§四、§五）；R132 线1 增量更新（§一/10 合入状态收口、§一/11、§五）；R136 线1 增量更新（§一/12、§四、§五）；R141 线1 增量更新（§一/12 合入状态收口、§一/13、§五）
+- 日期：2026-08-06
 - 基线：main `02b6b086`（#260 已合并）；演示脚本实跑也基于该基线。**#261（R122 线1 性能收口 v2，perf/round122）已于本轮验收包提交后合入 main（合并提交 `60e09b19`）**，性能收口条目已随之收口。
 - 口径：按 CHARTER §7 验收制整理——可运行成果（Docker 全栈）+ 演示（[DEMO_SCRIPT.md](DEMO_SCRIPT.md)）+ 需求（业务闭环）逐条对照 + 竞品对比结论（§四）。
 - 证据类型说明：轮次报告 = `docs/PROGRESS.md` 对应轮次条目与归档报告；E2E = `admin/e2e/specs/` 下对应 Playwright 用例（CI `admin-e2e` 门禁常跑）；实测 = 大回归（v14/v16）Docker 全栈手工走查记录。
@@ -123,17 +123,29 @@
 
 ### 12. R132–R135 增量能力（R136 增补）
 
-#278/#279/#282 已合入 main；#280（竞品复评 v5 归档）/#281（R133 P2×7 收口）在大回归 v20（R135 线2，PR #281 评论）给出 0 P0/P1、按 #280 → #281 顺序可合入的结论，本表按 ⏳ 登记。v20 P2×3 由 R136 线1（本轮）收口。
+#278/#279/#282 已合入 main；#280（竞品复评 v5 归档）/#281（R133 P2×7 收口）已按大回归 v20 结论（R135 线2，PR #281 评论）依序合入 main，对应条目已转 ✅。v20 P2×3 由 R136 线1（#283，已合并）收口。
 
 | 能力点 | 实现轮次 / PR | 验证证据 | 状态 |
 | --- | --- | --- | --- |
 | 大回归 v19 P2 收口（DEMO-AT-1004 补 `order_item_sku_matches` matched 行、smoke 首屏放宽 30s）+ 验收包增补 R128–R131（§一/11 即该轮产出） | R132 线1 / #278（已合并） | round119 seed 测试补 match 行断言；大回归 v20 Docker 实测（DEMO-AT-1004 规格匹配 1/1，不再显示「SKU 未就绪」） | ✅ |
 | 生产升级演练季度复跑（R124 基线 `314fc1ed` + 存量 → main `eb626bd9`）：从零部署 251s、R125–R131 新列（自动化新动作参数 / planned_carrier / assigned_warehouse / 执行日志 shop_id 回填 2 万行 0 偏差）落地、指纹 0 差异、故障注入 → pg_restore 恢复闭环；upgrade-guide 迁移点表补 R125–R131 行 | R132 线2 / #279（已合并） | `docs/upgrade-guide.md` §五 2026-08-06（R132 复跑）演练记录；演练报告（会话附件） | ✅ |
-| 安全审计 + 交叉 QA 复跑（R133 两线）产出 P2×7 → R134 线1 收口批次：finance 聚合 tenant 防御纵深（跨租户同 order_id 注入回归测试）、对账 CSV Currency 列补 `csvsafe.Cell`、`@umijs/max` 构建链 advisories 登记待决策（`DEPENDENCY_ADVISORIES_R134.md`）、E2E globalSetup 预热收口冷启动 flake、readonly 草稿详情前端门控、采集规则报错中文化（30+ 映射）、草稿来源平台枚举中文直出 | R133 两线（报告见 PR 评论）→ R134 线1 / #281 | `TestReconciliationCrossTenantAggIsolation`、`TestReconciliationCSVCurrencyEscaped`、`localize_test.go`、`round134-p2.spec.ts`；大回归 v20 修复点逐项抽查（PR #281 评论） | ⏳ #281 待合入（v20 结论：可合） |
-| 竞品对标复评 v5：16 项矩阵维持 **超越 3 / 达到 13 / 落后 0**，8 轮维护期实测零回退；对照竞品 2026 近期更新未发现新的结构性缺口；发现项 2 个（非阻断，均已由 R135 #282 收口） | R134 线2 / #280 | `docs/COMPETITIVE_BENCHMARK_R134.md`（Docker 全栈实测） | ⏳ #280 待合入（v20 结论：可合） |
+| 安全审计 + 交叉 QA 复跑（R133 两线）产出 P2×7 → R134 线1 收口批次：finance 聚合 tenant 防御纵深（跨租户同 order_id 注入回归测试）、对账 CSV Currency 列补 `csvsafe.Cell`、`@umijs/max` 构建链 advisories 登记待决策（`DEPENDENCY_ADVISORIES_R134.md`）、E2E globalSetup 预热收口冷启动 flake、readonly 草稿详情前端门控、采集规则报错中文化（30+ 映射）、草稿来源平台枚举中文直出 | R133 两线（报告见 PR 评论）→ R134 线1 / #281 | `TestReconciliationCrossTenantAggIsolation`、`TestReconciliationCSVCurrencyEscaped`、`localize_test.go`、`round134-p2.spec.ts`；大回归 v20 修复点逐项抽查（PR #281 评论） | ✅ #281 已合并 |
+| 竞品对标复评 v5：16 项矩阵维持 **超越 3 / 达到 13 / 落后 0**，8 轮维护期实测零回退；对照竞品 2026 近期更新未发现新的结构性缺口；发现项 2 个（非阻断，均已由 R135 #282 收口） | R134 线2 / #280 | `docs/COMPETITIVE_BENCHMARK_R134.md`（Docker 全栈实测） | ✅ #280 已合并 |
 | 订单标签闭环：`order_tags`/`order_tag_links` 表 + 标签管理 API/页面、订单列表标签列与 `?tagId=` 筛选（URL 单一来源）、批量/详情打标、自动化规则新动作 `add_tag`（沿用幂等/安全闸门/scope）；R134 复评发现项收口（SKU 提示口径、demo 采集规则样本） | R135 线1 / #282（已合并） | `round135-order-tags.spec.ts`（13 例）；Docker 全栈实测（PR #282）；`fulldemo_round135_*` seed 测试 | ✅ |
 | 大回归 v20（R132–R134 合入前集成预演：main 叠加 #280→#281）：全套门禁全绿、全量 E2E 306 例 303 passed / 0 failed / 3 skipped、Docker 全栈 8 组走查全过；结论 0 P0/P1、按序合入；P2×3（对账 seed 行数、operator 触发正样本、CSV 注入 E2E 层验证）由 R136 线1 收口 | R135 线2 | PR #281 评论（v20 报告与截图） | ✅ |
-| v20 P2×3 收口：demo seed 对账数据补足 25+ 行（结清/少款/多款/未回款样本齐备，UI 分页/合计与 #277 跨页全量导出可演示）、operator 授权店自动化正样本 `DEMO-AT-1005`（operator 可自行标记付款真实触发采购单生成）、对账 CSV Currency 注入防护补 HTTP E2E 层验证（真实路由+鉴权+CSV 导出全链路） | R136 线1（本轮） | `fulldemo_round136_test.go`；`TestRound136ReconciliationCSVCurrencyInjectionE2E`（integration，实库）；Docker 全栈实测（本轮 PR） | ✅（随本轮 PR） |
+| v20 P2×3 收口：demo seed 对账数据补足 25+ 行（结清/少款/多款/未回款样本齐备，UI 分页/合计与 #277 跨页全量导出可演示）、operator 授权店自动化正样本 `DEMO-AT-1005`（operator 可自行标记付款真实触发采购单生成）、对账 CSV Currency 注入防护补 HTTP E2E 层验证（真实路由+鉴权+CSV 导出全链路） | R136 线1 / #283（已合并） | `fulldemo_round136_test.go`；`TestRound136ReconciliationCSVCurrencyInjectionE2E`（integration，实库）；Docker 全栈实测（PR #283） | ✅ |
+
+### 13. R136–R140 增量能力（R141 增补）
+
+#284/#285/#286/#288 已合入 main；#287（对象存储备份上传）经 R139 安全审计 4 条 S3 加固（R140 线1 并入该 PR）后已合入 main（合并提交 `99fd2e7d`）。本节全部条目为 ✅。
+
+| 能力点 | 实现轮次 / PR | 验证证据 | 状态 |
+| --- | --- | --- | --- |
+| UX 视觉复核 v9 收口：v8 遗留 P2×2 无回退，#282 标签全动线/#277 CSV 导出/#275 日志中文化/#281 readonly 门控走查通过、硬指标全零；随报告修复 P1×1（对账差异 CSV「平台」列英文枚举 → `opslabels.PlatformLabel` 中文化）+ P2×2（操作日志 `order_tag.*` 动作/资源中文映射、标签页时间统一 `formatDateTime`） | R136 线2 / #284（已合并） | `docs/ux-review/UX_REVIEW_V9_REPORT.md`；`TestReconciliationCSVPlatformLocalized`；`operationLogs` 单测 | ✅ |
+| 报表 CSV「未折算」显式口径（UX v9 P2-3 收口）：非 CNY 无手工汇率时，利润报表/经营逐日/对账报表/差异工作台四类 CSV 的折算与本位币列由留空统一为显式「未折算」，与页面渲染口径一致；店铺月度费用「缺记录」仍留空、可折算真实 0 仍输出 `0.00` 不误标 | R137 线1 / #285（已合并） | `TestFinanceCSVUnconvertedExplicit`、`TestProfitCSVExport`、`TestExportDailyStatsCSV*`；`docs/api.md` 四处导出说明同步 | ✅ |
+| 生产升级演练季度复检（R132 后第 5 轮）：从零部署 234s / 从零到登录 251s（<15 分钟达标）；旧版本 `eb626bd9` + 双业务租户存量 → main `516e6863` 升级指纹 0 差异、shop_id 回填 0 偏差、`pg_restore` 备份恢复闭环 + 迁移幂等重跑；迁移点表补 R135（#282）行 | R137 线2 / #286（已合并，纯文档） | `docs/upgrade-guide.md` §五 2026-08-06（R137 季度复检）演练记录；`docs/production-launch-checklist.md` §五计时 | ✅ |
+| 备份对象存储上传（收掉最后一个部署债）：`backupstore` S3 兼容 Provider（AWS S3 / MinIO / 阿里 OSS），备份完成自动上传（有界重试、失败落库可重试）+ `BACKUP_OBJECT_RETENTION_COUNT` 保留策略 + 本地缺失自动取回校验 SHA-256；`BACKUP_S3_*` 留空为降级模式（仅本地路径不阻塞部署）；含 R139 审计 4 条 S3 加固（AK/SK 落库脱敏、endpoint 校验拒回环/元数据地址、清理收窄防整桶删除、取回落地路径 containment） | R138 线1 + R140 线1 / #287（已合并） | backupstore 假 S3 服务测试与加固回归测试；`round138-backup-upload.spec.ts`；MinIO 全链路实测（PR #287 评论）；permmatrix/tenant-zero 安全测试 | ✅ |
+| R139 线1 P2 收口：深分页静默失败 → `TmProTable` 统一 `pagination_offset_too_deep` 中文可读提示（全站列表页共享收口）；订单详情未匹配行「本地规格编号」不再回显录入 `sku_code`，未绑定行显式「未绑定」 | R139 线1 / #288（已合并） | `round139-p2.spec.ts`；`paginationError`/`localSkuCodeDisplay` 单测；Docker 实测（PR #288 评论） | ✅ |
 
 ## 二、外部凭证依赖项清单（按杠杆排序，含降级路径）
 
@@ -178,4 +190,5 @@
 4. ~~R128 时点待办：按大回归 v18 结论将 #266 → #269 → #268 依序合入 main~~——已完成（§一/10 三个 ⏳ 条目已转 ✅）；#245/#247/#248 内容已在 main，仍建议直接关闭冗余 PR。
 5. 凭证 ①（抖店）注入后插队真实 E2E 仍为正式验收前唯一外部前置项；其余口径同 §四结论。
 6. ~~R132 时点待办：按大回归 v19 结论合入 #275；#277（CSV 全量导出）合入后 §一/11 两个 ⏳ 条目转 ✅~~——已完成（#275/#277 已合入 main，§一/11 两条已转 ✅）。
-7. R136 时点待办：按大回归 v20 结论将 #280 → #281 依序合入 main（§一/12 两个 ⏳ 条目随之转 ✅）；`@umijs/max` 构建链 advisories 跨 major 升级仍登记待老板决策（`DEPENDENCY_ADVISORIES_R134.md`）。
+7. ~~R136 时点待办：按大回归 v20 结论将 #280 → #281 依序合入 main~~——已完成（§一/12 两个 ⏳ 条目已转 ✅）；`@umijs/max` 构建链 advisories 跨 major 升级仍登记待老板决策（`DEPENDENCY_ADVISORIES_R134.md`）。
+8. R141 时点：R136–R140 交付（#283–#288，含 #287 备份对象存储）已全部合入 main，无 open ⏳ 条目；凭证 ①（抖店）注入后插队真实 E2E 仍为正式验收前唯一外部前置项。备份对象存储生产建议 crontab + `BACKUP_S3_*` 上传双路径同时启用（production-launch-checklist §说明）。
