@@ -5,6 +5,7 @@ import {
   revokeMcpToken,
   type McpTokenRow,
 } from '@/services/mcpTokens';
+import { formatDateTime } from '@/utils/formatTime';
 import { isReadonly } from '@/utils/permission';
 import { useModel } from '@umijs/max';
 import {
@@ -120,12 +121,17 @@ export default function McpTokensPage() {
           loading={loading}
           dataSource={rows}
           pagination={false}
+          scroll={{ x: 'max-content' }}
           columns={[
             { title: '名称', dataIndex: 'name' },
             {
               title: '访问令牌（脱敏）',
               dataIndex: 'maskedToken',
-              render: (v: string) => <Typography.Text code>{v}</Typography.Text>,
+              render: (v: string) => (
+                <Typography.Text code style={{ whiteSpace: 'nowrap' }}>
+                  {v}
+                </Typography.Text>
+              ),
             },
             {
               title: '权限',
@@ -138,8 +144,16 @@ export default function McpTokensPage() {
               render: (revoked: boolean) =>
                 revoked ? <Tag color="red">已吊销</Tag> : <Tag color="green">有效</Tag>,
             },
-            { title: '创建时间', dataIndex: 'createdAt' },
-            { title: '最近使用', dataIndex: 'lastUsedAt', render: (v?: string) => v || '-' },
+            {
+              title: '创建时间',
+              dataIndex: 'createdAt',
+              render: (v?: string) => formatDateTime(v),
+            },
+            {
+              title: '最近使用',
+              dataIndex: 'lastUsedAt',
+              render: (v?: string) => formatDateTime(v),
+            },
             {
               title: '操作',
               key: 'actions',
