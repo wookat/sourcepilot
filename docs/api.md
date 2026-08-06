@@ -958,6 +958,28 @@ Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_nega
 
 `POST /api/v1/orders` 请求体新增可选字段 `remark`（备注）与 `rawData`（JSON 原始数据），向后兼容。
 
+## MCP 只读入口（round144）
+
+MCP token 管理（登录后，走统一 JWT 鉴权与租户 scope）：
+
+```text
+GET  /api/v1/mcp/tokens             # 列出当前租户 token（脱敏：sp_mcp_ro_ab…cdef）
+POST /api/v1/mcp/tokens             # 创建只读 token，body {"name":"claude-desktop"}；响应含一次性 plaintext
+POST /api/v1/mcp/tokens/:id/revoke  # 吊销（幂等），readonly 账号 403
+```
+
+- token 明文只在创建响应中返回一次，库中只存 SHA-256 哈希；创建/吊销写操作日志（resource=`mcp_token`）。
+
+MCP 协议入口（不走 JWT，用上面创建的 token 鉴权）：
+
+```text
+POST /api/mcp   # MCP Streamable HTTP；Authorization: Bearer sp_mcp_ro_...
+```
+
+- 只暴露 4 个只读工具：`orders_query` / `inventory_query` / `report_summary` / `exceptions_pending`，全部强制 token 所属租户 scope。
+- 每 token 限流（`MCP_RATE_RPS` / `MCP_RATE_BURST`），`MCP_ENABLED=false` 时入口不注册。
+- 客户端配置与工具说明见 `docs/mcp.md`。
+
 ## 权限矩阵契约（round52）
 
 - 全部已注册路由的「路由 × {admin, operator, readonly, 跨租户}」授权预期登记在

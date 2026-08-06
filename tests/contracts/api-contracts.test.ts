@@ -125,6 +125,9 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/finance/report',
         'GET /api/v1/finance/report/export.csv',
         'PUT /api/v1/procurement/orders/:id/items/:itemId/actual-price',
+        'GET /api/v1/mcp/tokens',
+        'POST /api/v1/mcp/tokens',
+        'POST /api/v1/mcp/tokens/:id/revoke',
       ]),
     );
   });
@@ -407,7 +410,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(110);
+    expect(contracts.endpoints).toHaveLength(113);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

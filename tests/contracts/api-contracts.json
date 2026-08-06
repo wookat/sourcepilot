@@ -1129,6 +1129,27 @@
         "actualPrice"
       ],
       "responseData": "PurchaseOrderDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mcp/tokens",
+      "auth": true,
+      "responseData": "McpTokenList"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mcp/tokens",
+      "auth": true,
+      "requestBody": [
+        "name"
+      ],
+      "responseData": "McpTokenCreateResult"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mcp/tokens/:id/revoke",
+      "auth": true,
+      "responseData": "McpTokenView"
     }
   ]
 }

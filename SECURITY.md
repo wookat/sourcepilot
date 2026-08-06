@@ -38,6 +38,7 @@ TradeMind handles sensitive operational data, including:
 - Store access tokens and refresh tokens
 - Webhook secrets
 - Admin account credentials
+- MCP read-only API tokens (`sp_mcp_ro_*`)
 
 These values must not be committed to the repository. Use `.env` locally, keep `.env` out of git, and configure runtime secrets securely in production.
 
@@ -54,4 +55,5 @@ Before exposing TradeMind to a public network, you should:
 - Restrict database and Redis access to private networks.
 - Avoid logging secrets, tokens, cookies, or complete third-party API responses.
 - Review platform OAuth callback URLs and permissions.
+- Treat MCP read-only tokens as secrets: they are stored as SHA-256 hashes and shown in plaintext only once at creation; revoke immediately on leakage (Settings → MCP 只读接入). The `/api/mcp` entry is read-only, tenant-scoped, and rate limited per token (`MCP_RATE_RPS` / `MCP_RATE_BURST`); disable it entirely with `MCP_ENABLED=false` if unused.
 - Back up PostgreSQL data and uploaded files.

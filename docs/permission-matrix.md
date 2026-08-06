@@ -224,3 +224,9 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - **买家消息草稿越权（P1，已修复）**：草稿 list 原仅按租户过滤，泄露未授权店铺草稿内容；详情写路径（update/mark-sent/ignore/batch-mark-sent）原仅校验租户。list/batch 补 `ApplyStoreScope`，详情查找补 `EnsureStoreVisible`（404 口径）。
 - **新增契约测试** `automation_message_scope_test.go`：`TestAutomationRuleShopIDsScope`、`TestAutomationDryRunStoreScope`、`TestAutomationLogStoreScope`（含 404 后无副作用断言）、`TestBuyerMsgScope`（含草稿内容不泄露断言）、`TestSelectionCandidateTenantScope`。
 - **加固**：`config.NormalizeEnv` 将 `prod` 归一为 `production`，demoseed/perfseed 生产拒绝判定统一走 `config.IsProduction`；浏览器端 CSV 导出（`admin/src/utils/csv.ts`）补公式注入前缀中和（与后端 `csvsafe` 同口径）。
+
+## round144 MCP 只读入口
+
+- **矩阵登记**：`GET /api/v1/mcp/tokens` 四角色 `allow`（租户 scope 在查询内应用）；`POST /api/v1/mcp/tokens`、`POST /api/v1/mcp/tokens/:id/revoke` 为写路由，`readonly: forbid`。
+- **`POST /api/mcp`** 登记为 `probe: false`：该入口不走后台 JWT persona，鉴权为租户级只读 API token（`sp_mcp_ro_*`，SHA-256 哈希存储、可吊销、每 token 限流）。租户隔离、吊销失效、只读工具面与 401/429 行为由 `mcpserver` 模块测试（`server_test.go`）与 `mcptoken` 服务测试覆盖。
+- MCP 工具全部只读（`orders_query` / `inventory_query` / `report_summary` / `exceptions_pending`），无任何写操作暴露；使用说明见 `docs/mcp.md`。
