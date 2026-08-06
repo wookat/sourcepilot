@@ -10,6 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/providers/fxrate"
@@ -88,12 +90,16 @@ type ProfitReportDTO struct {
 	Truncated    bool          `json:"truncated,omitempty"`
 }
 
-// profitAcc accumulates one row with exact decimal conversion.
+// profitAcc accumulates one row with exact decimal conversion. Revenue /
+// cost feed in either per order line or as SQL group sums (rate × Σamount ≡
+// Σ(rate × amount) exactly, so both paths agree). Grouped paths set
+// orderCount directly; per-order paths track distinct IDs.
 type profitAcc struct {
 	table       *fxrate.Table
 	label       string
 	platform    string
 	orderIDs    map[uuid.UUID]bool
+	orderCount  int64
 	quantity    int64
 	byCurrency  map[string]*big.Rat // original amounts
 	baseSum     *big.Rat            // convertible amounts in base
@@ -141,6 +147,28 @@ func (a *profitAcc) addCostCNY(amount float64) {
 	a.costCNY.Add(a.costCNY, fxrate.AmountRat(amount))
 }
 
+// orders is the accumulated order count (grouped paths set orderCount, the
+// per-order path collects distinct IDs).
+func (a *profitAcc) orders() int64 {
+	if a.orderCount > 0 {
+		return a.orderCount
+	}
+	return int64(len(a.orderIDs))
+}
+
+// addPairCost folds one (product, sku, quantity) line group into the
+// accumulator: each grouped line keeps its per-line round2(unit × quantity)
+// contribution, so the grouped sum matches per-line accumulation exactly.
+func (a *profitAcc) addPairCost(p linePairAgg, refs map[pairKey]*float64) {
+	a.quantity += int64(p.Quantity) * p.N
+	if u := refs[pairKeyOf(p.ProductID, p.ProductSKUID)]; u != nil {
+		line := fxrate.AmountRat(round2(*u * float64(p.Quantity)))
+		a.costCNY.Add(a.costCNY, new(big.Rat).Mul(line, new(big.Rat).SetInt64(p.N)))
+	} else {
+		a.missing += int(p.N)
+	}
+}
+
 func (a *profitAcc) revenue() []MoneyByCurrency {
 	out := make([]MoneyByCurrency, 0, len(a.byCurrency))
 	for cur, amt := range a.byCurrency {
@@ -179,7 +207,7 @@ func (a *profitAcc) finish(fees []FeeItem, cnyRate *big.Rat) (revBase, costCNY, 
 			pct := new(big.Rat).Mul(a.baseSum, fxrate.AmountRat(f.Value))
 			feeRat.Add(feeRat, pct.Quo(pct, big.NewRat(100, 1)))
 		case FeeModeFixedPerOrder:
-			per := new(big.Rat).Mul(fxrate.AmountRat(f.Value), big.NewRat(int64(len(a.orderIDs)), 1))
+			per := new(big.Rat).Mul(fxrate.AmountRat(f.Value), big.NewRat(a.orders(), 1))
 			feeRat.Add(feeRat, per)
 		}
 	}
@@ -200,26 +228,26 @@ func (a *profitAcc) finish(fees []FeeItem, cnyRate *big.Rat) (revBase, costCNY, 
 // ProfitReport aggregates paid orders in the range by the requested
 // dimension. Scope matches the order list: current tenant, soft-deleted
 // orders excluded, non-admin principals restricted to their granted shops.
+// Revenue / line groups are aggregated in SQL (GROUP BY); currency
+// conversion, reference-cost resolution and profit math stay in Go on the
+// exact group sums, so the numbers match per-row accumulation exactly.
 func (s *Service) ProfitReport(c *gin.Context, dimension string, r DateRange) (*ProfitReportDTO, error) {
 	if dimension != DimensionOrder && dimension != DimensionProduct && dimension != DimensionShop {
 		return nil, fmt.Errorf("dimension 仅支持 order / product / shop")
 	}
 	ctx := c.Request.Context()
-
-	tx := s.DB.WithContext(ctx).Model(&order.Order{}).
-		Where("created_at >= ? AND created_at < ? AND payment_status = ?", r.Start, r.End, order.PaymentPaid)
-	tx, tenantID, err := adminperm.ApplyTenantScope(c, tx)
+	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		return nil, err
 	}
-	tx, err = adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
-	if err != nil {
-		return nil, err
-	}
-	var orders []order.Order
-	if err := tx.Select("id, order_no, shop_id, platform, currency, total_amount, created_at").
-		Order("created_at DESC").Find(&orders).Error; err != nil {
-		return nil, err
+	build := func() (*gorm.DB, error) {
+		tx := s.DB.WithContext(ctx).Model(&order.Order{}).
+			Where("created_at >= ? AND created_at < ? AND payment_status = ?", r.Start, r.End, order.PaymentPaid)
+		tx, _, err := adminperm.ApplyTenantScope(c, tx)
+		if err != nil {
+			return nil, err
+		}
+		return adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
 	}
 
 	table := s.fxTable(ctx, tenantID)
@@ -229,113 +257,25 @@ func (s *Service) ProfitReport(c *gin.Context, dimension string, r DateRange) (*
 		cnyRate = rate
 	}
 
-	orderIDs := make([]uuid.UUID, 0, len(orders))
-	for _, o := range orders {
-		orderIDs = append(orderIDs, o.ID)
+	orderKeyExpr, lineKeyExpr := "", ""
+	switch dimension {
+	case DimensionShop:
+		orderKeyExpr = "COALESCE(shop_id, '" + KeyNoShop + "')"
+		lineKeyExpr = "COALESCE(o.shop_id, '" + KeyNoShop + "')"
+	case DimensionProduct:
+		lineKeyExpr = "COALESCE(oi.product_id, '" + KeyUnmatchedProduct + "')"
 	}
-	items, err := s.loadOrderItems(ctx, orderIDs)
+	curAggs, err := orderCurrencyAggs(build, orderKeyExpr)
 	if err != nil {
 		return nil, err
 	}
-	costs, err := s.Proc.ResolveLineCostRefs(ctx, items)
+	pairAggs, err := s.linePairAggs(ctx, build, lineKeyExpr)
 	if err != nil {
 		return nil, err
 	}
-	itemsByOrder := make(map[uuid.UUID][]order.OrderItem, len(orders))
-	for _, it := range items {
-		itemsByOrder[it.OrderID] = append(itemsByOrder[it.OrderID], it)
-	}
-
-	shopNames, err := s.shopLabels(ctx, orders, dimension)
+	refs, err := s.resolvePairRefs(ctx, pairAggs)
 	if err != nil {
 		return nil, err
-	}
-
-	summaryAcc := newProfitAcc(table)
-	rowsByKey := map[string]*profitAcc{}
-	rowOrder := []string{}
-	rowAcc := func(key, label, platform string) *profitAcc {
-		a := rowsByKey[key]
-		if a == nil {
-			a = newProfitAcc(table)
-			a.label = label
-			a.platform = platform
-			rowsByKey[key] = a
-			rowOrder = append(rowOrder, key)
-		}
-		return a
-	}
-
-	for _, o := range orders {
-		summaryAcc.orderIDs[o.ID] = true
-		summaryAcc.addRevenue(o.Currency, o.TotalAmount)
-		oItems := itemsByOrder[o.ID]
-		for _, it := range oItems {
-			cRef := costs[it.ID]
-			if cRef.UnitCostCNY != nil {
-				summaryAcc.addCostCNY(round2(*cRef.UnitCostCNY * float64(it.Quantity)))
-			} else {
-				summaryAcc.missing++
-			}
-		}
-
-		switch dimension {
-		case DimensionOrder:
-			a := rowAcc(o.ID.String(), o.OrderNo, o.Platform)
-			a.orderIDs[o.ID] = true
-			a.addRevenue(o.Currency, o.TotalAmount)
-			for _, it := range oItems {
-				a.quantity += int64(it.Quantity)
-				cRef := costs[it.ID]
-				if cRef.UnitCostCNY != nil {
-					a.addCostCNY(round2(*cRef.UnitCostCNY * float64(it.Quantity)))
-				} else {
-					a.missing++
-				}
-			}
-		case DimensionShop:
-			key, label, platform := KeyNoShop, "未绑定店铺", o.Platform
-			if o.ShopID != nil {
-				key = o.ShopID.String()
-				if n, ok := shopNames[*o.ShopID]; ok && n != "" {
-					label = n
-				} else {
-					label = "店铺 " + key[:8]
-				}
-			}
-			a := rowAcc(key, label, platform)
-			a.orderIDs[o.ID] = true
-			a.addRevenue(o.Currency, o.TotalAmount)
-			for _, it := range oItems {
-				a.quantity += int64(it.Quantity)
-				cRef := costs[it.ID]
-				if cRef.UnitCostCNY != nil {
-					a.addCostCNY(round2(*cRef.UnitCostCNY * float64(it.Quantity)))
-				} else {
-					a.missing++
-				}
-			}
-		case DimensionProduct:
-			for _, it := range oItems {
-				key, label := KeyUnmatchedProduct, "未匹配本地商品"
-				if it.ProductID != nil {
-					key = it.ProductID.String()
-					label = it.ProductTitle
-				} else if it.ProductTitle != "" {
-					label = "未匹配：" + it.ProductTitle
-				}
-				a := rowAcc(key, label, "")
-				a.orderIDs[o.ID] = true
-				a.quantity += int64(it.Quantity)
-				a.addRevenue(o.Currency, it.TotalPrice)
-				cRef := costs[it.ID]
-				if cRef.UnitCostCNY != nil {
-					a.addCostCNY(round2(*cRef.UnitCostCNY * float64(it.Quantity)))
-				} else {
-					a.missing++
-				}
-			}
-		}
 	}
 
 	out := &ProfitReportDTO{
@@ -348,9 +288,20 @@ func (s *Service) ProfitReport(c *gin.Context, dimension string, r DateRange) (*
 		Rows:         []ProfitRow{},
 	}
 
+	// Summary covers all scoped orders regardless of dimension: re-summing
+	// the keyed groups is exact (both revenue and per-line costs are
+	// additive).
+	summaryAcc := newProfitAcc(table)
+	for _, g := range curAggs {
+		summaryAcc.addRevenue(g.Currency, g.Amount)
+		summaryAcc.orderCount += g.N
+	}
+	for _, p := range pairAggs {
+		summaryAcc.addPairCost(p, refs)
+	}
 	revBase, costCNY, feeBase, costBase, profit, margin := summaryAcc.finish(fees, cnyRate)
 	out.Summary = ProfitSummary{
-		OrderCount:            int64(len(summaryAcc.orderIDs)),
+		OrderCount:            summaryAcc.orders(),
 		Revenue:               summaryAcc.revenue(),
 		RevenueBase:           revBase,
 		UnconvertedCurrencies: summaryAcc.unconvertedList(),
@@ -362,36 +313,195 @@ func (s *Service) ProfitReport(c *gin.Context, dimension string, r DateRange) (*
 		MarginPercent:         margin,
 	}
 
-	rows := make([]ProfitRow, 0, len(rowOrder))
-	for _, key := range rowOrder {
-		a := rowsByKey[key]
-		rb, cc, fb, cb, p, m := a.finish(fees, cnyRate)
-		rows = append(rows, ProfitRow{
-			Key:                   key,
-			Label:                 a.label,
-			Platform:              a.platform,
-			OrderCount:            int64(len(a.orderIDs)),
-			Quantity:              a.quantity,
-			Revenue:               a.revenue(),
-			RevenueBase:           rb,
-			UnconvertedCurrencies: a.unconvertedList(),
-			CostCNY:               cc,
-			CostBase:              cb,
-			MissingCostLines:      a.missing,
-			FeeBase:               fb,
-			GrossProfitBase:       p,
-			MarginPercent:         m,
-		})
+	var rows []ProfitRow
+	switch dimension {
+	case DimensionOrder:
+		rows, out.Truncated, err = s.profitOrderRows(ctx, build, table, fees, cnyRate, refs)
+	case DimensionShop:
+		rows, err = s.profitShopRows(ctx, build, table, fees, cnyRate, refs, curAggs, pairAggs)
+	case DimensionProduct:
+		rows, err = s.profitProductRows(ctx, build, table, fees, cnyRate, refs, pairAggs)
+	}
+	if err != nil {
+		return nil, err
 	}
 	if dimension != DimensionOrder {
 		sort.SliceStable(rows, func(i, j int) bool { return rows[i].RevenueBase > rows[j].RevenueBase })
-	}
-	if len(rows) > profitMaxRows {
-		rows = rows[:profitMaxRows]
-		out.Truncated = true
+		if len(rows) > profitMaxRows {
+			rows = rows[:profitMaxRows]
+			out.Truncated = true
+		}
 	}
 	out.Rows = rows
 	return out, nil
+}
+
+// profitRowOf finishes an accumulator into its DTO row.
+func profitRowOf(key string, a *profitAcc, fees []FeeItem, cnyRate *big.Rat) ProfitRow {
+	rb, cc, fb, cb, p, m := a.finish(fees, cnyRate)
+	return ProfitRow{
+		Key:                   key,
+		Label:                 a.label,
+		Platform:              a.platform,
+		OrderCount:            a.orders(),
+		Quantity:              a.quantity,
+		Revenue:               a.revenue(),
+		RevenueBase:           rb,
+		UnconvertedCurrencies: a.unconvertedList(),
+		CostCNY:               cc,
+		CostBase:              cb,
+		MissingCostLines:      a.missing,
+		FeeBase:               fb,
+		GrossProfitBase:       p,
+		MarginPercent:         m,
+	}
+}
+
+// profitOrderRows builds the order-dimension rows: only the newest
+// profitMaxRows orders materialize (the previous implementation built all
+// rows and truncated to the same window), with per-line cost lookups against
+// the shared pair resolution.
+func (s *Service) profitOrderRows(ctx context.Context, build func() (*gorm.DB, error), table *fxrate.Table, fees []FeeItem, cnyRate *big.Rat, refs map[pairKey]*float64) ([]ProfitRow, bool, error) {
+	tx, err := build()
+	if err != nil {
+		return nil, false, err
+	}
+	var orders []order.Order
+	if err := tx.Select("id, order_no, shop_id, platform, currency, total_amount, created_at").
+		Order("created_at DESC, id DESC").Limit(profitMaxRows + 1).Find(&orders).Error; err != nil {
+		return nil, false, err
+	}
+	truncated := len(orders) > profitMaxRows
+	if truncated {
+		orders = orders[:profitMaxRows]
+	}
+	orderIDs := make([]uuid.UUID, 0, len(orders))
+	for _, o := range orders {
+		orderIDs = append(orderIDs, o.ID)
+	}
+	items, err := s.loadOrderItems(ctx, orderIDs)
+	if err != nil {
+		return nil, false, err
+	}
+	itemsByOrder := make(map[uuid.UUID][]order.OrderItem, len(orders))
+	for _, it := range items {
+		itemsByOrder[it.OrderID] = append(itemsByOrder[it.OrderID], it)
+	}
+	rows := make([]ProfitRow, 0, len(orders))
+	for _, o := range orders {
+		a := newProfitAcc(table)
+		a.label = o.OrderNo
+		a.platform = o.Platform
+		a.orderIDs[o.ID] = true
+		a.addRevenue(o.Currency, o.TotalAmount)
+		for _, it := range itemsByOrder[o.ID] {
+			a.quantity += int64(it.Quantity)
+			if u := refs[pairKeyOf(it.ProductID, it.ProductSKUID)]; u != nil {
+				a.addCostCNY(round2(*u * float64(it.Quantity)))
+			} else {
+				a.missing++
+			}
+		}
+		rows = append(rows, profitRowOf(o.ID.String(), a, fees, cnyRate))
+	}
+	return rows, truncated, nil
+}
+
+// profitShopRows builds the shop-dimension rows from the keyed SQL groups,
+// in first-seen (newest order first) iteration order like the previous
+// per-order accumulation.
+func (s *Service) profitShopRows(ctx context.Context, build func() (*gorm.DB, error), table *fxrate.Table, fees []FeeItem, cnyRate *big.Rat, refs map[pairKey]*float64, curAggs []orderCurrencyAgg, pairAggs []linePairAgg) ([]ProfitRow, error) {
+	metas, err := s.shopFirstSeen(ctx, build)
+	if err != nil {
+		return nil, err
+	}
+	shopIDs := make([]uuid.UUID, 0, len(metas))
+	for _, m := range metas {
+		if id, err := uuid.Parse(m.Key); err == nil {
+			shopIDs = append(shopIDs, id)
+		}
+	}
+	shopNames, err := s.shopLabelsByID(ctx, shopIDs)
+	if err != nil {
+		return nil, err
+	}
+	curByKey := map[string][]orderCurrencyAgg{}
+	for _, g := range curAggs {
+		curByKey[g.Key] = append(curByKey[g.Key], g)
+	}
+	pairByKey := map[string][]linePairAgg{}
+	for _, p := range pairAggs {
+		pairByKey[p.Key] = append(pairByKey[p.Key], p)
+	}
+	rows := make([]ProfitRow, 0, len(metas))
+	for _, m := range metas {
+		a := newProfitAcc(table)
+		a.platform = m.Platform
+		a.label = "未绑定店铺"
+		if m.Key != KeyNoShop {
+			if id, err := uuid.Parse(m.Key); err == nil && shopNames[id] != "" {
+				a.label = shopNames[id]
+			} else {
+				a.label = "店铺 " + m.Key[:8]
+			}
+		}
+		for _, g := range curByKey[m.Key] {
+			a.addRevenue(g.Currency, g.Amount)
+			a.orderCount += g.N
+		}
+		for _, p := range pairByKey[m.Key] {
+			a.addPairCost(p, refs)
+		}
+		rows = append(rows, profitRowOf(m.Key, a, fees, cnyRate))
+	}
+	return rows, nil
+}
+
+// profitProductRows builds the product-dimension rows from the keyed SQL
+// groups, in first-seen (newest order first) iteration order like the
+// previous per-line accumulation.
+func (s *Service) profitProductRows(ctx context.Context, build func() (*gorm.DB, error), table *fxrate.Table, fees []FeeItem, cnyRate *big.Rat, refs map[pairKey]*float64, pairAggs []linePairAgg) ([]ProfitRow, error) {
+	metas, err := s.productFirstSeen(ctx, build)
+	if err != nil {
+		return nil, err
+	}
+	itemRev, err := s.itemCurrencyAggs(ctx, build)
+	if err != nil {
+		return nil, err
+	}
+	counts, err := s.productOrderCounts(ctx, build)
+	if err != nil {
+		return nil, err
+	}
+	revByKey := map[string][]itemCurrencyAgg{}
+	for _, g := range itemRev {
+		revByKey[g.Key] = append(revByKey[g.Key], g)
+	}
+	pairByKey := map[string][]linePairAgg{}
+	for _, p := range pairAggs {
+		pairByKey[p.Key] = append(pairByKey[p.Key], p)
+	}
+	rows := make([]ProfitRow, 0, len(metas))
+	for _, m := range metas {
+		a := newProfitAcc(table)
+		if m.Key == KeyUnmatchedProduct {
+			a.label = "未匹配本地商品"
+			if m.Title != "" {
+				a.label = "未匹配：" + m.Title
+			}
+		} else {
+			a.label = m.Title
+		}
+		a.orderCount = counts[m.Key]
+		for _, g := range revByKey[m.Key] {
+			a.addRevenue(g.Currency, g.Amount)
+		}
+		for _, p := range pairByKey[m.Key] {
+			a.addPairCost(p, refs)
+		}
+		rows = append(rows, profitRowOf(m.Key, a, fees, cnyRate))
+	}
+	return rows, nil
 }
 
 // loadOrderItems loads all line items for the given orders in bounded chunks.
@@ -412,23 +522,9 @@ func (s *Service) loadOrderItems(ctx context.Context, orderIDs []uuid.UUID) ([]o
 	return all, nil
 }
 
-// shopLabels resolves shop display names for the shop dimension.
-func (s *Service) shopLabels(ctx context.Context, orders []order.Order, dimension string) (map[uuid.UUID]string, error) {
+// shopLabelsByID resolves shop display names for the shop dimension.
+func (s *Service) shopLabelsByID(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]string, error) {
 	out := map[uuid.UUID]string{}
-	if dimension != DimensionShop {
-		return out, nil
-	}
-	idSet := map[uuid.UUID]struct{}{}
-	ids := []uuid.UUID{}
-	for _, o := range orders {
-		if o.ShopID == nil {
-			continue
-		}
-		if _, ok := idSet[*o.ShopID]; !ok {
-			idSet[*o.ShopID] = struct{}{}
-			ids = append(ids, *o.ShopID)
-		}
-	}
 	if len(ids) == 0 {
 		return out, nil
 	}
