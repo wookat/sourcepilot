@@ -85,7 +85,11 @@ git checkout <上一个正常commit>
 
 ## 五、备份与恢复
 
-### 备份（建议每日 cron）
+### 备份（推荐：内置定时器；宿主机 cron 为备选）
+
+推荐在 `.env` 设 `BACKUP_SCHEDULE_ENABLED=true`，由 backend 内置定时器按 `BACKUP_SCHEDULE`（5 字段 cron 如 `0 3 * * *`，或简化 interval 如 `@every 6h`）自动触发备份：包含加密、校验、S3 兼容对象存储上传与对象保留策略；重复触发幂等，失败会落 `status=failed` 可在 Ops 备份页查看。若用自签证书的 MinIO 端点，另设 `BACKUP_S3_CA_BUNDLE` 指向挂载进容器的 CA PEM（真实生产公信 CA 无需配置）。
+
+不启用内置定时器时，可用以下宿主机 cron 作为备选路径：
 
 ```bash
 # PostgreSQL 全量备份（custom 格式，可压缩、可选表恢复）

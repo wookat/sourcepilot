@@ -32,27 +32,32 @@ const (
 
 type Job struct {
 	model.Base
-	BackupID            string         `gorm:"size:64;uniqueIndex;not null" json:"backupId"`
-	Environment         string         `gorm:"size:32;index;not null" json:"environment"`
-	BackupType          string         `gorm:"size:64;index;not null" json:"backupType"`
-	Status              string         `gorm:"size:32;index;not null" json:"status"`
-	VerificationStatus  string         `gorm:"size:32;index;not null;default:pending" json:"verificationStatus"`
-	StorageProvider     string         `gorm:"size:32;not null" json:"storageProvider"`
-	StorageLocationHash string         `gorm:"size:128" json:"storageLocationHash,omitempty"`
-	Encrypted           bool           `gorm:"not null;default:false" json:"encrypted"`
-	EncryptionKeyID     string         `gorm:"size:128" json:"encryptionKeyId,omitempty"`
-	Checksum            string         `gorm:"size:128" json:"checksum,omitempty"`
-	ArtifactSize        int64          `json:"artifactSize"`
-	StartedAt           *time.Time     `json:"startedAt,omitempty"`
-	CompletedAt         *time.Time     `json:"completedAt,omitempty"`
-	ErrorSummary        string         `gorm:"type:text" json:"errorSummary,omitempty"`
-	CreatedBy           *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
-	ManifestJSON        datatypes.JSON `json:"manifestJson,omitempty"`
-	UploadStatus        string         `gorm:"size:32;index" json:"uploadStatus,omitempty"`
-	UploadTarget        string         `gorm:"size:255" json:"uploadTarget,omitempty"`
-	UploadAttempts      int            `json:"uploadAttempts,omitempty"`
-	UploadedAt          *time.Time     `json:"uploadedAt,omitempty"`
-	UploadError         string         `gorm:"type:text" json:"uploadError,omitempty"`
+	BackupID            string     `gorm:"size:64;uniqueIndex;not null" json:"backupId"`
+	Environment         string     `gorm:"size:32;index;not null" json:"environment"`
+	BackupType          string     `gorm:"size:64;index;not null" json:"backupType"`
+	Status              string     `gorm:"size:32;index;not null" json:"status"`
+	VerificationStatus  string     `gorm:"size:32;index;not null;default:pending" json:"verificationStatus"`
+	StorageProvider     string     `gorm:"size:32;not null" json:"storageProvider"`
+	StorageLocationHash string     `gorm:"size:128" json:"storageLocationHash,omitempty"`
+	Encrypted           bool       `gorm:"not null;default:false" json:"encrypted"`
+	EncryptionKeyID     string     `gorm:"size:128" json:"encryptionKeyId,omitempty"`
+	Checksum            string     `gorm:"size:128" json:"checksum,omitempty"`
+	ArtifactSize        int64      `json:"artifactSize"`
+	StartedAt           *time.Time `json:"startedAt,omitempty"`
+	CompletedAt         *time.Time `json:"completedAt,omitempty"`
+	ErrorSummary        string     `gorm:"type:text" json:"errorSummary,omitempty"`
+	CreatedBy           *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	TriggerSource       string     `gorm:"size:32;index" json:"triggerSource,omitempty"`
+	// ScheduleKey is the schedule fire-time identifier for scheduler-created
+	// jobs. The unique index (NULL for manual jobs) makes duplicate firings
+	// of the same slot idempotent.
+	ScheduleKey    *string        `gorm:"size:64;uniqueIndex" json:"scheduleKey,omitempty"`
+	ManifestJSON   datatypes.JSON `json:"manifestJson,omitempty"`
+	UploadStatus   string         `gorm:"size:32;index" json:"uploadStatus,omitempty"`
+	UploadTarget   string         `gorm:"size:255" json:"uploadTarget,omitempty"`
+	UploadAttempts int            `json:"uploadAttempts,omitempty"`
+	UploadedAt     *time.Time     `json:"uploadedAt,omitempty"`
+	UploadError    string         `gorm:"type:text" json:"uploadError,omitempty"`
 }
 
 func (Job) TableName() string { return "backup_jobs" }

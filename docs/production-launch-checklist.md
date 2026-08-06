@@ -39,7 +39,9 @@ cp .env.prod.example .env && chmod 600 .env
 # 3. 一键部署：构建 + 启动 + 迁移 + 健康检查 + HTTPS 探活（约 10-15 分钟，首次构建为主）
 ./scripts/deploy-prod.sh --no-pull
 
-# 4. 每日备份 crontab（后端无内置定时器；建议配置，并另配 BACKUP_S3_* 把备份上传对象存储，见下方说明）
+# 4.（备选）每日备份 crontab：推荐直接在 .env 设 BACKUP_SCHEDULE_ENABLED=true 用 backend 内置
+#    定时器（按 BACKUP_SCHEDULE 自动备份 + S3 上传 + 保留策略）；不启用内置定时器时
+#    才需要下面的宿主机 crontab（pg_dump 备选路径）
 sudo mkdir -p /var/backups && crontab -l 2>/dev/null | { cat; echo '0 3 * * * cd /path/to/trademind && docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U trademind -d trademind -Fc > /var/backups/trademind-$(date +\%F).dump && find /var/backups -name "trademind-*.dump" -mtime +7 -delete'; } | crontab -
 ```
 
@@ -54,7 +56,7 @@ sudo mkdir -p /var/backups && crontab -l 2>/dev/null | { cat; echo '0 3 * * * cd
 | 5 | 核心页面抽查 | 工作台 / 商品草稿 / 采集任务 / 系统设置 | 正常渲染，无白屏报错 |
 | 6 | 静态资源缓存 | `curl -sI https://<DOMAIN>/<hash>.js` | `cache-control: public, max-age=31536000, immutable`；`/` 为 `no-cache` |
 | 7 | 内部端口未暴露 | `curl https://<DOMAIN>/metrics`、`ss -tlnp` | /metrics 返回 SPA 页（非指标）；宿主机仅 80/443 监听 |
-| 8 | 生产危险操作禁用 | `POST /api/v1/ops/restores`（带 token） | `RESTORE_APP_ENV_FORBIDDEN`（恢复演练在生产被拒） |
+| 8 | 生产危险操作禁用 | `POST /api/v1/ops/restores`（带 token） | `RESTORE_APP_ENV_FORBIDDEN`（默认 `BACKUP_RESTORE_ALLOW_PRODUCTION=false` 时恢复演练在生产被拒；显式设 true 才允许隔离恢复演练，仍限 `trademind_p6v_restore_*` + 二次确认） |
 | 9 | 错误不泄露堆栈 | 构造 400/404 请求 | 统一 envelope（code/message/traceId），无堆栈 |
 | 10 | 手工备份 | `POST /api/v1/ops/backups`（或等 crontab） | status=completed；配置 `BACKUP_S3_*` 后 uploadStatus=uploaded（产物入桶），未配置时 uploadStatus=skipped（产物仅落 backend 容器 `/tmp/trademind-p6-backups/`，见下方说明） |
 | 11 | 系统设置密钥 | 管理端配置 AI/对象存储密钥 | 加密入库、脱敏展示 |
@@ -81,7 +83,7 @@ git checkout <上一个正常commit>
 
 - 从零（`cp .env.prod.example` 起）到 6 服务全 healthy + HTTPS 登录成功，实测 < 15 分钟（含镜像构建；2026-08-03 复跑约 4 分钟；2026-08-04 R106 全新 VM 从零复跑：部署 275 秒、登录累计 < 7 分钟；2026-08-06 R132 复跑：从零到登录 251 秒；2026-08-06 R137 季度复检从零复跑：部署 234 秒、从零到登录 251 秒），30 分钟目标有充分余量。
 - 引导管理员口径为 tenant 0 平台管理员（`ADMIN_BOOTSTRAP_TENANT_ID=0`），业务租户一律经「设置 → 平台租户」创建；仅遗留单租户部署才显式设 >0。
-- `BACKUP_SCHEDULE` 仅是配置元数据，后端**没有内置定时器**：每日自动备份靠宿主机 crontab（上文第 4 步），勿以为配了变量就有自动备份。crontab 仍是定时触发的推荐方式，但不再是唯一的持久化路径：配置 `BACKUP_S3_*` 后，`/api/v1/ops/backups` 产物会自动上传 S3 兼容对象存储，容器重建不再丢备份。
+- 内置备份定时器**已实现（R143）**：`BACKUP_SCHEDULE_ENABLED=true` 时 backend 按 `BACKUP_SCHEDULE`（5 字段 cron 或 `@every 6h`）自动触发备份（含 S3 上传与保留策略；重复触发幂等，失败落 `status=failed` 可在 Ops 备份页查看），推荐作为每日自动备份的主路径；宿主机 crontab（上文第 4 步）降为备选路径。未设 `BACKUP_SCHEDULE_ENABLED` 时 `BACKUP_SCHEDULE` 仍仅为元数据，行为与历史一致。
 - 后端镜像已内置 postgresql-client-16（`pg_dump`/`pg_restore`/`psql`），`/api/v1/ops/backups` 手工备份可用（演练中发现缺失并已修复）。
 - 对象存储上传**已实现（R138）**：配置 `BACKUP_S3_ENDPOINT`/`BACKUP_S3_ACCESS_KEY_ID`/`BACKUP_S3_SECRET_ACCESS_KEY` + `BACKUP_STORAGE_BUCKET` 后，`/api/v1/ops/backups` 产物会自动上传 S3 兼容端点（AWS S3 / MinIO / 阿里 OSS），上传失败会重试并落库 uploadStatus=failed（可在 Ops 备份页重试），上传成功后按 `BACKUP_OBJECT_RETENTION_COUNT` 保留最近 N 份；本地文件因容器重建丢失时，download/校验会自动从对象存储取回。`BACKUP_S3_*` 全部留空时为降级模式：产物仅落 backend 容器 `/tmp`（容器重建即丢），此时宿主机 crontab pg_dump（上文第 4 步）仍是唯一持久化备份，必须配置。生产推荐：crontab + 对象存储上传同时启用。
 - Let's Encrypt 正式签发依赖真实 DNS + 公网 80/443，为本地演练唯一未覆盖项；异常按 production-deployment.md「常见问题」第一条排查（先切 staging CA 联调）。

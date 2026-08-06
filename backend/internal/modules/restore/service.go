@@ -109,8 +109,8 @@ func (s *Service) Verify(ctx context.Context, restoreID string) (*Validation, er
 	if err != nil {
 		return nil, err
 	}
-	if s.Cfg != nil && config.IsProduction(s.Cfg.AppEnv) {
-		return nil, fmt.Errorf("RESTORE_VERIFY_APP_ENV_FORBIDDEN: restore drill validation is limited to local/development environments")
+	if err := s.productionDrillGate("RESTORE_VERIFY_APP_ENV_FORBIDDEN"); err != nil {
+		return nil, err
 	}
 	v := &Validation{
 		RestoreID:   row.RestoreID,
@@ -164,8 +164,8 @@ func (s *Service) safetyGate(ctx context.Context, req CreateRequest) error {
 	if strings.EqualFold(req.TargetEnvironment, "production") {
 		return fmt.Errorf("RESTORE_TARGET_FORBIDDEN: restore to production is forbidden in P6-V")
 	}
-	if s.Cfg != nil && config.IsProduction(s.Cfg.AppEnv) {
-		return fmt.Errorf("RESTORE_APP_ENV_FORBIDDEN: P6-V restore drill is forbidden in production")
+	if err := s.productionDrillGate("RESTORE_APP_ENV_FORBIDDEN"); err != nil {
+		return err
 	}
 	if !req.TargetIsIsolated {
 		return fmt.Errorf("RESTORE_TARGET_NOT_ISOLATED: target environment must be isolated")
@@ -200,6 +200,20 @@ func (s *Service) safetyGate(ctx context.Context, req CreateRequest) error {
 	}
 	_ = backupruntime.RedactCommandOutput("restore target checked")
 	return nil
+}
+
+// productionDrillGate keeps restore drills forbidden when AppEnv is
+// production unless BACKUP_RESTORE_ALLOW_PRODUCTION=true explicitly opts in.
+// Even when opted in, targets stay limited to isolated trademind_p6v_restore_*
+// databases with operator reauthentication and high-risk confirmation.
+func (s *Service) productionDrillGate(code string) error {
+	if s.Cfg == nil || !config.IsProduction(s.Cfg.AppEnv) {
+		return nil
+	}
+	if s.Cfg.Backup.RestoreAllowProduction {
+		return nil
+	}
+	return fmt.Errorf("%s: restore drill is disabled in production; set BACKUP_RESTORE_ALLOW_PRODUCTION=true to explicitly enable isolated restore drills", code)
 }
 
 func (s *Service) runPgRestore(ctx context.Context, row *Job, targetDB string) error {

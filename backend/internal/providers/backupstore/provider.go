@@ -45,6 +45,10 @@ type Config struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	UsePathStyle    bool
+	// CABundlePath is an optional PEM file with extra CA certificates
+	// trusted for the endpoint (self-signed MinIO drills). Empty uses the
+	// system trust store only.
+	CABundlePath string
 }
 
 // Configured reports whether the object storage upload is fully configured.

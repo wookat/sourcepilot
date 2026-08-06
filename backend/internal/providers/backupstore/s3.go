@@ -2,14 +2,18 @@ package backupstore
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -27,11 +31,19 @@ func newS3Store(cfg Config) (*s3Store, error) {
 	if region == "" {
 		region = "us-east-1"
 	}
-	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+	opts := []func(*awsconfig.LoadOptions) error{
 		awsconfig.WithRegion(region),
 		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			cfg.AccessKeyID, cfg.SecretAccessKey, "")),
-	)
+	}
+	if cfg.CABundlePath != "" {
+		httpClient, err := httpClientWithCABundle(cfg.CABundlePath)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, awsconfig.WithHTTPClient(httpClient))
+	}
+	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(), opts...)
 	if err != nil {
 		return nil, fmt.Errorf("backup object storage: aws config load: %w", err)
 	}
@@ -45,6 +57,28 @@ func newS3Store(cfg Config) (*s3Store, error) {
 }
 
 func (s *s3Store) Target() string { return s.cfg.Target() }
+
+// httpClientWithCABundle builds an HTTP client that trusts the system roots
+// plus the certificates in the given PEM bundle.
+func httpClientWithCABundle(path string) (*awshttp.BuildableClient, error) {
+	pem, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("backup object storage: read CA bundle: %w", err)
+	}
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		pool = x509.NewCertPool()
+	}
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, fmt.Errorf("backup object storage: CA bundle %s contains no valid PEM certificate", path)
+	}
+	return awshttp.NewBuildableClient().WithTransportOptions(func(tr *http.Transport) {
+		if tr.TLSClientConfig == nil {
+			tr.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		}
+		tr.TLSClientConfig.RootCAs = pool
+	}), nil
+}
 
 func normKey(key string) string {
 	return strings.TrimLeft(strings.ReplaceAll(key, "\\", "/"), "/")

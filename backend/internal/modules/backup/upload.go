@@ -237,5 +237,6 @@ func NewStore(cfg *config.Config) (backupstore.Store, error) {
 		AccessKeyID:     cfg.Backup.S3AccessKeyID,
 		SecretAccessKey: cfg.Backup.S3SecretAccessKey,
 		UsePathStyle:    cfg.Backup.S3UsePathStyle,
+		CABundlePath:    cfg.Backup.S3CABundle,
 	})
 }
