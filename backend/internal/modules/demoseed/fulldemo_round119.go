@@ -139,8 +139,21 @@ func (s *FullDemoSeeder) seedRound119OrderAutomation(tx *gorm.DB, res *FullDemoR
 		if err := tx.Create(&matchedItem).Error; err != nil {
 			return fmt.Errorf("demoseed: automation matched item: %w", err)
 		}
+		// 与订单列表「库存扣减」列的聚合口径（order_item_sku_matches 行）对齐，
+		// 让 DEMO-AT-1004 的展示与「SKU 已匹配」前置描述一致。
+		matchedMatch := order.OrderItemSKUMatch{
+			OrderID: matched.ID, OrderItemID: matchedItem.ID, Platform: matched.Platform,
+			SKUCode:   matchedItem.SKUCode,
+			ProductID: matchedItem.ProductID, ProductSKUID: matchedItem.ProductSKUID,
+			MatchType: order.MatchTypeLocalSKUCode, MatchStatus: order.MatchStatusMatched, Confidence: 100,
+			Reason: "DEMO- 种子数据本地 SKU 匹配",
+		}
+		if err := tx.Create(&matchedMatch).Error; err != nil {
+			return fmt.Errorf("demoseed: automation matched sku match: %w", err)
+		}
 		count("orders", 1)
 		count("order_items", 1)
+		count("order_item_sku_matches", 1)
 	}
 	return nil
 }
