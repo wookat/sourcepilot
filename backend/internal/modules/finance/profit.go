@@ -82,11 +82,7 @@ func (s *Service) OrderSummary(c *gin.Context, orderID uuid.UUID) (*OrderFinance
 		return nil, err
 	}
 	ctx := c.Request.Context()
-	var full order.Order
-	if err := s.DB.WithContext(ctx).Preload("Items").First(&full, "id = ?", o.ID).Error; err != nil {
-		return nil, err
-	}
-	rows, table, err := s.computeOrderFinance(ctx, o.TenantID, []order.Order{full})
+	rows, table, err := s.computeOrderFinance(ctx, o.TenantID, []order.Order{*o})
 	if err != nil {
 		return nil, err
 	}
@@ -125,80 +121,210 @@ func (s *Service) OrderSummary(c *gin.Context, orderID uuid.UUID) (*OrderFinance
 	}, nil
 }
 
-// actualCostRow is one purchase line attributed to a sales order.
-type actualCostRow struct {
-	SalesOrderID uuid.UUID `gorm:"column:sales_order_id"`
-	Quantity     int       `gorm:"column:quantity"`
-	ActualPrice  *float64  `gorm:"column:actual_price"`
-	Currency     string    `gorm:"column:currency"`
+// aggChunk bounds the order-id IN lists of the grouped finance queries.
+const aggChunk = 1000
+
+func chunkOrderIDs(ids []uuid.UUID) [][]uuid.UUID {
+	var out [][]uuid.UUID
+	for i := 0; i < len(ids); i += aggChunk {
+		j := i + aggChunk
+		if j > len(ids) {
+			j = len(ids)
+		}
+		out = append(out, ids[i:j])
+	}
+	return out
 }
 
-// actualCosts loads purchase lines linked to the sales orders, joining the
-// purchase order for its currency (empty degrades to CNY).
-func (s *Service) actualCosts(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID][]actualCostRow, error) {
-	out := map[uuid.UUID][]actualCostRow{}
-	if len(orderIDs) == 0 {
-		return out, nil
+// paymentAgg is one (order, currency) payment aggregate. Amount / Fee are
+// exact decimal(18,4) sums (sums of 4-decimal values stay 4-decimal, so the
+// float64 round-trip through AmountRat is lossless).
+type paymentAgg struct {
+	OrderID  uuid.UUID `gorm:"column:order_id"`
+	Currency string    `gorm:"column:currency"`
+	Amount   float64   `gorm:"column:amount"`
+	Fee      float64   `gorm:"column:fee"`
+	N        int       `gorm:"column:n"`
+}
+
+// paymentAggs sums payments per (order, currency) in SQL.
+func (s *Service) paymentAggs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]paymentAgg, error) {
+	out := map[uuid.UUID][]paymentAgg{}
+	for _, chunk := range chunkOrderIDs(orderIDs) {
+		var rows []paymentAgg
+		if err := s.DB.WithContext(ctx).Model(&PaymentRecord{}).
+			Select("order_id, currency, SUM(amount) AS amount, SUM(fee_amount) AS fee, COUNT(*) AS n").
+			Where("order_id IN ?", chunk).
+			Group("order_id, currency").Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			out[r.OrderID] = append(out[r.OrderID], r)
+		}
 	}
-	var rows []actualCostRow
-	if err := s.DB.WithContext(ctx).
-		Table("purchase_order_items poi").
-		Select("poi.sales_order_id, poi.quantity, poi.actual_price, po.currency").
-		Joins("JOIN purchase_orders po ON po.id = poi.purchase_order_id AND po.deleted_at IS NULL").
-		Where("poi.tenant_id = ? AND poi.sales_order_id IN ? AND po.status <> ?", tenantID, orderIDs, "cancelled").
-		Scan(&rows).Error; err != nil {
-		return nil, err
+	return out, nil
+}
+
+// expenseAgg is one (order, currency) order-expense aggregate.
+type expenseAgg struct {
+	OrderID  uuid.UUID `gorm:"column:order_id"`
+	Currency string    `gorm:"column:currency"`
+	Amount   float64   `gorm:"column:amount"`
+	N        int       `gorm:"column:n"`
+}
+
+// expenseAggs sums order-level expenses per (order, currency) in SQL.
+func (s *Service) expenseAggs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]expenseAgg, error) {
+	out := map[uuid.UUID][]expenseAgg{}
+	for _, chunk := range chunkOrderIDs(orderIDs) {
+		var rows []expenseAgg
+		if err := s.DB.WithContext(ctx).Model(&OrderExpense{}).
+			Select("order_id, currency, SUM(amount) AS amount, COUNT(*) AS n").
+			Where("order_id IN ?", chunk).
+			Group("order_id, currency").Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			out[r.OrderID] = append(out[r.OrderID], r)
+		}
 	}
-	for _, r := range rows {
-		out[r.SalesOrderID] = append(out[r.SalesOrderID], r)
+	return out, nil
+}
+
+// actualCostAgg is one (order, purchase currency) actual-cost aggregate.
+// Priced counts lines with a registered actual price (Amount sums those
+// lines' price × quantity); Missing counts lines without one.
+type actualCostAgg struct {
+	OrderID  uuid.UUID `gorm:"column:order_id"`
+	Currency string    `gorm:"column:currency"`
+	Amount   float64   `gorm:"column:amount"`
+	Priced   int       `gorm:"column:priced"`
+	Missing  int       `gorm:"column:missing"`
+}
+
+// actualCostAggs sums purchase lines attributed to the sales orders per
+// (order, purchase-order currency) in SQL.
+func (s *Service) actualCostAggs(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID][]actualCostAgg, error) {
+	out := map[uuid.UUID][]actualCostAgg{}
+	for _, chunk := range chunkOrderIDs(orderIDs) {
+		var rows []actualCostAgg
+		if err := s.DB.WithContext(ctx).
+			Table("purchase_order_items poi").
+			Select("poi.sales_order_id AS order_id, po.currency AS currency, "+
+				"SUM(CASE WHEN poi.actual_price IS NULL THEN 0 ELSE poi.actual_price * poi.quantity END) AS amount, "+
+				"SUM(CASE WHEN poi.actual_price IS NULL THEN 0 ELSE 1 END) AS priced, "+
+				"SUM(CASE WHEN poi.actual_price IS NULL THEN 1 ELSE 0 END) AS missing").
+			Joins("JOIN purchase_orders po ON po.id = poi.purchase_order_id AND po.deleted_at IS NULL").
+			Where("poi.tenant_id = ? AND poi.sales_order_id IN ? AND po.status <> ?", tenantID, chunk, "cancelled").
+			Group("poi.sales_order_id, po.currency").Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			out[r.OrderID] = append(out[r.OrderID], r)
+		}
+	}
+	return out, nil
+}
+
+// itemPairKey identifies a (product, sku) reference-cost pair: the shared
+// procurement resolver's result only depends on this pair, so one synthetic
+// line per distinct pair resolves costs for every grouped line exactly.
+type itemPairKey struct {
+	product uuid.UUID
+	sku     uuid.UUID
+}
+
+func itemPairKeyOf(productID, skuID *uuid.UUID) itemPairKey {
+	k := itemPairKey{}
+	if productID != nil {
+		k.product = *productID
+	}
+	if skuID != nil {
+		k.sku = *skuID
+	}
+	return k
+}
+
+// orderItemAgg is one (order, product, sku) line group used by the estimated
+// profit path (the reference cost only depends on the product/sku pair, so
+// same-pair lines aggregate without changing the estimate).
+type orderItemAgg struct {
+	OrderID      uuid.UUID  `gorm:"column:order_id"`
+	ProductID    *uuid.UUID `gorm:"column:product_id"`
+	ProductSKUID *uuid.UUID `gorm:"column:product_sku_id"`
+	Quantity     int        `gorm:"column:quantity"`
+}
+
+// orderItemAggs groups order lines per (order, product, sku) in SQL.
+func (s *Service) orderItemAggs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]order.OrderItem, error) {
+	out := map[uuid.UUID][]order.OrderItem{}
+	for _, chunk := range chunkOrderIDs(orderIDs) {
+		var rows []orderItemAgg
+		if err := s.DB.WithContext(ctx).Model(&order.OrderItem{}).
+			Select("order_id, product_id, product_sku_id, SUM(quantity) AS quantity").
+			Where("order_id IN ?", chunk).
+			Group("order_id, product_id, product_sku_id").Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			it := order.OrderItem{OrderID: r.OrderID, ProductID: r.ProductID, ProductSKUID: r.ProductSKUID, Quantity: r.Quantity}
+			it.ID = uuid.New()
+			out[r.OrderID] = append(out[r.OrderID], it)
+		}
 	}
 	return out, nil
 }
 
 // computeOrderFinance derives per-order settlement + actual/estimated profit
-// for orders (with Items preloaded). All arithmetic uses big.Rat; conversion
-// to the base currency only happens for currencies present in the fx table
-// (missing rates yield nil Base amounts, never fabricated values).
+// for orders. Payments / expenses / actual costs / order lines are summed per
+// (order, currency) group in SQL; conversion and profit math stay in big.Rat
+// on the group sums (sums of fixed-decimal columns convert losslessly, and
+// rate × Σamount ≡ Σ(rate × amount) exactly). Currencies missing from the fx
+// table still yield nil Base amounts, never fabricated values.
 func (s *Service) computeOrderFinance(ctx context.Context, tenantID int64, orders []order.Order) ([]OrderFinance, *fxrate.Table, error) {
 	table := s.fxTable(ctx, tenantID)
 	ids := make([]uuid.UUID, 0, len(orders))
 	for _, o := range orders {
 		ids = append(ids, o.ID)
 	}
-	var payments []PaymentRecord
-	if len(ids) > 0 {
-		if err := s.DB.WithContext(ctx).Where("order_id IN ?", ids).Find(&payments).Error; err != nil {
-			return nil, nil, err
-		}
-	}
-	payByOrder := map[uuid.UUID][]PaymentRecord{}
-	for _, p := range payments {
-		payByOrder[p.OrderID] = append(payByOrder[p.OrderID], p)
-	}
-	var expenses []OrderExpense
-	if len(ids) > 0 {
-		if err := s.DB.WithContext(ctx).Where("order_id IN ?", ids).Find(&expenses).Error; err != nil {
-			return nil, nil, err
-		}
-	}
-	expByOrder := map[uuid.UUID][]OrderExpense{}
-	for _, e := range expenses {
-		expByOrder[e.OrderID] = append(expByOrder[e.OrderID], e)
-	}
-	costs, err := s.actualCosts(ctx, tenantID, ids)
+	payByOrder, err := s.paymentAggs(ctx, ids)
 	if err != nil {
 		return nil, nil, err
 	}
-	allItems := make([]order.OrderItem, 0)
-	for _, o := range orders {
-		allItems = append(allItems, o.Items...)
+	expByOrder, err := s.expenseAggs(ctx, ids)
+	if err != nil {
+		return nil, nil, err
 	}
-	refByItem := map[uuid.UUID]*float64{}
+	costs, err := s.actualCostAggs(ctx, tenantID, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	itemsByOrder, err := s.orderItemAggs(ctx, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	refByPair := map[itemPairKey]*float64{}
 	if s.Proc != nil {
-		refs, err := s.Proc.ResolveLineCostRefs(ctx, allItems)
+		seen := map[itemPairKey]bool{}
+		synth := make([]order.OrderItem, 0)
+		byID := map[uuid.UUID]itemPairKey{}
+		for _, its := range itemsByOrder {
+			for _, it := range its {
+				k := itemPairKeyOf(it.ProductID, it.ProductSKUID)
+				if seen[k] {
+					continue
+				}
+				seen[k] = true
+				pair := order.OrderItem{ProductID: it.ProductID, ProductSKUID: it.ProductSKUID, Quantity: 1}
+				pair.ID = uuid.New()
+				byID[pair.ID] = k
+				synth = append(synth, pair)
+			}
+		}
+		refs, err := s.Proc.ResolveLineCostRefs(ctx, synth)
 		if err == nil {
 			for id, ref := range refs {
-				refByItem[id] = ref.UnitCostCNY
+				refByPair[byID[id]] = ref.UnitCostCNY
 			}
 		}
 	}
@@ -234,22 +360,20 @@ func (s *Service) computeOrderFinance(ctx context.Context, tenantID int64, order
 		// Received: order-currency sum for settlement, base sum for profit.
 		recvSum := new(big.Rat)
 		recvBase := new(big.Rat)
+		feeSum := new(big.Rat)
 		recvConvertible := true
 		for _, p := range payByOrder[o.ID] {
 			recvSum.Add(recvSum, fxrate.AmountRat(p.Amount))
-			net := new(big.Rat).Sub(fxrate.AmountRat(p.Amount), fxrate.AmountRat(p.FeeAmount))
+			feeSum.Add(feeSum, fxrate.AmountRat(p.Fee))
+			net := new(big.Rat).Sub(fxrate.AmountRat(p.Amount), fxrate.AmountRat(p.Fee))
 			if rate, ok := table.Rate(p.Currency); ok {
 				recvBase.Add(recvBase, new(big.Rat).Mul(net, rate))
 			} else {
 				recvConvertible = false
 			}
+			fin.PaymentCount += p.N
 		}
-		fin.PaymentCount = len(payByOrder[o.ID])
 		fin.Received = fxrate.Round2(recvSum)
-		feeSum := new(big.Rat)
-		for _, p := range payByOrder[o.ID] {
-			feeSum.Add(feeSum, fxrate.AmountRat(p.FeeAmount))
-		}
 		fin.FeeTotal = fxrate.Round2(feeSum)
 		fin.SettlementStatus, fin.DiffAmount = settlementOf(o.TotalAmount, fin.Received)
 
@@ -257,17 +381,16 @@ func (s *Service) computeOrderFinance(ctx context.Context, tenantID int64, order
 		costBase := new(big.Rat)
 		costConvertible := true
 		for _, cr := range costs[o.ID] {
-			if cr.ActualPrice == nil {
-				fin.MissingActualLines++
+			fin.MissingActualLines += cr.Missing
+			if cr.Priced == 0 {
 				continue
 			}
-			amount := new(big.Rat).Mul(fxrate.AmountRat(*cr.ActualPrice), new(big.Rat).SetInt64(int64(cr.Quantity)))
 			cur := strings.ToUpper(strings.TrimSpace(cr.Currency))
 			if cur == "" {
 				cur = "CNY"
 			}
 			if rate, ok := table.Rate(cur); ok {
-				costBase.Add(costBase, new(big.Rat).Mul(amount, rate))
+				costBase.Add(costBase, new(big.Rat).Mul(fxrate.AmountRat(cr.Amount), rate))
 			} else {
 				costConvertible = false
 			}
@@ -282,8 +405,8 @@ func (s *Service) computeOrderFinance(ctx context.Context, tenantID int64, order
 			} else {
 				expConvertible = false
 			}
+			fin.ExpenseCount += e.N
 		}
-		fin.ExpenseCount = len(expByOrder[o.ID])
 
 		if recvConvertible {
 			v := fxrate.Round2(recvBase)
@@ -305,7 +428,7 @@ func (s *Service) computeOrderFinance(ctx context.Context, tenantID int64, order
 		}
 
 		// Estimated profit: reference-cost口径 (same as the profit report).
-		fin.EstimatedProfitBase = estimateProfitBase(o, refByItem, feeItems, table)
+		fin.EstimatedProfitBase = estimateProfitBase(o, itemsByOrder[o.ID], refByPair, feeItems, table)
 
 		if fin.ActualProfitBase != nil && fin.EstimatedProfitBase != nil {
 			d := fxrate.Round2(new(big.Rat).Sub(fxrate.AmountRat(*fin.ActualProfitBase), fxrate.AmountRat(*fin.EstimatedProfitBase)))
@@ -329,7 +452,7 @@ func (s *Service) computeOrderFinance(ctx context.Context, tenantID int64, order
 // estimateProfitBase mirrors the profit report口径: revenueBase − reference
 // cost (CNY, converted) − configured估算 fees. nil when a needed rate is
 // missing.
-func estimateProfitBase(o order.Order, refByItem map[uuid.UUID]*float64, feeItems []reports.FeeItem, table *fxrate.Table) *float64 {
+func estimateProfitBase(o order.Order, items []order.OrderItem, refByPair map[itemPairKey]*float64, feeItems []reports.FeeItem, table *fxrate.Table) *float64 {
 	rate, ok := table.Rate(o.Currency)
 	if !ok {
 		return nil
@@ -340,8 +463,8 @@ func estimateProfitBase(o order.Order, refByItem map[uuid.UUID]*float64, feeItem
 		return nil
 	}
 	costCNY := new(big.Rat)
-	for _, it := range o.Items {
-		if p := refByItem[it.ID]; p != nil {
+	for _, it := range items {
+		if p := refByPair[itemPairKeyOf(it.ProductID, it.ProductSKUID)]; p != nil {
 			costCNY.Add(costCNY, new(big.Rat).Mul(fxrate.AmountRat(*p), new(big.Rat).SetInt64(int64(it.Quantity))))
 		}
 	}
@@ -364,7 +487,8 @@ func estimateProfitBase(o order.Order, refByItem map[uuid.UUID]*float64, feeItem
 }
 
 // scopedOrdersInRange loads paid orders in [start, end] under tenant + store
-// scope with Items preloaded (finance口径 matches the profit report:已付款).
+// scope (finance口径 matches the profit report:已付款). Only the columns the
+// finance views read are selected; line items are aggregated separately.
 func (s *Service) scopedOrdersInRange(c *gin.Context, start, end time.Time) ([]order.Order, int64, error) {
 	tx := s.DB.WithContext(c.Request.Context()).Model(&order.Order{}).
 		Where("created_at >= ? AND created_at < ?", start, end.AddDate(0, 0, 1)).
@@ -378,7 +502,8 @@ func (s *Service) scopedOrdersInRange(c *gin.Context, start, end time.Time) ([]o
 		return nil, 0, err
 	}
 	var orders []order.Order
-	if err := tx.Preload("Items").Order("created_at DESC").Limit(5000).Find(&orders).Error; err != nil {
+	if err := tx.Select("id, order_no, platform, shop_id, currency, total_amount, created_at").
+		Order("created_at DESC").Limit(5000).Find(&orders).Error; err != nil {
 		return nil, 0, err
 	}
 	return orders, tid, nil
