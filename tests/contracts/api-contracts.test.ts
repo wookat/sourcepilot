@@ -128,6 +128,7 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/mcp/tokens',
         'POST /api/v1/mcp/tokens',
         'POST /api/v1/mcp/tokens/:id/revoke',
+        'GET /api/v1/mcp/audit-logs',
         'POST /api/mcp',
       ]),
     );
@@ -414,6 +415,7 @@ describe('TradeMind API contract registry', () => {
     const list = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/mcp/tokens');
     const create = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/mcp/tokens');
     const revoke = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/mcp/tokens/:id/revoke');
+    const audit = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/mcp/audit-logs');
     const mcp = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/mcp');
 
     expect(list?.responseFields).toContain('items[].maskedToken');
@@ -423,12 +425,26 @@ describe('TradeMind API contract registry', () => {
     expect(create?.note).toContain('exactly once');
     expect(revoke?.forbiddenResponseFields).toEqual(['token.plaintext', 'token.tokenHash']);
 
+    expect(create?.requestBody).toEqual(['name', 'expiresInDays']);
+    expect(list?.responseFields).toContain('items[].expiresAt');
+    expect(list?.responseFields).toContain('items[].expired');
+
+    expect(audit?.query).toEqual(['page', 'pageSize', 'tool', 'status']);
+    expect(audit?.responseFields).toContain('items[].tokenMasked');
+    expect(audit?.forbiddenResponseFields).toEqual([
+      'items[].plaintext',
+      'items[].tokenHash',
+      'items[].arguments',
+      'items[].result',
+    ]);
+    expect(audit?.note).toContain('never recorded');
+
     expect(mcp?.authScheme).toBe('bearer-mcp-readonly-token');
     expect(mcp?.errorEnvelope).toEqual({ 401: 40101, 429: 42901 });
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(114);
+    expect(contracts.endpoints).toHaveLength(115);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

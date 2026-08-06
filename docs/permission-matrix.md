@@ -231,3 +231,4 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - **`POST /api/mcp`** 登记为 `probe: false`：该入口不走后台 JWT persona，鉴权为租户级只读 API token（`sp_mcp_ro_*`，SHA-256 哈希存储、可吊销、每 token 限流）。租户隔离、吊销失效、只读工具面与 401/429 行为由 `mcpserver` 模块测试（`server_test.go`、`hardening_test.go`）与 `mcptoken` 服务测试（`service_test.go`、`hardening_test.go`）覆盖。
 - **R145 安全交叉审查补强**：鉴权强制 `scope=readonly`；限流除每 token 外增加每租户聚合桶与每 IP 鉴权失败预算；每租户活跃 token 上限 20；429 envelope 用 `code=42901`。
 - MCP 工具全部只读（`orders_query` / `inventory_query` / `report_summary` / `exceptions_pending`），无任何写操作暴露；使用说明见 `docs/mcp.md`。
+- **R146 加固**：token 可选过期（到期鉴权拒绝）；新增 `GET /api/v1/mcp/audit-logs`（工具调用逐次审计，只读路由，四角色 `allow`，租户 scope 在查询内应用）；限流状态 Redis 可用时走 Redis，不可用降级进程内。

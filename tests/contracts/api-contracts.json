@@ -1141,7 +1141,9 @@
         "items[].maskedToken",
         "items[].scope",
         "items[].revoked",
+        "items[].expired",
         "items[].createdAt",
+        "items[].expiresAt",
         "items[].lastUsedAt",
         "items[].revokedAt"
       ],
@@ -1155,7 +1157,8 @@
       "path": "/api/v1/mcp/tokens",
       "auth": true,
       "requestBody": [
-        "name"
+        "name",
+        "expiresInDays"
       ],
       "responseData": "McpTokenCreateResult",
       "responseFields": [
@@ -1173,6 +1176,36 @@
         "token.plaintext",
         "token.tokenHash"
       ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mcp/audit-logs",
+      "auth": true,
+      "query": [
+        "page",
+        "pageSize",
+        "tool",
+        "status"
+      ],
+      "responseData": "McpAuditLogList",
+      "responseFields": [
+        "total",
+        "items[].id",
+        "items[].tokenId",
+        "items[].tokenName",
+        "items[].tokenMasked",
+        "items[].tool",
+        "items[].status",
+        "items[].durationMs",
+        "items[].createdAt"
+      ],
+      "forbiddenResponseFields": [
+        "items[].plaintext",
+        "items[].tokenHash",
+        "items[].arguments",
+        "items[].result"
+      ],
+      "note": "one row per MCP tool call; tool arguments and query results are never recorded"
     },
     {
       "method": "POST",

@@ -25,9 +25,12 @@ const secretHexLen = 64
 // ErrNotFound indicates the token does not exist within the tenant scope.
 var ErrNotFound = errors.New("mcp token not found")
 
-// ErrInvalidToken indicates the presented plaintext token is unknown, revoked
-// or carries a scope the read-only entry does not accept.
+// ErrInvalidToken indicates the presented plaintext token is unknown, revoked,
+// expired or carries a scope the read-only entry does not accept.
 var ErrInvalidToken = errors.New("invalid mcp token")
+
+// ErrInvalidExpiry indicates a requested expiry that is not in the future.
+var ErrInvalidExpiry = errors.New("mcptoken: expiry must be in the future")
 
 // MaxActiveTokensPerTenant caps live tokens per tenant. Each token owns its own
 // rate-limit bucket, so an unbounded token count would multiply the request
@@ -57,8 +60,9 @@ type CreateResult struct {
 }
 
 // Create issues a new readonly token for the tenant. The plaintext is
-// returned once; only its SHA-256 hash is persisted.
-func (s *Service) Create(ctx context.Context, tenantID int64, name string, createdBy *uuid.UUID) (*CreateResult, error) {
+// returned once; only its SHA-256 hash is persisted. expiresAt is optional:
+// nil issues a non-expiring token, a non-nil value must lie in the future.
+func (s *Service) Create(ctx context.Context, tenantID int64, name string, expiresAt *time.Time, createdBy *uuid.UUID) (*CreateResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("mcptoken: no db")
 	}
@@ -71,6 +75,13 @@ func (s *Service) Create(ctx context.Context, tenantID int64, name string, creat
 	}
 	if len([]rune(name)) > 64 {
 		return nil, fmt.Errorf("mcptoken: name too long (max 64)")
+	}
+	if expiresAt != nil {
+		utc := expiresAt.UTC()
+		if !utc.After(time.Now().UTC()) {
+			return nil, ErrInvalidExpiry
+		}
+		expiresAt = &utc
 	}
 	var active int64
 	if err := tenantquery.ScopeTenant(s.DB.WithContext(ctx).Model(&Token{}), tenantID).
@@ -92,6 +103,7 @@ func (s *Service) Create(ctx context.Context, tenantID int64, name string, creat
 		LastFour:  plain[len(plain)-4:],
 		TokenHash: HashToken(plain),
 		Scope:     ScopeReadonly,
+		ExpiresAt: expiresAt,
 		CreatedBy: createdBy,
 	}
 	if err := s.DB.WithContext(ctx).Create(&row).Error; err != nil {
@@ -152,6 +164,7 @@ func (s *Service) Authenticate(ctx context.Context, plain string) (*Token, error
 	var row Token
 	err := s.DB.WithContext(ctx).Model(&Token{}).
 		Where("token_hash = ? AND revoked_at IS NULL AND scope = ?", hash, ScopeReadonly).
+		Where("expires_at IS NULL OR expires_at > ?", time.Now().UTC()).
 		First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -159,7 +172,7 @@ func (s *Service) Authenticate(ctx context.Context, plain string) (*Token, error
 		}
 		return nil, fmt.Errorf("mcptoken: auth: %w", err)
 	}
-	if subtle.ConstantTimeCompare([]byte(row.TokenHash), []byte(hash)) != 1 || row.TenantID < 0 {
+	if subtle.ConstantTimeCompare([]byte(row.TokenHash), []byte(hash)) != 1 || row.TenantID < 0 || row.Expired(time.Now().UTC()) {
 		return nil, ErrInvalidToken
 	}
 	return &row, nil

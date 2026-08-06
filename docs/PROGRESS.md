@@ -1832,6 +1832,13 @@ Final Production Acceptance Deferred to P10
 - **租户级只读 API token**：`mcp_api_tokens`（SHA-256 哈希存储、明文仅创建返回一次、脱敏展示、吊销幂等、操作日志、每 token 限流），设置页新增「MCP 只读接入」；权限矩阵登记 4 条。
 - 详见 `docs/progress/R144.md` 与 `docs/mcp.md`。
 
+### 变更记录（2026-08-06）第 146 轮线1：MCP 安全加固——R145 P2 收口（fullstack-engineer）
+
+- **token 可选过期**：`mcp_api_tokens.expires_at`（可空，默认不过期保持兼容），创建时可选 `expiresInDays`（1-730），到期鉴权即 401（fail closed 与吊销同口径）；管理页有效期选择 + 过期/即将过期（≤7 天）提示。
+- **工具调用逐次审计**：新模块 `mcpaudit`（`mcp_tool_call_logs`），MCP `tools/call` 每次落一条（tenant/token 脱敏/工具名/时间/成败/耗时，不落查询参数与结果内容）；`GET /api/v1/mcp/audit-logs`（四角色）+ 管理页审计卡片。
+- **限流多副本口径**：`pkg/ratelimit.RedisLimiter`（Lua 令牌桶，复用队列 Redis，无新依赖/变量），Redis 可用时 MCP 三层限流共享额度，不可用降级进程内（不 fail-open，已文档化）。
+- 契约 114→115、权限矩阵、`docs/mcp.md`/`api.md`/`env.md`/`permission-matrix.md` 同步。详见 `docs/progress/R146.md`。基于 #295 分支叠加。
+
 ### 变更记录（2026-08-06）第 145 轮线2：MCP 只读入口安全交叉审查（security-engineer）
 
 - **审查范围**：R144 线1 MCP 只读入口（`POST /api/mcp` + 租户级只读 token）合入前交叉审查，双租户 Docker 全栈实测（token 生命周期/越权/写路径枚举/注入面/限流/输出脱敏/readonly 管理面/日志泄露）。

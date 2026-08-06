@@ -964,12 +964,14 @@ MCP token 管理（登录后，走统一 JWT 鉴权与租户 scope）：
 
 ```text
 GET  /api/v1/mcp/tokens             # 列出当前租户 token（脱敏：sp_mcp_ro_ab…cdef）
-POST /api/v1/mcp/tokens             # 创建只读 token，body {"name":"claude-desktop"}；响应含一次性 plaintext
+POST /api/v1/mcp/tokens             # 创建只读 token，body {"name":"claude-desktop","expiresInDays":30}（expiresInDays 可选，0/缺省=不过期，1-730）；响应含一次性 plaintext
 POST /api/v1/mcp/tokens/:id/revoke  # 吊销（幂等），readonly 账号 403
+GET  /api/v1/mcp/audit-logs         # 工具调用审计日志（租户 scope），query: page/pageSize/tool/status
 ```
 
 - token 明文只在创建响应中返回一次，库中只存 SHA-256 哈希；创建/吊销写操作日志（resource=`mcp_token`）。
-- token 无自动过期字段，失效只能通过吊销（即时生效）。每租户最多 20 个未吊销 token，超出返回 400（`code=40001`，中文提示先吊销）。
+- token 可选过期（R146）：列表项含 `expiresAt` / `expired`，到期后鉴权拒绝（401）；也可吊销（即时生效）。每租户最多 20 个未吊销 token，超出返回 400（`code=40001`，中文提示先吊销）。
+- 审计日志（R146）：每次 MCP `tools/call` 落一条（tenant / token 脱敏标识 / 工具名 / 时间 / 成败 / 耗时），不记录查询参数与结果内容；四角色可读。
 
 MCP 协议入口（不走 JWT，用上面创建的 token 鉴权）：
 
@@ -978,7 +980,7 @@ POST /api/mcp   # MCP Streamable HTTP；Authorization: Bearer sp_mcp_ro_...
 ```
 
 - 只暴露 4 个只读工具：`orders_query` / `inventory_query` / `report_summary` / `exceptions_pending`，全部强制 token 所属租户 scope。
-- 鉴权强制要求 `scope=readonly`；限流分三层：每 token（`MCP_RATE_RPS` / `MCP_RATE_BURST`）、每租户聚合（token 额度 2 倍）、每 IP 鉴权失败预算（1 req/s、突发 10，仅失败计费）。超限返回 `429` + envelope `code=42901`（`CodeTooManyRequests`），带 `Retry-After`。
+- 鉴权强制要求 `scope=readonly`（过期/吊销/未知 token 统一 401）；限流分三层：每 token（`MCP_RATE_RPS` / `MCP_RATE_BURST`）、每租户聚合（token 额度 2 倍）、每 IP 鉴权失败预算（1 req/s、突发 10，仅失败计费）。超限返回 `429` + envelope `code=42901`（`CodeTooManyRequests`），带 `Retry-After`。R146 起限流状态 Redis 可用时走 Redis（多副本共享额度），不可用时降级进程内，见 `docs/mcp.md`。
 - `MCP_ENABLED=false` 时入口不注册。
 - 客户端配置与工具说明见 `docs/mcp.md`。
 

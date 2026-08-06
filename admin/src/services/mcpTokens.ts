@@ -6,7 +6,9 @@ export type McpTokenRow = {
   maskedToken: string;
   scope: string;
   revoked: boolean;
+  expired: boolean;
   createdAt: string;
+  expiresAt?: string;
   lastUsedAt?: string;
   revokedAt?: string;
 };
@@ -22,10 +24,40 @@ export type CreateMcpTokenResult = {
   plaintext: string;
 };
 
-export async function createMcpToken(name: string): Promise<CreateMcpTokenResult> {
-  return postJSON('/api/v1/mcp/tokens', { name });
+export async function createMcpToken(
+  name: string,
+  expiresInDays?: number,
+): Promise<CreateMcpTokenResult> {
+  return postJSON('/api/v1/mcp/tokens', {
+    name,
+    ...(expiresInDays && expiresInDays > 0 ? { expiresInDays } : {}),
+  });
 }
 
 export async function revokeMcpToken(id: string): Promise<{ token: McpTokenRow }> {
   return postJSON(`/api/v1/mcp/tokens/${id}/revoke`, {});
+}
+
+export type McpAuditLogRow = {
+  id: string;
+  tokenId: string;
+  tokenName: string;
+  tokenMasked: string;
+  tool: string;
+  status: 'success' | 'error';
+  durationMs: number;
+  createdAt: string;
+};
+
+export type McpAuditLogQuery = {
+  page?: number;
+  pageSize?: number;
+  tool?: string;
+  status?: string;
+};
+
+export async function listMcpAuditLogs(
+  query: McpAuditLogQuery,
+): Promise<{ total: number; items: McpAuditLogRow[] }> {
+  return getWithParams('/api/v1/mcp/audit-logs', query);
 }

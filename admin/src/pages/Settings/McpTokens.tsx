@@ -1,8 +1,10 @@
 import { TmPageContainer } from '@/components/ui';
 import {
   createMcpToken,
+  listMcpAuditLogs,
   listMcpTokens,
   revokeMcpToken,
+  type McpAuditLogRow,
   type McpTokenRow,
 } from '@/services/mcpTokens';
 import { isReadonly } from '@/utils/permission';
@@ -15,6 +17,7 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Table,
   Tag,
@@ -23,6 +26,40 @@ import {
   message,
 } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+
+const EXPIRY_OPTIONS = [
+  { value: 0, label: '不过期' },
+  { value: 7, label: '7 天' },
+  { value: 30, label: '30 天' },
+  { value: 90, label: '90 天' },
+  { value: 180, label: '180 天' },
+  { value: 365, label: '365 天' },
+];
+
+const EXPIRING_SOON_MS = 7 * 24 * 60 * 60 * 1000;
+
+const MCP_TOOL_OPTIONS = ['orders_query', 'inventory_query', 'report_summary', 'exceptions_pending'];
+
+function expiryCell(row: McpTokenRow) {
+  if (!row.expiresAt) {
+    return <Typography.Text type="secondary">不过期</Typography.Text>;
+  }
+  if (row.expired) {
+    return (
+      <Space size={4}>
+        <Tag color="red">已过期</Tag>
+        <Typography.Text type="secondary">{row.expiresAt}</Typography.Text>
+      </Space>
+    );
+  }
+  const soon = new Date(row.expiresAt).getTime() - Date.now() <= EXPIRING_SOON_MS;
+  return (
+    <Space size={4}>
+      {soon ? <Tag color="orange">即将过期</Tag> : null}
+      <Typography.Text>{row.expiresAt}</Typography.Text>
+    </Space>
+  );
+}
 
 export default function McpTokensPage() {
   const { initialState } = useModel('@@initialState') as {
@@ -37,7 +74,16 @@ export default function McpTokensPage() {
   const [saving, setSaving] = useState(false);
   const [plaintext, setPlaintext] = useState('');
   const [revokingId, setRevokingId] = useState('');
-  const [form] = Form.useForm<{ name: string }>();
+  const [form] = Form.useForm<{ name: string; expiresInDays: number }>();
+
+  const [auditRows, setAuditRows] = useState<McpAuditLogRow[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditLoading, setAuditLoading] = useState(true);
+  const [auditError, setAuditError] = useState('');
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditPageSize, setAuditPageSize] = useState(20);
+  const [auditTool, setAuditTool] = useState<string>();
+  const [auditStatus, setAuditStatus] = useState<string>();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,11 +101,34 @@ export default function McpTokensPage() {
     void load();
   }, [load]);
 
+  const loadAudits = useCallback(async () => {
+    setAuditLoading(true);
+    setAuditError('');
+    try {
+      const res = await listMcpAuditLogs({
+        page: auditPage,
+        pageSize: auditPageSize,
+        tool: auditTool,
+        status: auditStatus,
+      });
+      setAuditRows(res.items || []);
+      setAuditTotal(res.total || 0);
+    } catch (e) {
+      setAuditError((e as Error).message || '加载审计日志失败');
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [auditPage, auditPageSize, auditTool, auditStatus]);
+
+  useEffect(() => {
+    void loadAudits();
+  }, [loadAudits]);
+
   const submit = async () => {
     const v = await form.validateFields();
     setSaving(true);
     try {
-      const res = await createMcpToken(v.name.trim());
+      const res = await createMcpToken(v.name.trim(), v.expiresInDays);
       setCreateOpen(false);
       form.resetFields();
       setPlaintext(res.plaintext);
@@ -135,8 +204,16 @@ export default function McpTokensPage() {
             {
               title: '状态',
               dataIndex: 'revoked',
-              render: (revoked: boolean) =>
-                revoked ? <Tag color="red">已吊销</Tag> : <Tag color="green">有效</Tag>,
+              render: (revoked: boolean, row: McpTokenRow) => {
+                if (revoked) return <Tag color="red">已吊销</Tag>;
+                if (row.expired) return <Tag color="red">已过期</Tag>;
+                return <Tag color="green">有效</Tag>;
+              },
+            },
+            {
+              title: '过期时间',
+              dataIndex: 'expiresAt',
+              render: (_: unknown, row: McpTokenRow) => expiryCell(row),
             },
             { title: '创建时间', dataIndex: 'createdAt' },
             { title: '最近使用', dataIndex: 'lastUsedAt', render: (v?: string) => v || '-' },
@@ -168,7 +245,7 @@ export default function McpTokensPage() {
         onCancel={() => setCreateOpen(false)}
         destroyOnHidden
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" initialValues={{ expiresInDays: 0 }}>
           <Form.Item
             name="name"
             label="名称"
@@ -176,6 +253,13 @@ export default function McpTokensPage() {
             extra="建议按用途命名，如 claude-desktop、mcp-inspector"
           >
             <Input maxLength={64} placeholder="如 claude-desktop" />
+          </Form.Item>
+          <Form.Item
+            name="expiresInDays"
+            label="有效期"
+            extra="到期后 token 自动失效，默认不过期；建议为对外接入设置有效期"
+          >
+            <Select options={EXPIRY_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>
@@ -203,6 +287,97 @@ export default function McpTokensPage() {
           <Typography.Text code>{plaintext}</Typography.Text>
         </Typography.Paragraph>
       </Modal>
+
+      <Card title="工具调用审计日志" style={{ marginTop: 16 }}>
+        <Space style={{ marginBottom: 16 }} wrap>
+          <Select
+            allowClear
+            placeholder="工具"
+            style={{ width: 200 }}
+            value={auditTool}
+            onChange={(v) => {
+              setAuditPage(1);
+              setAuditTool(v);
+            }}
+            options={MCP_TOOL_OPTIONS.map((t) => ({ value: t, label: t }))}
+          />
+          <Select
+            allowClear
+            placeholder="结果状态"
+            style={{ width: 140 }}
+            value={auditStatus}
+            onChange={(v) => {
+              setAuditPage(1);
+              setAuditStatus(v);
+            }}
+            options={[
+              { value: 'success', label: '成功' },
+              { value: 'error', label: '失败' },
+            ]}
+          />
+          <Button onClick={() => void loadAudits()}>刷新</Button>
+          <Typography.Text type="secondary">
+            每次 MCP 工具调用记录一条；不记录查询参数与查询结果内容
+          </Typography.Text>
+        </Space>
+        {auditError ? (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="加载审计日志失败"
+            description={auditError}
+            action={
+              <Button size="small" onClick={() => void loadAudits()}>
+                重试
+              </Button>
+            }
+          />
+        ) : null}
+        <Table<McpAuditLogRow>
+          rowKey="id"
+          size="middle"
+          loading={auditLoading}
+          dataSource={auditRows}
+          pagination={{
+            current: auditPage,
+            pageSize: auditPageSize,
+            total: auditTotal,
+            showSizeChanger: true,
+            onChange: (p, ps) => {
+              setAuditPage(p);
+              setAuditPageSize(ps);
+            },
+          }}
+          columns={[
+            { title: '时间', dataIndex: 'createdAt' },
+            {
+              title: '访问令牌',
+              dataIndex: 'tokenName',
+              render: (_: unknown, row: McpAuditLogRow) => (
+                <Space size={4}>
+                  <span>{row.tokenName}</span>
+                  <Typography.Text code type="secondary">
+                    {row.tokenMasked}
+                  </Typography.Text>
+                </Space>
+              ),
+            },
+            {
+              title: '工具',
+              dataIndex: 'tool',
+              render: (v: string) => <Typography.Text code>{v}</Typography.Text>,
+            },
+            {
+              title: '结果',
+              dataIndex: 'status',
+              render: (v: string) =>
+                v === 'success' ? <Tag color="green">成功</Tag> : <Tag color="red">失败</Tag>,
+            },
+            { title: '耗时(ms)', dataIndex: 'durationMs' },
+          ]}
+        />
+      </Card>
     </TmPageContainer>
   );
 }
