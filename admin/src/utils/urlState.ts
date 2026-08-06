@@ -63,6 +63,7 @@ const ALLOWED_QUERY_KEYS = new Set([
   'productSource',
   'operationStep',
   'customerName',
+  'orderNo',
   // legacy deep links (read + write when explicitly set)
   'jumpOrder',
   'orderId',
