@@ -445,28 +445,38 @@ func (s *Service) expensePartsByGroup(c *gin.Context, orders []order.Order, orde
 	if len(ids) == 0 {
 		return out, nil
 	}
-	var expenses []OrderExpense
-	if err := s.DB.WithContext(c.Request.Context()).
-		Where("tenant_id = ? AND order_id IN ?", tenantID, ids).Find(&expenses).Error; err != nil {
-		return nil, err
+	type typedExpenseAgg struct {
+		OrderID  uuid.UUID `gorm:"column:order_id"`
+		TypeCode string    `gorm:"column:type_code"`
+		Currency string    `gorm:"column:currency"`
+		Amount   float64   `gorm:"column:amount"`
 	}
-	for _, e := range expenses {
-		rate, ok := table.Rate(e.Currency)
-		if !ok {
-			continue
+	for _, chunk := range chunkOrderIDs(ids) {
+		var groups []typedExpenseAgg
+		if err := s.DB.WithContext(c.Request.Context()).Model(&OrderExpense{}).
+			Select("order_id, type_code, currency, SUM(amount) AS amount").
+			Where("tenant_id = ? AND order_id IN ?", tenantID, chunk).
+			Group("order_id, type_code, currency").Scan(&groups).Error; err != nil {
+			return nil, err
 		}
-		sid := shopOf[e.OrderID]
-		k := "none|" + orderMonth[e.OrderID]
-		if sid != nil {
-			k = sid.String() + "|" + orderMonth[e.OrderID]
+		for _, e := range groups {
+			rate, ok := table.Rate(e.Currency)
+			if !ok {
+				continue
+			}
+			sid := shopOf[e.OrderID]
+			k := "none|" + orderMonth[e.OrderID]
+			if sid != nil {
+				k = sid.String() + "|" + orderMonth[e.OrderID]
+			}
+			if out[k] == nil {
+				out[k] = map[string]*big.Rat{}
+			}
+			if out[k][e.TypeCode] == nil {
+				out[k][e.TypeCode] = new(big.Rat)
+			}
+			out[k][e.TypeCode].Add(out[k][e.TypeCode], new(big.Rat).Mul(fxrate.AmountRat(e.Amount), rate))
 		}
-		if out[k] == nil {
-			out[k] = map[string]*big.Rat{}
-		}
-		if out[k][e.TypeCode] == nil {
-			out[k][e.TypeCode] = new(big.Rat)
-		}
-		out[k][e.TypeCode].Add(out[k][e.TypeCode], new(big.Rat).Mul(fxrate.AmountRat(e.Amount), rate))
 	}
 	return out, nil
 }
