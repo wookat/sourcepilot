@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -161,6 +163,9 @@ func (c *Config) validateP6ProductionGuards() error {
 	if err := validateBackupObjectStorage(c.Backup); err != nil {
 		return err
 	}
+	if err := validateBackupS3Endpoint(c.Backup.S3Endpoint, c.AppEnv); err != nil {
+		return err
+	}
 	if IsProduction(c.AppEnv) {
 		if !c.Backup.Enabled {
 			return fmt.Errorf("%s: BACKUP_ENABLED=true is required in production", ErrCodeConfigRequired)
@@ -190,6 +195,32 @@ func validateBackupObjectStorage(b BackupConfig) error {
 	}
 	if strings.TrimSpace(b.StorageBucket) == "" {
 		return fmt.Errorf("%s: BACKUP_STORAGE_BUCKET is required when backup object storage credentials are configured", ErrCodeConfigInvalid)
+	}
+	return nil
+}
+
+// validateBackupS3Endpoint rejects malformed endpoints everywhere and, in
+// production, plaintext HTTP plus loopback/link-local (metadata) targets.
+func validateBackupS3Endpoint(endpoint, appEnv string) error {
+	if endpoint == "" {
+		return nil
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		return fmt.Errorf("%s: BACKUP_S3_ENDPOINT must be a valid http(s) URL", ErrCodeConfigInvalid)
+	}
+	if !IsProduction(appEnv) {
+		return nil
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("%s: BACKUP_S3_ENDPOINT must use https in production", ErrCodeConfigInvalid)
+	}
+	host := u.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		return fmt.Errorf("%s: BACKUP_S3_ENDPOINT cannot target localhost in production", ErrCodeConfigInvalid)
+	}
+	if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()) {
+		return fmt.Errorf("%s: BACKUP_S3_ENDPOINT cannot target loopback or link-local addresses in production", ErrCodeConfigInvalid)
 	}
 	return nil
 }

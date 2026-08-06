@@ -93,3 +93,38 @@ func TestBackupUploadGuardValues(t *testing.T) {
 		t.Fatalf("expected retention validation error, got %v", err)
 	}
 }
+
+func TestValidateBackupS3Endpoint(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		endpoint string
+		appEnv   string
+		wantErr  string
+	}{
+		{"empty is valid", "", EnvProduction, ""},
+		{"dev http minio allowed", "http://minio:9000", EnvDevelopment, ""},
+		{"dev loopback allowed", "http://127.0.0.1:9000", EnvDevelopment, ""},
+		{"malformed rejected in dev", "not a url", EnvDevelopment, "valid http(s) URL"},
+		{"non-http scheme rejected", "ftp://host", EnvDevelopment, "valid http(s) URL"},
+		{"production https external ok", "https://oss-cn-hangzhou.aliyuncs.com", EnvProduction, ""},
+		{"production plain http rejected", "http://minio.internal:9000", EnvProduction, "https"},
+		{"production loopback rejected", "https://127.0.0.1:9000", EnvProduction, "loopback or link-local"},
+		{"production metadata address rejected", "https://169.254.169.254", EnvProduction, "loopback or link-local"},
+		{"production localhost rejected", "https://localhost:9000", EnvProduction, "localhost"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateBackupS3Endpoint(tc.endpoint, tc.appEnv)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ type memStore struct {
 	failUploads int
 	uploadCalls int
 	deleted     []string
+	uploadErr   string
 }
 
 func newMemStore() *memStore {
@@ -28,6 +30,9 @@ func (m *memStore) Upload(_ context.Context, key, localPath, _ string) error {
 	m.uploadCalls++
 	if m.failUploads > 0 {
 		m.failUploads--
+		if m.uploadErr != "" {
+			return fmt.Errorf("%s", m.uploadErr)
+		}
 		return fmt.Errorf("injected upload failure")
 	}
 	data, err := os.ReadFile(localPath)
@@ -286,5 +291,96 @@ func TestDownloadMissingLocalWithoutObjectCopyFails(t *testing.T) {
 	}
 	if _, _, err := svc.Download(context.Background(), row.BackupID); err == nil {
 		t.Fatal("expected missing artifact error")
+	}
+}
+
+func TestUploadErrorRedactsCredentialLiterals(t *testing.T) {
+	svc := newTestService(t)
+	store := newMemStore()
+	store.failUploads = 10
+	store.uploadErr = "403 Forbidden: <Error><AWSAccessKeyId>AKIAEXAMPLEKEY</AWSAccessKeyId><StringToSign>sk-super-secret-value</StringToSign></Error>"
+	svc.Store = store
+	svc.Cfg.Backup.UploadMaxAttempts = 1
+	svc.Cfg.Backup.S3AccessKeyID = "AKIAEXAMPLEKEY"
+	svc.Cfg.Backup.S3SecretAccessKey = "sk-super-secret-value"
+
+	row := seedCompletedBackup(t, svc, false)
+	var artifact Artifact
+	if err := svc.DB.Where("backup_id = ?", row.BackupID).First(&artifact).Error; err != nil {
+		t.Fatal(err)
+	}
+	svc.uploadArtifact(context.Background(), row, &artifact)
+	if row.UploadStatus != UploadFailed {
+		t.Fatalf("expected failed, got %q", row.UploadStatus)
+	}
+	if strings.Contains(row.UploadError, "AKIAEXAMPLEKEY") || strings.Contains(row.UploadError, "sk-super-secret-value") {
+		t.Fatalf("upload error must not contain credential literals: %q", row.UploadError)
+	}
+	if !strings.Contains(row.UploadError, "[redacted]") {
+		t.Fatalf("expected [redacted] marker in %q", row.UploadError)
+	}
+}
+
+func TestPruneRefusesEmptyPrefix(t *testing.T) {
+	svc := newTestService(t)
+	store := newMemStore()
+	svc.Store = store
+	svc.Cfg.Backup.StoragePrefix = "/"
+	svc.Cfg.Backup.ObjectRetentionCount = 1
+	store.objects["unrelated/app-data.bin"] = []byte("x")
+	store.objects["bk_a.dump"] = []byte("x")
+	store.objects["bk_b.dump"] = []byte("x")
+
+	if err := svc.pruneObjectStore(context.Background()); err == nil {
+		t.Fatal("empty effective prefix must refuse pruning")
+	}
+	if len(store.deleted) != 0 {
+		t.Fatalf("nothing may be deleted with an empty prefix, deleted %v", store.deleted)
+	}
+}
+
+func TestPruneSkipsNonBackupArtifactKeys(t *testing.T) {
+	svc := newTestService(t)
+	store := newMemStore()
+	svc.Store = store
+	svc.Cfg.Backup.StoragePrefix = "backups/test"
+	svc.Cfg.Backup.ObjectRetentionCount = 1
+
+	base := time.Now().UTC()
+	store.objects["backups/test/unrelated.bin"] = []byte("x")
+	store.modTimes["backups/test/unrelated.bin"] = base.Add(-3 * time.Hour)
+	store.objects["backups/test/bk_old.dump"] = []byte("x")
+	store.modTimes["backups/test/bk_old.dump"] = base.Add(-2 * time.Hour)
+	store.objects["backups/test/bk_new.dump.enc"] = []byte("x")
+	store.modTimes["backups/test/bk_new.dump.enc"] = base
+
+	if err := svc.pruneObjectStore(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.objects["backups/test/unrelated.bin"]; !ok {
+		t.Fatal("non-backup object under the prefix must never be pruned")
+	}
+	if _, ok := store.objects["backups/test/bk_old.dump"]; ok {
+		t.Fatal("old backup artifact must be pruned")
+	}
+	if _, ok := store.objects["backups/test/bk_new.dump.enc"]; !ok {
+		t.Fatal("newest backup artifact must be kept")
+	}
+}
+
+func TestFetchFromObjectStoreRejectsPathOutsideWorkRoot(t *testing.T) {
+	svc := newTestService(t)
+	store := newMemStore()
+	svc.Store = store
+	store.objects["backups/test/bk_evil.dump"] = []byte("payload")
+
+	outside := filepath.Join(t.TempDir(), "escape", "bk_evil.dump")
+	artifact := &Artifact{BackupID: "bk_evil", Name: "bk_evil.dump", ObjectKey: "backups/test/bk_evil.dump", LocalPath: outside}
+	err := svc.fetchFromObjectStore(context.Background(), artifact)
+	if err == nil || !strings.Contains(err.Error(), "escapes") {
+		t.Fatalf("expected containment error, got %v", err)
+	}
+	if _, statErr := os.Stat(outside); statErr == nil {
+		t.Fatal("no file may be written outside the backup work directory")
 	}
 }

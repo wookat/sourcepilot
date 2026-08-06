@@ -30,6 +30,16 @@ type Service struct {
 	OpLog   *operationlog.Service
 	Metrics *metrics.Catalog
 	Store   backupstore.Store
+	// WorkRoot overrides the backup artifact directory (tests only).
+	WorkRoot string
+}
+
+// workRoot is the directory subtree all backup artifacts live under.
+func (s *Service) workRoot() string {
+	if s.WorkRoot != "" {
+		return s.WorkRoot
+	}
+	return filepath.Join(os.TempDir(), "trademind-p6-backups")
 }
 
 type CreateRequest struct {
@@ -100,7 +110,7 @@ func (s *Service) CreateDatabaseBackup(ctx context.Context, req CreateRequest, a
 }
 
 func (s *Service) runPgDump(ctx context.Context, row *Job) (*Job, error) {
-	workDir := filepath.Join(os.TempDir(), "trademind-p6-backups", row.BackupID)
+	workDir := filepath.Join(s.workRoot(), row.BackupID)
 	if err := os.MkdirAll(workDir, 0o700); err != nil {
 		return nil, err
 	}

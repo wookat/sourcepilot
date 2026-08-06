@@ -3,6 +3,8 @@ package backup
 import (
 	"context"
 	"fmt"
+	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -41,7 +43,7 @@ func (s *Service) uploadArtifact(ctx context.Context, row *Job, artifact *Artifa
 	}
 	if lastErr != nil {
 		row.UploadStatus = UploadFailed
-		row.UploadError = backupruntime.RedactCommandOutput(lastErr.Error())
+		row.UploadError = s.redactUploadError(lastErr.Error())
 		_ = s.DB.WithContext(saveCtx).Save(row).Error
 		return
 	}
@@ -53,9 +55,24 @@ func (s *Service) uploadArtifact(ctx context.Context, row *Job, artifact *Artifa
 	_ = s.DB.WithContext(saveCtx).Save(row).Error
 	if err := s.pruneObjectStore(ctx); err != nil {
 		// Retention pruning is best-effort; record but do not fail the upload.
-		row.UploadError = "retention prune: " + backupruntime.RedactCommandOutput(err.Error())
+		row.UploadError = "retention prune: " + s.redactUploadError(err.Error())
 		_ = s.DB.WithContext(saveCtx).Save(row).Error
 	}
+}
+
+// redactUploadError removes S3 credential literals from an error message
+// before it is persisted or surfaced, then applies the generic redaction
+// rules. S3-side errors may echo credentials (e.g. AWSAccessKeyId in XML
+// bodies), which the generic rules alone do not cover.
+func (s *Service) redactUploadError(msg string) string {
+	if s.Cfg != nil {
+		for _, secret := range []string{s.Cfg.Backup.S3SecretAccessKey, s.Cfg.Backup.S3AccessKeyID} {
+			if secret != "" {
+				msg = strings.ReplaceAll(msg, secret, "[redacted]")
+			}
+		}
+	}
+	return backupruntime.RedactCommandOutput(msg)
 }
 
 // RetryUpload re-uploads the newest artifact of a completed backup.
@@ -88,7 +105,11 @@ func (s *Service) pruneObjectStore(ctx context.Context) error {
 	if s.Store == nil || keep <= 0 {
 		return nil
 	}
-	objects, err := s.Store.List(ctx, s.objectPrefix())
+	prefix := s.objectPrefix()
+	if prefix == "" {
+		return fmt.Errorf("retention prune skipped: BACKUP_STORAGE_PREFIX resolves to empty, refusing to enumerate the whole bucket")
+	}
+	objects, err := s.Store.List(ctx, prefix)
 	if err != nil {
 		return err
 	}
@@ -102,6 +123,9 @@ func (s *Service) pruneObjectStore(ctx context.Context) error {
 	sort.Slice(objects, func(i, j int) bool { return objects[i].LastModified.After(objects[j].LastModified) })
 	var errs []string
 	for _, obj := range objects[keep:] {
+		if !isBackupArtifactKey(obj.Key) {
+			continue
+		}
 		if keyMatchesAnyBackup(obj.Key, heldIDs) {
 			continue
 		}
@@ -124,6 +148,9 @@ func (s *Service) fetchFromObjectStore(ctx context.Context, artifact *Artifact) 
 	if strings.TrimSpace(artifact.ObjectKey) == "" {
 		return fmt.Errorf("backup artifact has no object storage copy")
 	}
+	if err := s.ensureUnderWorkRoot(artifact.LocalPath); err != nil {
+		return err
+	}
 	if err := s.Store.Download(ctx, artifact.ObjectKey, artifact.LocalPath); err != nil {
 		return err
 	}
@@ -136,6 +163,35 @@ func (s *Service) heldBackupIDs(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	return ids, nil
+}
+
+// isBackupArtifactKey reports whether an object key looks like a backup
+// artifact produced by this service (bk_*.dump / bk_*.dump.enc). Retention
+// pruning must never delete unrelated objects sharing the prefix.
+func isBackupArtifactKey(key string) bool {
+	base := path.Base(strings.ReplaceAll(key, "\\", "/"))
+	if !strings.HasPrefix(base, "bk_") {
+		return false
+	}
+	return strings.HasSuffix(base, ".dump") || strings.HasSuffix(base, ".dump.enc")
+}
+
+// ensureUnderWorkRoot rejects artifact local paths outside the backup work
+// directory so object-store retrieval can never write elsewhere on disk.
+func (s *Service) ensureUnderWorkRoot(localPath string) error {
+	root, err := filepath.Abs(s.workRoot())
+	if err != nil {
+		return err
+	}
+	abs, err := filepath.Abs(localPath)
+	if err != nil {
+		return err
+	}
+	rel, err := filepath.Rel(root, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("backup artifact local path escapes the backup work directory")
+	}
+	return nil
 }
 
 func keyMatchesAnyBackup(key string, backupIDs []string) bool {

@@ -27,12 +27,15 @@ func newTestService(t *testing.T) *Service {
 	cfg := &config.Config{AppEnv: config.EnvDevelopment}
 	cfg.Backup.CommandTimeoutSeconds = 30
 	cfg.PostgresBackup.PGRestorePath = "true" // stand-in binary that always succeeds
-	return &Service{DB: db, Cfg: cfg}
+	return &Service{DB: db, Cfg: cfg, WorkRoot: t.TempDir()}
 }
 
 func seedCompletedBackup(t *testing.T, svc *Service, encrypted bool) *Job {
 	t.Helper()
-	dir := t.TempDir()
+	dir := filepath.Join(svc.workRoot(), "bk_test_001")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	path := filepath.Join(dir, "bk_test_001.dump")
 	if err := os.WriteFile(path, []byte("fake backup artifact payload"), 0o600); err != nil {
 		t.Fatal(err)
