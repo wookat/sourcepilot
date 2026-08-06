@@ -1,11 +1,14 @@
 package config
 
 import (
+	"crypto/x509"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/backupsched"
 )
 
 // BackupConfig holds P6 backup, verification and retention settings.
@@ -13,6 +16,7 @@ type BackupConfig struct {
 	Enabled               bool
 	Mode                  string
 	Schedule              string
+	ScheduleEnabled       bool
 	StorageProvider       string
 	StorageBucket         string
 	StoragePrefix         string
@@ -26,13 +30,21 @@ type BackupConfig struct {
 	VerifyEnabled         bool
 	RestoreDrillEnabled   bool
 	RestoreDrillSchedule  string
+	// RestoreAllowProduction gates restore drill endpoints when AppEnv is
+	// production. Off by default: restores stay forbidden in production
+	// unless explicitly opted in.
+	RestoreAllowProduction bool
 
 	// S3-compatible object storage upload for backup artifacts (R138).
-	S3Endpoint           string
-	S3Region             string
-	S3AccessKeyID        string
-	S3SecretAccessKey    string
-	S3UsePathStyle       bool
+	S3Endpoint        string
+	S3Region          string
+	S3AccessKeyID     string
+	S3SecretAccessKey string
+	S3UsePathStyle    bool
+	// S3CABundle is a PEM file path with extra CA certificates trusted for
+	// the backup S3 endpoint (self-signed MinIO drills). Empty uses the
+	// system trust store only.
+	S3CABundle           string
 	UploadMaxAttempts    int
 	ObjectRetentionCount int
 }
@@ -65,29 +77,32 @@ type ReleaseConfig struct {
 
 func loadBackupConfig(appEnv string) BackupConfig {
 	return BackupConfig{
-		Enabled:               envBool(os.Getenv("BACKUP_ENABLED"), false),
-		Mode:                  strings.ToLower(strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_MODE"), "disabled"))),
-		Schedule:              strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_SCHEDULE"), "0 3 * * *")),
-		StorageProvider:       strings.ToLower(strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_STORAGE_PROVIDER"), "local"))),
-		StorageBucket:         strings.TrimSpace(os.Getenv("BACKUP_STORAGE_BUCKET")),
-		StoragePrefix:         strings.Trim(strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_STORAGE_PREFIX"), "backups/"+NormalizeEnv(appEnv))), "/"),
-		EncryptionEnabled:     envBool(os.Getenv("BACKUP_ENCRYPTION_ENABLED"), IsStagingOrProduction(appEnv)),
-		EncryptionKeyID:       strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_ENCRYPTION_KEY_ID"), "app-master-key")),
-		RetentionDaily:        atoiOrDefault(os.Getenv("BACKUP_RETENTION_DAILY"), 7),
-		RetentionWeekly:       atoiOrDefault(os.Getenv("BACKUP_RETENTION_WEEKLY"), 4),
-		RetentionMonthly:      atoiOrDefault(os.Getenv("BACKUP_RETENTION_MONTHLY"), 6),
-		MaxAgeHours:           atoiOrDefault(os.Getenv("BACKUP_MAX_AGE_HOURS"), 30),
-		CommandTimeoutSeconds: atoiOrDefault(os.Getenv("BACKUP_COMMAND_TIMEOUT_SECONDS"), 900),
-		VerifyEnabled:         envBool(os.Getenv("BACKUP_VERIFY_ENABLED"), true),
-		RestoreDrillEnabled:   envBool(os.Getenv("BACKUP_RESTORE_DRILL_ENABLED"), false),
-		RestoreDrillSchedule:  strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_RESTORE_DRILL_SCHEDULE"), "0 4 * * 0")),
-		S3Endpoint:            strings.TrimSpace(os.Getenv("BACKUP_S3_ENDPOINT")),
-		S3Region:              strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_S3_REGION"), "us-east-1")),
-		S3AccessKeyID:         strings.TrimSpace(os.Getenv("BACKUP_S3_ACCESS_KEY_ID")),
-		S3SecretAccessKey:     strings.TrimSpace(os.Getenv("BACKUP_S3_SECRET_ACCESS_KEY")),
-		S3UsePathStyle:        envBool(os.Getenv("BACKUP_S3_USE_PATH_STYLE"), strings.TrimSpace(os.Getenv("BACKUP_S3_ENDPOINT")) != ""),
-		UploadMaxAttempts:     atoiOrDefault(os.Getenv("BACKUP_UPLOAD_MAX_ATTEMPTS"), 3),
-		ObjectRetentionCount:  atoiOrDefault(os.Getenv("BACKUP_OBJECT_RETENTION_COUNT"), 14),
+		Enabled:                envBool(os.Getenv("BACKUP_ENABLED"), false),
+		Mode:                   strings.ToLower(strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_MODE"), "disabled"))),
+		Schedule:               strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_SCHEDULE"), "0 3 * * *")),
+		ScheduleEnabled:        envBool(os.Getenv("BACKUP_SCHEDULE_ENABLED"), false),
+		StorageProvider:        strings.ToLower(strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_STORAGE_PROVIDER"), "local"))),
+		StorageBucket:          strings.TrimSpace(os.Getenv("BACKUP_STORAGE_BUCKET")),
+		StoragePrefix:          strings.Trim(strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_STORAGE_PREFIX"), "backups/"+NormalizeEnv(appEnv))), "/"),
+		EncryptionEnabled:      envBool(os.Getenv("BACKUP_ENCRYPTION_ENABLED"), IsStagingOrProduction(appEnv)),
+		EncryptionKeyID:        strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_ENCRYPTION_KEY_ID"), "app-master-key")),
+		RetentionDaily:         atoiOrDefault(os.Getenv("BACKUP_RETENTION_DAILY"), 7),
+		RetentionWeekly:        atoiOrDefault(os.Getenv("BACKUP_RETENTION_WEEKLY"), 4),
+		RetentionMonthly:       atoiOrDefault(os.Getenv("BACKUP_RETENTION_MONTHLY"), 6),
+		MaxAgeHours:            atoiOrDefault(os.Getenv("BACKUP_MAX_AGE_HOURS"), 30),
+		CommandTimeoutSeconds:  atoiOrDefault(os.Getenv("BACKUP_COMMAND_TIMEOUT_SECONDS"), 900),
+		VerifyEnabled:          envBool(os.Getenv("BACKUP_VERIFY_ENABLED"), true),
+		RestoreDrillEnabled:    envBool(os.Getenv("BACKUP_RESTORE_DRILL_ENABLED"), false),
+		RestoreDrillSchedule:   strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_RESTORE_DRILL_SCHEDULE"), "0 4 * * 0")),
+		RestoreAllowProduction: envBool(os.Getenv("BACKUP_RESTORE_ALLOW_PRODUCTION"), false),
+		S3Endpoint:             strings.TrimSpace(os.Getenv("BACKUP_S3_ENDPOINT")),
+		S3Region:               strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_S3_REGION"), "us-east-1")),
+		S3AccessKeyID:          strings.TrimSpace(os.Getenv("BACKUP_S3_ACCESS_KEY_ID")),
+		S3SecretAccessKey:      strings.TrimSpace(os.Getenv("BACKUP_S3_SECRET_ACCESS_KEY")),
+		S3UsePathStyle:         envBool(os.Getenv("BACKUP_S3_USE_PATH_STYLE"), strings.TrimSpace(os.Getenv("BACKUP_S3_ENDPOINT")) != ""),
+		S3CABundle:             strings.TrimSpace(os.Getenv("BACKUP_S3_CA_BUNDLE")),
+		UploadMaxAttempts:      atoiOrDefault(os.Getenv("BACKUP_UPLOAD_MAX_ATTEMPTS"), 3),
+		ObjectRetentionCount:   atoiOrDefault(os.Getenv("BACKUP_OBJECT_RETENTION_COUNT"), 14),
 	}
 }
 
@@ -163,6 +178,12 @@ func (c *Config) validateP6ProductionGuards() error {
 	if err := validateBackupObjectStorage(c.Backup); err != nil {
 		return err
 	}
+	if err := validateBackupSchedule(c.Backup); err != nil {
+		return err
+	}
+	if err := validateBackupS3CABundle(c.Backup.S3CABundle); err != nil {
+		return err
+	}
 	if err := validateBackupS3Endpoint(c.Backup.S3Endpoint, c.AppEnv); err != nil {
 		return err
 	}
@@ -179,6 +200,40 @@ func (c *Config) validateP6ProductionGuards() error {
 		if c.Release.Enabled && !c.Release.RequirePreBackup {
 			return fmt.Errorf("%s: RELEASE_REQUIRE_PRE_BACKUP=true is required for production release", ErrCodeConfigRequired)
 		}
+	}
+	return nil
+}
+
+// validateBackupSchedule rejects an unparseable BACKUP_SCHEDULE when the
+// built-in scheduler is enabled. Without the scheduler the expression stays
+// informational metadata (host crontab path) and is not validated.
+func validateBackupSchedule(b BackupConfig) error {
+	if !b.ScheduleEnabled {
+		return nil
+	}
+	if !b.Enabled || b.Mode == "disabled" {
+		return fmt.Errorf("%s: BACKUP_SCHEDULE_ENABLED=true requires BACKUP_ENABLED=true and BACKUP_MODE other than disabled", ErrCodeConfigInvalid)
+	}
+	if _, err := backupsched.Parse(b.Schedule); err != nil {
+		return fmt.Errorf("%s: BACKUP_SCHEDULE invalid: %v", ErrCodeConfigInvalid, err)
+	}
+	return nil
+}
+
+// validateBackupS3CABundle fails startup fast when a configured CA bundle
+// path is missing or contains no usable certificate, instead of silently
+// degrading uploads to the local-only path.
+func validateBackupS3CABundle(path string) error {
+	if path == "" {
+		return nil
+	}
+	pem, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("%s: BACKUP_S3_CA_BUNDLE unreadable: %v", ErrCodeConfigInvalid, err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		return fmt.Errorf("%s: BACKUP_S3_CA_BUNDLE contains no valid PEM certificate", ErrCodeConfigInvalid)
 	}
 	return nil
 }

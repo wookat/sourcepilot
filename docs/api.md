@@ -647,7 +647,7 @@ All P6 write operations require Bearer authentication and backend RBAC. The fron
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/ops/backups` | `backup.read` | 备份记录列表；不返回完整对象路径。 |
-| `POST` | `/api/v1/ops/backups` | `backup.create` | 创建备份任务；未启用备份时生成待复核记录。 |
+| `POST` | `/api/v1/ops/backups` | `backup.create` | 创建备份任务；未启用备份时生成待复核记录。另：`BACKUP_SCHEDULE_ENABLED=true` 时 backend 内置定时器按 `BACKUP_SCHEDULE` 自动创建备份（R143；记录带 `triggerSource=scheduled` 与分钟精度 `scheduleKey` 唯一索引，重复触发幂等；失败落 `status=failed`）。 |
 | `GET` | `/api/v1/ops/backups/:id` | `backup.read` | 备份详情。 |
 | `POST` | `/api/v1/ops/backups/:id/verify` | `backup.verify` | 执行备份校验；未启用加密时加密检查按「未启用（跳过）」处理；`details.checks` 返回结构化检查项。 |
 | `GET` | `/api/v1/ops/backups/:id/download` | `backup.download` | 流式下载校验通过的 completed 备份；本地文件缺失且已上传对象存储时自动取回并校验 checksum；readonly/operator 403；备份不存在或越权 404；写入操作日志。 |
@@ -655,9 +655,9 @@ All P6 write operations require Bearer authentication and backend RBAC. The fron
 | `POST` | `/api/v1/ops/backups/:id/hold` | `backup.hold` | 添加手动保留。 |
 | `DELETE` | `/api/v1/ops/backups/:id` | `backup.delete` | 删除非运行、非 hold 的备份记录。 |
 | `GET` | `/api/v1/ops/restores` | `restore.read` | 恢复验证列表。 |
-| `POST` | `/api/v1/ops/restores` | `restore.execute` | 创建隔离恢复验证；production 目标默认拒绝。 |
+| `POST` | `/api/v1/ops/restores` | `restore.execute` | 创建隔离恢复验证；production 目标永远拒绝；production AppEnv 下默认拒绝（`RESTORE_APP_ENV_FORBIDDEN`），需显式设 `BACKUP_RESTORE_ALLOW_PRODUCTION=true` 才允许隔离恢复演练（仍限 `trademind_p6v_restore_*` 隔离库 + 操作者重认证 + 高危二次确认）；readonly 403。 |
 | `GET` | `/api/v1/ops/restores/:id` | `restore.read` | 恢复验证详情。 |
-| `POST` | `/api/v1/ops/restores/:id/verify` | `restore.verify` | 恢复验证（本地/开发限定，production 拒绝）；真实执行备份文件完整性与 `pg_restore --list` 结构校验，其余检查项在 `details.checks` 中标注 `not_implemented`。 |
+| `POST` | `/api/v1/ops/restores/:id/verify` | `restore.verify` | 恢复验证（本地/开发限定；production 默认拒绝，`BACKUP_RESTORE_ALLOW_PRODUCTION=true` 时放行；readonly 403）；真实执行备份文件完整性与 `pg_restore --list` 结构校验，其余检查项在 `details.checks` 中标注 `not_implemented`。 |
 | `GET` | `/api/v1/ops/releases` | `release.read` | 发布记录列表。 |
 | `POST` | `/api/v1/ops/releases` | `release.create` | 创建发布记录和 manifest 摘要。 |
 | `GET` | `/api/v1/ops/releases/:id` | `release.read` | 发布详情。 |

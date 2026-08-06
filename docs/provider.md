@@ -53,6 +53,7 @@ Collector Provider
 - 接口：`Upload` / `Download` / `List` / `Delete` / `Target`（`Target` 返回不含密钥的脱敏目标描述，用于日志与 Ops 页展示）。
 - SDK：官方 `aws-sdk-go-v2`（复用仓库既有依赖版本）。
 - 配置来自 `BACKUP_S3_*` 环境变量（见 `docs/env.md`）；未配置时工厂返回 nil，备份模块降级为仅本地路径，不阻塞部署。
+- `BACKUP_S3_CA_BUNDLE`（R143）可显式指定自签 CA bundle（PEM 路径）：在系统信任库基础上额外信任该 bundle，用于本地/内网 production-like MinIO HTTPS 演练；路径不存在或非法 PEM 在 Store 构造时报错（fail-fast）。
 - Secret Key 不落日志、不进 API 响应、不进错误信息。
 
 ## Image Provider

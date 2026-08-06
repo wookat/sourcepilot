@@ -23,6 +23,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/alerting"
+	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
@@ -323,7 +324,7 @@ func main() {
 	api.RegisterNoRoute(engine)
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc, selectionSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc, selectionSvc, backupSvc := api.Register(engine, &api.Deps{
 		Config:          cfg,
 		DB:              db,
 		Redis:           redisClient,
@@ -367,6 +368,8 @@ func main() {
 	}
 
 	worker.StartStaleMarker(workerCtx, &workerWG, db, cfg, log)
+
+	backup.StartScheduler(workerCtx, &workerWG, log, backupSvc, cfg)
 
 	taskreaper.Start(workerCtx, &workerWG, taskreaper.Deps{
 		Log:             log,

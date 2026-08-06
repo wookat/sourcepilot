@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-06 — **Round 143 线1**：详见附录 [`docs/progress/R143.md`](progress/R143.md)（自本轮起每轮进展写入 `docs/progress/R<轮次>.md` 附录，本文件只留一行索引，减少并行 PR 冲突）。
+
 **Stage update**: 2026-08-06 — **Round 141 线1：验收包增量更新（R136–R140 并入）**：`docs/acceptance/ACCEPTANCE_R123.md` §一/12 合入状态收口（#280/#281/#283 已合入 main，⏳→✅），新增 §一/13「R136–R140 增量能力」（UX v9 收口 #284、报表 CSV「未折算」显式口径 #285、生产演练季度复检 #286、备份对象存储上传 + R139 安全审计 4 条 S3 加固 #287、深分页/未绑定口径 #288，全部 ✅），§五登记 R141 时点结论；`DEMO_SCRIPT.md` 第 23 步治理面收尾并入备份对象存储演示点（未配 S3 按降级「仅本地」口径演示，需 `BACKUP_ENABLED=true`/`BACKUP_MODE=local` 前置）、第 18–19 步补 #284/#285 口径，保持 30 分钟。Docker 全栈（main `99fd2e7d`）三角色实跑通过，两处失实（备份启用前置、上传状态文案「仅本地」）已修正脚本；README/production-launch-checklist/upgrade-guide 抽查无失实。实跑证据作会话附件不入库。
 
 **Stage update**: 2026-08-06 — **Round 140 线1：R139 安全审计 4 条 S3 加固收口（并入 #287）**：1）上传错误落库前显式替换 `BACKUP_S3_ACCESS_KEY_ID`/`BACKUP_S3_SECRET_ACCESS_KEY` 字面值为 `[redacted]`（纵深防御，覆盖 S3 兼容实现回传 XML 含 AWSAccessKeyId 的场景），再走通用脱敏。2）`BACKUP_S3_ENDPOINT` 启动校验：任何环境要求合法 http(s) URL；生产要求 `https://` 且拒绝 localhost/回环/link-local（含 169.254.169.254 元数据地址）。3）保留清理收窄：有效 `BACKUP_STORAGE_PREFIX` 为空时拒绝清理（防整桶枚举删除），且仅删除 `bk_*.dump`/`bk_*.dump.enc` 命名的备份产物。4）对象存储取回落地路径 containment：`fetchFromObjectStore` 校验 `LocalPath` 位于备份工作目录之下，越界拒绝写盘。四条均补回归测试。
