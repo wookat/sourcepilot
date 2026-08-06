@@ -911,6 +911,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- operator 视角自动化正样本：授权店 DEMO-AT-1005（Round 136）----
+	if err := s.seedRound136OperatorAutomation(tx, res, now, shops, products, skus); err != nil {
+		return err
+	}
+
 	// ---- 自动化动作面扩展演示：自动应用发货规则 + 自动分仓（Round 126）----
 	if err := s.seedRound126AutoActions(tx, res, now, shops, products, skus); err != nil {
 		return err
@@ -933,6 +938,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 
 	// ---- 财务对账演示：回款/费用/采购实付价样本（Round 121）----
 	if err := s.seedRound121Finance(tx, res, now, shops, &supplier, skus[0]); err != nil {
+		return err
+	}
+
+	// ---- 财务对账工作台量样本：补足 25+ 行让分页/合计可演示（Round 136）----
+	if err := s.seedRound136FinanceVolume(tx, res, now, shops, skus); err != nil {
 		return err
 	}
 
