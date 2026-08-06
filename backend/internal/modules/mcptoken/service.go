@@ -25,8 +25,18 @@ const secretHexLen = 64
 // ErrNotFound indicates the token does not exist within the tenant scope.
 var ErrNotFound = errors.New("mcp token not found")
 
-// ErrInvalidToken indicates the presented plaintext token is unknown or revoked.
+// ErrInvalidToken indicates the presented plaintext token is unknown, revoked
+// or carries a scope the read-only entry does not accept.
 var ErrInvalidToken = errors.New("invalid mcp token")
+
+// MaxActiveTokensPerTenant caps live tokens per tenant. Each token owns its own
+// rate-limit bucket, so an unbounded token count would multiply the request
+// budget one tenant can consume.
+const MaxActiveTokensPerTenant = 20
+
+// ErrTooManyTokens indicates the tenant already holds MaxActiveTokensPerTenant
+// active tokens; one must be revoked before issuing another.
+var ErrTooManyTokens = errors.New("mcptoken: active token limit reached (revoke an unused token first)")
 
 // Service manages tenant-scoped MCP read-only API tokens.
 type Service struct {
@@ -61,6 +71,14 @@ func (s *Service) Create(ctx context.Context, tenantID int64, name string, creat
 	}
 	if len([]rune(name)) > 64 {
 		return nil, fmt.Errorf("mcptoken: name too long (max 64)")
+	}
+	var active int64
+	if err := tenantquery.ScopeTenant(s.DB.WithContext(ctx).Model(&Token{}), tenantID).
+		Where("revoked_at IS NULL").Count(&active).Error; err != nil {
+		return nil, fmt.Errorf("mcptoken: count: %w", err)
+	}
+	if active >= MaxActiveTokensPerTenant {
+		return nil, ErrTooManyTokens
 	}
 	buf := make([]byte, secretHexLen/2)
 	if _, err := rand.Read(buf); err != nil {
@@ -133,7 +151,7 @@ func (s *Service) Authenticate(ctx context.Context, plain string) (*Token, error
 	hash := HashToken(plain)
 	var row Token
 	err := s.DB.WithContext(ctx).Model(&Token{}).
-		Where("token_hash = ? AND revoked_at IS NULL", hash).
+		Where("token_hash = ? AND revoked_at IS NULL AND scope = ?", hash, ScopeReadonly).
 		First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
