@@ -69,6 +69,8 @@ cd trademind
 
 升级不会清空数据：PostgreSQL / Redis / 上传文件 / 证书均在命名数据卷中持久化。
 
+需要在 `docker-compose.prod.yml` 之外追加挂载或配置（如把 `BACKUP_S3_CA_BUNDLE` 自签 CA 证书挂进 backend 容器）时，**不要**手工 `docker compose -f a.yml -f b.yml up` 后再直接重跑部署脚本——把追加内容写进仓库根目录的 `docker-compose.prod.override.yml`（不入库，按机器维护），`deploy-prod.sh` 检测到该文件会自动叠加，重跑部署（含升级、回滚重建）不会丢挂载；也可用 `COMPOSE_OVERRIDE_FILES=a.yml:b.yml ./scripts/deploy-prod.sh` 显式指定多个 override 文件（冒号分隔，文件缺失时 fail-fast）。
+
 目标版本包含数据库迁移（发布说明标注「数据库」影响）时，先执行 `./scripts/deploy-prod.sh --pre-upgrade-check`（全量备份 + 迁移预检，不部署；备份目录默认 `/var/backups`，可用 `BACKUP_DIR=...` 覆盖），再按 [upgrade-guide.md](upgrade-guide.md) 升级。
 
 ## 四、回滚

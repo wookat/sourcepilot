@@ -133,7 +133,7 @@ R102 起 `/api/v1/ops/*` 中的备份 / 恢复 / 发布 / 容灾接口收紧为�
    DELETE FROM orders WHERE id IN (SELECT id FROM dup WHERE rn > 1);
    ```
 
-3. **重跑升级**：`./scripts/deploy-prod.sh --no-pull`，再走「二、升级后验证」。
+3. **重跑升级**：`./scripts/deploy-prod.sh --no-pull`，再走「二、升级后验证」。若部署使用了额外 compose 挂载（如 `BACKUP_S3_CA_BUNDLE` 自签 CA），须写在 `docker-compose.prod.override.yml`（脚本自动叠加）或以 `COMPOSE_OVERRIDE_FILES` 指定，避免重跑丢挂载导致 backend `CONFIG_INVALID: BACKUP_S3_CA_BUNDLE unreadable` fail-fast（见 docs/production-deployment.md「日常升级」）。
 
 ## 四、回滚路径与已知陷阱
 
