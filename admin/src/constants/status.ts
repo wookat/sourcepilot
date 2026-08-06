@@ -213,6 +213,9 @@ export const CUSTOMER_MESSAGE_SYNC_TASK_STATUS = ORDER_SYNC_TASK_STATUS;
 /** 采购单支付渠道 purchase_orders.pay_channel */
 export const PURCHASE_PAY_CHANNEL_LABEL: Record<string, string> = {
   manual: '手动标记',
+  alipay: '支付宝',
+  bank: '对公转账',
+  other: '其他',
 };
 
 export function purchasePayChannelLabel(channel?: string | null): string {

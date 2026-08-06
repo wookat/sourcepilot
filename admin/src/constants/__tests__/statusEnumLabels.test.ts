@@ -17,7 +17,10 @@ describe('status enum label maps (R147 raw enum cleanup)', () => {
 
   it('maps purchase pay channels with raw fallback', () => {
     expect(purchasePayChannelLabel('manual')).toBe('手动标记');
-    expect(purchasePayChannelLabel('alipay')).toBe('alipay');
+    expect(purchasePayChannelLabel('alipay')).toBe('支付宝');
+    expect(purchasePayChannelLabel('bank')).toBe('对公转账');
+    expect(purchasePayChannelLabel('other')).toBe('其他');
+    expect(purchasePayChannelLabel('wechat')).toBe('wechat');
     expect(purchasePayChannelLabel('')).toBe('-');
     expect(purchasePayChannelLabel(null)).toBe('-');
   });
