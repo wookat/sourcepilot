@@ -217,6 +217,9 @@ func (s *Service) Verify(ctx context.Context, backupID string) (*Verification, e
 	if err := s.DB.WithContext(ctx).Where("backup_id = ?", backupID).Order("created_at DESC").First(&artifact).Error; err != nil {
 		return nil, err
 	}
+	if artifact.LocalPath != "" {
+		_ = s.EnsureLocalArtifact(ctx, &artifact)
+	}
 	v := &Verification{BackupID: backupID, Status: VerificationPassed, VerifiedAt: time.Now().UTC()}
 	checks := make([]Check, 0, 4)
 	if artifact.LocalPath == "" {
@@ -292,10 +295,8 @@ func (s *Service) Download(ctx context.Context, backupID string) (*Job, *Artifac
 	if strings.TrimSpace(artifact.LocalPath) == "" {
 		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_ARTIFACT_UNAVAILABLE: backup artifact local path unavailable")
 	}
-	if _, err := os.Stat(artifact.LocalPath); err != nil {
-		if fetchErr := s.fetchFromObjectStore(ctx, &artifact); fetchErr != nil {
-			return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_ARTIFACT_MISSING: backup artifact file missing")
-		}
+	if err := s.EnsureLocalArtifact(ctx, &artifact); err != nil {
+		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_ARTIFACT_MISSING: backup artifact file missing")
 	}
 	if err := backupruntime.VerifySHA256File(artifact.LocalPath, artifact.SHA256, 1); err != nil {
 		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_CHECKSUM_MISMATCH: %w", err)
@@ -333,7 +334,20 @@ func (s *Service) jobArtifact(ctx context.Context, backupID string) (*Job, *Arti
 	if strings.TrimSpace(artifact.LocalPath) == "" {
 		return nil, nil, fmt.Errorf("backup artifact local path unavailable")
 	}
+	if err := s.EnsureLocalArtifact(ctx, &artifact); err != nil {
+		return nil, nil, fmt.Errorf("backup artifact file missing: %w", err)
+	}
 	return row, &artifact, nil
+}
+
+// EnsureLocalArtifact makes sure the artifact file exists locally, fetching it
+// from object storage (and verifying its checksum) when the local copy was
+// lost to container churn.
+func (s *Service) EnsureLocalArtifact(ctx context.Context, artifact *Artifact) error {
+	if _, err := os.Stat(artifact.LocalPath); err == nil {
+		return nil
+	}
+	return s.fetchFromObjectStore(ctx, artifact)
 }
 
 func (s *Service) verifyPgRestoreList(ctx context.Context, row *Job, artifactPath string) error {
