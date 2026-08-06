@@ -32,6 +32,7 @@ func registerCustomerRoutes(c *gin.RouterGroup, h *Handler) {
 	c.DELETE("/conversations/:id", h.DeleteConversation)
 
 	c.GET("/buyer-message-rules", h.ListBuyerMsgRules)
+	c.GET("/buyer-message-rules/backfill-estimate", h.EstimateBuyerMsgBackfill)
 	c.POST("/buyer-message-rules", h.CreateBuyerMsgRule)
 	c.PUT("/buyer-message-rules/:id", h.UpdateBuyerMsgRule)
 	c.DELETE("/buyer-message-rules/:id", h.DeleteBuyerMsgRule)

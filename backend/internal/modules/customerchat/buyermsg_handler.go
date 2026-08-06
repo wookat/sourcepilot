@@ -115,6 +115,33 @@ func (h *Handler) DeleteBuyerMsgRule(c *gin.Context) {
 	response.OK(c, gin.H{"ok": true})
 }
 
+// EstimateBuyerMsgBackfill GET /api/v1/customer/buyer-message-rules/backfill-estimate
+// 返回「回溯存量」开启时将生成的草稿数量预估（node 必填；platforms / shopIds
+// 为逗号分隔的可选过滤）。只读接口，不产生任何草稿。
+func (h *Handler) EstimateBuyerMsgBackfill(c *gin.Context) {
+	if h.buyerMsgUnavailable(c) {
+		return
+	}
+	node := strings.TrimSpace(c.Query("node"))
+	estimated, err := h.Svc.EstimateBuyerMsgBackfill(c, node,
+		splitCSVQuery(c.Query("platforms")), splitCSVQuery(c.Query("shopIds")))
+	if err != nil {
+		buyerMsgHandleErr(c, err)
+		return
+	}
+	response.OK(c, gin.H{"estimated": estimated})
+}
+
+func splitCSVQuery(raw string) []string {
+	out := []string{}
+	for _, v := range strings.Split(raw, ",") {
+		if t := strings.TrimSpace(v); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 // GenerateBuyerMsgDrafts POST /api/v1/customer/buyer-messages/generate
 func (h *Handler) GenerateBuyerMsgDrafts(c *gin.Context) {
 	if h.buyerMsgUnavailable(c) || h.buyerMsgDenyWrite(c, "触发草稿生成") {

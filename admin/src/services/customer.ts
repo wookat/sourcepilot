@@ -456,6 +456,10 @@ export type BuyerMsgRuleRow = {
   templateName: string;
   templateMissing?: boolean;
   enabled: boolean;
+  /** 为空表示回溯存量；非空时仅对该时刻后的订单事件生成草稿 */
+  effectiveFrom?: string;
+  /** true 表示已开启「回溯存量订单」 */
+  backfill?: boolean;
   platforms: string[];
   shopIds: string[];
 };
@@ -467,6 +471,8 @@ export type BuyerMsgRuleBody = {
   enabled?: boolean;
   platforms?: string[];
   shopIds?: string[];
+  /** 显式开启回溯存量订单（默认不回溯，仅对规则生效后的新订单事件生成草稿） */
+  backfill?: boolean;
 };
 
 export async function queryBuyerMsgRules(): Promise<{ list: BuyerMsgRuleRow[]; canWrite: boolean }> {
@@ -483,6 +489,18 @@ export async function updateBuyerMsgRule(id: string, body: BuyerMsgRuleBody): Pr
 
 export async function deleteBuyerMsgRule(id: string): Promise<{ ok: boolean }> {
   return deleteJSON(`/api/v1/customer/buyer-message-rules/${id}`);
+}
+
+/** 「回溯存量」开启时将生成的草稿数量预估（只读，不产生草稿） */
+export async function estimateBuyerMsgBackfill(params: {
+  node: BuyerMsgNode;
+  platforms?: string[];
+  shopIds?: string[];
+}): Promise<{ estimated: number }> {
+  const qs = new URLSearchParams({ node: params.node });
+  if (params.platforms?.length) qs.set('platforms', params.platforms.join(','));
+  if (params.shopIds?.length) qs.set('shopIds', params.shopIds.join(','));
+  return getJSON(`/api/v1/customer/buyer-message-rules/backfill-estimate?${qs.toString()}`);
 }
 
 export type BuyerMsgDraftRow = {

@@ -99,7 +99,7 @@ Authorization: Bearer <admin token>
 
 - 订单同步 `partial_success` + 页级错误
 - 库存同步 `failed`（SKU 未绑定）
-- 客服发送失败 + 失败任务中心记录
+- 客服发送失败 + 失败任务中心记录（**故意构造的演示样例，非真实故障**：会话/消息/失败事件均带「演示样例·非真实故障」标注）
 - 平台未授权店铺样本
 
 操作写入 **operationlog**（`dev.demo_seed.full_project_edge_cases`）。

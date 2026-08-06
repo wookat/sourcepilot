@@ -2,6 +2,7 @@ import {
   AlertOutlined,
   AuditOutlined,
   BarChartOutlined,
+  CustomerServiceOutlined,
   DesktopOutlined,
   ExceptionOutlined,
   LogoutOutlined,
@@ -34,6 +35,7 @@ export default function MobileMe() {
   const links = [
     { title: '经营报表', path: '/orders/reports', icon: <BarChartOutlined /> },
     { title: '异常工作台', path: '/orders/exceptions', icon: <ExceptionOutlined /> },
+    { title: '客服中心', path: '/customer/hub', icon: <CustomerServiceOutlined /> },
     { title: '告警中心', path: '/ops/task-center/alerts', icon: <AlertOutlined /> },
     { title: '操作日志', path: '/system/operation-logs', icon: <AuditOutlined /> },
     { title: '系统设置', path: '/settings/system', icon: <SettingOutlined /> },

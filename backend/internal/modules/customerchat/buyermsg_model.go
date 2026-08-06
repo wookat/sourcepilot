@@ -69,6 +69,10 @@ type BuyerMessageRule struct {
 	// 无 default tag：带 default 时 GORM Create 会跳过零值 false 导致落库为 true；
 	// 默认启用语义由 service 层保证。
 	Enabled bool `gorm:"not null;index" json:"enabled"`
+	// EffectiveFrom 限定草稿生成范围：仅对该时刻之后发生的订单节点事件生成
+	// 草稿。nil 表示回溯全部存量订单（显式开启「回溯存量」，或该字段引入前的
+	// 历史规则）。创建/启用规则时由 service 层写入当前时间。
+	EffectiveFrom *time.Time `gorm:"index" json:"effectiveFrom,omitempty"`
 	// Platforms / ShopIDs are optional JSON string arrays; empty means all.
 	Platforms datatypes.JSON `gorm:"type:jsonb" json:"platforms,omitempty"`
 	ShopIDs   datatypes.JSON `gorm:"type:jsonb" json:"shopIds,omitempty"`

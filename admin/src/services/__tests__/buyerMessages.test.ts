@@ -20,6 +20,7 @@ import {
   buyerMsgNodeLabel,
   createBuyerMsgRule,
   deleteBuyerMsgRule,
+  estimateBuyerMsgBackfill,
   generateBuyerMsgDrafts,
   ignoreBuyerMsgDraft,
   markBuyerMsgDraftSent,
@@ -74,6 +75,30 @@ describe('buyer message rule services', () => {
     expect(putJSON).toHaveBeenCalledWith('/api/v1/customer/buyer-message-rules/rule-1', {
       enabled: false,
     });
+  });
+
+  it('creates with explicit backfill flag', async () => {
+    await createBuyerMsgRule({ name: '发货回溯', node: 'shipped', templateId: 'tpl-1', backfill: true });
+    expect(postJSON).toHaveBeenCalledWith('/api/v1/customer/buyer-message-rules', {
+      name: '发货回溯',
+      node: 'shipped',
+      templateId: 'tpl-1',
+      backfill: true,
+    });
+  });
+
+  it('estimates backfill via GET with node and optional filters', async () => {
+    getJSON.mockResolvedValue({ estimated: 3 });
+    const res = await estimateBuyerMsgBackfill({ node: 'shipped' });
+    expect(getJSON).toHaveBeenCalledWith(
+      '/api/v1/customer/buyer-message-rules/backfill-estimate?node=shipped',
+    );
+    expect(res.estimated).toBe(3);
+
+    await estimateBuyerMsgBackfill({ node: 'paid', platforms: ['douyin_shop'], shopIds: ['s1', 's2'] });
+    expect(getJSON).toHaveBeenCalledWith(
+      '/api/v1/customer/buyer-message-rules/backfill-estimate?node=paid&platforms=douyin_shop&shopIds=s1%2Cs2',
+    );
   });
 
   it('deletes via DELETE on the id path', async () => {

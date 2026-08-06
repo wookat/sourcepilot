@@ -7,6 +7,7 @@ import {
   buyerMsgNodeLabel,
   createBuyerMsgRule,
   deleteBuyerMsgRule,
+  estimateBuyerMsgBackfill,
   generateBuyerMsgDrafts,
   ignoreBuyerMsgDraft,
   markBuyerMsgDraftSent,
@@ -16,6 +17,8 @@ import {
   updateBuyerMsgDraft,
   updateBuyerMsgRule,
   type BuyerMsgDraftRow,
+  type BuyerMsgNode,
+  type BuyerMsgRuleBody,
   type BuyerMsgRuleRow,
   type ReplyTemplateRow,
 } from '@/services/customer';
@@ -443,14 +446,13 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
             templateId: row.templateMissing ? undefined : row.templateId,
             platforms: row.platforms,
             shopIds: row.shopIds,
+            backfill: !!row.backfill,
           }
-        : { name: '', node: undefined, templateId: undefined, platforms: [], shopIds: [] },
+        : { name: '', node: undefined, templateId: undefined, platforms: [], shopIds: [], backfill: false },
     );
   };
 
-  const submit = async () => {
-    const v = await form.validateFields().catch(() => null);
-    if (!v) return;
+  const save = async (v: BuyerMsgRuleBody & { node: BuyerMsgNode }) => {
     setSaving(true);
     try {
       if (modal.row) {
@@ -466,6 +468,39 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const submit = async () => {
+    const v = await form.validateFields().catch(() => null);
+    if (!v) return;
+    const turningOnBackfill = v.backfill && !(modal.row && modal.row.backfill);
+    if (!turningOnBackfill) {
+      await save(v);
+      return;
+    }
+    // 开启回溯存量：先预估将生成的草稿数量，经操作人确认后再保存。
+    setSaving(true);
+    let estimated = 0;
+    try {
+      const res = await estimateBuyerMsgBackfill({
+        node: v.node,
+        platforms: v.platforms,
+        shopIds: v.shopIds,
+      });
+      estimated = res.estimated;
+    } catch (e) {
+      message.error(extractErrorMessage(e, '预估回溯数量失败'));
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
+    Modal.confirm({
+      title: '确认回溯存量订单？',
+      content: `开启后预计将为约 ${estimated} 笔存量订单生成待发草稿（仍需人工确认后才会发送）。不开启则只对规则生效后的新订单事件生成草稿。`,
+      okText: `确认回溯（约 ${estimated} 条）`,
+      cancelText: '取消',
+      onOk: () => save(v),
+    });
   };
 
   const toggleEnabled = async (row: BuyerMsgRuleRow, enabled: boolean) => {
@@ -566,6 +601,21 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
                 ))
               ) : (
                 <Typography.Text type="secondary">全部店铺</Typography.Text>
+              ),
+          },
+          {
+            title: '生效范围',
+            dataIndex: 'backfill',
+            width: 120,
+            render: (v: boolean) =>
+              v ? (
+                <Tooltip title="已开启回溯：对全部存量订单生成草稿">
+                  <Tag color="orange">回溯存量</Tag>
+                </Tooltip>
+              ) : (
+                <Tooltip title="仅对规则生效后的新订单节点事件生成草稿，不回溯存量订单">
+                  <Tag color="green">仅新订单</Tag>
+                </Tooltip>
               ),
           },
           {
@@ -671,6 +721,14 @@ function RulesTab({ shops }: { shops: ShopListRow[] }) {
               placeholder="全部店铺"
               options={shops.map((s) => ({ value: s.id, label: s.shopName }))}
             />
+          </Form.Item>
+          <Form.Item
+            name="backfill"
+            label="回溯存量订单"
+            valuePropName="checked"
+            extra="默认关闭：规则只对生效后的新订单节点事件生成草稿，不回溯存量订单；开启时会先预估将生成的数量并需确认"
+          >
+            <Switch data-testid="buyer-msg-backfill-switch" />
           </Form.Item>
         </Form>
       </Modal>
