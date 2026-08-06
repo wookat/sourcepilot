@@ -835,6 +835,22 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `POST` | `/api/v1/order-automation-logs/:logId/retry` | 人工重试失败日志（仅 `failed` 可重试）→ 更新后的日志行；越权/不存在 404。 |
 | `GET` | `/api/v1/orders/:id/automation-logs` | 单订单自动化轨迹：`{items: 日志行[]}`（租户+店铺范围隔离，越权 404）。 |
 
+round135 新增动作 `add_tag`（自动打标签）：规则须配置 `tagIds`（≥1 个当前租户标签，创建/更新时校验存在性，跨租户/不存在 400）；命中后给订单幂等挂上配置的标签（`(order_id, tag_id)` 唯一，来源 `automation`），全部已存在则记 `skipped`，标签已被删除记 `failed`（可重试）。规则列表/新增/更新请求与返回体相应增加可选 `tagIds` 字段；条件引擎、幂等、执行日志、dry-run、审单安全边界与 scope 口径与其他动作一致。
+
+### 订单标签（order-tags，round135）
+
+租户级订单标签：名称（租户内唯一）+ 颜色（Ant Design 预设色名）。订单可手工打标/去标、批量打标，自动化规则可自动打标；列表/详情返回 `tags:[{id, name, color}]`，列表支持 `?tagId=` 按标签过滤（非法 UUID 忽略该条件）。写端点要求非 readonly；全部按租户隔离，越权 404。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/order-tags` | 标签列表（租户隔离）：`{items:[{id, tenantId, name, color, createdAt, updatedAt}]}`。 |
+| `POST` | `/api/v1/order-tags` | 新增标签：`{name, color?}`；名称必填、租户内唯一（重名 400），颜色缺省 `default`。 |
+| `PUT` | `/api/v1/order-tags/:tagId` | 更新标签名称/颜色（重名 400）；越权/不存在 404。 |
+| `DELETE` | `/api/v1/order-tags/:tagId` | 删除标签并解除全部订单关联；越权/不存在 404。 |
+| `POST` | `/api/v1/orders/:id/tags` | 给订单打标：`{tagIds:[...]}`（当前租户标签），幂等（已有关联跳过），返回 `{tags:[{id,name,color}]}`（订单最新标签）；店铺 scope 校验同订单写操作。 |
+| `DELETE` | `/api/v1/orders/:id/tags/:tagId` | 移除订单单个标签，返回 `{tags:[...]}`。 |
+| `POST` | `/api/v1/orders/batch-tags` | 批量打标/去标：`{orderIds:[...], tagIds:[...], action: add\|remove}`（单批 ≤200 单），仅当前账号可操作店铺的订单；返回 `{orders, tags, applied, removed}`（`applied`/`removed` 为实际新增/删除的关联数，幂等）。 |
+
 ### 违禁词合规检测（banned-words，round109）
 
 | 方法 | 路径 | 说明 |

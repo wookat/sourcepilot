@@ -185,6 +185,8 @@ func (s *Service) runAutomationActionOnce(ctx context.Context, r OrderAutomation
 		return s.autoApplyShippingRule(ctx, r, o)
 	case AutomationActionAssignWarehouse:
 		return s.autoAssignWarehouse(ctx, r, o)
+	case AutomationActionAddTag:
+		return s.autoAddTags(ctx, r, o)
 	default:
 		return AutomationLogFailed, "", fmt.Errorf("未知动作：%s", r.Action)
 	}
@@ -393,6 +395,47 @@ func (s *Service) autoAssignWarehouse(ctx context.Context, r OrderAutomationRule
 	o.AssignedWarehouseStrategy = strategy
 	o.WarehouseAssignedAt = &now
 	return AutomationLogSuccess, fmt.Sprintf("已自动分仓：%s（策略：%s，后续扣减默认从该仓出库）", plan.WarehouseName, automationWarehouseStrategyLabel(strategy)), nil
+}
+
+// autoAddTags attaches the rule's TagIDs to the order. Existing links are
+// skipped via the order+tag unique index (幂等，手工已打的标签不重复)。
+func (s *Service) autoAddTags(ctx context.Context, r OrderAutomationRule, o *Order) (string, string, error) {
+	ids := jsonStringList(json.RawMessage(r.TagIDs))
+	if len(ids) == 0 {
+		return AutomationLogSkipped, "规则未配置标签，跳过自动打标签", nil
+	}
+	tagIDs := make([]uuid.UUID, 0, len(ids))
+	for _, raw := range ids {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			continue
+		}
+		tagIDs = append(tagIDs, id)
+	}
+	var tags []OrderTag
+	if err := s.DB.WithContext(ctx).
+		Where("tenant_id = ? AND id IN ?", o.TenantID, tagIDs).
+		Order("name ASC").Find(&tags).Error; err != nil {
+		return AutomationLogFailed, "", err
+	}
+	if len(tags) == 0 {
+		return AutomationLogSkipped, "规则配置的标签已全部删除，跳过自动打标签", nil
+	}
+	links := make([]OrderTagLink, 0, len(tags))
+	for _, t := range tags {
+		links = append(links, OrderTagLink{TenantID: o.TenantID, OrderID: o.ID, TagID: t.ID, Source: TagLinkSourceAutomation})
+	}
+	res := s.DB.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "order_id"}, {Name: "tag_id"}},
+		DoNothing: true,
+	}).Create(&links)
+	if res.Error != nil {
+		return AutomationLogFailed, "", res.Error
+	}
+	if res.RowsAffected == 0 {
+		return AutomationLogSkipped, fmt.Sprintf("订单已有标签 %s，无需重复打标", joinTagNames(tags)), nil
+	}
+	return AutomationLogSuccess, fmt.Sprintf("已自动打标签：%s", joinTagNames(tags)), nil
 }
 
 func automationWarehouseStrategyLabel(strategy string) string {

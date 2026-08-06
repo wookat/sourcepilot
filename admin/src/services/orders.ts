@@ -2,6 +2,7 @@ import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/service
 import { responseErrorMessage } from '@/utils/httpErrorCopy';
 import { fetchWithSessionGuard } from '@/utils/sessionGuard';
 import type { OrderInventoryEffectRow, PaginatedInventory } from '@/services/inventory';
+import type { OrderTagBrief } from '@/services/orderTags';
 
 export type OrderShipmentRow = {
   id: string;
@@ -91,6 +92,7 @@ export type OrderDetailDTO = {
   assignedWarehouseName?: string;
   assignedWarehouseStrategy?: string;
   warehouseAssignedAt?: string;
+  tags?: OrderTagBrief[];
 };
 
 export type OrderListRow = {
@@ -121,6 +123,7 @@ export type OrderListRow = {
   latestShipmentStatus?: string;
   waybillPrintedAt?: string;
   externalOrderId?: string;
+  tags?: OrderTagBrief[];
 };
 
 export async function queryOrders(params: {
@@ -139,6 +142,7 @@ export async function queryOrders(params: {
   syncStatus?: string;
   hasException?: boolean;
   hasPurchase?: '0' | '1';
+  tagId?: string;
   start?: string;
   end?: string;
 }): Promise<{

@@ -40,6 +40,8 @@ const ALLOWED_QUERY_KEYS = new Set([
   'fulfillmentStatus',
   'hasException',
   'hasPurchase',
+  // round135 — 订单标签筛选
+  'tagId',
   'dateFrom',
   'dateTo',
   'createdFrom',

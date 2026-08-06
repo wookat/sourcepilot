@@ -666,6 +666,11 @@ export default [
         component: './Settings/OrderAutomationRules',
       },
       {
+        path: '/settings/order-tags',
+        name: '订单标签',
+        component: './Settings/OrderTags',
+      },
+      {
         path: '/settings/banned-words',
         name: '违禁词库',
         component: './Settings/BannedWords',

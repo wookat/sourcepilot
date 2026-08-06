@@ -79,6 +79,10 @@ const (
 	AutomationWarehouseStrategyStockFirst = "stock_first"
 )
 
+// AutomationActionAddTag attaches the rule's TagIDs to the order (订单自动打
+// 标签). Naturally idempotent: existing order+tag links are skipped.
+const AutomationActionAddTag = "add_tag"
+
 // ValidAutomationWarehouseStrategies lists accepted strategies.
 func ValidAutomationWarehouseStrategies() []string {
 	return []string{AutomationWarehouseStrategyDefault, AutomationWarehouseStrategyStockFirst}
@@ -118,6 +122,8 @@ func AutomationActionLabel(action string) string {
 		return "自动应用发货规则"
 	case AutomationActionAssignWarehouse:
 		return "自动分仓"
+	case AutomationActionAddTag:
+		return "自动打标签"
 	default:
 		return action
 	}
@@ -145,16 +151,17 @@ func ValidAutomationActions() []string {
 		AutomationActionNotifyShipping,
 		AutomationActionApplyShippingRule,
 		AutomationActionAssignWarehouse,
+		AutomationActionAddTag,
 	}
 }
 
 // automationEventActions maps each trigger event to its allowed actions,
 // keeping actions meaningful for the lifecycle stage they run in.
 var automationEventActions = map[string][]string{
-	AutomationEventOrderCreated:         {AutomationActionConfirmPayment, AutomationActionMarkPrinted, AutomationActionApplyShippingRule},
-	AutomationEventOrderPaid:            {AutomationActionGenerateProcurement, AutomationActionMarkPrinted, AutomationActionApplyShippingRule, AutomationActionAssignWarehouse},
-	AutomationEventProcurementDelivered: {AutomationActionNotifyShipping, AutomationActionMarkPrinted, AutomationActionApplyShippingRule, AutomationActionAssignWarehouse},
-	AutomationEventLogisticsCollected:   {AutomationActionNotifyShipping, AutomationActionApplyShippingRule},
+	AutomationEventOrderCreated:         {AutomationActionConfirmPayment, AutomationActionMarkPrinted, AutomationActionApplyShippingRule, AutomationActionAddTag},
+	AutomationEventOrderPaid:            {AutomationActionGenerateProcurement, AutomationActionMarkPrinted, AutomationActionApplyShippingRule, AutomationActionAssignWarehouse, AutomationActionAddTag},
+	AutomationEventProcurementDelivered: {AutomationActionNotifyShipping, AutomationActionMarkPrinted, AutomationActionApplyShippingRule, AutomationActionAssignWarehouse, AutomationActionAddTag},
+	AutomationEventLogisticsCollected:   {AutomationActionNotifyShipping, AutomationActionApplyShippingRule, AutomationActionAddTag},
 }
 
 // AutomationActionAllowed reports whether the action may bind to the event.
@@ -205,6 +212,8 @@ type OrderAutomationRule struct {
 	// WarehouseStrategy parameterizes assign_warehouse：default_warehouse or
 	// stock_first. Empty means default_warehouse.
 	WarehouseStrategy string `gorm:"size:32;default:''" json:"warehouseStrategy,omitempty"`
+	// TagIDs parameterizes add_tag：JSON array of order_tags ids to attach.
+	TagIDs datatypes.JSON `gorm:"type:jsonb" json:"tagIds,omitempty"`
 }
 
 // TableName maps to order_automation_rules.

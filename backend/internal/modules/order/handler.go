@@ -70,6 +70,18 @@ func adminUUID(c *gin.Context) *uuid.UUID {
 	return nil
 }
 
+func uuidQ(c *gin.Context, key string) *uuid.UUID {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil
+	}
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return nil
+	}
+	return &id
+}
+
 func atoiQ(c *gin.Context, key string, def int) int {
 	s := strings.TrimSpace(c.Query(key))
 	if s == "" {
@@ -152,6 +164,7 @@ func (h *Handler) List(c *gin.Context) {
 		SkuMatchStatus:        c.Query("skuMatchStatus"),
 		InventoryDeductStatus: c.Query("inventoryDeductStatus"),
 		SyncStatus:            c.Query("syncStatus"),
+		TagID:                 uuidQ(c, "tagId"),
 		HasException: strings.EqualFold(strings.TrimSpace(c.Query("hasException")), "true") ||
 			strings.TrimSpace(c.Query("hasException")) == "1",
 	}
