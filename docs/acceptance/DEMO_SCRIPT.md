@@ -1,7 +1,8 @@
-# R123 完整演示动线脚本（30 分钟 · Docker 全栈 + seed:demo:full，R128 增补自动化新动作）
+# R123 完整演示动线脚本（30 分钟 · Docker 全栈 + seed:demo:full，R128 增补自动化新动作，R132 增补 R128–R131 交付）
 
 > 面向老板验收/对外演示。与 [ACCEPTANCE_R123.md](ACCEPTANCE_R123.md) 配套：本脚本走一遍业务闭环「采集/选品 → 优化 → 草稿 → 货源 → 订单 → 审单 → 采购 → 入库 → 发货 → 消息 → 财务对账 → 报表」，覆盖三角色与移动模式。
-> R128 增补：第 11–12 步纳入 R126 自动化新动作（自动应用发货规则/自动分仓，#268+#270）；为保持 30 分钟，原「客服与话术」独立步骤并入买家消息步骤。**注意**：R126 新动作演示要求构建包含 #268（含 #270，`feat/round126-auto-actions` 分支）代码；在其合入前基于纯 main 构建时，第 11 步仅演示生成采购单动作、跳过第 12 步。
+> R128 增补：第 11–12 步纳入 R126 自动化新动作（自动应用发货规则/自动分仓，#268+#270，**已合入 main**，基于最新 main 构建即可演示）；为保持 30 分钟，原「客服与话术」独立步骤并入买家消息步骤。
+> R132 增补：R128–R131 交付纳入动线——第 9 步补订单号/客户筛选（R129 #274），第 18 步补聚合下推口径说明（R130 #276），第 20 步前新增双租户隔离演示（R128 #272）；#275 执行日志样本/操作日志中文映射与 #277 CSV 全量导出均已合入 main，基于最新 main 构建即可演示。
 > 历史 R1 阶段演示脚本见 [../DEMO_SCRIPT.md](../DEMO_SCRIPT.md)（已过时，保留存档）。
 
 ## 前置准备（演示前 10 分钟完成，不计入 30 分钟）
@@ -20,6 +21,7 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 | 管理员 | `demo_admin@trademind.local` | `DemoAdmin123!` | 主演示动线 |
 | 运营 | `demo_operator@trademind.local` | `DemoOperator123!` | 店铺 scope 演示 |
 | 只读 | `demo_readonly@trademind.local` | `DemoReadonly123!` | 权限边界演示 |
+| 第二租户管理员（R128） | `demo_tenant2_admin@trademind.local` | `DemoTenant2Admin123!` | 双租户隔离演示（仅见 DEMO-T2- 数据） |
 
 - 演示结束清理：`DB_HOST=127.0.0.1 pnpm seed:demo:full:clean && DB_HOST=127.0.0.1 pnpm seed:demo:full:verify`（期望输出 `zero DEMO- residual rows`）。
 
@@ -49,7 +51,7 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 
 | # | 环节 | 操作 | 预期 |
 | --- | --- | --- | --- |
-| 9 | 订单 | 「订单列表」筛选 DEMO 订单，展示 SKU 匹配与批量操作 | 列表含审单状态、打单状态列 |
+| 9 | 订单 | 「订单列表」筛选 DEMO 订单，展示 SKU 匹配与批量操作；搜索表单「订单号」填 `DEMO-AT-1004` 点查询（R129 修复） | 列表含审单状态、打单状态列；订单号筛选生效 + URL 回写（`orderNo=DEMO-AT-1004`）、刷新深链持久、重置正常；该单「库存扣减」列展示与「SKU 已匹配」前置一致（R132 seed 补 match 行） |
 | 10 | 审单（R114） | 「审单工作台」与 `/settings/order-review-rules` | 待审/挂起样本与命中原因；采购/发货对未过审订单强制阻断 |
 | 11 | 自动化规则与真实触发（R119+R126） | `/settings/order-automation-rules` 展示规则列表：除 R119 四动作外，R126 新增「自动应用发货规则」（recommend/apply 参数 Tag）与「自动分仓」（default_warehouse/stock_first 策略 Tag）规则；回订单列表勾选 `DEMO-AT-1004`（unpaid、审单通过、SKU 已匹配）批量「标记已付款」 | 触发 `order_paid` 自动化：`/orders/automation-logs` 出现新执行记录——自动生成采购单 + 自动应用发货规则（计划物流商落单）+ 自动分仓三动作 success（正向样本）；`DEMO-AT-1001` 同操作演示安全阻断负样本（无本地 SKU 匹配） |
 | 12 | 自动化新动作日志/详情落地（R126+R127） | `/orders/automation-logs` 查看 seed 样本 `DEMO-AT-1201`（发货规则直接应用成功正样本）与 `DEMO-AT-1202`（分仓库存不足失败负样本），对 1202 点「重试」；打开第 11 步订单详情 | 失败留痕文案「执行失败（本轮尝试 N 次）」与累计「尝试次数」列口径区分，重试后仍失败原因更新；订单详情「基本信息」新增「计划物流商」（名称+自动推荐/自动应用 Tag+命中规则名）与「分配仓库」（名称+策略 Tag）两项；人工选择不被自动结果覆盖 |
@@ -63,13 +65,14 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 | # | 环节 | 操作 | 预期 |
 | --- | --- | --- | --- |
 | 17 | 买家消息 + 话术（R119/R109） | `/customer/buyer-messages`：待发草稿 tab 编辑/标记已发送/忽略；节点规则 tab；顺带快速展示 `/customer/reply-templates` 分组模板（原独立客服话术步骤并入本步，为 R126 新动作腾时长） | 变量已按订单上下文填充，缺失变量警示；页顶降级说明（人工确认、绝不自动外发）；话术分组/变量填充可见 |
-| 18 | 财务对账（R121） | `/orders/finance-payments` 登记回款；`/orders/finance-reconciliation` 对账工作台；`/orders/finance-report` 报表 | 已结清/少款/多款样本；实算 vs 估算毛利差异；店铺×月份汇总，CSV 可导出 |
+| 18 | 财务对账（R121+R130） | `/orders/finance-payments` 登记回款；`/orders/finance-reconciliation` 对账工作台；`/orders/finance-report` 报表 | 已结清/少款/多款样本；实算 vs 估算毛利差异；店铺×月份汇总，CSV 可导出（R130 #276 后聚合已下推 SQL，大数据量下数值口径不变；CSV 全量导出已随 #277 合入，导出不再受单页上限截断） |
 | 19 | 三报表（R110） | `/orders/reports-profit`（另有采购/库存报表页） | 多币种本位币折算、缺进价/未折算显式提示 |
 
 ### 第 5 段：三角色 + 移动模式 + 治理面（约 4 分钟）
 
 | # | 环节 | 操作 | 预期 |
 | --- | --- | --- | --- |
+| 19b | 双租户隔离（R128） | 退出，登录 `demo_tenant2_admin`；再回主租户账号搜 `DEMO-T2` | 第二租户仅见 DEMO-T2- 店铺/订单/规则/执行日志；主租户搜 DEMO-T2 空态、零泄漏 |
 | 20 | operator | 退出，登录 `demo_operator` | 仅授权店铺数据可见；无权限路由统一「暂无访问权限」语义页 |
 | 21 | readonly | 登录 `demo_readonly`，查看任一写入口 | 写入口不渲染（隐藏），直接调写接口返回 403；读路径完整 |
 | 22 | 移动模式（R113+R124） | DevTools device toolbar 375px（zoom 100%）刷新；拉宽至 768px 对比 | 375：底部 5 tab（首页/订单/采购/库存/我的）且无侧栏汉堡（R124 断点互斥口径），「我的」页含经营报表/异常工作台/告警中心补偿入口；≥768：仅侧栏无底部导航；`/m/home` 指标卡与待办触屏动线；表格横向内滚不溢出 |
@@ -82,9 +85,11 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 - `/purchase/orders` 为别名重定向（R122 起），正式入口是侧栏「货源与采购」（`/procurement/orders`）。
 - 移动模式检查用 100% zoom；375px 表格横向内滚属预期，不算根节点溢出。
 - 容器跑的是构建时代码：切分支后需 `docker compose -f docker-compose.full.yml up -d --build` 重建。
-- R126 新动作（第 11–12 步新增内容）依赖 #268（含 #270）代码；其未合入 main 前需基于 `feat/round126-auto-actions`（或 main 本地叠加该分支）构建，否则 seed 不含 AT-1201/1202 样本、规则页无新动作选项。
+- ~~R126 新动作依赖 #268（含 #270）代码~~——#268/#270 已合入 main，基于最新 main 构建即含 AT-1201/1202 样本与规则页新动作选项。
+- R130 线2 执行日志样本（DEMO-AT-1301/1302/1303）与操作日志中文映射（#275）、对账/毛利 CSV 全量导出（#277）均已合入 main，基于最新 main 构建即可直接演示。
 
 ## 实跑验证记录
 
+- 2026-08-06（R132 线1）：Docker 全栈（main `eb626bd9` 本地叠加 `fix/round132-p2`）重建后针对本轮改动点实跑核对：`DB_HOST=127.0.0.1 pnpm seed:demo:full` 成功（`order_item_sku_matches` 计 6）；订单列表 API `orderNo=DEMO-AT-1004` 返回 `skuMatchStatus=all_matched`、`inventoryDeductStatus=none`（「库存扣减」列显示「未扣减」而非「SKU 未就绪」，与「SKU 已匹配」前置一致）；重复 seed 幂等；`seed:demo:full:clean` + `verify` 输出 `zero DEMO- residual rows` 且 `order_item_sku_matches` 归零。第二租户账号/19b 步骤沿用大回归 v19 实测证据（PR #272 评论）。
 - 2026-08-05（R128 线2）：更新后脚本在 Docker 全栈（main `f3108e16` 本地叠加 `feat/round126-auto-actions` `339836de`，含 #268/#270）+ `seed:demo:full` 三角色逐步实跑全部 23 步（全程录屏）：22/23 与预期一致；第 11–12 步 R126 新动作全部验证通过（DEMO-AT-1004 三动作 success、AT-1201/1202 正负样本、重试累计 3→6 与「本轮尝试 N 次」口径区分、订单详情计划物流商/分配仓库展示）；唯一偏差为第 2 步采集失败样本描述失实（seed 实为全 success），已修正本脚本该步预期；收尾 clean/verify 零残留。
 - 2026-08-05（R123 线1）：本脚本在 Docker 全栈（main `02b6b086` 构建）+ `seed:demo:full` 逐步实跑全部 23 步（三角色 + 375px 移动模式，全程录屏）：步骤 1–19、22、23 与预期一致；步骤 11 正/负样本真实触发验证通过（DEMO-AT-1004 自动生成采购单成功、DEMO-AT-1001 安全阻断留痕）；步骤 20/21 文案口径按实际表现修正（「暂无访问权限」/ 写入口隐藏而非禁用）。

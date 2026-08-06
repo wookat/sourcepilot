@@ -72,6 +72,19 @@ func TestFullDemoSeedOrderAutomationSamples(t *testing.T) {
 			t.Fatalf("DEMO-AT-1004 item must link a local SKU, got %+v", it)
 		}
 	}
+	// 列表「库存扣减」列按 order_item_sku_matches 聚合，正向样本必须有 matched 行。
+	var matchRows []order.OrderItemSKUMatch
+	if err := db.Where("order_id = ?", matched.ID).Find(&matchRows).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(matchRows) != len(matchedItems) {
+		t.Fatalf("expected %d sku match rows for DEMO-AT-1004, got %d", len(matchedItems), len(matchRows))
+	}
+	for _, m := range matchRows {
+		if m.MatchStatus != order.MatchStatusMatched || m.ProductSKUID == nil {
+			t.Fatalf("DEMO-AT-1004 match row must be matched with a local SKU, got %+v", m)
+		}
+	}
 
 	if _, err := s.Cleanup(context.Background()); err != nil {
 		t.Fatal(err)
