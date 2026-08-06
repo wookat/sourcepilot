@@ -5,10 +5,14 @@ import {
   downloadBackup,
   fetchBackups,
   holdBackup,
+  retryBackupUpload,
   verifyBackup,
   type BackupJob,
 } from '@/services/opsP6';
+import { isReadonly } from '@/utils/permission';
+import { useModel } from '@umijs/max';
 import {
+  CloudUploadOutlined,
   DatabaseOutlined,
   DownloadOutlined,
   ReloadOutlined,
@@ -26,7 +30,30 @@ export function verifyDisabledReason(status?: string): string | undefined {
   return '仅已完成（completed）的备份可以校验。';
 }
 
+export function uploadStatusTag(row: Pick<BackupJob, 'uploadStatus' | 'uploadError'>) {
+  switch (row.uploadStatus) {
+    case 'uploaded':
+      return <Tag color="green">已上传</Tag>;
+    case 'failed':
+      return (
+        <Tooltip title={row.uploadError || '上传失败'}>
+          <Tag color="red">上传失败</Tag>
+        </Tooltip>
+      );
+    case 'skipped':
+      return (
+        <Tooltip title="未配置对象存储，备份仅保存在本地路径（降级模式）。">
+          <Tag>仅本地</Tag>
+        </Tooltip>
+      );
+    default:
+      return <Tag>-</Tag>;
+  }
+}
+
 export default function BackupsPage() {
+  const { initialState } = useModel('@@initialState');
+  const readonly = isReadonly(initialState?.currentUser?.role);
   const [items, setItems] = useState<BackupJob[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -71,7 +98,12 @@ export default function BackupsPage() {
           <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
             刷新
           </Button>
-          <Button type="primary" icon={<DatabaseOutlined />} onClick={createDryRun}>
+          <Button
+            type="primary"
+            icon={<DatabaseOutlined />}
+            onClick={createDryRun}
+            disabled={readonly}
+          >
             创建备份
           </Button>
         </Space>
@@ -81,7 +113,7 @@ export default function BackupsPage() {
         <Alert
           showIcon
           type="info"
-          message="真实对象存储和真实生产备份验证保持待接入；校验通过的 completed 备份可由管理员下载。"
+          message="备份产物支持上传 S3 兼容对象存储（配置 BACKUP_S3_* 后自动上传，未配置时仅保存本地）；校验通过的 completed 备份可由管理员下载，本地文件缺失时自动从对象存储取回。"
         />
         <Table<BackupJob>
           rowKey="backupId"
@@ -110,6 +142,19 @@ export default function BackupsPage() {
               render: (v) => <Tag color={v ? 'green' : 'gold'}>{v ? '已启用' : '未启用'}</Tag>,
             },
             { title: '存储', dataIndex: 'storageProvider', width: 120 },
+            {
+              title: '上传状态',
+              dataIndex: 'uploadStatus',
+              width: 120,
+              render: (_, row) => uploadStatusTag(row),
+            },
+            {
+              title: '上传目标',
+              dataIndex: 'uploadTarget',
+              width: 220,
+              ellipsis: true,
+              render: (v) => (v ? <Tooltip title={String(v)}>{String(v)}</Tooltip> : '-'),
+            },
             { title: '大小', dataIndex: 'artifactSize', width: 120, align: 'right' },
             { title: '创建时间', dataIndex: 'createdAt', width: 180 },
             {
@@ -122,7 +167,7 @@ export default function BackupsPage() {
                       <Button
                         size="small"
                         icon={<SafetyCertificateOutlined />}
-                        disabled={row.status !== 'completed'}
+                        disabled={row.status !== 'completed' || readonly}
                         onClick={() =>
                           void verifyBackup(row.backupId)
                             .then((res) => {
@@ -146,7 +191,9 @@ export default function BackupsPage() {
                   <Button
                     size="small"
                     icon={<DownloadOutlined />}
-                    disabled={row.status !== 'completed' || row.verificationStatus !== 'passed'}
+                    disabled={
+                      row.status !== 'completed' || row.verificationStatus !== 'passed' || readonly
+                    }
                     onClick={() =>
                       void downloadBackup(row.backupId)
                         .then(() => message.success('备份文件下载已开始'))
@@ -155,8 +202,26 @@ export default function BackupsPage() {
                   >
                     下载
                   </Button>
+                  {row.uploadStatus === 'failed' && (
+                    <Button
+                      size="small"
+                      icon={<CloudUploadOutlined />}
+                      disabled={readonly}
+                      onClick={() =>
+                        void retryBackupUpload(row.backupId)
+                          .then(() => message.success('备份已重新上传到对象存储'))
+                          .catch((e: unknown) =>
+                            message.error(formatRequestError(e, '重试上传失败')),
+                          )
+                          .then(load)
+                      }
+                    >
+                      重试上传
+                    </Button>
+                  )}
                   <Button
                     size="small"
+                    disabled={readonly}
                     onClick={() =>
                       void holdBackup(row.backupId, 'operator manual hold')
                         .then(() => message.success('已设置保留'))

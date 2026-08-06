@@ -18,6 +18,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/backupruntime"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/providers/backupstore"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -28,6 +29,7 @@ type Service struct {
 	Enc     *encrypt.Service
 	OpLog   *operationlog.Service
 	Metrics *metrics.Catalog
+	Store   backupstore.Store
 }
 
 type CreateRequest struct {
@@ -152,7 +154,11 @@ func (s *Service) runPgDump(ctx context.Context, row *Job) (*Job, error) {
 		return nil, err
 	}
 	artifact := &Artifact{BackupID: row.BackupID, Name: filepath.Base(finalPath), Size: size, SHA256: sum, ManifestSHA256: manifest.ManifestChecksum, StorageProvider: s.Cfg.Backup.StorageProvider, StorageLocationHash: row.StorageLocationHash, LocalPath: finalPath}
-	return row, s.DB.WithContext(ctx).Create(artifact).Error
+	if err := s.DB.WithContext(ctx).Create(artifact).Error; err != nil {
+		return row, err
+	}
+	s.uploadArtifact(ctx, row, artifact)
+	return row, nil
 }
 
 func (s *Service) buildManifest(row *Job, name string, size int64, sum, wrappedKey string) Manifest {
@@ -277,7 +283,9 @@ func (s *Service) Download(ctx context.Context, backupID string) (*Job, *Artifac
 		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_ARTIFACT_UNAVAILABLE: backup artifact local path unavailable")
 	}
 	if _, err := os.Stat(artifact.LocalPath); err != nil {
-		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_ARTIFACT_MISSING: backup artifact file missing")
+		if fetchErr := s.fetchFromObjectStore(ctx, &artifact); fetchErr != nil {
+			return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_ARTIFACT_MISSING: backup artifact file missing")
+		}
 	}
 	if err := backupruntime.VerifySHA256File(artifact.LocalPath, artifact.SHA256, 1); err != nil {
 		return nil, nil, fmt.Errorf("BACKUP_DOWNLOAD_CHECKSUM_MISMATCH: %w", err)

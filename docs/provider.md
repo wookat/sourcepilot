@@ -46,6 +46,15 @@ Collector Provider
 
 敏感字段必须加密存储并脱敏展示。
 
+### Backup Store（备份对象存储，R138）
+
+`backend/internal/providers/backupstore` 是备份产物专用的 S3 兼容对象存储抽象（AWS S3 / MinIO / 阿里 OSS S3 兼容端点），与业务文件的 Storage Provider 分离：备份需要流式上传大文件、按前缀列举做保留清理和取回恢复。
+
+- 接口：`Upload` / `Download` / `List` / `Delete` / `Target`（`Target` 返回不含密钥的脱敏目标描述，用于日志与 Ops 页展示）。
+- SDK：官方 `aws-sdk-go-v2`（复用仓库既有依赖版本）。
+- 配置来自 `BACKUP_S3_*` 环境变量（见 `docs/env.md`）；未配置时工厂返回 nil，备份模块降级为仅本地路径，不阻塞部署。
+- Secret Key 不落日志、不进 API 响应、不进错误信息。
+
 ## Image Provider
 
 用于接入图片处理能力。

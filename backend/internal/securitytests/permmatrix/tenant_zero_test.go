@@ -20,6 +20,7 @@ import (
 var platformOnlyRoutes = []struct{ method, path string }{
 	{http.MethodGet, "/api/v1/ops/backups"},
 	{http.MethodPost, "/api/v1/ops/backups"},
+	{http.MethodPost, "/api/v1/ops/backups/bk_permmatrixprobe0001/upload"},
 	{http.MethodGet, "/api/v1/ops/restores"},
 	{http.MethodPost, "/api/v1/ops/restores"},
 	{http.MethodGet, "/api/v1/ops/releases"},

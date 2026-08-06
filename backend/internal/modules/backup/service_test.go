@@ -21,7 +21,7 @@ func newTestService(t *testing.T) *Service {
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
 	}
-	if err := db.AutoMigrate(&Job{}, &Artifact{}, &Verification{}); err != nil {
+	if err := db.AutoMigrate(&Job{}, &Artifact{}, &Verification{}, &RetentionHold{}); err != nil {
 		t.Fatal(err)
 	}
 	cfg := &config.Config{AppEnv: config.EnvDevelopment}

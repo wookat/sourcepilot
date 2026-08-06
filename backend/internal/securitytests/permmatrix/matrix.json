@@ -2186,6 +2186,18 @@
   },
   {
     "method": "POST",
+    "path": "/api/v1/ops/backups/:id/upload",
+    "personas": {
+      "admin": "forbid",
+      "crossTenantAdmin": "forbid",
+      "operator": "forbid",
+      "readonly": "forbid",
+      "platformAdmin": "allow"
+    },
+    "note": "backup.upload 复用 backup.create 权限（R138 对象存储上传）"
+  },
+  {
+    "method": "POST",
     "path": "/api/v1/ops/backups/:id/verify",
     "personas": {
       "admin": "forbid",

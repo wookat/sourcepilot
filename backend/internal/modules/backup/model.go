@@ -24,6 +24,10 @@ const (
 
 	HoldManual = "manual_hold"
 	HoldLegal  = "legal_hold"
+
+	UploadSkipped  = "skipped"
+	UploadUploaded = "uploaded"
+	UploadFailed   = "failed"
 )
 
 type Job struct {
@@ -44,6 +48,11 @@ type Job struct {
 	ErrorSummary        string         `gorm:"type:text" json:"errorSummary,omitempty"`
 	CreatedBy           *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 	ManifestJSON        datatypes.JSON `json:"manifestJson,omitempty"`
+	UploadStatus        string         `gorm:"size:32;index" json:"uploadStatus,omitempty"`
+	UploadTarget        string         `gorm:"size:255" json:"uploadTarget,omitempty"`
+	UploadAttempts      int            `json:"uploadAttempts,omitempty"`
+	UploadedAt          *time.Time     `json:"uploadedAt,omitempty"`
+	UploadError         string         `gorm:"type:text" json:"uploadError,omitempty"`
 }
 
 func (Job) TableName() string { return "backup_jobs" }
@@ -58,6 +67,7 @@ type Artifact struct {
 	StorageProvider     string `gorm:"size:32;not null" json:"storageProvider"`
 	StorageLocationHash string `gorm:"size:128" json:"storageLocationHash"`
 	LocalPath           string `gorm:"size:512" json:"-"`
+	ObjectKey           string `gorm:"size:512" json:"-"`
 }
 
 func (Artifact) TableName() string { return "backup_artifacts" }
