@@ -1769,3 +1769,10 @@ Final Production Acceptance Deferred to P10
 - **财务 CSV 导入控制字符/格式校验（P2-2）**：`migrationimport` 解析层新增统一单元格校验（CSV 与 XLSX 共用）：拒绝表头/数据单元格中除 `\t` 外的一切控制字符（C0/C1/DEL，含 ANSI 转义、NUL、引号内嵌换行），并在解析阶段拒绝超过 `MaxMappingColumns`（200）列的超宽表头；错误信息带行列定位。恶意样本单测覆盖（ANSI/NUL/VT/BS/C1/表头/引号内换行/XLSX/超宽表头 + 合法样本回归）。
 - **执行日志表冗余 shop_id（P2-3，评估后即修，低成本）**：`order_automation_logs` 新增 `shop_id` 快照列（写入时取订单店铺；迁移 `UPDATE ... FROM orders` 回填存量），店铺 scope 由订单子查询改为直接按日志 `shop_id` 过滤（无店铺订单日志维持仅 admin 可见的原口径）；API/前端类型/文档同步。
 - **Hono 测试工具链（P2-4）**：`hono` 经 override 升至 4.12.34（patch 内修复）；`@hono/node-server` 需 1.x→2.0.5 跨大版本（`@utoo/pack` 传递依赖，peer 限定 ^1.19），登记为 umi 升级时复评。
+
+### 变更记录（2026-08-06）第 131 轮线1：对账/毛利 CSV 全量导出收口（fullstack-engineer）
+
+- **对账 CSV 全量导出**：`finance.ExportReconciliationCSV` 不再复用页面 500 行截断结果——服务内拆出 `reconciliation(c, r, status, maxRows)`，页面沿用 `maxReconRows=500` + `truncated` 标记，CSV 传 `maxRows=0` 携带全部匹配行（排序/口径/列与页面一致）。数据源 `scopedOrdersInRange` 去掉隐性 `Limit(5000)`，改为 `created_at DESC, id DESC` keyset 分页（每批 1000）加载，单条 SQL 不再物化无界结果；CSV 注入防御（csvsafe）与多币种/本位币折算口径不变。
+- **全站 CSV 导出隐性行上限扫描**：同类问题命中报表毛利导出——`reports.ExportProfitCSV` 原复用页面 `profitMaxRows=500` 截断，同口径改为全量（`profitReport(..., maxRows=0)` + 订单维度 keyset 分批加载）。其余导出登记为有意上限：商品刊登导出 50（显式勾选批量上限，超限 400）、数据搬家导出 `MaxExportRows=50000`（防御性上限，已分批实现且有注释说明）、订单发货/采购导出为显式勾选 ID 集合、日报导出按天聚合，均无隐性报表级截断。
+- **PERF 实测（万级 seed，10000 订单/6999 已付款）**：对账导出 `?days=120` 全量 6999 数据行 + 表头，耗时 0.56s；毛利订单维度导出 6999 行耗时 0.42s；行数=DB 计数（6999），随机抽样 3 单应收/已回款与 DB 逐值一致；页面接口维持 500 行 + `truncated=true` 且汇总仍覆盖全量（orderCount=6999）。`seedperf clean` + `verify` 零 PERF- 残留。
+- **测试**：新增 `TestReconciliationCSVFullExport` / `TestProfitCSVExportFullRows`（1005 单：页面 500 截断、CSV 全量无重复、跨 keyset 批次边界）。门禁：go 全套（52 包）、contracts 15、frontend、build:admin、`round121-finance` E2E 8 条通过（首跑 2 条冷启动超时，复跑全绿）。

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/reports"
@@ -486,25 +487,50 @@ func estimateProfitBase(o order.Order, items []order.OrderItem, refByPair map[it
 	return &v
 }
 
-// scopedOrdersInRange loads paid orders in [start, end] under tenant + store
-// scope (finance口径 matches the profit report:已付款). Only the columns the
-// finance views read are selected; line items are aggregated separately.
+// orderLoadBatch bounds each keyset page of the scoped order load.
+const orderLoadBatch = 1000
+
+// scopedOrdersInRange loads all paid orders in [start, end] under tenant +
+// store scope (finance口径 matches the profit report:已付款), in bounded
+// keyset pages so no single query materializes an unbounded result. Only the
+// columns the finance views read are selected; line items are aggregated
+// separately.
 func (s *Service) scopedOrdersInRange(c *gin.Context, start, end time.Time) ([]order.Order, int64, error) {
-	tx := s.DB.WithContext(c.Request.Context()).Model(&order.Order{}).
-		Where("created_at >= ? AND created_at < ?", start, end.AddDate(0, 0, 1)).
-		Where("payment_status = ?", order.PaymentPaid)
-	tx, tid, err := adminperm.ApplyTenantScope(c, tx)
-	if err != nil {
-		return nil, 0, err
+	build := func() (*gorm.DB, int64, error) {
+		tx := s.DB.WithContext(c.Request.Context()).Model(&order.Order{}).
+			Where("created_at >= ? AND created_at < ?", start, end.AddDate(0, 0, 1)).
+			Where("payment_status = ?", order.PaymentPaid)
+		tx, tid, err := adminperm.ApplyTenantScope(c, tx)
+		if err != nil {
+			return nil, 0, err
+		}
+		tx, err = adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
+		return tx, tid, err
 	}
-	tx, err = adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
-	if err != nil {
-		return nil, 0, err
+	var (
+		all    []order.Order
+		tid    int64
+		cursor *order.Order
+	)
+	for {
+		tx, id, err := build()
+		if err != nil {
+			return nil, 0, err
+		}
+		tid = id
+		if cursor != nil {
+			tx = tx.Where("created_at < ? OR (created_at = ? AND id < ?)", cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
+		}
+		var page []order.Order
+		if err := tx.Select("id, order_no, platform, shop_id, currency, total_amount, created_at").
+			Order("created_at DESC, id DESC").Limit(orderLoadBatch).Find(&page).Error; err != nil {
+			return nil, 0, err
+		}
+		all = append(all, page...)
+		if len(page) < orderLoadBatch {
+			return all, tid, nil
+		}
+		last := page[len(page)-1]
+		cursor = &last
 	}
-	var orders []order.Order
-	if err := tx.Select("id, order_no, platform, shop_id, currency, total_amount, created_at").
-		Order("created_at DESC").Limit(5000).Find(&orders).Error; err != nil {
-		return nil, 0, err
-	}
-	return orders, tid, nil
 }
