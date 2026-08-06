@@ -1,5 +1,9 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-06 — **Round 140 线1：R139 安全审计 4 条 S3 加固收口（并入 #287）**：1）上传错误落库前显式替换 `BACKUP_S3_ACCESS_KEY_ID`/`BACKUP_S3_SECRET_ACCESS_KEY` 字面值为 `[redacted]`（纵深防御，覆盖 S3 兼容实现回传 XML 含 AWSAccessKeyId 的场景），再走通用脱敏。2）`BACKUP_S3_ENDPOINT` 启动校验：任何环境要求合法 http(s) URL；生产要求 `https://` 且拒绝 localhost/回环/link-local（含 169.254.169.254 元数据地址）。3）保留清理收窄：有效 `BACKUP_STORAGE_PREFIX` 为空时拒绝清理（防整桶枚举删除），且仅删除 `bk_*.dump`/`bk_*.dump.enc` 命名的备份产物。4）对象存储取回落地路径 containment：`fetchFromObjectStore` 校验 `LocalPath` 位于备份工作目录之下，越界拒绝写盘。四条均补回归测试。
+
+**Stage update**: 2026-08-06 — **Round 138 线1：对象存储备份上传（收掉最后一个部署债）**：1）新增 `backend/internal/providers/backupstore` 备份专用 S3 兼容对象存储 Provider（AWS S3 / MinIO / 阿里 OSS S3 兼容端点，官方 aws-sdk-go-v2 复用既有版本）：`Upload/Download/List/Delete/Target`，`Target` 输出脱敏目标（不含 AK/SK）。2）备份闭环：backup 完成后自动上传（`BACKUP_UPLOAD_MAX_ATTEMPTS` 有界重试，失败不影响备份本身、落库 uploadStatus=failed 可在 Ops 页重试）；上传成功后按 `BACKUP_OBJECT_RETENTION_COUNT` 保留最近 N 份（retention hold 备份不清理）；download/校验在本地文件缺失时自动从对象存储取回并校验 checksum。`BACKUP_S3_*` 全部留空为降级模式（仅本地路径，不阻塞部署），半配置启动即报配置错误。3）Ops 备份页新增上传状态/上传目标列与「重试上传」，readonly 全部写操作禁用；新端点 `POST /ops/backups/:id/upload`（backup.create）登记权限矩阵与 tenant-zero 安全测试。4）文档同步：env/production-launch-checklist（crontab 改为建议 + 对象存储上传）/upgrade-guide/api/provider/.env 示例。
+
 **Stage update**: 2026-08-06 — **Round 137 线1：UX v9 P2-3 收口（报表 CSV「未折算」显式口径）+ 杂项巡检**：非 CNY 无手工汇率时报表 CSV 的折算/本位币列由留空统一为显式「未折算」占位（与页面口径一致、仍不伪造折算）：利润报表 CSV（`reports/profit/export.csv` 折算收入列与本位币成本/费用/毛利列）、经营报表逐日 CSV（`orders/stats/daily/export.csv` 折算金额列，空日期行同口径）、对账报表/差异工作台 CSV（`finance/report|reconciliation/export.csv` 本位币列；店铺月度费用「无登记」仍留空以区分「未折算」与「缺记录」，无费用/成本行的 0 合计保持 `0.00` 不误标）。UI 已为「未折算」口径不改动；补/改回归测试（reports/order/finance 三模块 CSV 断言），`docs/api.md` 同步。杂项巡检（R132–R136 合入面）：check:ui-copy --strict 通过、无 console 残留、订单标签/自动化规则页空态含引导文案，无新增登记项。基于 #284（未合并，UX v9 报告与 P2-3 登记所在分支）本地叠加。
 
 **Stage update**: 2026-08-06 — **Round 136 线2：全站视觉/UX 复核 v9（报告 [`docs/ux-review/UX_REVIEW_V9_REPORT.md`](ux-review/UX_REVIEW_V9_REPORT.md)）**：v8 遗留 P2×2 收口无回退；#282 订单标签全动线、#277 CSV 导出交互、#275 日志中文化、#281 readonly 门控走查通过；硬指标全零。随报告修复 P1×1（对账 CSV「平台」列英文枚举 → `opslabels.PlatformLabel` 中文化 + 回归测试）与低成本 P2×2（操作日志 `order_tag.*` 动作/资源中文映射 + 单测；订单标签页创建时间改统一 `formatDateTime`）；P2-3（毛利 CSV 非 CNY 本位币列空白口径）待产品确认。
@@ -1795,6 +1799,15 @@ Final Production Acceptance Deferred to P10
 - **R134 复评收口②（demo 采集规则样本）**：`seed:demo:full` 新增采集规则样本（开箱可见非空态），`clean`/`verify` 覆盖零残留，幂等可重复执行（单测覆盖）。
 - **订单标签（round135 新功能）**：新表 `order_tags`（租户级名称/颜色，租户内重名 400）+ `order_tag_links`（`(order_id, tag_id)` 唯一，来源 manual/automation）。API：标签 CRUD（`/api/v1/order-tags`）、订单打标/去标（`/orders/:id/tags`）、批量打标/去标（`/orders/batch-tags`，≤200 单，返回 applied/removed 幂等计数）；订单列表/详情返回 `tags`，列表支持 `?tagId=` 过滤（进 keyset 指纹）。自动化规则新增 `add_tag` 动作（`tagIds` 校验当前租户存在性；沿用条件引擎/幂等/执行日志/时间线/dry-run/审单闸门/tenant+shop scope 口径）。Admin：设置→订单标签管理页、订单列表标签列 + 按标签筛选（URL query 唯一来源，`tagId` 进 ALLOWED_QUERY_KEYS）、批量打标签、详情手工打标/去标、自动化规则表单配置标签；readonly 只读（写入口隐藏/禁用）。demo seed 补 3 个标签样本 + 订单打标 + `add_tag` 自动规则与成功日志。
 - **E2E**：新增 `round135-order-tags.spec.ts` 13 条——标签管理增删改、readonly 禁用、列表标签列/筛选 URL 写回与深链刷新、批量打标、详情手工打标/去标（含 readonly 无写入口）、自动化规则 add_tag 配置、五档视口无根节点横向溢出；全部非 GET 写请求显式拦截声明。
+
+### 变更记录（2026-08-06）第 138 轮线1：对象存储备份上传（fullstack-engineer）
+
+- **备份对象存储 Provider**：新增 `backend/internal/providers/backupstore`（S3 兼容：AWS S3 / MinIO / 阿里 OSS S3 兼容端点，官方 aws-sdk-go-v2），接口 `Upload/Download/List/Delete/Target`；`Target` 只输出脱敏目标（bucket/prefix/endpoint host），AK/SK 不落日志、不进 API 响应与错误信息。
+- **上传状态与重试**：`backup_jobs` 新增 `upload_status/upload_target/upload_attempts/uploaded_at/upload_error`，`backup_artifacts` 新增 `object_key`；备份完成自动上传，`BACKUP_UPLOAD_MAX_ATTEMPTS` 有界重试，失败不影响备份任务本身（uploadStatus=failed），新端点 `POST /ops/backups/:id/upload`（backup.create）支持手动重试，已登记权限矩阵与 tenant-zero 测试。
+- **保留策略与恢复取回**：上传成功后按 `BACKUP_OBJECT_RETENTION_COUNT` 保留最近 N 份（0=不清理；retention hold 备份不清理）；download/校验在本地文件缺失时自动从对象存储取回并校验 SHA-256。
+- **降级路径**：`BACKUP_S3_*` 全部留空 = 未配置，备份仅保存本地路径、uploadStatus=skipped，不阻塞部署；半配置（缺 SK/缺桶等）启动即报 CONFIG_INVALID。
+- **Ops 页**：备份页新增「上传状态/上传目标」列与「重试上传」按钮；readonly 创建/校验/下载/保留/重试上传全部禁用。
+- **文档**：docs/env.md、production-launch-checklist（crontab 改为建议 + 对象存储上传为持久化路径）、upgrade-guide、api.md、provider.md、.env.example、.env.docker.example 同步。
 
 ### 变更记录（2026-08-06）第 137 轮线1：UX v9 P2-3 收口——报表 CSV「未折算」显式口径（fullstack-engineer）
 

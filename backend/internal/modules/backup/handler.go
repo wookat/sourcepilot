@@ -28,6 +28,7 @@ func Register(r gin.IRouter, h *Handler) {
 	g.GET("/:id", h.Get)
 	g.GET("/:id/download", h.Download)
 	g.POST("/:id/verify", h.Verify)
+	g.POST("/:id/upload", h.Upload)
 	g.POST("/:id/hold", h.Hold)
 	g.DELETE("/:id", h.Delete)
 }
@@ -112,6 +113,40 @@ func (h *Handler) logDownload(c *gin.Context, backupID, status, msg string) {
 		Resource:   "backup",
 		ResourceID: backupID,
 		Permission: adminperm.PermBackupDownload,
+		Status:     status,
+		Message:    msg,
+	})
+}
+
+// Upload retries pushing a completed backup artifact to object storage.
+func (h *Handler) Upload(c *gin.Context) {
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermBackupCreate) {
+		return
+	}
+	backupID := c.Param("id")
+	row, err := h.Svc.RetryUpload(c.Request.Context(), backupID)
+	if err != nil {
+		h.logUpload(c, backupID, "failed", err.Error())
+		if errors.Is(err, gorm.ErrRecordNotFound) || !validID(backupID) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "backup not found")
+			return
+		}
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		return
+	}
+	h.logUpload(c, row.BackupID, "success", "backup artifact uploaded to object storage")
+	response.OK(c, row)
+}
+
+func (h *Handler) logUpload(c *gin.Context, backupID, status, msg string) {
+	if h.Svc == nil || h.Svc.OpLog == nil {
+		return
+	}
+	_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+		Action:     "backup.upload",
+		Resource:   "backup",
+		ResourceID: backupID,
+		Permission: adminperm.PermBackupCreate,
 		Status:     status,
 		Message:    msg,
 	})

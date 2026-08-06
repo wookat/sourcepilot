@@ -649,7 +649,8 @@ All P6 write operations require Bearer authentication and backend RBAC. The fron
 | `POST` | `/api/v1/ops/backups` | `backup.create` | 创建备份任务；未启用备份时生成待复核记录。 |
 | `GET` | `/api/v1/ops/backups/:id` | `backup.read` | 备份详情。 |
 | `POST` | `/api/v1/ops/backups/:id/verify` | `backup.verify` | 执行备份校验；未启用加密时加密检查按「未启用（跳过）」处理；`details.checks` 返回结构化检查项。 |
-| `GET` | `/api/v1/ops/backups/:id/download` | `backup.download` | 流式下载校验通过的 completed 备份；readonly/operator 403；备份不存在或越权 404；写入操作日志。 |
+| `GET` | `/api/v1/ops/backups/:id/download` | `backup.download` | 流式下载校验通过的 completed 备份；本地文件缺失且已上传对象存储时自动取回并校验 checksum；readonly/operator 403；备份不存在或越权 404；写入操作日志。 |
+| `POST` | `/api/v1/ops/backups/:id/upload` | `backup.create` | 手动重试把 completed 备份产物上传到 S3 兼容对象存储（R138）；未配置对象存储时 400；写入操作日志。备份记录含 `uploadStatus`（skipped/uploaded/failed）、`uploadTarget`（脱敏目标，不含密钥）、`uploadAttempts`、`uploadedAt`、`uploadError` 字段。 |
 | `POST` | `/api/v1/ops/backups/:id/hold` | `backup.hold` | 添加手动保留。 |
 | `DELETE` | `/api/v1/ops/backups/:id` | `backup.delete` | 删除非运行、非 hold 的备份记录。 |
 | `GET` | `/api/v1/ops/restores` | `restore.read` | 恢复验证列表。 |

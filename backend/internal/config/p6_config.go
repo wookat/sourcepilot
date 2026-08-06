@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -24,6 +26,15 @@ type BackupConfig struct {
 	VerifyEnabled         bool
 	RestoreDrillEnabled   bool
 	RestoreDrillSchedule  string
+
+	// S3-compatible object storage upload for backup artifacts (R138).
+	S3Endpoint           string
+	S3Region             string
+	S3AccessKeyID        string
+	S3SecretAccessKey    string
+	S3UsePathStyle       bool
+	UploadMaxAttempts    int
+	ObjectRetentionCount int
 }
 
 // PostgresBackupConfig holds PostgreSQL backup/PITR command settings.
@@ -70,6 +81,13 @@ func loadBackupConfig(appEnv string) BackupConfig {
 		VerifyEnabled:         envBool(os.Getenv("BACKUP_VERIFY_ENABLED"), true),
 		RestoreDrillEnabled:   envBool(os.Getenv("BACKUP_RESTORE_DRILL_ENABLED"), false),
 		RestoreDrillSchedule:  strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_RESTORE_DRILL_SCHEDULE"), "0 4 * * 0")),
+		S3Endpoint:            strings.TrimSpace(os.Getenv("BACKUP_S3_ENDPOINT")),
+		S3Region:              strings.TrimSpace(firstNonEmpty(os.Getenv("BACKUP_S3_REGION"), "us-east-1")),
+		S3AccessKeyID:         strings.TrimSpace(os.Getenv("BACKUP_S3_ACCESS_KEY_ID")),
+		S3SecretAccessKey:     strings.TrimSpace(os.Getenv("BACKUP_S3_SECRET_ACCESS_KEY")),
+		S3UsePathStyle:        envBool(os.Getenv("BACKUP_S3_USE_PATH_STYLE"), strings.TrimSpace(os.Getenv("BACKUP_S3_ENDPOINT")) != ""),
+		UploadMaxAttempts:     atoiOrDefault(os.Getenv("BACKUP_UPLOAD_MAX_ATTEMPTS"), 3),
+		ObjectRetentionCount:  atoiOrDefault(os.Getenv("BACKUP_OBJECT_RETENTION_COUNT"), 14),
 	}
 }
 
@@ -118,6 +136,9 @@ func (c *Config) validateP6ProductionGuards() error {
 	if c.Backup.CommandTimeoutSeconds == 0 {
 		c.Backup.CommandTimeoutSeconds = 900
 	}
+	if c.Backup.UploadMaxAttempts == 0 {
+		c.Backup.UploadMaxAttempts = 3
+	}
 	if !validBackupMode(c.Backup.Mode) {
 		return fmt.Errorf("%s: BACKUP_MODE must be disabled, local, object_storage, or hybrid", ErrCodeConfigInvalid)
 	}
@@ -133,6 +154,18 @@ func (c *Config) validateP6ProductionGuards() error {
 	if c.Backup.Enabled && c.Backup.RetentionDaily == 0 && c.Backup.RetentionWeekly == 0 && c.Backup.RetentionMonthly == 0 {
 		return fmt.Errorf("%s: backup retention cannot be unlimited or empty", ErrCodeConfigInvalid)
 	}
+	if c.Backup.UploadMaxAttempts <= 0 {
+		return fmt.Errorf("%s: BACKUP_UPLOAD_MAX_ATTEMPTS must be positive", ErrCodeConfigInvalid)
+	}
+	if c.Backup.ObjectRetentionCount < 0 {
+		return fmt.Errorf("%s: BACKUP_OBJECT_RETENTION_COUNT cannot be negative", ErrCodeConfigInvalid)
+	}
+	if err := validateBackupObjectStorage(c.Backup); err != nil {
+		return err
+	}
+	if err := validateBackupS3Endpoint(c.Backup.S3Endpoint, c.AppEnv); err != nil {
+		return err
+	}
 	if IsProduction(c.AppEnv) {
 		if !c.Backup.Enabled {
 			return fmt.Errorf("%s: BACKUP_ENABLED=true is required in production", ErrCodeConfigRequired)
@@ -146,6 +179,48 @@ func (c *Config) validateP6ProductionGuards() error {
 		if c.Release.Enabled && !c.Release.RequirePreBackup {
 			return fmt.Errorf("%s: RELEASE_REQUIRE_PRE_BACKUP=true is required for production release", ErrCodeConfigRequired)
 		}
+	}
+	return nil
+}
+
+// validateBackupObjectStorage rejects half-configured S3 upload settings.
+// Fully unset settings are valid: uploads degrade to the local-only path.
+func validateBackupObjectStorage(b BackupConfig) error {
+	hasCreds := b.S3AccessKeyID != "" || b.S3SecretAccessKey != ""
+	if !hasCreds && b.S3Endpoint == "" {
+		return nil
+	}
+	if b.S3AccessKeyID == "" || b.S3SecretAccessKey == "" {
+		return fmt.Errorf("%s: BACKUP_S3_ACCESS_KEY_ID and BACKUP_S3_SECRET_ACCESS_KEY must both be set for backup object storage upload", ErrCodeConfigInvalid)
+	}
+	if strings.TrimSpace(b.StorageBucket) == "" {
+		return fmt.Errorf("%s: BACKUP_STORAGE_BUCKET is required when backup object storage credentials are configured", ErrCodeConfigInvalid)
+	}
+	return nil
+}
+
+// validateBackupS3Endpoint rejects malformed endpoints everywhere and, in
+// production, plaintext HTTP plus loopback/link-local (metadata) targets.
+func validateBackupS3Endpoint(endpoint, appEnv string) error {
+	if endpoint == "" {
+		return nil
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		return fmt.Errorf("%s: BACKUP_S3_ENDPOINT must be a valid http(s) URL", ErrCodeConfigInvalid)
+	}
+	if !IsProduction(appEnv) {
+		return nil
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("%s: BACKUP_S3_ENDPOINT must use https in production", ErrCodeConfigInvalid)
+	}
+	host := u.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		return fmt.Errorf("%s: BACKUP_S3_ENDPOINT cannot target localhost in production", ErrCodeConfigInvalid)
+	}
+	if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()) {
+		return fmt.Errorf("%s: BACKUP_S3_ENDPOINT cannot target loopback or link-local addresses in production", ErrCodeConfigInvalid)
 	}
 	return nil
 }

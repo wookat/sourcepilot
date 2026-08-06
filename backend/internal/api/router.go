@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/health"
+	"github.com/trademind-ai/trademind/backend/internal/logger"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/adminuser"
@@ -923,7 +924,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	exportH := &exportmod.Handler{Svc: exportSvc}
 	exportmod.RegisterRoutes(authed, exportH)
 
-	backupSvc := &backup.Service{DB: dep.DB, Cfg: dep.Config, Enc: dep.Encrypter, OpLog: opLogSvc, Metrics: metricCatalog}
+	backupStore, backupStoreErr := backup.NewStore(dep.Config)
+	if backupStoreErr != nil {
+		logger.L().Warn("backup object storage disabled", "error", backupStoreErr)
+	} else if backupStore != nil {
+		logger.L().Info("backup object storage enabled", "target", backupStore.Target())
+	}
+	backupSvc := &backup.Service{DB: dep.DB, Cfg: dep.Config, Enc: dep.Encrypter, OpLog: opLogSvc, Metrics: metricCatalog, Store: backupStore}
 	backupH := &backup.Handler{Svc: backupSvc}
 	// /ops/* operates on the whole deployment (database backups, restores,
 	// releases, DR drills), so it is platform-tenant only.

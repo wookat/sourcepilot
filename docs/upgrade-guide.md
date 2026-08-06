@@ -13,6 +13,11 @@ cd trademind
 # 备份目录默认 /var/backups；非 root 账号该目录通常不可创建，需显式 BACKUP_DIR=<可写目录> 运行
 ./scripts/deploy-prod.sh --pre-upgrade-check
 
+# 可选增强（R138）：配置 BACKUP_S3_*（endpoint/AK/SK + BACKUP_STORAGE_BUCKET）后，
+# /api/v1/ops/backups 的备份产物会自动上传 S3 兼容对象存储（AWS S3 / MinIO / 阿里 OSS），
+# 容器重建后 download/校验可自动从对象存储取回，作为宿主机 crontab/pg_dump 之外的异地副本；
+# 未配置时保持原有本地路径行为。详见 docs/env.md「BACKUP_S3_*」。
+
 # 或手动逐步执行：
 # 1. 全量备份（升级失败唯一可靠的回滚依据）
 docker compose -f docker-compose.prod.yml exec -T postgres \

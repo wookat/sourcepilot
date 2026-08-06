@@ -14,6 +14,11 @@ export type BackupJob = {
   createdAt: string;
   completedAt?: string;
   errorSummary?: string;
+  uploadStatus?: string;
+  uploadTarget?: string;
+  uploadAttempts?: number;
+  uploadedAt?: string;
+  uploadError?: string;
 };
 
 export type RestoreJob = {
@@ -136,6 +141,11 @@ export async function downloadBackup(id: string, fallbackName?: string) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** 手动重试把 completed 备份产物上传到对象存储（需要 backup.create 权限）。 */
+export async function retryBackupUpload(id: string) {
+  return request<{ data: BackupJob }>(`/api/v1/ops/backups/${id}/upload`, { method: 'POST' });
 }
 
 export async function holdBackup(id: string, reason: string) {
