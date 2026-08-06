@@ -66,6 +66,7 @@ import {
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import { recommendForOrders } from '@/services/waybill';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
+import { localSkuCodeDisplay } from '@/pages/Orders/localSkuDisplay';
 import CarrierSelect, { matchCarrier, useEnabledCarriers } from '@/components/CarrierSelect';
 import { PRODUCT_COPY } from '@/constants/copywriting';
 import {
@@ -752,7 +753,11 @@ export default function OrderDetailPage() {
                       width: 120,
                       render: (_, row) => {
                         const m = skuRows.find((s) => s.orderItemId === row.id);
-                        return m?.localSkuCode || row.skuCode || '—';
+                        const display = localSkuCodeDisplay(row, m);
+                        if (!display.bound) {
+                          return <Typography.Text type="secondary">未绑定</Typography.Text>;
+                        }
+                        return display.text;
                       },
                     },
                     {

@@ -1,8 +1,13 @@
 import { ReloadOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ActionType, ProColumns, ProTableProps } from '@ant-design/pro-components';
-import { Button, Tooltip } from 'antd';
+import { Button, Tooltip, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import {
+  isPaginationOffsetTooDeepError,
+  PAGINATION_OFFSET_TOO_DEEP_MESSAGE,
+} from '@/utils/paginationError';
 
 export type TmProTableProps<T extends Record<string, unknown>, U extends Record<string, unknown> = Record<string, unknown>> =
   ProTableProps<T, U>;
@@ -100,7 +105,8 @@ function stripColumnsFixed<T, U>(columns: ProColumns<T, U>[]): ProColumns<T, U>[
  * 统一 ProTable：
  * - 用可点击的 Button 承接刷新（修复工具栏内置 span 图标在某些布局下点击无效的问题）；
  * - 内容区窄（表格容器 ≤768px）去除列 fixed，避免固定操作列盖住数据列，整表横向滑动查看；
- * - 筛选区默认收起，列表页口径全站一致（页面可显式覆盖）。
+ * - 筛选区默认收起，列表页口径全站一致（页面可显式覆盖）；
+ * - request 抛出「深分页 offset 超限」时给出可读中文提示，不静默保留旧数据。
  */
 export default function TmProTable<
   T extends Record<string, unknown>,
@@ -114,6 +120,7 @@ export default function TmProTable<
   columns,
   search,
   scroll,
+  onRequestError,
   ...rest
 }: TmProTableProps<T, U>) {
   const innerRef = useRef<ActionType>();
@@ -136,6 +143,21 @@ export default function TmProTable<
     const x = Math.max(userX ?? 0, estimateColumnsWidth(columns));
     return { ...scroll, x };
   }, [scroll, columns]);
+
+  const mergedOnRequestError = useCallback(
+    (error: Error) => {
+      if (isPaginationOffsetTooDeepError(error)) {
+        void message.error(PAGINATION_OFFSET_TOO_DEEP_MESSAGE);
+        return;
+      }
+      if (onRequestError) {
+        onRequestError(error);
+        return;
+      }
+      throw error;
+    },
+    [onRequestError],
+  );
 
   const mergedSearch = useMemo(() => {
     if (search === false || search === undefined) return search;
@@ -190,6 +212,7 @@ export default function TmProTable<
         className={['tm-pro-table', className].filter(Boolean).join(' ')}
         actionRef={actionRef}
         options={mergedOptions}
+        onRequestError={mergedOnRequestError}
         toolBarRender={mergedToolBarRender}
         onLoadingChange={(isLoading) => {
           setLoading(!!isLoading);
