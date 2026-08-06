@@ -20,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/platformtenant"
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
@@ -83,6 +84,7 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&orderexception.OrderExceptionMark{},
 		&admin.AdminUser{},
 		&admin.UserStorePermission{},
+		&platformtenant.Tenant{},
 		&customerchat.CustomerConversation{},
 		&customerchat.CustomerMessage{},
 		&customerchat.CustomerReplySuggestion{},

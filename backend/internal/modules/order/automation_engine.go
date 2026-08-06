@@ -442,7 +442,7 @@ func (s *Service) writeAutomationLog(ctx context.Context, r OrderAutomationRule,
 			Resource:   "order",
 			ResourceID: o.ID.String(),
 			Status:     status,
-			Message:    fmt.Sprintf("自动规则：%s（%s → %s）%s", r.Name, r.TriggerEvent, r.Action, reason),
+			Message:    fmt.Sprintf("自动规则：%s（%s → %s）%s", r.Name, AutomationEventLabel(r.TriggerEvent), AutomationActionLabel(r.Action), reason),
 		})
 	}
 }
