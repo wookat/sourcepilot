@@ -106,6 +106,54 @@ test.describe('@round144 MCP 只读接入 token 管理', () => {
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
 
+  test('it should format ISO datetimes in expiry and audit time columns', async ({
+    admin,
+    page,
+  }) => {
+    const expiringToken = {
+      ...ACTIVE_TOKEN,
+      id: 'e2e-mcp-token-3',
+      name: 'iso-expiry-token',
+      maskedToken: 'sp_mcp_ro_5e6f…11bb',
+      expiresAt: '2030-01-02T03:04:05Z',
+      expired: false,
+    };
+    await routeTokenList(page, [expiringToken]);
+    await page.route('**/api/v1/mcp/audit-logs**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          ok({
+            items: [
+              {
+                id: 'e2e-mcp-audit-1',
+                tokenName: 'iso-expiry-token',
+                tokenMasked: 'sp_mcp_ro_5e6f…11bb',
+                tool: 'orders_query',
+                status: 'success',
+                durationMs: 12,
+                createdAt: '2026-08-06T01:02:03Z',
+              },
+            ],
+            total: 1,
+          }),
+        ),
+      });
+    });
+    await admin.goto('/settings/mcp-tokens');
+
+    const tokenRow = page.locator('.ant-table-tbody tr', { hasText: 'iso-expiry-token' });
+    await expect(tokenRow.getByText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/).first()).toBeVisible();
+    await expect(tokenRow.getByText('2030-01-02T03:04:05Z')).toHaveCount(0);
+
+    const auditRow = page.locator('.ant-table-tbody tr', { hasText: 'orders_query' });
+    await expect(auditRow.getByText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/).first()).toBeVisible();
+    await expect(auditRow.getByText('2026-08-06T01:02:03Z')).toHaveCount(0);
+
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
   test('it should disable write entries for readonly role', async ({ admin, page }) => {
     await page.route('**/api/v1/auth/profile', async (route) => {
       await route.fulfill({
