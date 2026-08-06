@@ -167,7 +167,7 @@ func (s *Service) ExportReconciliationCSV(c *gin.Context, r reports.DateRange, s
 			csvsafe.Cell(row.OrderNo),
 			csvsafe.Cell(opslabels.PlatformLabel(row.Platform)),
 			csvsafe.Cell(row.ShopName),
-			row.Currency,
+			csvsafe.Cell(row.Currency),
 			fmt.Sprintf("%.2f", row.Receivable),
 			fmt.Sprintf("%.2f", row.Received),
 			fmt.Sprintf("%.2f", row.FeeTotal),

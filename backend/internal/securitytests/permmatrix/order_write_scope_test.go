@@ -89,6 +89,12 @@ func TestOrderByIDWriteStoreScope(t *testing.T) {
 			func(orderID, _ uuid.UUID) string {
 				return fmt.Sprintf("/api/v1/orders/%s/shipments/%s/refresh-tracking", orderID, uuid.NewString())
 			}, `{}`},
+		"POST /api/v1/orders/:id/tags": {http.MethodPost, orderPath("/tags"),
+			fmt.Sprintf(`{"tagIds":[%q]}`, uuid.NewString())},
+		"DELETE /api/v1/orders/:id/tags/:tagId": {http.MethodDelete,
+			func(orderID, _ uuid.UUID) string {
+				return fmt.Sprintf("/api/v1/orders/%s/tags/%s", orderID, uuid.NewString())
+			}, `{}`},
 		"POST /api/v1/orders/:id/sku-candidates/batch": {http.MethodPost,
 			orderPath("/sku-candidates/batch"), `{"orderItemIds":[]}`},
 		// GET probe: sku-candidate reads resolve the parent order scoped too.
