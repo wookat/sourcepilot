@@ -173,12 +173,12 @@ func (s *Service) ExportReconciliationCSV(c *gin.Context, r reports.DateRange, s
 			fmt.Sprintf("%.2f", row.FeeTotal),
 			fmt.Sprintf("%.2f", row.DiffAmount),
 			settlementLabels[row.SettlementStatus],
-			fmtPtr(row.ReceivedBase),
-			fmtPtr(row.ActualCostBase),
-			fmtPtr(row.ExpenseBase),
-			fmtPtr(row.ActualProfitBase),
-			fmtPtr(row.EstimatedProfitBase),
-			fmtPtr(row.ProfitDiffBase),
+			fmtBase(row.ReceivedBase),
+			fmtBase(row.ActualCostBase),
+			fmtBase(row.ExpenseBase),
+			fmtBase(row.ActualProfitBase),
+			fmtBase(row.EstimatedProfitBase),
+			fmtBase(row.ProfitDiffBase),
 			boolLabel(row.LargeDiff),
 			fmt.Sprintf("%d", row.MissingActualLines),
 		}
@@ -194,9 +194,20 @@ func (s *Service) ExportReconciliationCSV(c *gin.Context, r reports.DateRange, s
 	return buf.Bytes(), name, nil
 }
 
+// unconvertedCell marks base-currency cells whose currency has no manual
+// rate, matching the pages' explicit「未折算」rendering (never a fake 0).
+const unconvertedCell = "未折算"
+
 func fmtPtr(v *float64) string {
 	if v == nil {
 		return ""
+	}
+	return fmt.Sprintf("%.2f", *v)
+}
+
+func fmtBase(v *float64) string {
+	if v == nil {
+		return unconvertedCell
 	}
 	return fmt.Sprintf("%.2f", *v)
 }
@@ -556,16 +567,16 @@ func (s *Service) ExportReportCSV(c *gin.Context, r reports.DateRange) ([]byte, 
 			row.Month,
 			csvsafe.Cell(row.ShopName),
 			fmt.Sprintf("%d", row.OrderCount),
-			fmtPtr(row.ReceivableBase),
-			fmtPtr(row.ReceivedBase),
-			fmtPtr(row.ReturnRatePercent),
-			fmtPtr(row.ExpenseBase),
+			fmtBase(row.ReceivableBase),
+			fmtBase(row.ReceivedBase),
+			fmtBase(row.ReturnRatePercent),
+			fmtBase(row.ExpenseBase),
 			fmtPtr(row.ShopExpenseBase),
 			csvsafe.Cell(strings.Join(parts, "；")),
-			fmtPtr(row.ActualCostBase),
-			fmtPtr(row.ActualProfitBase),
-			fmtPtr(row.EstimatedProfit),
-			fmtPtr(row.ProfitDiffBase),
+			fmtBase(row.ActualCostBase),
+			fmtBase(row.ActualProfitBase),
+			fmtBase(row.EstimatedProfit),
+			fmtBase(row.ProfitDiffBase),
 			fmt.Sprintf("%d", row.UnpaidCount),
 			fmt.Sprintf("%d", row.ShortCount),
 			fmt.Sprintf("%d", row.OverCount),

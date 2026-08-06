@@ -18,8 +18,8 @@ var profitDimensionLabels = map[string]string{
 }
 
 // ExportProfitCSV renders the profit report as one CSV row per aggregation
-// row: original-currency revenue columns plus converted columns (blank when
-// no manual rate), cost / fees / profit in the base currency. Scope and
+// row: original-currency revenue columns plus converted columns (「未折算」
+// when no manual rate), cost / fees / profit in the base currency. Scope and
 // per-row numbers match GET /reports/profit; unlike the page (top
 // profitMaxRows rows) the CSV carries every row.
 func (s *Service) ExportProfitCSV(c *gin.Context, dimension string, r DateRange) ([]byte, string, error) {
@@ -62,9 +62,11 @@ func (s *Service) ExportProfitCSV(c *gin.Context, dimension string, r DateRange)
 	if err := w.Write(header); err != nil {
 		return nil, "", err
 	}
+	// No manual rate: mark the cell「未折算」like the page, never fake a value.
+	const unconvertedCell = "未折算"
 	fmtPtr := func(v *float64) string {
 		if v == nil {
-			return ""
+			return unconvertedCell
 		}
 		return fmt.Sprintf("%.2f", *v)
 	}
@@ -88,7 +90,7 @@ func (s *Service) ExportProfitCSV(c *gin.Context, dimension string, r DateRange)
 			if a.BaseAmount != nil {
 				rec = append(rec, fmt.Sprintf("%.2f", *a.BaseAmount))
 			} else {
-				rec = append(rec, "") // no manual rate: never fake a converted value
+				rec = append(rec, unconvertedCell) // no manual rate: never fake a converted value
 			}
 		}
 		rec = append(rec,
