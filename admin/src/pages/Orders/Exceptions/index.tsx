@@ -1,5 +1,6 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { MetricCard, PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import { ORDER_EXCEPTION_STATUS } from '@/constants/status';
 import { platformLabel } from '@/constants/userFriendly';
 import { formatDateTime } from '@/utils/formatTime';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
@@ -99,7 +100,9 @@ function exceptionDetailContent(row: OrderExceptionRow) {
         <Descriptions.Item label="严重程度">
           {SEV_LABEL[row.severity] || row.severity || '—'}
         </Descriptions.Item>
-        <Descriptions.Item label="处理状态">{row.status || '—'}</Descriptions.Item>
+        <Descriptions.Item label="处理状态">
+          {ORDER_EXCEPTION_STATUS[row.status as keyof typeof ORDER_EXCEPTION_STATUS]?.text || row.status || '—'}
+        </Descriptions.Item>
         <Descriptions.Item label="订单编号">{row.orderNo || row.orderId || '—'}</Descriptions.Item>
         <Descriptions.Item label="错误说明">{row.errorMessage || '—'}</Descriptions.Item>
         <Descriptions.Item label="建议操作">{row.suggestedAction || '—'}</Descriptions.Item>
