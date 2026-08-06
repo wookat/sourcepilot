@@ -16,6 +16,7 @@ import {
   type PurchaseOrder,
   type PurchaseOrderItem,
 } from '@/services/procurement';
+import { ORDER_PAYMENT_STATUS, purchasePayChannelLabel } from '@/constants/status';
 import { formatDateTime } from '@/utils/formatTime';
 import { isReadonly } from '@/utils/permission';
 import { Link, useModel, useParams } from '@umijs/max';
@@ -218,8 +219,13 @@ export default function ProcurementOrderDetailPage() {
         <Descriptions.Item label="采购平台">{po.sourcePlatform}</Descriptions.Item>
         <Descriptions.Item label="1688 订单号">{po.externalOrderId || '-'}</Descriptions.Item>
         <Descriptions.Item label="金额">{`${po.totalAmount.toFixed(2)} ${po.currency}`}</Descriptions.Item>
-        <Descriptions.Item label="支付状态">{po.payStatus}</Descriptions.Item>
-        <Descriptions.Item label="支付渠道">{po.payChannel || '-'}</Descriptions.Item>
+        <Descriptions.Item label="支付状态">
+          {(() => {
+            const cfg = ORDER_PAYMENT_STATUS[po.payStatus as keyof typeof ORDER_PAYMENT_STATUS];
+            return cfg ? <Tag color={cfg.color}>{cfg.text}</Tag> : <Tag>{po.payStatus}</Tag>;
+          })()}
+        </Descriptions.Item>
+        <Descriptions.Item label="支付渠道">{purchasePayChannelLabel(po.payChannel)}</Descriptions.Item>
         <Descriptions.Item label="创建时间">{formatDateTime(po.createdAt)}</Descriptions.Item>
         <Descriptions.Item label="确认时间">{formatDateTime(po.confirmedAt, '-')}</Descriptions.Item>
         <Descriptions.Item label="来源销售订单" span={2}>

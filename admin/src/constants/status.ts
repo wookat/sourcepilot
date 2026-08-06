@@ -209,3 +209,44 @@ export const ORDER_ITEM_SKU_MATCH_STATUS = {
 
 /** 客服消息同步任务 customer_message_sync_tasks.status（与订单同步任务状态语义一致） */
 export const CUSTOMER_MESSAGE_SYNC_TASK_STATUS = ORDER_SYNC_TASK_STATUS;
+
+/** 采购单支付渠道 purchase_orders.pay_channel */
+export const PURCHASE_PAY_CHANNEL_LABEL: Record<string, string> = {
+  manual: '手动标记',
+};
+
+export function purchasePayChannelLabel(channel?: string | null): string {
+  const k = (channel ?? '').trim();
+  if (!k) return '-';
+  return PURCHASE_PAY_CHANNEL_LABEL[k] ?? k;
+}
+
+/** 订单异常处理状态 order_exceptions.status */
+export const ORDER_EXCEPTION_STATUS = {
+  open: { text: '待处理', color: 'processing' as const },
+  handled: { text: '已处理', color: 'success' as const },
+  ignored: { text: '已忽略', color: 'default' as const },
+};
+
+/** 客服消息 customer_messages.role */
+export const CUSTOMER_MESSAGE_ROLE_LABEL: Record<string, string> = {
+  customer: '买家',
+  agent: '客服',
+  ai: 'AI',
+};
+
+/** 客服消息 customer_messages.source */
+export const CUSTOMER_MESSAGE_SOURCE_LABEL: Record<string, string> = {
+  manual: '手动录入',
+  imported: '历史导入',
+  platform: '平台同步',
+  ai_suggestion: 'AI 建议',
+};
+
+/** 客服消息 customer_messages.message_type */
+export const CUSTOMER_MESSAGE_TYPE_LABEL: Record<string, string> = {
+  text: '文本',
+  image: '图片',
+  order: '订单',
+  system: '系统',
+};

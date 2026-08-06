@@ -20,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/finance"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/mcptoken"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
@@ -958,6 +959,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 	}
 	count("order_exception_marks", 1)
 
+	// ---- MCP 只读 token 演示样本 + 审计样本（Round 147）----
+	if err := s.seedRound147MCPToken(tx, res, now); err != nil {
+		return err
+	}
+
 	// ---- 第二业务租户演示：独立租户 + admin 账号 + 少量业务数据（Round 128）----
 	if err := s.seedSecondTenant(tx, res); err != nil {
 		return err
@@ -1334,6 +1340,11 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 		if err := del("waybill_templates", tx.Unscoped().Where("is_preset = ? AND name LIKE ?", false, like).Delete(&waybill.Template{})); err != nil {
 			return err
 		}
+		if tx.Migrator().HasTable("mcp_api_tokens") {
+			if err := del("mcp_api_tokens", tx.Unscoped().Where("name LIKE ?", like).Delete(&mcptoken.Token{})); err != nil {
+				return err
+			}
+		}
 		if err := cleanupSecondTenant(tx, res, like); err != nil {
 			return err
 		}
@@ -1614,6 +1625,13 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 			return n, tx.Model(&selection.SelectionEvaluation{}).Unscoped().
 				Where("candidate_id IN (?)", tx.Model(&selection.SelectionCandidate{}).Unscoped().
 					Select("id").Where("title LIKE ?", like)).Count(&n).Error
+		}},
+		{table: "mcp_api_tokens", count: func() (int64, error) {
+			var n int64
+			if !tx.Migrator().HasTable("mcp_api_tokens") {
+				return 0, nil
+			}
+			return n, tx.Model(&mcptoken.Token{}).Unscoped().Where("name LIKE ?", like).Count(&n).Error
 		}},
 		{table: "collect_tasks", count: func() (int64, error) {
 			var n int64

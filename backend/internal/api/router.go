@@ -227,7 +227,7 @@ func RegisterNoRoute(e *gin.Engine) {
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service, *webhook.Service, *files.Service, *securitymod.Service, *selection.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service, *webhook.Service, *files.Service, *securitymod.Service, *selection.Service, *backup.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -786,7 +786,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	procurementH := &procurement.Handler{Svc: procurementSvc}
 	procurement.Register(authed, procurementH)
-	reportsH := &reports.Handler{Svc: &reports.Service{DB: dep.DB, Settings: settingsSvc, Proc: procurementSvc}}
+	reportsSvc := &reports.Service{DB: dep.DB, Settings: settingsSvc, Proc: procurementSvc}
+	reportsH := &reports.Handler{Svc: reportsSvc}
 	reports.Register(authed, reportsH)
 
 	financeSvc := &finance.Service{DB: dep.DB, Settings: settingsSvc, Proc: procurementSvc, OpLog: opLogSvc}
@@ -920,7 +921,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		OrderExceptions: excSvc,
 		ConfigStatus:    configStatusSvc,
 	}
-	dashH := &operationdashboard.Handler{Svc: dashSvc}
+	dashH := &operationdashboard.Handler{Svc: dashSvc, Reports: reportsSvc}
 	operationdashboard.Register(authed, dashH)
 
 	aiOpsWorkbenchSvc := &aiopsworkbench.Service{
@@ -979,7 +980,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		demoseed.Register(authed, demoSeedH)
 	}
 
-	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc, selectionSvc
+	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc, selectionSvc, backupSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {

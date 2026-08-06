@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-06 — **Round 143 线1**：详见附录 [`docs/progress/R143.md`](progress/R143.md)（自本轮起每轮进展写入 `docs/progress/R<轮次>.md` 附录，本文件只留一行索引，减少并行 PR 冲突）。
+
 **Stage update**: 2026-08-06 — **Round 141 线1：验收包增量更新（R136–R140 并入）**：`docs/acceptance/ACCEPTANCE_R123.md` §一/12 合入状态收口（#280/#281/#283 已合入 main，⏳→✅），新增 §一/13「R136–R140 增量能力」（UX v9 收口 #284、报表 CSV「未折算」显式口径 #285、生产演练季度复检 #286、备份对象存储上传 + R139 安全审计 4 条 S3 加固 #287、深分页/未绑定口径 #288，全部 ✅），§五登记 R141 时点结论；`DEMO_SCRIPT.md` 第 23 步治理面收尾并入备份对象存储演示点（未配 S3 按降级「仅本地」口径演示，需 `BACKUP_ENABLED=true`/`BACKUP_MODE=local` 前置）、第 18–19 步补 #284/#285 口径，保持 30 分钟。Docker 全栈（main `99fd2e7d`）三角色实跑通过，两处失实（备份启用前置、上传状态文案「仅本地」）已修正脚本；README/production-launch-checklist/upgrade-guide 抽查无失实。实跑证据作会话附件不入库。
 
 **Stage update**: 2026-08-06 — **Round 140 线1：R139 安全审计 4 条 S3 加固收口（并入 #287）**：1）上传错误落库前显式替换 `BACKUP_S3_ACCESS_KEY_ID`/`BACKUP_S3_SECRET_ACCESS_KEY` 字面值为 `[redacted]`（纵深防御，覆盖 S3 兼容实现回传 XML 含 AWSAccessKeyId 的场景），再走通用脱敏。2）`BACKUP_S3_ENDPOINT` 启动校验：任何环境要求合法 http(s) URL；生产要求 `https://` 且拒绝 localhost/回环/link-local（含 169.254.169.254 元数据地址）。3）保留清理收窄：有效 `BACKUP_STORAGE_PREFIX` 为空时拒绝清理（防整桶枚举删除），且仅删除 `bk_*.dump`/`bk_*.dump.enc` 命名的备份产物。4）对象存储取回落地路径 containment：`fetchFromObjectStore` 校验 `LocalPath` 位于备份工作目录之下，越界拒绝写盘。四条均补回归测试。
@@ -1839,6 +1841,13 @@ Final Production Acceptance Deferred to P10
 - **限流多副本口径**：`pkg/ratelimit.RedisLimiter`（Lua 令牌桶，复用队列 Redis，无新依赖/变量），Redis 可用时 MCP 三层限流共享额度，不可用降级进程内（不 fail-open，已文档化）。
 - 契约 114→115、权限矩阵、`docs/mcp.md`/`api.md`/`env.md`/`permission-matrix.md` 同步。详见 `docs/progress/R146.md`。基于 #295 分支叠加。
 
+### 变更记录（2026-08-06）第 145 轮线1：实时经营大屏（fullstack-engineer）
+
+- **经营大屏页面 `/dashboard/screen`**：深色大屏主题（可切浅色）、今日订单/销售额/毛利 KPI、待办五类计数、订单状态流转漏斗（近 7 天）、近 24h 逐小时趋势、异常/低库存告警滚动；15/30/60s 可配轮询 + 全屏投屏；1920 主视口，1440/1280/1024/768 优雅降级。
+- **后端 `GET /api/v1/dashboard/screen` 单次聚合**：漏斗/趋势/待办均为分组 SQL 下推（无 N+1），销售额/毛利复用 `/reports/profit` #276 聚合口径；tenant/shop scope 与 dashboard 其余端点一致（空店铺授权 fail closed）；权限矩阵登记四 persona allow。
+- 详见 `docs/progress/R145.md`。
+
+>>>>>>> origin/main
 ### 变更记录（2026-08-06）第 145 轮线2：MCP 只读入口安全交叉审查（security-engineer）
 
 - **审查范围**：R144 线1 MCP 只读入口（`POST /api/mcp` + 租户级只读 token）合入前交叉审查，双租户 Docker 全栈实测（token 生命周期/越权/写路径枚举/注入面/限流/输出脱敏/readonly 管理面/日志泄露）。
@@ -1847,3 +1856,10 @@ Final Production Acceptance Deferred to P10
 - **未发现**：跨租户数据泄露、写路径可达、token 明文入库/入日志/入 API 响应、SQL/路径注入、tenant 0 平台数据经租户 token 泄露，均为零发现。
 - **遗留（P2）**：token 无过期字段（仅显式吊销）；限流为进程内本地桶，多副本部署时额度按副本数放大（与 P7 Redis 限流收口项同源）；MCP 工具调用无逐次审计日志（仅 `lastUsedAt` 每分钟节流更新）。
 - **测试**：新增 `mcpserver/hardening_test.go`（无效 token 限流 + 合法流量不被失败预算牵连 + 租户桶封顶多 token 放大）、`mcptoken/hardening_test.go`（非 readonly scope 拒绝、活跃 token 上限与吊销释放槽位）；contracts 端点 114。
+
+### 变更记录（2026-08-06）第 147 轮线1：杂项收口——裸枚举中文化 + MCP token demo seed + R146 QA 复核（fullstack-engineer）
+
+- **裸枚举中文化收口**：采购单详情支付状态/支付渠道、订单异常处理状态、客服消息 role/source/type 直出英文枚举改为既有语义映射口径（未知值兜底原值）；映射统一沉淀 `admin/src/constants/status.ts` 并补单测。
+- **MCP token demo seed**：seed 新增 `DEMO-MCP 演示只读 token`（仅落哈希+脱敏元数据，明文即弃）+ `mcp_token_create` 审计样本（幂等）；Cleanup/VerifyClean 覆盖 `mcp_api_tokens` 零残留。
+- **R146 QA 复核**：零数据租户空态、长租户名/大数值截断 Docker 实测复核。
+- 详见 `docs/progress/R147.md`。

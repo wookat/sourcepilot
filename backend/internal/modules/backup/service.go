@@ -47,6 +47,11 @@ type CreateRequest struct {
 	DryRun bool   `json:"dryRun"`
 }
 
+const (
+	TriggerManual    = "manual"
+	TriggerScheduled = "scheduled"
+)
+
 type HoldRequest struct {
 	HoldType string `json:"holdType"`
 	Reason   string `json:"reason"`
@@ -83,6 +88,10 @@ func (s *Service) Get(ctx context.Context, backupID string) (*Job, error) {
 // CreateDatabaseBackup creates a P6 backup job. When BACKUP_ENABLED=false it records
 // a deferred job instead of silently running an unsafe local backup.
 func (s *Service) CreateDatabaseBackup(ctx context.Context, req CreateRequest, actor *uuid.UUID) (*Job, error) {
+	return s.createBackup(ctx, req, actor, TriggerManual, nil)
+}
+
+func (s *Service) createBackup(ctx context.Context, req CreateRequest, actor *uuid.UUID, trigger string, scheduleKey *string) (*Job, error) {
 	if s.DB == nil || s.Cfg == nil {
 		return nil, fmt.Errorf("backup service unavailable")
 	}
@@ -99,6 +108,8 @@ func (s *Service) CreateDatabaseBackup(ctx context.Context, req CreateRequest, a
 		EncryptionKeyID:    s.Cfg.Backup.EncryptionKeyID,
 		StartedAt:          &now,
 		CreatedBy:          actor,
+		TriggerSource:      trigger,
+		ScheduleKey:        scheduleKey,
 	}
 	if req.DryRun || !s.Cfg.Backup.Enabled || s.Cfg.Backup.Mode == "disabled" {
 		row.Status = StatusManualReview

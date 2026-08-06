@@ -160,3 +160,60 @@ export async function queryProductOperationDashboard(params?: {
     source: params?.source,
   });
 }
+
+export type ScreenToday = {
+  orderCount: number;
+  paidOrderCount: number;
+  salesBase: number;
+  baseCurrency: string;
+  unconvertedCurrencies?: string[];
+  grossProfitBase?: number;
+  marginPercent?: number;
+};
+
+export type ScreenTodo = {
+  key: string;
+  title: string;
+  count: number;
+  priority: string;
+  link: string;
+};
+
+export type ScreenFunnelStage = {
+  key: string;
+  title: string;
+  count: number;
+};
+
+export type ScreenTrendPoint = {
+  hour: string;
+  orderCount: number;
+  paidCount: number;
+};
+
+export type ScreenAlert = {
+  type: string;
+  severity: string;
+  title: string;
+  detail?: string;
+  link: string;
+  occurredAt?: string;
+};
+
+export type DashboardScreenDTO = {
+  generatedAt: string;
+  funnelDays: number;
+  trendHours: number;
+  today: ScreenToday;
+  todos: ScreenTodo[];
+  funnel: ScreenFunnelStage[];
+  trend: ScreenTrendPoint[];
+  alerts: ScreenAlert[];
+};
+
+export async function queryDashboardScreen(params?: { platform?: string; shopId?: string }) {
+  return getWithParams<DashboardScreenDTO>('/api/v1/dashboard/screen', {
+    platform: params?.platform,
+    shopId: params?.shopId,
+  });
+}
