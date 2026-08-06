@@ -43,7 +43,7 @@ func atoiQP(c *gin.Context, key string, def int) int {
 
 func (h *Handler) List(c *gin.Context) {
 	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "collect rules unavailable")
+		response.Fail(c, 500, response.CodeInternalError, "采集规则服务不可用")
 		return
 	}
 	q := ListQuery{
@@ -76,17 +76,17 @@ func (h *Handler) List(c *gin.Context) {
 
 func (h *Handler) Create(c *gin.Context) {
 	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "collect rules unavailable")
+		response.Fail(c, 500, response.CodeInternalError, "采集规则服务不可用")
 		return
 	}
 	var body CreateRuleBody
 	if err := c.ShouldBindJSON(&body); err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		response.Fail(c, 400, response.CodeBadRequest, "请求体不是有效 JSON")
 		return
 	}
 	out, err := h.Svc.Create(c, body, adminUUID(c))
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		response.Fail(c, 400, response.CodeBadRequest, localizeRuleError(err))
 		return
 	}
 	response.OK(c, out)
@@ -94,12 +94,12 @@ func (h *Handler) Create(c *gin.Context) {
 
 func (h *Handler) Get(c *gin.Context) {
 	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "collect rules unavailable")
+		response.Fail(c, 500, response.CodeInternalError, "采集规则服务不可用")
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		response.Fail(c, 400, response.CodeBadRequest, "规则 ID 无效")
 		return
 	}
 	tenantID, err := adminperm.TenantIDFromGin(c)
@@ -110,7 +110,7 @@ func (h *Handler) Get(c *gin.Context) {
 	out, err := h.Svc.GetDetail(c.Request.Context(), tenantID, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+			response.Fail(c, 404, response.CodeNotFound, "采集规则不存在")
 			return
 		}
 		response.HandleError(c, err)
@@ -121,26 +121,26 @@ func (h *Handler) Get(c *gin.Context) {
 
 func (h *Handler) Update(c *gin.Context) {
 	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "collect rules unavailable")
+		response.Fail(c, 500, response.CodeInternalError, "采集规则服务不可用")
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		response.Fail(c, 400, response.CodeBadRequest, "规则 ID 无效")
 		return
 	}
 	var body UpdateRuleBody
 	if err := c.ShouldBindJSON(&body); err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		response.Fail(c, 400, response.CodeBadRequest, "请求体不是有效 JSON")
 		return
 	}
 	out, err := h.Svc.Update(c, id, body, adminUUID(c))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+			response.Fail(c, 404, response.CodeNotFound, "采集规则不存在")
 			return
 		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		response.Fail(c, 400, response.CodeBadRequest, localizeRuleError(err))
 		return
 	}
 	response.OK(c, out)
@@ -148,17 +148,17 @@ func (h *Handler) Update(c *gin.Context) {
 
 func (h *Handler) Delete(c *gin.Context) {
 	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "collect rules unavailable")
+		response.Fail(c, 500, response.CodeInternalError, "采集规则服务不可用")
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		response.Fail(c, 400, response.CodeBadRequest, "规则 ID 无效")
 		return
 	}
 	if err := h.Svc.Delete(c, id, adminUUID(c)); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+			response.Fail(c, 404, response.CodeNotFound, "采集规则不存在")
 			return
 		}
 		response.HandleError(c, err)
@@ -177,21 +177,21 @@ func (h *Handler) Disable(c *gin.Context) {
 
 func (h *Handler) setStatus(c *gin.Context, status string) {
 	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "collect rules unavailable")
+		response.Fail(c, 500, response.CodeInternalError, "采集规则服务不可用")
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		response.Fail(c, 400, response.CodeBadRequest, "规则 ID 无效")
 		return
 	}
 	out, err := h.Svc.SetStatus(c, id, status, adminUUID(c))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+			response.Fail(c, 404, response.CodeNotFound, "采集规则不存在")
 			return
 		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		response.Fail(c, 400, response.CodeBadRequest, localizeRuleError(err))
 		return
 	}
 	response.OK(c, out)
@@ -199,23 +199,23 @@ func (h *Handler) setStatus(c *gin.Context, status string) {
 
 func (h *Handler) Test(c *gin.Context) {
 	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "collect rules unavailable")
+		response.Fail(c, 500, response.CodeInternalError, "采集规则服务不可用")
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		response.Fail(c, 400, response.CodeBadRequest, "规则 ID 无效")
 		return
 	}
 	var body TestRuleBody
 	if err := c.ShouldBindJSON(&body); err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		response.Fail(c, 400, response.CodeBadRequest, "请求体不是有效 JSON")
 		return
 	}
 	out, err := h.Svc.TestPreview(c, id, body, adminUUID(c))
 	if err != nil {
-		reason := err.Error()
-		if strings.Contains(strings.ToLower(reason), "collector rejected") {
+		reason := localizeRuleError(err)
+		if strings.Contains(strings.ToLower(err.Error()), "collector rejected") {
 			response.Fail(c, 422, response.CodeBadRequest, reason)
 			return
 		}
