@@ -15,6 +15,14 @@ describe('operation log label maps', () => {
     expect(operationLogResourceLabel('order_automation')).toBe('订单自动化');
   });
 
+  it('maps order tag actions to Chinese (R136 UX v9 P2)', () => {
+    expect(operationLogActionLabel('order_tag.attach')).toBe('订单打标签');
+    expect(operationLogActionLabel('order_tag.detach')).toBe('订单移除标签');
+    expect(operationLogActionLabel('order_tag.batch')).toBe('批量订单打标 / 去标');
+    expect(operationLogActionLabel('order_tag.create')).toBe('创建订单标签');
+    expect(operationLogResourceLabel('order_tag')).toBe('订单标签');
+  });
+
   it('maps backend-logged resources that previously fell back to raw keys', () => {
     for (const key of ['order_review', 'admin_user', 'auth_session', 'waybill', 'procurement']) {
       const label = operationLogResourceLabel(key);
