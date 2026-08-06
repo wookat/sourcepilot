@@ -28,6 +28,11 @@ export default [
         name: '运营总览',
         component: './Dashboard/ProductOperations',
       },
+      {
+        path: '/dashboard/screen',
+        name: '经营大屏',
+        component: './Dashboard/Screen',
+      },
     ],
   },
   {

@@ -337,6 +337,16 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/dashboard/screen",
+      "auth": true,
+      "query": [
+        "platform",
+        "shopId"
+      ],
+      "responseData": "DashboardScreenDTO"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/reports/profit",
       "auth": true,
       "query": [

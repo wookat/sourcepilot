@@ -577,6 +577,7 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `GET` | `/api/v1/dashboard/overview` | 模块化 overview + 10 张运营卡片 |
 | `GET` | `/api/v1/dashboard/todos` | 统一待办流（P0/P1/P2 优先级） |
 | `GET` | `/api/v1/dashboard/health` | 子系统健康 + 配置风险摘要 |
+| `GET` | `/api/v1/dashboard/screen` | 经营大屏单次聚合：今日 KPI（订单/销售额/毛利，复用 /reports/profit SQL 下推口径）、待办五类、订单状态漏斗（近 7 天）、近 24h 小时趋势、异常/低库存告警；tenant/shop scope 与其余 dashboard 端点一致 |
 
 ### AI 商品运营工作台（Phase A3.3）
 
