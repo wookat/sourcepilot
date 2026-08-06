@@ -970,6 +970,7 @@ POST /api/v1/mcp/tokens/:id/revoke  # 吊销（幂等），readonly 账号 403
 ```
 
 - token 明文只在创建响应中返回一次，库中只存 SHA-256 哈希；创建/吊销写操作日志（resource=`mcp_token`）。
+- token 无自动过期字段，失效只能通过吊销（即时生效）。每租户最多 20 个未吊销 token，超出返回 400（`code=40001`，中文提示先吊销）。
 
 MCP 协议入口（不走 JWT，用上面创建的 token 鉴权）：
 
@@ -978,7 +979,8 @@ POST /api/mcp   # MCP Streamable HTTP；Authorization: Bearer sp_mcp_ro_...
 ```
 
 - 只暴露 4 个只读工具：`orders_query` / `inventory_query` / `report_summary` / `exceptions_pending`，全部强制 token 所属租户 scope。
-- 每 token 限流（`MCP_RATE_RPS` / `MCP_RATE_BURST`），`MCP_ENABLED=false` 时入口不注册。
+- 鉴权强制要求 `scope=readonly`；限流分三层：每 token（`MCP_RATE_RPS` / `MCP_RATE_BURST`）、每租户聚合（token 额度 2 倍）、每 IP 鉴权失败预算（1 req/s、突发 10，仅失败计费）。超限返回 `429` + envelope `code=42901`（`CodeTooManyRequests`），带 `Retry-After`。
+- `MCP_ENABLED=false` 时入口不注册。
 - 客户端配置与工具说明见 `docs/mcp.md`。
 
 ## 权限矩阵契约（round52）

@@ -55,5 +55,5 @@ Before exposing TradeMind to a public network, you should:
 - Restrict database and Redis access to private networks.
 - Avoid logging secrets, tokens, cookies, or complete third-party API responses.
 - Review platform OAuth callback URLs and permissions.
-- Treat MCP read-only tokens as secrets: they are stored as SHA-256 hashes and shown in plaintext only once at creation; revoke immediately on leakage (Settings → MCP 只读接入). The `/api/mcp` entry is read-only, tenant-scoped, and rate limited per token (`MCP_RATE_RPS` / `MCP_RATE_BURST`); disable it entirely with `MCP_ENABLED=false` if unused.
+- Treat MCP read-only tokens as secrets: they are stored as SHA-256 hashes and shown in plaintext only once at creation; revoke immediately on leakage (Settings → MCP 只读接入). The `/api/mcp` entry is read-only, tenant-scoped, and rate limited per token (`MCP_RATE_RPS` / `MCP_RATE_BURST`), per tenant, and per source IP for rejected credentials; only `readonly`-scope tokens are accepted. Tokens never expire on their own — revoke them explicitly (each tenant may hold at most 20 active tokens). Disable the entry entirely with `MCP_ENABLED=false` if unused.
 - Back up PostgreSQL data and uploaded files.

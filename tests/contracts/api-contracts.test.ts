@@ -129,6 +129,7 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/mcp/tokens',
         'POST /api/v1/mcp/tokens',
         'POST /api/v1/mcp/tokens/:id/revoke',
+        'POST /api/mcp',
       ]),
     );
   });
@@ -410,8 +411,25 @@ describe('TradeMind API contract registry', () => {
     expect(trail?.responseData).toBe('{ items: OrderAutomationLog[] }');
   });
 
+  it('keeps the MCP read-only surface free of token plaintext and hashes', () => {
+    const list = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/mcp/tokens');
+    const create = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/mcp/tokens');
+    const revoke = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/mcp/tokens/:id/revoke');
+    const mcp = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/mcp');
+
+    expect(list?.responseFields).toContain('items[].maskedToken');
+    expect(list?.responseFields).not.toContain('items[].plaintext');
+    expect(list?.forbiddenResponseFields).toEqual(['items[].plaintext', 'items[].tokenHash']);
+    expect(create?.responseFields).toEqual(['token', 'plaintext']);
+    expect(create?.note).toContain('exactly once');
+    expect(revoke?.forbiddenResponseFields).toEqual(['token.plaintext', 'token.tokenHash']);
+
+    expect(mcp?.authScheme).toBe('bearer-mcp-readonly-token');
+    expect(mcp?.errorEnvelope).toEqual({ 401: 40101, 429: 42901 });
+  });
+
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(114);
+    expect(contracts.endpoints).toHaveLength(115);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

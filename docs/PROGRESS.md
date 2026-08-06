@@ -1839,3 +1839,12 @@ Final Production Acceptance Deferred to P10
 - **经营大屏页面 `/dashboard/screen`**：深色大屏主题（可切浅色）、今日订单/销售额/毛利 KPI、待办五类计数、订单状态流转漏斗（近 7 天）、近 24h 逐小时趋势、异常/低库存告警滚动；15/30/60s 可配轮询 + 全屏投屏；1920 主视口，1440/1280/1024/768 优雅降级。
 - **后端 `GET /api/v1/dashboard/screen` 单次聚合**：漏斗/趋势/待办均为分组 SQL 下推（无 N+1），销售额/毛利复用 `/reports/profit` #276 聚合口径；tenant/shop scope 与 dashboard 其余端点一致（空店铺授权 fail closed）；权限矩阵登记四 persona allow。
 - 详见 `docs/progress/R145.md`。
+
+### 变更记录（2026-08-06）第 145 轮线2：MCP 只读入口安全交叉审查（security-engineer）
+
+- **审查范围**：R144 线1 MCP 只读入口（`POST /api/mcp` + 租户级只读 token）合入前交叉审查，双租户 Docker 全栈实测（token 生命周期/越权/写路径枚举/注入面/限流/输出脱敏/readonly 管理面/日志泄露）。
+- **P1 修复**：① 鉴权强制 `scope=readonly`（此前只校验哈希与吊销位，非 readonly scope 的 token 行也能通行）；② 限流补每租户聚合桶（此前仅每 token 桶，同租户多 token 可线性放大额度）与每 IP 鉴权失败预算（此前无效 token 请求不受限，可无限触发 token 哈希查库）；③ 每租户活跃 token 上限 20（限流桶随 token 数无界增长）。
+- **P2 收口**：429 envelope 由 `code=40001` 改为新增的 `CodeTooManyRequests=42901`；契约登记补 `POST /api/mcp` 与 token 响应字段/禁止字段（plaintext、tokenHash）。
+- **未发现**：跨租户数据泄露、写路径可达、token 明文入库/入日志/入 API 响应、SQL/路径注入、tenant 0 平台数据经租户 token 泄露，均为零发现。
+- **遗留（P2）**：token 无过期字段（仅显式吊销）；限流为进程内本地桶，多副本部署时额度按副本数放大（与 P7 Redis 限流收口项同源）；MCP 工具调用无逐次审计日志（仅 `lastUsedAt` 每分钟节流更新）。
+- **测试**：新增 `mcpserver/hardening_test.go`（无效 token 限流 + 合法流量不被失败预算牵连 + 租户桶封顶多 token 放大）、`mcptoken/hardening_test.go`（非 readonly scope 拒绝、活跃 token 上限与吊销释放槽位）；contracts 端点 114。

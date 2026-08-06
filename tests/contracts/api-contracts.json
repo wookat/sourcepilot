@@ -1144,7 +1144,21 @@
       "method": "GET",
       "path": "/api/v1/mcp/tokens",
       "auth": true,
-      "responseData": "McpTokenList"
+      "responseData": "McpTokenList",
+      "responseFields": [
+        "items[].id",
+        "items[].name",
+        "items[].maskedToken",
+        "items[].scope",
+        "items[].revoked",
+        "items[].createdAt",
+        "items[].lastUsedAt",
+        "items[].revokedAt"
+      ],
+      "forbiddenResponseFields": [
+        "items[].plaintext",
+        "items[].tokenHash"
+      ]
     },
     {
       "method": "POST",
@@ -1153,13 +1167,40 @@
       "requestBody": [
         "name"
       ],
-      "responseData": "McpTokenCreateResult"
+      "responseData": "McpTokenCreateResult",
+      "responseFields": [
+        "token",
+        "plaintext"
+      ],
+      "note": "plaintext is returned exactly once on creation and never appears in list/revoke responses"
     },
     {
       "method": "POST",
       "path": "/api/v1/mcp/tokens/:id/revoke",
       "auth": true,
-      "responseData": "McpTokenView"
+      "responseData": "McpTokenView",
+      "forbiddenResponseFields": [
+        "token.plaintext",
+        "token.tokenHash"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/mcp",
+      "auth": true,
+      "authScheme": "bearer-mcp-readonly-token",
+      "requestBody": [
+        "jsonrpc",
+        "id",
+        "method",
+        "params"
+      ],
+      "responseData": "JsonRpcResult",
+      "errorEnvelope": {
+        "401": 40101,
+        "429": 42901
+      },
+      "note": "MCP Streamable HTTP read-only entry; not the admin JSON envelope on success (JSON-RPC 2.0 body), errors before the MCP handler use the standard envelope"
     }
   ]
 }
