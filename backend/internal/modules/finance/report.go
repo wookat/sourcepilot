@@ -45,9 +45,17 @@ type ReconSummary struct {
 
 const maxReconRows = 500
 
-// Reconciliation builds the差异工作台 rows. status filters by settlement
-// status ("flagged" keeps only异常 rows: not settled or large profit diff).
+// Reconciliation builds the差异工作台 rows for the page: at most
+// maxReconRows rows (Truncated flags the cut; the CSV export carries the
+// full set). status filters by settlement status ("flagged" keeps only异常
+// rows: not settled or large profit diff).
 func (s *Service) Reconciliation(c *gin.Context, r reports.DateRange, status string) (*ReconciliationDTO, error) {
+	return s.reconciliation(c, r, status, maxReconRows)
+}
+
+// reconciliation builds the workbench rows; maxRows > 0 truncates the sorted
+// result to that many rows, maxRows <= 0 keeps all rows.
+func (s *Service) reconciliation(c *gin.Context, r reports.DateRange, status string, maxRows int) (*ReconciliationDTO, error) {
 	orders, tid, err := s.scopedOrdersInRange(c, r.Start, r.End)
 	if err != nil {
 		return nil, err
@@ -118,8 +126,8 @@ func (s *Service) Reconciliation(c *gin.Context, r reports.DateRange, status str
 		}
 		return pi > pj
 	})
-	if len(kept) > maxReconRows {
-		kept = kept[:maxReconRows]
+	if maxRows > 0 && len(kept) > maxRows {
+		kept = kept[:maxRows]
 		out.Truncated = true
 	}
 	out.Rows = kept
@@ -133,10 +141,11 @@ var settlementLabels = map[string]string{
 	SettlementSettled: "已结清",
 }
 
-// ExportReconciliationCSV renders the workbench rows as CSV (matches the
-// GET /finance/reconciliation numbers exactly).
+// ExportReconciliationCSV renders the workbench rows as CSV. Unlike the
+// page (top maxReconRows rows) it carries every matching row, in the same
+// order and with the same per-row numbers.
 func (s *Service) ExportReconciliationCSV(c *gin.Context, r reports.DateRange, status string) ([]byte, string, error) {
-	res, err := s.Reconciliation(c, r, status)
+	res, err := s.reconciliation(c, r, status, 0)
 	if err != nil {
 		return nil, "", err
 	}

@@ -20,9 +20,10 @@ var profitDimensionLabels = map[string]string{
 // ExportProfitCSV renders the profit report as one CSV row per aggregation
 // row: original-currency revenue columns plus converted columns (blank when
 // no manual rate), cost / fees / profit in the base currency. Scope and
-// numbers match GET /reports/profit exactly.
+// per-row numbers match GET /reports/profit; unlike the page (top
+// profitMaxRows rows) the CSV carries every row.
 func (s *Service) ExportProfitCSV(c *gin.Context, dimension string, r DateRange) ([]byte, string, error) {
-	res, err := s.ProfitReport(c, dimension, r)
+	res, err := s.profitReport(c, dimension, r, 0)
 	if err != nil {
 		return nil, "", err
 	}

@@ -232,6 +232,13 @@ func (a *profitAcc) finish(fees []FeeItem, cnyRate *big.Rat) (revBase, costCNY, 
 // conversion, reference-cost resolution and profit math stay in Go on the
 // exact group sums, so the numbers match per-row accumulation exactly.
 func (s *Service) ProfitReport(c *gin.Context, dimension string, r DateRange) (*ProfitReportDTO, error) {
+	return s.profitReport(c, dimension, r, profitMaxRows)
+}
+
+// profitReport builds the profit report; maxRows > 0 truncates the rows to
+// that many (Truncated flags the cut), maxRows <= 0 keeps all rows (the CSV
+// export path).
+func (s *Service) profitReport(c *gin.Context, dimension string, r DateRange, maxRows int) (*ProfitReportDTO, error) {
 	if dimension != DimensionOrder && dimension != DimensionProduct && dimension != DimensionShop {
 		return nil, fmt.Errorf("dimension 仅支持 order / product / shop")
 	}
@@ -316,7 +323,7 @@ func (s *Service) ProfitReport(c *gin.Context, dimension string, r DateRange) (*
 	var rows []ProfitRow
 	switch dimension {
 	case DimensionOrder:
-		rows, out.Truncated, err = s.profitOrderRows(ctx, build, table, fees, cnyRate, refs)
+		rows, out.Truncated, err = s.profitOrderRows(ctx, build, table, fees, cnyRate, refs, maxRows)
 	case DimensionShop:
 		rows, err = s.profitShopRows(ctx, build, table, fees, cnyRate, refs, curAggs, pairAggs)
 	case DimensionProduct:
@@ -327,8 +334,8 @@ func (s *Service) ProfitReport(c *gin.Context, dimension string, r DateRange) (*
 	}
 	if dimension != DimensionOrder {
 		sort.SliceStable(rows, func(i, j int) bool { return rows[i].RevenueBase > rows[j].RevenueBase })
-		if len(rows) > profitMaxRows {
-			rows = rows[:profitMaxRows]
+		if maxRows > 0 && len(rows) > maxRows {
+			rows = rows[:maxRows]
 			out.Truncated = true
 		}
 	}
@@ -357,23 +364,14 @@ func profitRowOf(key string, a *profitAcc, fees []FeeItem, cnyRate *big.Rat) Pro
 	}
 }
 
-// profitOrderRows builds the order-dimension rows: only the newest
-// profitMaxRows orders materialize (the previous implementation built all
-// rows and truncated to the same window), with per-line cost lookups against
-// the shared pair resolution.
-func (s *Service) profitOrderRows(ctx context.Context, build func() (*gorm.DB, error), table *fxrate.Table, fees []FeeItem, cnyRate *big.Rat, refs map[pairKey]*float64) ([]ProfitRow, bool, error) {
-	tx, err := build()
+// profitOrderRows builds the order-dimension rows with per-line cost lookups
+// against the shared pair resolution. maxRows > 0 materializes only the
+// newest maxRows orders; maxRows <= 0 loads every scoped order in bounded
+// keyset pages (the CSV export path).
+func (s *Service) profitOrderRows(ctx context.Context, build func() (*gorm.DB, error), table *fxrate.Table, fees []FeeItem, cnyRate *big.Rat, refs map[pairKey]*float64, maxRows int) ([]ProfitRow, bool, error) {
+	orders, truncated, err := s.profitScopedOrders(build, maxRows)
 	if err != nil {
 		return nil, false, err
-	}
-	var orders []order.Order
-	if err := tx.Select("id, order_no, shop_id, platform, currency, total_amount, created_at").
-		Order("created_at DESC, id DESC").Limit(profitMaxRows + 1).Find(&orders).Error; err != nil {
-		return nil, false, err
-	}
-	truncated := len(orders) > profitMaxRows
-	if truncated {
-		orders = orders[:profitMaxRows]
 	}
 	orderIDs := make([]uuid.UUID, 0, len(orders))
 	for _, o := range orders {
@@ -502,6 +500,54 @@ func (s *Service) profitProductRows(ctx context.Context, build func() (*gorm.DB,
 		rows = append(rows, profitRowOf(m.Key, a, fees, cnyRate))
 	}
 	return rows, nil
+}
+
+// profitScopedOrders loads the scoped orders newest-first: the top maxRows
+// when maxRows > 0 (second result flags a cut), otherwise all of them in
+// bounded keyset pages so no single query materializes an unbounded result.
+func (s *Service) profitScopedOrders(build func() (*gorm.DB, error), maxRows int) ([]order.Order, bool, error) {
+	const cols = "id, order_no, shop_id, platform, currency, total_amount, created_at"
+	if maxRows > 0 {
+		tx, err := build()
+		if err != nil {
+			return nil, false, err
+		}
+		var orders []order.Order
+		if err := tx.Select(cols).
+			Order("created_at DESC, id DESC").Limit(maxRows + 1).Find(&orders).Error; err != nil {
+			return nil, false, err
+		}
+		truncated := len(orders) > maxRows
+		if truncated {
+			orders = orders[:maxRows]
+		}
+		return orders, truncated, nil
+	}
+	const batch = 1000
+	var (
+		all    []order.Order
+		cursor *order.Order
+	)
+	for {
+		tx, err := build()
+		if err != nil {
+			return nil, false, err
+		}
+		if cursor != nil {
+			tx = tx.Where("created_at < ? OR (created_at = ? AND id < ?)", cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
+		}
+		var page []order.Order
+		if err := tx.Select(cols).
+			Order("created_at DESC, id DESC").Limit(batch).Find(&page).Error; err != nil {
+			return nil, false, err
+		}
+		all = append(all, page...)
+		if len(page) < batch {
+			return all, false, nil
+		}
+		last := page[len(page)-1]
+		cursor = &last
+	}
 }
 
 // loadOrderItems loads all line items for the given orders in bounded chunks.

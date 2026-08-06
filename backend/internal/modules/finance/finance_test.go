@@ -464,6 +464,62 @@ func TestReconciliationFilterAndCSV(t *testing.T) {
 	}
 }
 
+func TestReconciliationCSVFullExport(t *testing.T) {
+	db := openFinanceTestDB(t)
+	svc := newFinanceService(db, &fakeSettings{groups: map[string]map[string]string{
+		"report_currency": {"base_currency": "CNY", "rates": `{}`},
+	}})
+	shopID := seedShop(t, db, 1, "店铺A")
+	// > page cap (500) and > one keyset order-load page (1000)
+	const n = 1005
+	orders := make([]order.Order, 0, n)
+	for i := 0; i < n; i++ {
+		orders = append(orders, order.Order{
+			TenantID: 1, Platform: "tiktok", ShopID: &shopID, OrderNo: fmt.Sprintf("SO-BULK-%04d", i),
+			Status: "pending", PaymentStatus: order.PaymentPaid, Currency: "CNY", TotalAmount: 100,
+		})
+	}
+	if err := db.CreateInBatches(&orders, 200).Error; err != nil {
+		t.Fatal(err)
+	}
+	c := financeTestCtx(1, nil)
+	r, _ := reports.ResolveRange(30, "", "")
+
+	page, err := svc.Reconciliation(c, r, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Rows) != 500 || !page.Truncated {
+		t.Fatalf("page cap: rows=%d truncated=%v", len(page.Rows), page.Truncated)
+	}
+	if page.Summary.OrderCount != n {
+		t.Fatalf("summary should cover all orders: %d", page.Summary.OrderCount)
+	}
+
+	data, _, err := svc.ExportReconciliationCSV(c, r, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) != n+1 {
+		t.Fatalf("csv rows: want %d data rows + header, got %d lines", n, len(lines))
+	}
+	seen := map[string]bool{}
+	for _, line := range lines[1:] {
+		no := strings.SplitN(line, ",", 2)[0]
+		if seen[no] {
+			t.Fatalf("duplicate order in csv: %s", no)
+		}
+		seen[no] = true
+		if !strings.Contains(line, "100.00") {
+			t.Fatalf("row values: %s", line)
+		}
+	}
+	if len(seen) != n {
+		t.Fatalf("distinct orders in csv: %d", len(seen))
+	}
+}
+
 func TestReportShopMonthAggregation(t *testing.T) {
 	db := openFinanceTestDB(t)
 	svc := newFinanceService(db, &fakeSettings{groups: map[string]map[string]string{
