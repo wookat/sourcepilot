@@ -314,6 +314,10 @@ func TestProfitCSVExport(t *testing.T) {
 	if !strings.Contains(s, "EUR") {
 		t.Fatalf("expected unconverted EUR flagged: %s", s)
 	}
+	// rate-less EUR row: converted cells read「未折算」instead of blanks
+	if !strings.Contains(s, "5.00,未折算") {
+		t.Fatalf("expected explicit 未折算 for rate-less EUR converted column: %s", s)
+	}
 }
 
 func TestProfitCSVExportFullRows(t *testing.T) {

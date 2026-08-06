@@ -14,7 +14,7 @@ import (
 // ExportDailyStatsCSV renders the daily report as one CSV row per day.
 // Columns: 日期/订单数/已付款数/已发货数, then per currency seen in the window
 // (sorted by currency code) an original-amount column and a converted-to-base
-// column (blank when no manual rate is configured), followed by the converted
+// column (「未折算」when no manual rate is configured), followed by the converted
 // total in the base currency and the list of unconverted currencies. Scope
 // and semantics match GET /orders/stats/daily.
 func (s *Service) ExportDailyStatsCSV(c *gin.Context, days int) ([]byte, string, error) {
@@ -72,7 +72,7 @@ func (s *Service) ExportDailyStatsCSV(c *gin.Context, days int) ([]byte, string,
 			case a.BaseAmount != nil:
 				row = append(row, fmt.Sprintf("%.2f", *a.BaseAmount))
 			case noRate[cur]:
-				row = append(row, "") // no manual rate: never fake a converted value
+				row = append(row, "未折算") // no manual rate: never fake a converted value
 			default:
 				row = append(row, "0.00")
 			}

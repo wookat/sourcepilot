@@ -575,6 +575,65 @@ func TestReportShopMonthAggregation(t *testing.T) {
 	}
 }
 
+// Non-CNY rows without a manual rate must export explicit「未折算」cells in
+// both finance CSVs instead of blanks (same口径 as the pages).
+func TestFinanceCSVUnconvertedExplicit(t *testing.T) {
+	db := openFinanceTestDB(t)
+	svc := newFinanceService(db, &fakeSettings{groups: map[string]map[string]string{
+		"report_currency": {"base_currency": "CNY", "rates": `{}`},
+	}})
+	shopID := seedShop(t, db, 1, "TikTok店")
+	c := financeTestCtx(1, nil)
+	o := seedPaidOrder(t, db, 1, &shopID, "SO-USD", "USD", 100)
+	if _, err := svc.CreatePayment(c, payBody(o.ID, 100, "USD", "2026-01-05"), nil); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := reports.ResolveRange(30, "", "")
+
+	data, _, err := svc.ExportReportCSV(c, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("report csv lines: %d", len(lines))
+	}
+	row := strings.Split(lines[1], ",")
+	// 应收/已回款/回款率/实算毛利/估算毛利/毛利差异 all read「未折算」
+	for _, idx := range []int{3, 4, 5, 10, 11, 12} {
+		if row[idx] != "未折算" {
+			t.Fatalf("report col %d: want 未折算, got %q (row %q)", idx, row[idx], lines[1])
+		}
+	}
+	// no expenses / cost rows: zero sums stay numeric, not「未折算」
+	if row[6] != "0.00" || row[9] != "0.00" {
+		t.Fatalf("expense/cost cols: got %q %q", row[6], row[9])
+	}
+	// 店铺月费 stays blank: absence, not a failed conversion
+	if row[7] != "" {
+		t.Fatalf("shop expense col: want blank, got %q", row[7])
+	}
+
+	data, _, err = svc.ExportReconciliationCSV(c, r, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines = strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("reconciliation csv lines: %d", len(lines))
+	}
+	row = strings.Split(lines[1], ",")
+	// 实收/实算毛利/估算毛利/毛利差异(本位币) read「未折算」; zero cost/expense sums stay numeric
+	for _, idx := range []int{9, 12, 13, 14} {
+		if row[idx] != "未折算" {
+			t.Fatalf("reconciliation col %d: want 未折算, got %q (row %q)", idx, row[idx], lines[1])
+		}
+	}
+	if row[10] != "0.00" || row[11] != "0.00" {
+		t.Fatalf("reconciliation cost/expense cols: got %q %q", row[10], row[11])
+	}
+}
+
 func TestReconciliationStoreScope(t *testing.T) {
 	db := openFinanceTestDB(t)
 	svc := newFinanceService(db, &fakeSettings{groups: map[string]map[string]string{

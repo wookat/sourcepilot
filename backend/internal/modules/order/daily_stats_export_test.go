@@ -47,12 +47,12 @@ func TestExportDailyStatsCSV(t *testing.T) {
 		t.Fatalf("unexpected header %q", lines[0])
 	}
 	last := lines[len(lines)-1]
-	// no manual rates configured: converted columns blank, total 0, hint lists both
-	if last != today+",3,2,1,7.50,,12.50,,0.00,EUR USD" {
+	// no manual rates configured: converted columns read「未折算」, total 0, hint lists both
+	if last != today+",3,2,1,7.50,未折算,12.50,未折算,0.00,EUR USD" {
 		t.Fatalf("unexpected today row %q", last)
 	}
-	// empty days are zero-filled (converted column blank for rate-less currencies)
-	if lines[1] != strings.Split(lines[1], ",")[0]+",0,0,0,0.00,,0.00,,0.00," {
+	// empty days are zero-filled (「未折算」for rate-less currencies)
+	if lines[1] != strings.Split(lines[1], ",")[0]+",0,0,0,0.00,未折算,0.00,未折算,0.00," {
 		t.Fatalf("unexpected empty row %q", lines[1])
 	}
 }

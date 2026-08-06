@@ -181,8 +181,8 @@ func TestExportDailyStatsCSVConvertedColumns(t *testing.T) {
 	if todayLine == "" {
 		t.Fatal("today row missing")
 	}
-	// EUR converted column must be blank (unconverted), USD converted 89.13, total 89.13, hint EUR
-	if !strings.Contains(todayLine, "89.13") || !strings.Contains(todayLine, ",,") || !strings.HasSuffix(todayLine, "EUR") {
+	// EUR converted column must read「未折算」(no manual rate), USD converted 89.13, total 89.13, hint EUR
+	if !strings.Contains(todayLine, "89.13") || !strings.Contains(todayLine, ",未折算,") || !strings.HasSuffix(todayLine, "EUR") {
 		t.Fatalf("today row unexpected: %s", todayLine)
 	}
 }
