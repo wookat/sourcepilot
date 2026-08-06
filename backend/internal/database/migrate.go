@@ -185,6 +185,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&order.OrderReviewHit{},
 		&order.OrderAutomationRule{},
 		&order.OrderAutomationLog{},
+		&order.OrderTag{},
+		&order.OrderTagLink{},
 		&finance.PaymentRecord{},
 		&finance.OrderExpense{},
 		&finance.ShopMonthlyExpense{},

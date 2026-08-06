@@ -59,6 +59,7 @@ import {
   type OrderShipmentRow,
 } from '@/services/orders';
 import { REVIEW_STATUS_COLORS, REVIEW_STATUS_LABELS } from '@/services/orderReview';
+import { batchTagOrders, listOrderTags, type OrderTagRow } from '@/services/orderTags';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
 import ImportOrdersModal from '@/pages/Orders/ImportOrdersModal';
 import BatchShipModal from '@/pages/Orders/BatchShipModal';
@@ -99,6 +100,7 @@ const ORDER_QUERY_KEYS = [
   'shopId',
   'hasException',
   'hasPurchase',
+  'tagId',
   'source',
   'start',
   'end',
@@ -211,6 +213,10 @@ export default function OrdersPage() {
   const [batchExportLoading, setBatchExportLoading] = useState(false);
   const [batchDeliverLoading, setBatchDeliverLoading] = useState(false);
   const [genResult, setGenResult] = useState<GenerateResult | null>(null);
+  const [orderTags, setOrderTags] = useState<OrderTagRow[]>([]);
+  const [batchTagOpen, setBatchTagOpen] = useState(false);
+  const [batchTagLoading, setBatchTagLoading] = useState(false);
+  const [batchTagForm] = Form.useForm();
 
   const selectedPaidIds = useMemo(
     () =>
@@ -342,6 +348,16 @@ export default function OrdersPage() {
   useEffect(() => {
     void (async () => {
       try {
+        setOrderTags(await listOrderTags());
+      } catch {
+        /* 标签加载失败不阻塞列表 */
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
         const res = await queryShops({ page: 1, pageSize: 500 });
         setShopOptions(
           res.list.map((s) => ({
@@ -416,6 +432,7 @@ export default function OrdersPage() {
       shopId: urlState.shopId,
       hasException: urlState.hasException,
       hasPurchase: urlState.hasPurchase,
+      tagId: urlState.tagId,
       createdAt: queryTimeRange(urlState.start, urlState.end),
     });
     actionRef.current?.reload();
@@ -423,6 +440,7 @@ export default function OrdersPage() {
     urlState.fulfillmentStatus,
     urlState.hasException,
     urlState.hasPurchase,
+    urlState.tagId,
     urlState.inventoryStatus,
     urlState.keyword,
     urlState.orderNo,
@@ -582,6 +600,32 @@ export default function OrdersPage() {
           const cfg = ORDER_SYNC_SUMMARY[st as keyof typeof ORDER_SYNC_SUMMARY];
           return <Tag color={cfg?.color}>{cfg?.text || st}</Tag>;
         },
+      },
+      {
+        title: '标签',
+        dataIndex: 'tagId',
+        width: 140,
+        responsive: DESKTOP_ONLY,
+        valueType: 'select',
+        fieldProps: {
+          allowClear: true,
+          showSearch: true,
+          optionFilterProp: 'label',
+          options: orderTags.map((t) => ({ value: t.id, label: t.name })),
+          placeholder: '按标签筛选',
+        },
+        render: (_, r) =>
+          r.tags && r.tags.length > 0 ? (
+            <Space size={2} wrap>
+              {r.tags.map((t) => (
+                <Tag key={t.id} color={t.color === 'default' ? undefined : t.color}>
+                  {t.name}
+                </Tag>
+              ))}
+            </Space>
+          ) : (
+            '—'
+          ),
       },
       {
         title: '是否有异常',
@@ -756,7 +800,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [shopOptions, keywordFieldProps, costMap, wideScreen],
+    [shopOptions, keywordFieldProps, costMap, wideScreen, orderTags],
   );
 
   const openItemModal = (row?: OrderItemRow) => {
@@ -935,6 +979,16 @@ export default function OrdersPage() {
             >
               批量标记送达（{selectedShippedIds.length}）
             </Button>
+            <Button
+              size="small"
+              disabled={selectedRowKeys.length === 0}
+              onClick={() => {
+                batchTagForm.setFieldsValue({ tagIds: [], action: 'add' });
+                setBatchTagOpen(true);
+              }}
+            >
+              批量打标签（{selectedRowKeys.length}）
+            </Button>
             <a onClick={onCleanSelected}>取消选择</a>
           </Space>
         )}
@@ -958,6 +1012,7 @@ export default function OrdersPage() {
               shopId: (v.shopId as string | undefined)?.trim() || undefined,
               hasException: String(v.hasException ?? '') === 'true' ? 'true' : undefined,
               hasPurchase: ['0', '1'].includes(String(v.hasPurchase ?? '')) ? String(v.hasPurchase) : undefined,
+              tagId: (v.tagId as string | undefined)?.trim() || undefined,
               start: range?.[0] ? dayjs(range[0] as string).toISOString() : undefined,
               end: range?.[1] ? dayjs(range[1] as string).toISOString() : undefined,
             },
@@ -1049,6 +1104,7 @@ export default function OrdersPage() {
             hasPurchase: ['0', '1'].includes(String(urlState.hasPurchase ?? ''))
               ? (urlState.hasPurchase as '0' | '1')
               : undefined,
+            tagId: urlState.tagId?.trim() || undefined,
             start: urlState.start,
             end: urlState.end,
           };
@@ -1067,6 +1123,7 @@ export default function OrdersPage() {
             inventoryDeductStatus: qp.inventoryDeductStatus,
             hasException: qp.hasException,
             hasPurchase: qp.hasPurchase,
+            tagId: qp.tagId,
             start: qp.start,
             end: qp.end,
           });
@@ -1522,6 +1579,65 @@ export default function OrdersPage() {
         onClose={() => setBatchShipOpen(false)}
         onDone={() => actionRef.current?.reload()}
       />
+      <Modal
+        title={`批量打标签（已选 ${selectedRowKeys.length} 单）`}
+        open={batchTagOpen}
+        confirmLoading={batchTagLoading}
+        onCancel={() => setBatchTagOpen(false)}
+        okText="执行"
+        forceRender
+        onOk={async () => {
+          const v = await batchTagForm.validateFields();
+          setBatchTagLoading(true);
+          try {
+            const res = await batchTagOrders({
+              orderIds: selectedRowKeys,
+              tagIds: v.tagIds,
+              action: v.action,
+            });
+            message.success(
+              v.action === 'remove'
+                ? `已从 ${res.orders} 单移除标签（去除 ${res.removed} 处）`
+                : `已给 ${res.orders} 单打标签（新增 ${res.applied} 处，已有的自动跳过）`,
+            );
+            setBatchTagOpen(false);
+            setSelectedRowKeys([]);
+            actionRef.current?.reload();
+          } catch (e) {
+            message.error((e as Error)?.message || '批量打标签失败');
+          } finally {
+            setBatchTagLoading(false);
+          }
+        }}
+      >
+        <Form form={batchTagForm} layout="vertical">
+          <Form.Item
+            name="action"
+            label="操作"
+            initialValue="add"
+            rules={[{ required: true, message: '请选择操作' }]}
+          >
+            <Select
+              options={[
+                { value: 'add', label: '添加标签' },
+                { value: 'remove', label: '移除标签' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="tagIds"
+            label="标签（在「系统设置 → 订单标签」维护）"
+            rules={[{ required: true, message: '请至少选择一个标签' }]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="选择标签"
+              options={orderTags.map((t) => ({ value: t.id, label: t.name }))}
+              notFoundContent="暂无标签，请先在「系统设置 → 订单标签」创建"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </TmPageContainer>
   );
 }

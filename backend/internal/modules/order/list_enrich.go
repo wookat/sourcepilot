@@ -84,6 +84,26 @@ func enrichListRows(ctx context.Context, db *gorm.DB, rows []Order, out []ListOr
 
 	openExc := countOpenExceptionRows(ctx, db, ids)
 
+	tagsByOrder := map[uuid.UUID][]OrderTagBrief{}
+	if db.Migrator().HasTable(&OrderTagLink{}) {
+		var tr []struct {
+			OrderID uuid.UUID `gorm:"column:order_id"`
+			ID      uuid.UUID `gorm:"column:id"`
+			Name    string    `gorm:"column:name"`
+			Color   string    `gorm:"column:color"`
+		}
+		_ = db.WithContext(ctx).Raw(`
+			SELECT l.order_id, t.id, t.name, t.color
+			FROM order_tag_links l
+			JOIN order_tags t ON t.id = l.tag_id
+			WHERE l.order_id IN ?
+			ORDER BY t.name ASC
+		`, ids).Scan(&tr).Error
+		for _, r := range tr {
+			tagsByOrder[r.OrderID] = append(tagsByOrder[r.OrderID], OrderTagBrief{ID: r.ID, Name: r.Name, Color: r.Color})
+		}
+	}
+
 	invAgg := map[uuid.UUID]invAggRow{}
 	if db.Migrator().HasTable("order_inventory_effects") {
 		var ia []invAggRow
@@ -115,6 +135,11 @@ func enrichListRows(ctx context.Context, db *gorm.DB, rows []Order, out []ListOr
 		out[i].InventoryDeductStatus = deriveInvDeductStatus(ia, out[i].SkuMatchStatus)
 		out[i].OpenExceptionCount = openExc[r.ID]
 		out[i].SyncStatus = deriveSyncStatus(r)
+		if tags := tagsByOrder[r.ID]; tags != nil {
+			out[i].Tags = tags
+		} else {
+			out[i].Tags = []OrderTagBrief{}
+		}
 	}
 }
 

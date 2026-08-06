@@ -22,8 +22,8 @@ func TestFullDemoSeedOrderAutomationSamples(t *testing.T) {
 	if err := db.Where("tenant_id = ?", 1).Find(&rules).Error; err != nil {
 		t.Fatal(err)
 	}
-	if len(rules) != 7 {
-		t.Fatalf("expected 7 demo automation rules (4 round119 + 2 round126 + 1 round130 recommend), got %d", len(rules))
+	if len(rules) != 8 {
+		t.Fatalf("expected 8 demo automation rules (4 round119 + 2 round126 + 1 round130 recommend + 1 round135 add_tag), got %d", len(rules))
 	}
 	var disabled int
 	for _, r := range rules {
@@ -70,6 +70,19 @@ func TestFullDemoSeedOrderAutomationSamples(t *testing.T) {
 	for _, it := range matchedItems {
 		if it.ProductID == nil || it.ProductSKUID == nil {
 			t.Fatalf("DEMO-AT-1004 item must link a local SKU, got %+v", it)
+		}
+	}
+	// 列表「库存扣减」列按 order_item_sku_matches 聚合，正向样本必须有 matched 行。
+	var matchRows []order.OrderItemSKUMatch
+	if err := db.Where("order_id = ?", matched.ID).Find(&matchRows).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(matchRows) != len(matchedItems) {
+		t.Fatalf("expected %d sku match rows for DEMO-AT-1004, got %d", len(matchedItems), len(matchRows))
+	}
+	for _, m := range matchRows {
+		if m.MatchStatus != order.MatchStatusMatched || m.ProductSKUID == nil {
+			t.Fatalf("DEMO-AT-1004 match row must be matched with a local SKU, got %+v", m)
 		}
 	}
 

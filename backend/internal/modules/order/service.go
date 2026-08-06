@@ -93,6 +93,7 @@ type ListQuery struct {
 	SkuMatchStatus        string
 	InventoryDeductStatus string
 	SyncStatus            string
+	TagID                 *uuid.UUID
 	HasException          bool
 	HasPurchase           *bool
 	Start                 *time.Time
@@ -101,33 +102,34 @@ type ListQuery struct {
 
 // ListOrderRow is returned from list endpoint.
 type ListOrderRow struct {
-	ID                    uuid.UUID  `json:"id"`
-	Platform              string     `json:"platform"`
-	ShopID                *uuid.UUID `json:"shopId,omitempty"`
-	ShopName              string     `json:"shopName,omitempty"`
-	ShopPlatform          string     `json:"shopPlatform,omitempty"`
-	ExternalOrderID       string     `json:"externalOrderId,omitempty"`
-	OrderNo               string     `json:"orderNo"`
-	CustomerName          string     `json:"customerName"`
-	Status                string     `json:"status"`
-	ReviewStatus          string     `json:"reviewStatus,omitempty"`
-	PaymentStatus         string     `json:"paymentStatus"`
-	FulfillmentStatus     string     `json:"fulfillmentStatus"`
-	Currency              string     `json:"currency"`
-	TotalAmount           float64    `json:"totalAmount"`
-	ItemCount             int        `json:"itemCount"`
-	SkuMatchStatus        string     `json:"skuMatchStatus,omitempty"`
-	SkuMatchedCount       int        `json:"skuMatchedCount"`
-	SkuTotalCount         int        `json:"skuTotalCount"`
-	InventoryDeductStatus string     `json:"inventoryDeductStatus,omitempty"`
-	SyncStatus            string     `json:"syncStatus,omitempty"`
-	OpenExceptionCount    int        `json:"openExceptionCount"`
-	DetailURL             string     `json:"detailUrl,omitempty"`
-	OrderedAt             *time.Time `json:"orderedAt,omitempty"`
-	CreatedAt             time.Time  `json:"createdAt"`
-	UpdatedAt             time.Time  `json:"updatedAt"`
-	LatestShipmentStatus  string     `json:"latestShipmentStatus,omitempty"`
-	WaybillPrintedAt      *time.Time `json:"waybillPrintedAt,omitempty"`
+	ID                    uuid.UUID       `json:"id"`
+	Platform              string          `json:"platform"`
+	ShopID                *uuid.UUID      `json:"shopId,omitempty"`
+	ShopName              string          `json:"shopName,omitempty"`
+	ShopPlatform          string          `json:"shopPlatform,omitempty"`
+	ExternalOrderID       string          `json:"externalOrderId,omitempty"`
+	OrderNo               string          `json:"orderNo"`
+	CustomerName          string          `json:"customerName"`
+	Status                string          `json:"status"`
+	ReviewStatus          string          `json:"reviewStatus,omitempty"`
+	PaymentStatus         string          `json:"paymentStatus"`
+	FulfillmentStatus     string          `json:"fulfillmentStatus"`
+	Currency              string          `json:"currency"`
+	TotalAmount           float64         `json:"totalAmount"`
+	ItemCount             int             `json:"itemCount"`
+	SkuMatchStatus        string          `json:"skuMatchStatus,omitempty"`
+	SkuMatchedCount       int             `json:"skuMatchedCount"`
+	SkuTotalCount         int             `json:"skuTotalCount"`
+	InventoryDeductStatus string          `json:"inventoryDeductStatus,omitempty"`
+	SyncStatus            string          `json:"syncStatus,omitempty"`
+	Tags                  []OrderTagBrief `json:"tags"`
+	OpenExceptionCount    int             `json:"openExceptionCount"`
+	DetailURL             string          `json:"detailUrl,omitempty"`
+	OrderedAt             *time.Time      `json:"orderedAt,omitempty"`
+	CreatedAt             time.Time       `json:"createdAt"`
+	UpdatedAt             time.Time       `json:"updatedAt"`
+	LatestShipmentStatus  string          `json:"latestShipmentStatus,omitempty"`
+	WaybillPrintedAt      *time.Time      `json:"waybillPrintedAt,omitempty"`
 }
 
 // ListResult pagination bundle.
@@ -182,6 +184,7 @@ func orderCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) 
 		"skuMatchStatus":        q.SkuMatchStatus,
 		"inventoryDeductStatus": q.InventoryDeductStatus,
 		"syncStatus":            q.SyncStatus,
+		"tagId":                 tagIDKey(q.TagID),
 		"hasException":          q.HasException,
 		"hasPurchase":           hasPurchaseKey(q.HasPurchase),
 		"start":                 q.Start,
@@ -193,6 +196,13 @@ func orderCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) 
 // activePOCoverageExists matches orders having at least one line covered by a
 // non-cancelled / non-failed / non-voided purchase order (same rule as generate dedupe).
 const activePOCoverageExists = "EXISTS (SELECT 1 FROM purchase_order_items poi JOIN purchase_orders po2 ON po2.id = poi.purchase_order_id WHERE poi.sales_order_id = orders.id AND po2.status NOT IN ('cancelled','failed','voided'))"
+
+func tagIDKey(v *uuid.UUID) string {
+	if v == nil || *v == uuid.Nil {
+		return ""
+	}
+	return v.String()
+}
 
 func hasPurchaseKey(v *bool) string {
 	if v == nil {
@@ -327,6 +337,8 @@ type DetailDTO struct {
 	WarehouseAssignedAt       *time.Time `json:"warehouseAssignedAt,omitempty"`
 
 	InventorySummary *InventoryUIMini `json:"inventorySummary,omitempty"`
+
+	Tags []OrderTagBrief `json:"tags"`
 }
 
 // InventoryUIMini exposes stock-effect flags from order_inventory_effects without importing inventory in service helpers.
@@ -533,6 +545,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if v := strings.TrimSpace(q.FulfillmentStatus); v != "" {
 		tx = tx.Where("fulfillment_status = ?", v)
+	}
+	if q.TagID != nil && *q.TagID != uuid.Nil {
+		tx = tx.Where("orders.id IN (?)", s.DB.Model(&OrderTagLink{}).Select("order_id").Where("tag_id = ?", *q.TagID))
 	}
 	if q.HasPurchase != nil {
 		if *q.HasPurchase {
@@ -956,6 +971,11 @@ func (s *Service) loadDetailDTO(c *gin.Context, orderID uuid.UUID) (*DetailDTO, 
 		if sum != nil {
 			out.ShopSummary = sum
 		}
+	}
+	if tags, err := s.orderTagBriefs(c, tid, o.ID); err == nil {
+		out.Tags = tags
+	} else {
+		out.Tags = []OrderTagBrief{}
 	}
 	return &out, nil
 }

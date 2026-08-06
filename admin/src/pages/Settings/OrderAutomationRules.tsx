@@ -18,6 +18,7 @@ import {
   type OrderAutomationRuleBody,
   type OrderAutomationRuleRow,
 } from '@/services/orderAutomation';
+import { listOrderTags, type OrderTagRow } from '@/services/orderTags';
 import { isReadonly } from '@/utils/permission';
 import { useModel } from '@umijs/max';
 import {
@@ -60,6 +61,7 @@ const ACTION_COLORS: Record<AutomationAction, string> = {
   notify_shipping: 'green',
   apply_shipping_rule: 'geekblue',
   assign_warehouse: 'orange',
+  add_tag: 'magenta',
 };
 
 const SHIPPING_MODE_OPTIONS = (
@@ -91,6 +93,7 @@ function formToBody(v: Record<string, any>): OrderAutomationRuleBody {
     requireReviewPassed: !!v.requireReviewPassed,
     shippingApplyMode: v.action === 'apply_shipping_rule' ? v.shippingApplyMode : undefined,
     warehouseStrategy: v.action === 'assign_warehouse' ? v.warehouseStrategy : undefined,
+    tagIds: v.action === 'add_tag' ? v.tagIds || [] : undefined,
   };
 }
 
@@ -101,6 +104,7 @@ export default function OrderAutomationRulesPage() {
   const readonly = isReadonly(initialState?.currentUser?.role);
 
   const [rows, setRows] = useState<OrderAutomationRuleRow[]>([]);
+  const [tags, setTags] = useState<OrderTagRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [togglingId, setTogglingId] = useState('');
@@ -118,6 +122,7 @@ export default function OrderAutomationRulesPage() {
     setLoadError('');
     try {
       setRows(await listOrderAutomationRules());
+      setTags(await listOrderTags());
     } catch (e) {
       setLoadError((e as Error).message || '加载自动化规则失败');
     } finally {
@@ -145,6 +150,7 @@ export default function OrderAutomationRulesPage() {
             requireReviewPassed: row.requireReviewPassed,
             shippingApplyMode: row.shippingApplyMode || 'recommend',
             warehouseStrategy: row.warehouseStrategy || 'default_warehouse',
+            tagIds: row.tagIds || [],
           }
         : {
             name: '',
@@ -157,6 +163,7 @@ export default function OrderAutomationRulesPage() {
             requireReviewPassed: false,
             shippingApplyMode: 'recommend',
             warehouseStrategy: 'default_warehouse',
+            tagIds: [],
           },
     );
   };
@@ -307,6 +314,16 @@ export default function OrderAutomationRulesPage() {
                   {v === 'assign_warehouse' && row.warehouseStrategy ? (
                     <Tag>{WAREHOUSE_STRATEGY_LABELS[row.warehouseStrategy]}</Tag>
                   ) : null}
+                  {v === 'add_tag'
+                    ? (row.tagIds || []).map((id) => {
+                        const t = tags.find((x) => x.id === id);
+                        return t ? (
+                          <Tag key={id} color={t.color === 'default' ? undefined : t.color}>
+                            {t.name}
+                          </Tag>
+                        ) : null;
+                      })
+                    : null}
                 </Space>
               ),
             },
@@ -421,6 +438,20 @@ export default function OrderAutomationRulesPage() {
               rules={[{ required: true, message: '请选择分仓策略' }]}
             >
               <Select options={WAREHOUSE_STRATEGY_OPTIONS} placeholder="选择分仓策略" />
+            </Form.Item>
+          ) : null}
+          {action === 'add_tag' ? (
+            <Form.Item
+              name="tagIds"
+              label="要添加的标签（命中后自动给订单打上；标签在「订单标签」页维护）"
+              rules={[{ required: true, message: '请至少选择一个标签' }]}
+            >
+              <Select
+                mode="multiple"
+                placeholder="选择标签"
+                options={tags.map((t) => ({ value: t.id, label: t.name }))}
+                notFoundContent="暂无标签，请先在「系统设置 → 订单标签」创建"
+              />
             </Form.Item>
           ) : null}
           <Form.Item label="订单金额区间（自动确认付款必须填上限，作为低风险限定）">

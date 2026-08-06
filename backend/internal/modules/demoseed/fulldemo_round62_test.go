@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/bannedwords"
 	"github.com/trademind-ai/trademind/backend/internal/modules/carrier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/finance"
@@ -71,6 +72,9 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&order.OrderReviewHit{},
 		&order.OrderAutomationRule{},
 		&order.OrderAutomationLog{},
+		&order.OrderTag{},
+		&order.OrderTagLink{},
+		&collectrule.CollectRule{},
 		&procurement.PurchaseOrder{},
 		&procurement.PurchaseOrderItem{},
 		&procurement.PurchaseOrderEvent{},
