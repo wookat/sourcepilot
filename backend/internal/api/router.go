@@ -785,7 +785,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	procurementH := &procurement.Handler{Svc: procurementSvc}
 	procurement.Register(authed, procurementH)
-	reportsH := &reports.Handler{Svc: &reports.Service{DB: dep.DB, Settings: settingsSvc, Proc: procurementSvc}}
+	reportsSvc := &reports.Service{DB: dep.DB, Settings: settingsSvc, Proc: procurementSvc}
+	reportsH := &reports.Handler{Svc: reportsSvc}
 	reports.Register(authed, reportsH)
 
 	financeSvc := &finance.Service{DB: dep.DB, Settings: settingsSvc, Proc: procurementSvc, OpLog: opLogSvc}
@@ -913,7 +914,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		OrderExceptions: excSvc,
 		ConfigStatus:    configStatusSvc,
 	}
-	dashH := &operationdashboard.Handler{Svc: dashSvc}
+	dashH := &operationdashboard.Handler{Svc: dashSvc, Reports: reportsSvc}
 	operationdashboard.Register(authed, dashH)
 
 	aiOpsWorkbenchSvc := &aiopsworkbench.Service{

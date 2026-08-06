@@ -6,12 +6,16 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/reports"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
-// Handler serves dashboard HTTP API.
+// Handler serves dashboard HTTP API. Reports (optional) attaches today's
+// sales / profit KPIs to the big-screen endpoint with the same #276 SQL
+// pushdown口径 as /reports/profit.
 type Handler struct {
-	Svc *Service
+	Svc     *Service
+	Reports *reports.Service
 }
 
 func parseRFC3339Dashboard(s string) (*time.Time, error) {
@@ -72,6 +76,38 @@ func (h *Handler) ProductOperations(c *gin.Context) {
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
+	}
+	response.OK(c, out)
+}
+
+// Screen GET /api/v1/dashboard/screen
+func (h *Handler) Screen(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "dashboard unavailable")
+		return
+	}
+	q, err := h.bindQuery(c)
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		return
+	}
+	out, err := h.Svc.GetScreen(c.Request.Context(), q, q.Scope)
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		return
+	}
+	if h.Reports != nil {
+		today, rerr := reports.ResolveRange(1, "", "")
+		if rerr == nil {
+			if rep, perr := h.Reports.ProfitReport(c, reports.DimensionShop, today); perr == nil && rep != nil {
+				out.Today.PaidOrderCount = rep.Summary.OrderCount
+				out.Today.SalesBase = rep.Summary.RevenueBase
+				out.Today.BaseCurrency = rep.BaseCurrency
+				out.Today.UnconvertedCurrencies = rep.Summary.UnconvertedCurrencies
+				out.Today.GrossProfitBase = rep.Summary.GrossProfitBase
+				out.Today.MarginPercent = rep.Summary.MarginPercent
+			}
+		}
 	}
 	response.OK(c, out)
 }

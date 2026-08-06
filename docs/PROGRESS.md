@@ -1833,3 +1833,9 @@ Final Production Acceptance Deferred to P10
 - **MCP 只读 server 入口**：官方 Go SDK（Streamable HTTP，stateless）挂载 `POST /api/mcp`，暴露 4 个只读工具（订单查询/库存查询/经营摘要/异常待办），全部强制租户 scope，输出脱敏，无任何写操作。
 - **租户级只读 API token**：`mcp_api_tokens`（SHA-256 哈希存储、明文仅创建返回一次、脱敏展示、吊销幂等、操作日志、每 token 限流），设置页新增「MCP 只读接入」；权限矩阵登记 4 条。
 - 详见 `docs/progress/R144.md` 与 `docs/mcp.md`。
+
+### 变更记录（2026-08-06）第 145 轮线1：实时经营大屏（fullstack-engineer）
+
+- **经营大屏页面 `/dashboard/screen`**：深色大屏主题（可切浅色）、今日订单/销售额/毛利 KPI、待办五类计数、订单状态流转漏斗（近 7 天）、近 24h 逐小时趋势、异常/低库存告警滚动；15/30/60s 可配轮询 + 全屏投屏；1920 主视口，1440/1280/1024/768 优雅降级。
+- **后端 `GET /api/v1/dashboard/screen` 单次聚合**：漏斗/趋势/待办均为分组 SQL 下推（无 N+1），销售额/毛利复用 `/reports/profit` #276 聚合口径；tenant/shop scope 与 dashboard 其余端点一致（空店铺授权 fail closed）；权限矩阵登记四 persona allow。
+- 详见 `docs/progress/R145.md`。
