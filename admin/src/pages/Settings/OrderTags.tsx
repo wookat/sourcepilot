@@ -7,6 +7,7 @@ import {
   updateOrderTag,
   type OrderTagRow,
 } from '@/services/orderTags';
+import { formatDateTime } from '@/utils/formatTime';
 import { isReadonly } from '@/utils/permission';
 import { useModel } from '@umijs/max';
 import {
@@ -163,7 +164,7 @@ export default function OrderTagsPage() {
               title: '创建时间',
               dataIndex: 'createdAt',
               width: 180,
-              render: (v: string) => (v ? new Date(v).toLocaleString() : '—'),
+              render: (v: string) => formatDateTime(v),
             },
             {
               title: '操作',
