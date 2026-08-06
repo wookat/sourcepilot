@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/reports"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/csvsafe"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	"github.com/trademind-ai/trademind/backend/internal/providers/fxrate"
 )
 
@@ -164,7 +165,7 @@ func (s *Service) ExportReconciliationCSV(c *gin.Context, r reports.DateRange, s
 	for _, row := range res.Rows {
 		rec := []string{
 			csvsafe.Cell(row.OrderNo),
-			csvsafe.Cell(row.Platform),
+			csvsafe.Cell(opslabels.PlatformLabel(row.Platform)),
 			csvsafe.Cell(row.ShopName),
 			csvsafe.Cell(row.Currency),
 			fmt.Sprintf("%.2f", row.Receivable),
