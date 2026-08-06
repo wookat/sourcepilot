@@ -23,6 +23,12 @@ describe('operation log label maps', () => {
     expect(operationLogResourceLabel('order_tag')).toBe('订单标签');
   });
 
+  it('maps MCP token actions to Chinese (R146 QA P2)', () => {
+    expect(operationLogActionLabel('mcp_token_create')).toBe('创建 MCP 只读 token');
+    expect(operationLogActionLabel('mcp_token_revoke')).toBe('吊销 MCP 只读 token');
+    expect(operationLogResourceLabel('mcp_token')).toBe('MCP 只读 token');
+  });
+
   it('maps backend-logged resources that previously fell back to raw keys', () => {
     for (const key of ['order_review', 'admin_user', 'auth_session', 'waybill', 'procurement']) {
       const label = operationLogResourceLabel(key);
