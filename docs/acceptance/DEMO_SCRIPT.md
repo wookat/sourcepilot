@@ -1,9 +1,10 @@
-# R123 完整演示动线脚本（30 分钟 · Docker 全栈 + seed:demo:full，R128 增补自动化新动作，R132 增补 R128–R131 交付，R136 增补 R132–R135 交付）
+# R123 完整演示动线脚本（30 分钟 · Docker 全栈 + seed:demo:full，R128 增补自动化新动作，R132 增补 R128–R131 交付，R136 增补 R132–R135 交付，R141 增补 R136–R140 交付）
 
 > 面向老板验收/对外演示。与 [ACCEPTANCE_R123.md](ACCEPTANCE_R123.md) 配套：本脚本走一遍业务闭环「采集/选品 → 优化 → 草稿 → 货源 → 订单 → 审单 → 采购 → 入库 → 发货 → 消息 → 财务对账 → 报表」，覆盖三角色与移动模式。
 > R128 增补：第 11–12 步纳入 R126 自动化新动作（自动应用发货规则/自动分仓，#268+#270，**已合入 main**，基于最新 main 构建即可演示）；为保持 30 分钟，原「客服与话术」独立步骤并入买家消息步骤。
 > R132 增补：R128–R131 交付纳入动线——第 9 步补订单号/客户筛选（R129 #274），第 18 步补聚合下推口径说明（R130 #276），第 20 步前新增双租户隔离演示（R128 #272）；#275 执行日志样本/操作日志中文映射与 #277 CSV 全量导出均已合入 main，基于最新 main 构建即可演示。
 > R136 增补：R132–R135 交付纳入动线——第 9 步补订单标签列/按标签筛选与批量打标（R135 #282，已合入 main），第 11 步补 `add_tag` 自动打标签规则与成功日志样本，第 18 步补对账 25+ 行分页/合计与跨页全量导出演示（R136 seed，随 fix/round136-p2 PR），第 20 步 operator 补自动化正样本 DEMO-AT-1005 真实触发（同上）；为保持 30 分钟，标签演示并入既有步骤不新增独立步骤。升级演练复跑（R132 #279）/安全审计复跑（R133→#281）/竞品复评 v5（R134 #280）为报告类交付，不占演示时长，口径见验收包 §一/12。
+> R141 增补：R136–R140 交付纳入动线——第 23 步治理面收尾补备份对象存储演示点（R138 #287，已合入 main；未配置 S3 时按降级本地路径口径演示上传状态「仅本地」（库内 `uploadStatus=skipped`）并口头说明配置 `BACKUP_S3_*` 后 uploaded/保留策略/取回；需先将 `.env` 改为 `BACKUP_ENABLED=true`、`BACKUP_MODE=local` 并重启 backend）；第 18–19 步口径补充报表 CSV「未折算」显式占位与对账差异 CSV 平台列中文化（R136 #284 / R137 #285）；深分页中文提示与未绑定本地规格口径（R139 #288）不占独立步骤，可在第 9 步口头带过；升级演练季度复检（R137 #286）为报告类交付不占演示时长。为保持 30 分钟，备份演示并入第 23 步不新增独立步骤。
 > 历史 R1 阶段演示脚本见 [../DEMO_SCRIPT.md](../DEMO_SCRIPT.md)（已过时，保留存档）。
 
 ## 前置准备（演示前 10 分钟完成，不计入 30 分钟）
@@ -23,6 +24,7 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 | 运营 | `demo_operator@trademind.local` | `DemoOperator123!` | 店铺 scope 演示 |
 | 只读 | `demo_readonly@trademind.local` | `DemoReadonly123!` | 权限边界演示 |
 | 第二租户管理员（R128） | `demo_tenant2_admin@trademind.local` | `DemoTenant2Admin123!` | 双租户隔离演示（仅见 DEMO-T2- 数据） |
+| 平台管理员（bootstrap，非 seed） | `admin@example.com` | `admin123456`（`.env.docker.example` 默认） | 备份管理等平台面演示（第 23 步，tenant 0） |
 
 - 演示结束清理：`DB_HOST=127.0.0.1 pnpm seed:demo:full:clean && DB_HOST=127.0.0.1 pnpm seed:demo:full:verify`（期望输出 `zero DEMO- residual rows`）。
 
@@ -66,8 +68,8 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 | # | 环节 | 操作 | 预期 |
 | --- | --- | --- | --- |
 | 17 | 买家消息 + 话术（R119/R109） | `/customer/buyer-messages`：待发草稿 tab 编辑/标记已发送/忽略；节点规则 tab；顺带快速展示 `/customer/reply-templates` 分组模板（原独立客服话术步骤并入本步，为 R126 新动作腾时长） | 变量已按订单上下文填充，缺失变量警示；页顶降级说明（人工确认、绝不自动外发）；话术分组/变量填充可见 |
-| 18 | 财务对账（R121+R130） | `/orders/finance-payments` 登记回款；`/orders/finance-reconciliation` 对账工作台；`/orders/finance-report` 报表 | 已结清/少款/多款/未回款样本；实算 vs 估算毛利差异；店铺×月份汇总，CSV 可导出（R130 #276 后聚合已下推 SQL，大数据量下数值口径不变；CSV 全量导出已随 #277 合入，导出不再受单页上限截断；R136 seed 后对账工作台 25+ 行——默认 20/页出第二页，顶部合计区跨页聚合，CSV 导出行数 > 单页可直观证明 #277 跨页全量） |
-| 19 | 三报表（R110） | `/orders/reports-profit`（另有采购/库存报表页） | 多币种本位币折算、缺进价/未折算显式提示 |
+| 18 | 财务对账（R121+R130） | `/orders/finance-payments` 登记回款；`/orders/finance-reconciliation` 对账工作台；`/orders/finance-report` 报表 | 已结清/少款/多款/未回款样本；实算 vs 估算毛利差异；店铺×月份汇总，CSV 可导出（R130 #276 后聚合已下推 SQL，大数据量下数值口径不变；CSV 全量导出已随 #277 合入，导出不再受单页上限截断；R136 seed 后对账工作台 25+ 行——默认 20/页出第二页，顶部合计区跨页聚合，CSV 导出行数 > 单页可直观证明 #277 跨页全量；对账差异 CSV「平台」列中文平台名（R136 #284）） |
+| 19 | 三报表（R110） | `/orders/reports-profit`（另有采购/库存报表页） | 多币种本位币折算、缺进价/未折算显式提示；CSV 导出无汇率列与页面同口径显式「未折算」不再留空（R137 #285） |
 
 ### 第 5 段：三角色 + 移动模式 + 治理面（约 4 分钟）
 
@@ -77,7 +79,7 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 | 20 | operator | 退出，登录 `demo_operator`；订单列表搜 `DEMO-AT-1005`（授权手工店、unpaid、SKU 已匹配）批量「标记已付款」（R136） | 仅授权店铺数据可见；无权限路由统一「暂无访问权限」语义页；operator 自行触发 order_paid 自动化成功（执行日志新增生成采购单 success，不再依赖 admin 账号） |
 | 21 | readonly | 登录 `demo_readonly`，查看任一写入口 | 写入口不渲染（隐藏），直接调写接口返回 403；读路径完整 |
 | 22 | 移动模式（R113+R124） | DevTools device toolbar 375px（zoom 100%）刷新；拉宽至 768px 对比 | 375：底部 5 tab（首页/订单/采购/库存/我的）且无侧栏汉堡（R124 断点互斥口径），「我的」页含经营报表/异常工作台/告警中心补偿入口；≥768：仅侧栏无底部导航；`/m/home` 指标卡与待办触屏动线；表格横向内滚不溢出 |
-| 23 | 治理面收尾 | 管理员回登，快速过 `/ops/task-center/operation-tasks`（批量审批）、失败任务中心、操作日志 | 运营任务批量批准弹窗、失败深链、审计留痕 |
+| 23 | 治理面收尾 + 备份对象存储（R138） | 管理员回登，快速过 `/ops/task-center/operation-tasks`（批量审批）、失败任务中心、操作日志；切平台管理员 `admin@example.com` 登录进 `/ops/backups`，点「创建备份」（前置：`.env` 需 `BACKUP_ENABLED=true`、`BACKUP_MODE=local` 并重启 backend；`.env.docker.example` 默认 `BACKUP_MODE=disabled` 时创建只会得到「待人工复核」） | 运营任务批量批准弹窗、失败深链、审计留痕；备份页可见「上传状态」「上传目标」列，备份 status=completed；演示环境未配 `BACKUP_S3_*` 时上传状态列显「仅本地」（库内 `uploadStatus=skipped`；降级本地路径，产物落 backend 容器本地），**口径说明**：配置 `BACKUP_S3_*` 后自动上传 S3 兼容端点（uploaded + 上传目标列显 bucket/prefix）、失败可行内重试、按保留策略清理、本地缺失自动取回（MinIO 实测证据见 PR #287） |
 
 ## 常见坑（演示前自查）
 
@@ -88,10 +90,12 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 - 容器跑的是构建时代码：切分支后需 `docker compose -f docker-compose.full.yml up -d --build` 重建。
 - ~~R126 新动作依赖 #268（含 #270）代码~~——#268/#270 已合入 main，基于最新 main 构建即含 AT-1201/1202 样本与规则页新动作选项。
 - R130 线2 执行日志样本（DEMO-AT-1301/1302/1303）与操作日志中文映射（#275）、对账/毛利 CSV 全量导出（#277）均已合入 main，基于最新 main 构建即可直接演示。
-- 订单标签（标签列/筛选/批量打标/add_tag 规则，R135 #282）已合入 main；对账 25+ 行量样本与 operator 正样本 DEMO-AT-1005（R136）依赖 `fix/round136-p2` 合入后重新构建 + 重新 seed。
+- 订单标签（标签列/筛选/批量打标/add_tag 规则，R135 #282）与对账 25+ 行量样本、operator 正样本 DEMO-AT-1005（R136 #283）均已合入 main，基于最新 main 构建 + seed 即可演示。
+- 备份管理 `/ops/backups` 仅平台管理员（tenant 0）可进，demo_admin 等租户账号无入口；用 `.env.docker.example` 默认 bootstrap 账号 `admin@example.com / admin123456`。备份演示前置：`.env.docker.example` 默认 `BACKUP_ENABLED=false`、`BACKUP_MODE=disabled`，此时创建备份仅得到「待人工复核」；需改 `BACKUP_ENABLED=true`、`BACKUP_MODE=local` 并重启 backend 才能演示 completed。未配 `BACKUP_S3_*` 时上传状态列显「仅本地」（库内 `uploadStatus=skipped`），属预期降级口径，不是故障。
 
 ## 实跑验证记录
 
+- 2026-08-06（R141 线1）：Docker 全栈（最新 main `99fd2e7d` 重建）按更新后脚本三角色实跑（全程录屏，证据外置不入库）：`DB_HOST=127.0.0.1 pnpm seed:demo:full` 成功；admin 动线抽样（标签列/筛选、深分页中文提示、未绑定本地规格「未绑定」、对账 28 行跨页合计、差异 CSV 平台列中文、利润 CSV「未折算」显式占位）全部符合；平台管理员 `/ops/backups` 创建备份 completed，未配 `BACKUP_S3_*` 时上传状态列显「仅本地」（库内 `uploadStatus=skipped`），demo_admin 无入口；operator 标记 `DEMO-AT-1005` 已付款后自动生成采购单/自动打标签/自动分仓 success；readonly 写入口全部不渲染；375px/768px 无横向溢出；收尾 clean + verify 输出 `zero DEMO- residual rows`。两处失实（备份需 `BACKUP_ENABLED=true`/`BACKUP_MODE=local` 前置、上传状态文案为「仅本地」而非「已跳过」）已修正本脚本。
 - 2026-08-06（R136 线1）：Docker 全栈（main `7719cb3d` 本地叠加 #280/#281 + `fix/round136-p2`）重建后针对本轮改动点实跑核对：`DB_HOST=127.0.0.1 pnpm seed:demo:full` 成功，对账工作台 API（2026-05-01～2026-09-01）返回 rows=28、summary orderCount=28（结清 7/少款 3/多款 3/未回款 15），`/finance/reconciliation/export.csv` 导出 28 数据行（> 单页 20，跨页全量可演示）；`demo_operator` 登录订单列表可见 `DEMO-AT-1005`（unpaid），PUT 标记已付款后 `order_paid` 自动化真实触发（`DEMO-付款后自动生成采购单` status=success「已自动生成 1 张采购单」）；重复 seed 幂等（已付款 DEMO 单稳定 29 = 28 主租户 + 1 第二租户）；`seed:demo:full:clean` + `verify` 输出 `zero DEMO- residual rows`（含 operator 触发生成的采购单联动清理）。
 - 2026-08-06（R132 线1）：Docker 全栈（main `eb626bd9` 本地叠加 `fix/round132-p2`）重建后针对本轮改动点实跑核对：`DB_HOST=127.0.0.1 pnpm seed:demo:full` 成功（`order_item_sku_matches` 计 6）；订单列表 API `orderNo=DEMO-AT-1004` 返回 `skuMatchStatus=all_matched`、`inventoryDeductStatus=none`（「库存扣减」列显示「未扣减」而非「SKU 未就绪」，与「SKU 已匹配」前置一致）；重复 seed 幂等；`seed:demo:full:clean` + `verify` 输出 `zero DEMO- residual rows` 且 `order_item_sku_matches` 归零。第二租户账号/19b 步骤沿用大回归 v19 实测证据（PR #272 评论）。
 - 2026-08-05（R128 线2）：更新后脚本在 Docker 全栈（main `f3108e16` 本地叠加 `feat/round126-auto-actions` `339836de`，含 #268/#270）+ `seed:demo:full` 三角色逐步实跑全部 23 步（全程录屏）：22/23 与预期一致；第 11–12 步 R126 新动作全部验证通过（DEMO-AT-1004 三动作 success、AT-1201/1202 正负样本、重试累计 3→6 与「本轮尝试 N 次」口径区分、订单详情计划物流商/分配仓库展示）；唯一偏差为第 2 步采集失败样本描述失实（seed 实为全 success），已修正本脚本该步预期；收尾 clean/verify 零残留。
