@@ -99,6 +99,7 @@ import {
   PRODUCT_IMAGE_PUBLIC_URL_LABEL,
   PRODUCT_IMAGE_SORT_ORDER_LABEL,
   PRODUCT_IMAGE_URL_LABEL,
+  productSourceLabel,
 } from '@/constants/userFriendly';
 import { uploadFile } from '@/services/files';
 import {
@@ -2682,7 +2683,7 @@ export default function ProductDraftDetailPage() {
               <div className="product-draft-header__meta" aria-label="商品摘要信息">
                 <div className="product-draft-header__meta-item">
                   <span>来源平台</span>
-                  <strong>{data.source ? platformDisplayName(data.source) : '未记录'}</strong>
+                  <strong>{data.source ? productSourceLabel(data.source) : '未记录'}</strong>
                 </div>
                 <div className="product-draft-header__meta-item product-draft-header__meta-item--source">
                   <span>来源商品</span>
@@ -2879,7 +2880,7 @@ export default function ProductDraftDetailPage() {
                       className="product-draft-basic__descriptions"
                     >
                       <Descriptions.Item label="来源平台">
-                        {data.source ? <Tag>{platformDisplayName(data.source)}</Tag> : <Typography.Text type="secondary">未记录</Typography.Text>}
+                        {data.source ? <Tag>{productSourceLabel(data.source)}</Tag> : <Typography.Text type="secondary">未记录</Typography.Text>}
                       </Descriptions.Item>
                       <Descriptions.Item label="币种（展示）">
                         {data.currency || <Typography.Text type="secondary">未记录</Typography.Text>}
@@ -2950,10 +2951,20 @@ export default function ProductDraftDetailPage() {
                         description="保存前仍可继续调整标题、描述、币种和状态。"
                       />
                     )}
+                    {readonly ? (
+                      <Alert
+                        className="product-draft-basic__inline-alert product-draft-basic__inline-alert--top"
+                        type="warning"
+                        showIcon
+                        message="当前账号处于只读模式"
+                        description="只能查看基础信息，保存入口已隐藏。"
+                      />
+                    ) : null}
                     <ProForm
                       key={`basic-${data.id}-${data.updatedAt}`}
                       className="product-draft-basic__form"
-                      submitter={{
+                      disabled={readonly}
+                      submitter={readonly ? false : {
                         searchConfig: { submitText: '保存基础信息' },
                         submitButtonProps: { type: 'primary' },
                         resetButtonProps: false,

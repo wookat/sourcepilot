@@ -149,13 +149,13 @@ type paymentAgg struct {
 }
 
 // paymentAggs sums payments per (order, currency) in SQL.
-func (s *Service) paymentAggs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]paymentAgg, error) {
+func (s *Service) paymentAggs(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID][]paymentAgg, error) {
 	out := map[uuid.UUID][]paymentAgg{}
 	for _, chunk := range chunkOrderIDs(orderIDs) {
 		var rows []paymentAgg
 		if err := s.DB.WithContext(ctx).Model(&PaymentRecord{}).
 			Select("order_id, currency, SUM(amount) AS amount, SUM(fee_amount) AS fee, COUNT(*) AS n").
-			Where("order_id IN ?", chunk).
+			Where("tenant_id = ? AND order_id IN ?", tenantID, chunk).
 			Group("order_id, currency").Scan(&rows).Error; err != nil {
 			return nil, err
 		}
@@ -175,13 +175,13 @@ type expenseAgg struct {
 }
 
 // expenseAggs sums order-level expenses per (order, currency) in SQL.
-func (s *Service) expenseAggs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]expenseAgg, error) {
+func (s *Service) expenseAggs(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID][]expenseAgg, error) {
 	out := map[uuid.UUID][]expenseAgg{}
 	for _, chunk := range chunkOrderIDs(orderIDs) {
 		var rows []expenseAgg
 		if err := s.DB.WithContext(ctx).Model(&OrderExpense{}).
 			Select("order_id, currency, SUM(amount) AS amount, COUNT(*) AS n").
-			Where("order_id IN ?", chunk).
+			Where("tenant_id = ? AND order_id IN ?", tenantID, chunk).
 			Group("order_id, currency").Scan(&rows).Error; err != nil {
 			return nil, err
 		}
@@ -288,11 +288,11 @@ func (s *Service) computeOrderFinance(ctx context.Context, tenantID int64, order
 	for _, o := range orders {
 		ids = append(ids, o.ID)
 	}
-	payByOrder, err := s.paymentAggs(ctx, ids)
+	payByOrder, err := s.paymentAggs(ctx, tenantID, ids)
 	if err != nil {
 		return nil, nil, err
 	}
-	expByOrder, err := s.expenseAggs(ctx, ids)
+	expByOrder, err := s.expenseAggs(ctx, tenantID, ids)
 	if err != nil {
 		return nil, nil, err
 	}
