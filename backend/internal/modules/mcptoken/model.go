@@ -23,8 +23,11 @@ type Token struct {
 	// LastFour is the trailing 4 characters kept for masked display.
 	LastFour string `gorm:"size:8;not null" json:"lastFour"`
 	// TokenHash is the hex-encoded SHA-256 of the full plaintext token.
-	TokenHash  string     `gorm:"size:64;not null;uniqueIndex" json:"-"`
-	Scope      string     `gorm:"size:32;not null;default:readonly" json:"scope"`
+	TokenHash string `gorm:"size:64;not null;uniqueIndex" json:"-"`
+	Scope     string `gorm:"size:32;not null;default:readonly" json:"scope"`
+	// ExpiresAt, when set, is the instant after which the token stops
+	// authenticating. NULL means the token never expires.
+	ExpiresAt  *time.Time `gorm:"index" json:"expiresAt,omitempty"`
 	CreatedBy  *uuid.UUID `gorm:"type:char(36)" json:"createdBy,omitempty"`
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 	RevokedAt  *time.Time `gorm:"index" json:"revokedAt,omitempty"`
@@ -36,4 +39,9 @@ func (Token) TableName() string { return "mcp_api_tokens" }
 // Masked returns the masked display form, e.g. "sp_mcp_ro_ab12…cd34".
 func (t Token) Masked() string {
 	return t.Prefix + "…" + t.LastFour
+}
+
+// Expired reports whether the token has an expiry in the past.
+func (t Token) Expired(now time.Time) bool {
+	return t.ExpiresAt != nil && !t.ExpiresAt.After(now)
 }

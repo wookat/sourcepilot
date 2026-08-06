@@ -83,7 +83,7 @@ func (l *LocalLimiter) Allow(ctx context.Context, rawKey string) Decision {
 // HasBudget reports whether the key currently has at least one token left,
 // without consuming it. Callers use it to reject work before doing it while
 // charging the bucket only for the outcome they want to limit.
-func (l *LocalLimiter) HasBudget(rawKey string) bool {
+func (l *LocalLimiter) HasBudget(_ context.Context, rawKey string) bool {
 	if l == nil {
 		return true
 	}

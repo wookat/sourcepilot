@@ -14,7 +14,7 @@ TradeMind 提供一个符合 MCP（Model Context Protocol）标准的只读 serv
 ## 获取只读 token
 
 1. 登录管理后台，进入「系统设置 → MCP 只读接入」（`/settings/mcp-tokens`）。
-2. 点击「创建只读 token」，输入用途名称（如 `claude-desktop`）。
+2. 点击「创建只读 token」，输入用途名称（如 `claude-desktop`），可选设置有效期（7/30/90/180/365 天，默认不过期）。
 3. **明文 token 只在创建时展示一次**，请立即复制保存；数据库中只保存 SHA-256 哈希。
 4. 列表中 token 以脱敏形式展示（如 `sp_mcp_ro_ab…cdef`），可随时吊销；创建与吊销都会写入操作日志。
 
@@ -22,9 +22,11 @@ TradeMind 提供一个符合 MCP（Model Context Protocol）标准的只读 serv
 
 - token 与创建它的租户绑定，所有工具查询强制该租户范围；涉及店铺的数据只会返回该租户名下店铺的数据。
 - token 只有 `readonly` scope，不能调用任何写接口；鉴权时强制校验 scope，非 `readonly` 的 token 行一律按无效处理。
-- token 不设自动过期：只能显式吊销（吊销即时生效）。请按用途拆分 token，不再使用时及时吊销。
+- token 可选设置有效期（创建时 `expiresInDays`，1-730 天；默认不过期保持兼容）：到期后鉴权即拒绝（401）；管理页展示过期状态与即将过期（≤7 天）提示。也可随时显式吊销（吊销即时生效）。请按用途拆分 token，不再使用时及时吊销。
 - 每个租户最多同时持有 20 个未吊销 token（超出时创建返回 400，需先吊销），因为每个 token 自带限流桶。
 - 三层限流：每 token（默认 5 req/s、突发 10）、每租户聚合（token 额度的 2 倍，防止多 token 叠加绕过）、每来源 IP 的鉴权失败预算（1 req/s、突发 10，仅失败请求计费，合法流量不受影响）。超限统一 `429`，envelope `code=42901`。
+- 限流状态存储：Redis 可用时（复用队列 `REDIS_URL`，无新依赖 / 新变量）三层限流桶统一走 Redis（Lua 令牌桶，key 前缀 `ratelimit:mcp_readonly*`），多副本部署共享同一份额度；Redis 不可用或调用失败时自动降级为进程内令牌桶（不会 fail-open），此时多副本下总额度会按副本数放大，需相应调低 `MCP_RATE_RPS` / `MCP_RATE_BURST`。
+- 工具调用逐次审计：每次 `tools/call` 落一条审计日志（租户、token（脱敏）、工具名、时间、成功/失败、耗时），**不记录查询参数与查询结果内容**；管理页「MCP 只读接入」可按工具/状态筛选查看（`GET /api/v1/mcp/audit-logs`）。审计写入为 best effort，审计库故障不影响工具调用本身。
 - 输出经过脱敏：不含密钥、密码、内部 UUID，客户姓名只保留首字符。
 
 ## 只读工具列表

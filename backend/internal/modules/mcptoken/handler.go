@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -37,7 +38,9 @@ type tokenView struct {
 	MaskedToken string    `json:"maskedToken"`
 	Scope       string    `json:"scope"`
 	Revoked     bool      `json:"revoked"`
+	Expired     bool      `json:"expired"`
 	CreatedAt   string    `json:"createdAt"`
+	ExpiresAt   string    `json:"expiresAt,omitempty"`
 	LastUsedAt  string    `json:"lastUsedAt,omitempty"`
 	RevokedAt   string    `json:"revokedAt,omitempty"`
 }
@@ -49,7 +52,11 @@ func toView(t Token) tokenView {
 		MaskedToken: t.Masked(),
 		Scope:       t.Scope,
 		Revoked:     t.RevokedAt != nil,
+		Expired:     t.Expired(time.Now().UTC()),
 		CreatedAt:   t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+	}
+	if t.ExpiresAt != nil {
+		v.ExpiresAt = t.ExpiresAt.UTC().Format("2006-01-02T15:04:05Z07:00")
 	}
 	if t.LastUsedAt != nil {
 		v.LastUsedAt = t.LastUsedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
@@ -83,10 +90,14 @@ func (h *Handler) List(c *gin.Context) {
 	response.OK(c, gin.H{"items": items})
 }
 
-// CreateBody names a new token.
+// CreateBody names a new token; ExpiresInDays is optional (0 = never expires).
 type CreateBody struct {
-	Name string `json:"name"`
+	Name          string `json:"name"`
+	ExpiresInDays int    `json:"expiresInDays,omitempty"`
 }
+
+// maxExpiresInDays bounds the optional token lifetime (2 years).
+const maxExpiresInDays = 730
 
 // Create POST /mcp/tokens — returns the plaintext token exactly once.
 func (h *Handler) Create(c *gin.Context) {
@@ -104,7 +115,17 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	res, err := h.Svc.Create(c.Request.Context(), tid, body.Name, adminUUID(c))
+	if body.ExpiresInDays < 0 || body.ExpiresInDays > maxExpiresInDays {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest,
+			"有效期天数非法：可选 0（不过期）或 1-730 天")
+		return
+	}
+	var expiresAt *time.Time
+	if body.ExpiresInDays > 0 {
+		t := time.Now().UTC().Add(time.Duration(body.ExpiresInDays) * 24 * time.Hour)
+		expiresAt = &t
+	}
+	res, err := h.Svc.Create(c.Request.Context(), tid, body.Name, expiresAt, adminUUID(c))
 	if err != nil {
 		if errors.Is(err, ErrTooManyTokens) {
 			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest,

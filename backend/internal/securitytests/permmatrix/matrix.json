@@ -6289,6 +6289,16 @@
     }
   },
   {
+    "method": "GET",
+    "path": "/api/v1/mcp/audit-logs",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
     "method": "POST",
     "path": "/api/mcp",
     "probe": false,

@@ -4,6 +4,8 @@
 package mcpserver
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +13,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/redis/go-redis/v9"
+	"github.com/trademind-ai/trademind/backend/internal/modules/mcpaudit"
 	"github.com/trademind-ai/trademind/backend/internal/modules/mcptoken"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ratelimit"
@@ -37,6 +41,11 @@ type Deps struct {
 	DB         *gorm.DB
 	Tokens     *mcptoken.Service
 	Exceptions *orderexception.Service
+	// Audits records one row per tool call (best effort; nil disables auditing).
+	Audits *mcpaudit.Service
+	// Redis, when set, backs the rate-limit buckets so the budget is shared
+	// across replicas; nil keeps the in-process buckets.
+	Redis redis.Scripter
 	// RateRPS / RateBurst bound per-token request rates (fail closed on zero).
 	RateRPS   float64
 	RateBurst int
@@ -61,7 +70,16 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 	if burst <= 0 {
 		burst = 10
 	}
-	limiter := ratelimit.NewLocalLimiter(ratelimit.Policy{
+	// With Redis available the buckets are shared across replicas; otherwise
+	// they are per-process (budget multiplies by replica count, documented in
+	// docs/mcp.md).
+	newLimiter := func(p ratelimit.Policy) ratelimit.Limiter {
+		if d.Redis != nil {
+			return ratelimit.NewRedisLimiter(d.Redis, p)
+		}
+		return ratelimit.NewLocalLimiter(p)
+	}
+	limiter := newLimiter(ratelimit.Policy{
 		ID:        "mcp_readonly",
 		Rate:      rate.Limit(rps),
 		Burst:     burst,
@@ -70,7 +88,7 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 	})
 	// A tenant may hold several tokens, each with its own bucket; this bucket
 	// caps what one tenant can consume in aggregate.
-	tenantLimiter := ratelimit.NewLocalLimiter(ratelimit.Policy{
+	tenantLimiter := newLimiter(ratelimit.Policy{
 		ID:        "mcp_readonly_tenant",
 		Rate:      rate.Limit(rps * tenantRateFactor),
 		Burst:     burst * tenantRateFactor,
@@ -80,7 +98,7 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 	// Authentication failures are bounded per client IP: the per-token bucket
 	// can only apply after a token resolves, so unauthenticated callers would
 	// otherwise get unlimited token-hash lookups.
-	authFailLimiter := ratelimit.NewLocalLimiter(ratelimit.Policy{
+	authFailLimiter := newLimiter(ratelimit.Policy{
 		ID:        "mcp_readonly_authfail",
 		Rate:      rate.Limit(authFailRPS),
 		Burst:     authFailBurst,
@@ -95,6 +113,9 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 		}
 		srv := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: d.Version}, nil)
 		registerTools(srv, d, tok.TenantID)
+		if d.Audits != nil {
+			srv.AddReceivingMiddleware(auditMiddleware(d.Audits, tok))
+		}
 		return srv
 	}, &mcp.StreamableHTTPOptions{
 		Stateless:    true,
@@ -116,7 +137,7 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 		// The failure budget is only charged for rejected credentials, so valid
 		// traffic is never throttled by it; it is checked first so a client that
 		// burned its budget stops costing token lookups.
-		if !authFailLimiter.HasBudget(clientKey) {
+		if !authFailLimiter.HasBudget(c.Request.Context(), clientKey) {
 			tooMany(c)
 			return
 		}
@@ -143,6 +164,43 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 		d.Tokens.TouchLastUsed(c.Request.Context(), tok.ID)
 		ctx := withToken(c.Request.Context(), tok)
 		streamable.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
+	}
+}
+
+// auditMiddleware appends one audit row per tools/call: tenant, token, tool
+// name, outcome and duration. Arguments and results are never recorded. Writes
+// are best effort so a failing audit store cannot take the entry down.
+func auditMiddleware(audits *mcpaudit.Service, tok *mcptoken.Token) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			if method != "tools/call" {
+				return next(ctx, method, req)
+			}
+			toolName := ""
+			if p, ok := req.GetParams().(*mcp.CallToolParamsRaw); ok && p != nil {
+				toolName = p.Name
+			}
+			start := time.Now()
+			res, err := next(ctx, method, req)
+			status := mcpaudit.StatusSuccess
+			if err != nil {
+				status = mcpaudit.StatusError
+			} else if ctr, ok := res.(*mcp.CallToolResult); ok && ctr != nil && ctr.IsError {
+				status = mcpaudit.StatusError
+			}
+			if werr := audits.Write(ctx, mcpaudit.WriteOpts{
+				TenantID:    tok.TenantID,
+				TokenID:     tok.ID,
+				TokenName:   tok.Name,
+				TokenMasked: tok.Masked(),
+				Tool:        toolName,
+				Status:      status,
+				DurationMs:  time.Since(start).Milliseconds(),
+			}); werr != nil {
+				slog.Warn("mcp_tool_audit_write_failed", "tool", toolName, "error", werr.Error())
+			}
+			return res, err
+		}
 	}
 }
 
