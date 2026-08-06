@@ -49,7 +49,7 @@ function expiryCell(row: McpTokenRow) {
     return (
       <Space size={4}>
         <Tag color="red">已过期</Tag>
-        <Typography.Text type="secondary">{row.expiresAt}</Typography.Text>
+        <Typography.Text type="secondary">{formatDateTime(row.expiresAt)}</Typography.Text>
       </Space>
     );
   }
@@ -57,7 +57,7 @@ function expiryCell(row: McpTokenRow) {
   return (
     <Space size={4}>
       {soon ? <Tag color="orange">即将过期</Tag> : null}
-      <Typography.Text>{row.expiresAt}</Typography.Text>
+      <Typography.Text>{formatDateTime(row.expiresAt)}</Typography.Text>
     </Space>
   );
 }
@@ -364,7 +364,11 @@ export default function McpTokensPage() {
             },
           }}
           columns={[
-            { title: '时间', dataIndex: 'createdAt' },
+            {
+              title: '时间',
+              dataIndex: 'createdAt',
+              render: (v?: string) => formatDateTime(v),
+            },
             {
               title: '访问令牌',
               dataIndex: 'tokenName',

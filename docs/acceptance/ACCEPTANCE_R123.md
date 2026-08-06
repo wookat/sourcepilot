@@ -1,6 +1,6 @@
-# R123 预验收对照表（R91–R122 功能轮验收包，R128 增补 R124–R127，R132 增补 R128–R131，R136 增补 R132–R135，R141 增补 R136–R140）
+# R123 预验收对照表（R91–R122 功能轮验收包，R128 增补 R124–R127，R132 增补 R128–R131，R136 增补 R132–R135，R141 增补 R136–R140，R148 增补 R144–R147）
 
-- 轮次：R123 线1（technical-writer / product-manager）；R128 线2 增量更新（§一·补、§四、§五）；R132 线1 增量更新（§一/10 合入状态收口、§一/11、§五）；R136 线1 增量更新（§一/12、§四、§五）；R141 线1 增量更新（§一/12 合入状态收口、§一/13、§五）
+- 轮次：R123 线1（technical-writer / product-manager）；R128 线2 增量更新（§一·补、§四、§五）；R132 线1 增量更新（§一/10 合入状态收口、§一/11、§五）；R136 线1 增量更新（§一/12、§四、§五）；R141 线1 增量更新（§一/12 合入状态收口、§一/13、§五）；R148 线1 增量更新（§一/14、§三、§五）
 - 日期：2026-08-06
 - 基线：main `02b6b086`（#260 已合并）；演示脚本实跑也基于该基线。**#261（R122 线1 性能收口 v2，perf/round122）已于本轮验收包提交后合入 main（合并提交 `60e09b19`）**，性能收口条目已随之收口。
 - 口径：按 CHARTER §7 验收制整理——可运行成果（Docker 全栈）+ 演示（[DEMO_SCRIPT.md](DEMO_SCRIPT.md)）+ 需求（业务闭环）逐条对照 + 竞品对比结论（§四）。
@@ -147,6 +147,18 @@
 | 备份对象存储上传（收掉最后一个部署债）：`backupstore` S3 兼容 Provider（AWS S3 / MinIO / 阿里 OSS），备份完成自动上传（有界重试、失败落库可重试）+ `BACKUP_OBJECT_RETENTION_COUNT` 保留策略 + 本地缺失自动取回校验 SHA-256；`BACKUP_S3_*` 留空为降级模式（仅本地路径不阻塞部署）；含 R139 审计 4 条 S3 加固（AK/SK 落库脱敏、endpoint 校验拒回环/元数据地址、清理收窄防整桶删除、取回落地路径 containment） | R138 线1 + R140 线1 / #287（已合并） | backupstore 假 S3 服务测试与加固回归测试；`round138-backup-upload.spec.ts`；MinIO 全链路实测（PR #287 评论）；permmatrix/tenant-zero 安全测试 | ✅ |
 | R139 线1 P2 收口：深分页静默失败 → `TmProTable` 统一 `pagination_offset_too_deep` 中文可读提示（全站列表页共享收口）；订单详情未匹配行「本地规格编号」不再回显录入 `sku_code`，未绑定行显式「未绑定」 | R139 线1 / #288（已合并） | `round139-p2.spec.ts`；`paginationError`/`localSkuCodeDisplay` 单测；Docker 实测（PR #288 评论） | ✅ |
 
+### 14. R144–R147 增量能力（R148 增补）
+
+#294/#295（MCP 只读入口）、#296（实时经营大屏）、#297（R146 QA/中文化收口）、#298（MCP 安全加固）、#299/#300（R147 杂项收口）均已合入 main。本节全部条目为 ✅。
+
+| 能力点 | 实现轮次 / PR | 验证证据 | 状态 |
+| --- | --- | --- | --- |
+| MCP 只读入口 + token 治理（竞品对标 R143 差异化第一杠杆）：官方 Go SDK Streamable HTTP `POST /api/mcp`，4 个只读工具（orders_query / inventory_query / report_summary / exceptions_pending）强制租户 scope；租户级只读 token（`sp_mcp_ro_` 前缀，明文仅创建展示一次、库存 SHA-256 哈希、脱敏列表、幂等吊销）；令牌桶限流 + fail-closed 鉴权 + 输出脱敏；管理页 `/settings/mcp-tokens`；R145 线2 安全交叉审查 P1×3 已修复（#295） | R144 线1 / #294 + R145 线2 / #295（已合并） | `mcptoken/service_test.go`、`mcpserver/server_test.go`（MCP SDK 真实客户端握手）；`round144-mcp-tokens.spec.ts`；权限矩阵登记；双租户 Docker 实测（PR #295 评论）；`docs/mcp.md` | ✅ |
+| 实时经营大屏（差异化第二杠杆）：`GET /api/v1/dashboard/screen` 单次 SQL 聚合（今日 KPI / 待办五类 / 近 7 天漏斗 / 近 24h 趋势 / 告警滚动，scope 不回退、operator 空授权 fail closed）；`/dashboard/screen` 深色大屏页（KPI 大数字自适应、可切浅色、15/30/60s 轮询、全屏投屏、1920→768 五档不溢出） | R145 线1 / #296（已合并） | `screen_test.go`；`round145-dashboard-screen.spec.ts`（9 例，五档视口）；契约登记 | ✅ |
+| MCP 安全加固（R145 P2×3 收口）：token 可选过期（`expiresInDays` 1–730，过期即 401 fail-closed，管理页过期/即将过期标识）；工具调用逐次审计（`mcp_tool_call_logs` 不落查询参数与结果，管理页审计卡片 + `GET /api/v1/mcp/audit-logs`）；限流多副本口径（Redis Lua 令牌桶共享额度，不可用自动降级进程内不 fail-open） | R146 线1 / #298（已合并） | `mcptoken/expiry_test.go`、`mcpaudit/service_test.go`、`mcpserver/audit_test.go`、`ratelimit/redis_test.go`；契约 114→116；双租户 Docker 实测（PR #298） | ✅ |
+| R146 QA 收口 + R147 杂项收口：MCP 列表时间格式化与移动端表格内滚、操作日志 MCP 动作/资源中文映射（#297）；裸枚举中文化收口（采购单详情支付状态/渠道、订单异常处理状态、客服会话 role/source/type）+ 采购支付渠道 alipay/bank/other 映射补齐（#300）；MCP token 纳入 demo seed（DEMO-MCP 样本 + 审计样本 + clean/verify 零残留） | R146 QA / #297 + R147 线1 / #299、#300（已合并） | `statusEnumLabels.test.ts`、`fulldemo_round147_test.go`；Docker 实测（PR #299） | ✅ |
+| 大回归 v22 / v23（R144–R147 合入面集成回归证据）：全套门禁 + Docker 全栈走查；v23 P2（MCP 管理页「过期时间」与审计「时间」列 ISO 直出缺 `formatDateTime`）已由 R148 线1 收口（本轮 PR，含 E2E 回归用例） | 大回归 v22 / v23（质量回归轮报告，证据不入库）→ R148 线1 收口 | `round144-mcp-tokens.spec.ts` 新增 ISO 时间格式化用例；R148 Docker 实跑记录（DEMO_SCRIPT 实跑验证记录） | ✅ |
+
 ## 二、外部凭证依赖项清单（按杠杆排序，含降级路径）
 
 全部依赖项均已做到「代码就绪 + 明确降级 + 凭证到位即插队真实化」，符合 CHARTER §3.7 资源缺口不阻塞：
@@ -169,6 +181,7 @@
 - 升级/回滚演练：`docs/upgrade-guide.md` §五（2026-08-04、2026-08-05 两次全流程，含故意制造迁移中断+备份恢复）。
 - 安全：权限矩阵契约测试、IDOR 矩阵、R109–R117 每轮安全批次（#244–#250 等）。
 - 本轮演示动线实跑：见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」。
+- R144–R147 合入面集成回归：大回归 v22 / v23（质量回归轮报告，证据不入库，见对应会话/PR 评论）；v23 P2（MCP 管理页时间列 ISO 直出）已由 R148 线1 收口。
 
 ## 四、竞品对照结论（R125 复评 v4 为准，全文见 [../COMPETITIVE_BENCHMARK_R125.md](../COMPETITIVE_BENCHMARK_R125.md)；R118 版见 [../COMPETITIVE_BENCHMARK_R118.md](../COMPETITIVE_BENCHMARK_R118.md)）
 
@@ -192,3 +205,4 @@
 6. ~~R132 时点待办：按大回归 v19 结论合入 #275；#277（CSV 全量导出）合入后 §一/11 两个 ⏳ 条目转 ✅~~——已完成（#275/#277 已合入 main，§一/11 两条已转 ✅）。
 7. ~~R136 时点待办：按大回归 v20 结论将 #280 → #281 依序合入 main~~——已完成（§一/12 两个 ⏳ 条目已转 ✅）；`@umijs/max` 构建链 advisories 跨 major 升级仍登记待老板决策（`DEPENDENCY_ADVISORIES_R134.md`）。
 8. R141 时点：R136–R140 交付（#283–#288，含 #287 备份对象存储）已全部合入 main，无 open ⏳ 条目；凭证 ①（抖店）注入后插队真实 E2E 仍为正式验收前唯一外部前置项。备份对象存储生产建议 crontab + `BACKUP_S3_*` 上传双路径同时启用（production-launch-checklist §说明）。
+9. R148 时点：R144–R147 交付（#294–#300，MCP 只读入口+token 治理、实时经营大屏、MCP 安全加固、杂项收口）已全部合入 main，无 open ⏳ 条目（见 §一/14）；大回归 v23 P2（MCP 时间列 ISO 直出）已由 R148 线1 收口。凭证 ①（抖店）仍为正式验收前唯一外部前置项。

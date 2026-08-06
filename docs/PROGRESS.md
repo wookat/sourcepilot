@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-06 — **Round 148 线1：R144–R147 验收收口（MCP 页时间列 formatDateTime + 验收包增量 + Docker 实跑）**：详见附录 [`docs/progress/R148.md`](progress/R148.md)。
+
 **Stage update**: 2026-08-06 — **Round 143 线1**：详见附录 [`docs/progress/R143.md`](progress/R143.md)（自本轮起每轮进展写入 `docs/progress/R<轮次>.md` 附录，本文件只留一行索引，减少并行 PR 冲突）。
 
 **Stage update**: 2026-08-06 — **Round 141 线1：验收包增量更新（R136–R140 并入）**：`docs/acceptance/ACCEPTANCE_R123.md` §一/12 合入状态收口（#280/#281/#283 已合入 main，⏳→✅），新增 §一/13「R136–R140 增量能力」（UX v9 收口 #284、报表 CSV「未折算」显式口径 #285、生产演练季度复检 #286、备份对象存储上传 + R139 安全审计 4 条 S3 加固 #287、深分页/未绑定口径 #288，全部 ✅），§五登记 R141 时点结论；`DEMO_SCRIPT.md` 第 23 步治理面收尾并入备份对象存储演示点（未配 S3 按降级「仅本地」口径演示，需 `BACKUP_ENABLED=true`/`BACKUP_MODE=local` 前置）、第 18–19 步补 #284/#285 口径，保持 30 分钟。Docker 全栈（main `99fd2e7d`）三角色实跑通过，两处失实（备份启用前置、上传状态文案「仅本地」）已修正脚本；README/production-launch-checklist/upgrade-guide 抽查无失实。实跑证据作会话附件不入库。

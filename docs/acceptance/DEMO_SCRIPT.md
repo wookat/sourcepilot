@@ -1,10 +1,11 @@
-# R123 完整演示动线脚本（30 分钟 · Docker 全栈 + seed:demo:full，R128 增补自动化新动作，R132 增补 R128–R131 交付，R136 增补 R132–R135 交付，R141 增补 R136–R140 交付）
+# R123 完整演示动线脚本（30 分钟 · Docker 全栈 + seed:demo:full，R128 增补自动化新动作，R132 增补 R128–R131 交付，R136 增补 R132–R135 交付，R141 增补 R136–R140 交付，R148 增补 R144–R147 交付）
 
 > 面向老板验收/对外演示。与 [ACCEPTANCE_R123.md](ACCEPTANCE_R123.md) 配套：本脚本走一遍业务闭环「采集/选品 → 优化 → 草稿 → 货源 → 订单 → 审单 → 采购 → 入库 → 发货 → 消息 → 财务对账 → 报表」，覆盖三角色与移动模式。
 > R128 增补：第 11–12 步纳入 R126 自动化新动作（自动应用发货规则/自动分仓，#268+#270，**已合入 main**，基于最新 main 构建即可演示）；为保持 30 分钟，原「客服与话术」独立步骤并入买家消息步骤。
 > R132 增补：R128–R131 交付纳入动线——第 9 步补订单号/客户筛选（R129 #274），第 18 步补聚合下推口径说明（R130 #276），第 20 步前新增双租户隔离演示（R128 #272）；#275 执行日志样本/操作日志中文映射与 #277 CSV 全量导出均已合入 main，基于最新 main 构建即可演示。
 > R136 增补：R132–R135 交付纳入动线——第 9 步补订单标签列/按标签筛选与批量打标（R135 #282，已合入 main），第 11 步补 `add_tag` 自动打标签规则与成功日志样本，第 18 步补对账 25+ 行分页/合计与跨页全量导出演示（R136 seed，随 fix/round136-p2 PR），第 20 步 operator 补自动化正样本 DEMO-AT-1005 真实触发（同上）；为保持 30 分钟，标签演示并入既有步骤不新增独立步骤。升级演练复跑（R132 #279）/安全审计复跑（R133→#281）/竞品复评 v5（R134 #280）为报告类交付，不占演示时长，口径见验收包 §一/12。
 > R141 增补：R136–R140 交付纳入动线——第 23 步治理面收尾补备份对象存储演示点（R138 #287，已合入 main；未配置 S3 时按降级本地路径口径演示上传状态「仅本地」（库内 `uploadStatus=skipped`）并口头说明配置 `BACKUP_S3_*` 后 uploaded/保留策略/取回；需先将 `.env` 改为 `BACKUP_ENABLED=true`、`BACKUP_MODE=local` 并重启 backend）；第 18–19 步口径补充报表 CSV「未折算」显式占位与对账差异 CSV 平台列中文化（R136 #284 / R137 #285）；深分页中文提示与未绑定本地规格口径（R139 #288）不占独立步骤，可在第 9 步口头带过；升级演练季度复检（R137 #286）为报告类交付不占演示时长。为保持 30 分钟，备份演示并入第 23 步不新增独立步骤。
+> R148 增补：R144–R147 交付（#294–#300，均已合入 main）纳入动线——第 1 步后新增第 1b 步实时经营大屏（R145 #296，`/dashboard/screen`，约 1 分钟快速展示）；第 23 步治理面收尾并入 MCP 只读接入演示点（R144/#294–#295 + R146/#298，`/settings/mcp-tokens` seed 的 DEMO-MCP token 脱敏样本 + 现场创建 token 用 curl 或 MCP Inspector 调 `orders_query` + 审计日志卡片）；采购单详情中文支付状态/渠道（R147 #299/#300）在第 14 步口头带过不占独立步骤。为保持 30 分钟，大屏限时 1 分钟、MCP 并入第 23 步不新增独立段；大回归 v22/v23 为报告类交付不占演示时长（v23 P2 时间列格式化已由 R148 本轮收口，演示前需基于含 R148 修复的分支构建）。
 > 历史 R1 阶段演示脚本见 [../DEMO_SCRIPT.md](../DEMO_SCRIPT.md)（已过时，保留存档）。
 
 ## 前置准备（演示前 10 分钟完成，不计入 30 分钟）
@@ -32,11 +33,12 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 
 以 `demo_admin` 登录开始。每步给出 入口路由 / 操作 / 预期结果。
 
-### 第 1 段：采集 → 选品 → 优化 → 草稿（约 6 分钟；第 2 步采集任务列表快速带过，为第 3 段留时长）
+### 第 1 段：采集 → 选品 → 优化 → 草稿（约 6 分钟，含第 1b 步大屏限时 1 分钟；第 2 步采集任务列表快速带过，为第 3 段留时长）
 
 | # | 环节 | 操作 | 预期 |
 | --- | --- | --- | --- |
 | 1 | 运营总览 | 登录后停留首页 `/dashboard` | 经营概览、待办与新手引导卡片加载 |
+| 1b | 实时经营大屏（R145） | 菜单进 `/dashboard/screen`，点全屏按钮；限时约 1 分钟 | 深色大屏：今日订单/销售额/毛利/告警四张 KPI 大数字卡（seed 数据下有值，缺汇率/成本时显「—」不伪造）、待办五类可点击跳转、近 7 天漏斗与 24h 趋势、告警滚动；右上「更新于」时间随 15/30/60s 轮询刷新；可切浅色；演示完退出全屏回主动线 |
 | 2 | 采集 | 「采集中心」`/collect/hub`，展示 1688/拼多多入口与采集任务列表 `/collect/tasks` | DEMO 采集任务留痕（当前 seed 均为 success 样本；失败重试动线可在任务列表口头说明），登录风险提示可见 |
 | 3 | 选品 | 「选品任务」进入 DEMO 任务详情 `/selection/tasks/<uuid>` | 候选清单带 AI 评分/预估利润 |
 | 4 | 选品数据面（R120） | 候选行点「数据面板」抽屉；多选 2–3 行点「对比所选」 | 面板展示采集价格/销量留痕、同类目基准、价格走势图；对比抽屉可导出 CSV |
@@ -79,7 +81,7 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 | 20 | operator | 退出，登录 `demo_operator`；订单列表搜 `DEMO-AT-1005`（授权手工店、unpaid、SKU 已匹配）批量「标记已付款」（R136） | 仅授权店铺数据可见；无权限路由统一「暂无访问权限」语义页；operator 自行触发 order_paid 自动化成功（执行日志新增生成采购单 success，不再依赖 admin 账号） |
 | 21 | readonly | 登录 `demo_readonly`，查看任一写入口 | 写入口不渲染（隐藏），直接调写接口返回 403；读路径完整 |
 | 22 | 移动模式（R113+R124） | DevTools device toolbar 375px（zoom 100%）刷新；拉宽至 768px 对比 | 375：底部 5 tab（首页/订单/采购/库存/我的）且无侧栏汉堡（R124 断点互斥口径），「我的」页含经营报表/异常工作台/告警中心补偿入口；≥768：仅侧栏无底部导航；`/m/home` 指标卡与待办触屏动线；表格横向内滚不溢出 |
-| 23 | 治理面收尾 + 备份对象存储（R138） | 管理员回登，快速过 `/ops/task-center/operation-tasks`（批量审批）、失败任务中心、操作日志；切平台管理员 `admin@example.com` 登录进 `/ops/backups`，点「创建备份」（前置：`.env` 需 `BACKUP_ENABLED=true`、`BACKUP_MODE=local` 并重启 backend；`.env.docker.example` 默认 `BACKUP_MODE=disabled` 时创建只会得到「待人工复核」） | 运营任务批量批准弹窗、失败深链、审计留痕；备份页可见「上传状态」「上传目标」列，备份 status=completed；演示环境未配 `BACKUP_S3_*` 时上传状态列显「仅本地」（库内 `uploadStatus=skipped`；降级本地路径，产物落 backend 容器本地），**口径说明**：配置 `BACKUP_S3_*` 后自动上传 S3 兼容端点（uploaded + 上传目标列显 bucket/prefix）、失败可行内重试、按保留策略清理、本地缺失自动取回（MinIO 实测证据见 PR #287） |
+| 23 | 治理面收尾 + 备份对象存储（R138）+ MCP 只读接入（R144/R146） | 管理员回登，快速过 `/ops/task-center/operation-tasks`（批量审批）、失败任务中心、操作日志；切平台管理员 `admin@example.com` 登录进 `/ops/backups`，点「创建备份」（前置：`.env` 需 `BACKUP_ENABLED=true`、`BACKUP_MODE=local` 并重启 backend；`.env.docker.example` 默认 `BACKUP_MODE=disabled` 时创建只会得到「待人工复核」） | 运营任务批量批准弹窗、失败深链、审计留痕；备份页可见「上传状态」「上传目标」列，备份 status=completed；演示环境未配 `BACKUP_S3_*` 时上传状态列显「仅本地」（库内 `uploadStatus=skipped`；降级本地路径，产物落 backend 容器本地），**口径说明**：配置 `BACKUP_S3_*` 后自动上传 S3 兼容端点（uploaded + 上传目标列显 bucket/prefix）、失败可行内重试、按保留策略清理、本地缺失自动取回（MinIO 实测证据见 PR #287）。随后切回 `demo_admin` 进 `/settings/mcp-tokens`（MCP 只读接入，R144/R146）：seed 的 `DEMO-MCP 演示只读 token` 脱敏列表样本（`sp_mcp_ro_xxxx…xxxx`，明文不可再现）可见；现场「创建只读 token」（选 30 天有效期；选 7 天会立即命中「即将过期」≤7 天橙标，可顺带演示该提示）取得一次性明文，用 curl（`curl -X POST http://127.0.0.1:8080/api/mcp -H "Authorization: Bearer <明文>" -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'` 返回 4 个只读工具，再 `tools/call` `orders_query`（参数用 `pageSize` 而非 `limit`，如 `-d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"orders_query","arguments":{"pageSize":5}}}'`）返回 DEMO 订单）或 MCP Inspector 演示；注意仅 `tools/call` 产生审计记录，`tools/list` 不计入；页内「工具调用审计日志」卡片出现该次调用记录（工具/成败/耗时，时间列为 `YYYY-MM-DD HH:mm:ss` 格式，R148 收口）；演示完点「吊销」立即 401，**口径说明**：只读查询、明文仅展示一次、限流与租户隔离见验收包 §一/14 |
 
 ## 常见坑（演示前自查）
 
@@ -95,6 +97,7 @@ DB_HOST=127.0.0.1 pnpm seed:demo:full                     # 全链路演示数�
 
 ## 实跑验证记录
 
+- 2026-08-06（R148 线1）：Docker 全栈（最新 main + 本轮 `feat/round148-acceptance-mcp` 修复构建）按更新后脚本三角色抽查实跑（全程录屏，证据外置不入库）：`DB_HOST=127.0.0.1 pnpm seed:demo:full` 成功；第 1b 步大屏 KPI 有值/待办深链/漏斗趋势告警渲染/「更新于」格式化/浅色与全屏均通过；第 23 步 MCP：seed DEMO-MCP 脱敏样本可见，创建 7 天 token 后「过期时间」列显 `2026-08-13 21:22:27`（非 ISO，v23 P2 修复点①），curl `tools/list` 返回恰 4 工具、`orders_query` 返回 DEMO 订单，审计日志「时间」列 `2026-08-06 21:23:15`（v23 P2 修复点②），吊销后 curl 401；operator 仅 scope 数据、大屏正常；readonly 创建/吊销禁用、写接口 403、大屏可读；收尾 clean + verify 输出 `zero DEMO- residual rows`。两处失实（选 7 天即命中「即将过期」标、`orders_query` 参数为 `pageSize` 非 `limit`）已修正本脚本第 23 步。
 - 2026-08-06（R141 线1）：Docker 全栈（最新 main `99fd2e7d` 重建）按更新后脚本三角色实跑（全程录屏，证据外置不入库）：`DB_HOST=127.0.0.1 pnpm seed:demo:full` 成功；admin 动线抽样（标签列/筛选、深分页中文提示、未绑定本地规格「未绑定」、对账 28 行跨页合计、差异 CSV 平台列中文、利润 CSV「未折算」显式占位）全部符合；平台管理员 `/ops/backups` 创建备份 completed，未配 `BACKUP_S3_*` 时上传状态列显「仅本地」（库内 `uploadStatus=skipped`），demo_admin 无入口；operator 标记 `DEMO-AT-1005` 已付款后自动生成采购单/自动打标签/自动分仓 success；readonly 写入口全部不渲染；375px/768px 无横向溢出；收尾 clean + verify 输出 `zero DEMO- residual rows`。两处失实（备份需 `BACKUP_ENABLED=true`/`BACKUP_MODE=local` 前置、上传状态文案为「仅本地」而非「已跳过」）已修正本脚本。
 - 2026-08-06（R136 线1）：Docker 全栈（main `7719cb3d` 本地叠加 #280/#281 + `fix/round136-p2`）重建后针对本轮改动点实跑核对：`DB_HOST=127.0.0.1 pnpm seed:demo:full` 成功，对账工作台 API（2026-05-01～2026-09-01）返回 rows=28、summary orderCount=28（结清 7/少款 3/多款 3/未回款 15），`/finance/reconciliation/export.csv` 导出 28 数据行（> 单页 20，跨页全量可演示）；`demo_operator` 登录订单列表可见 `DEMO-AT-1005`（unpaid），PUT 标记已付款后 `order_paid` 自动化真实触发（`DEMO-付款后自动生成采购单` status=success「已自动生成 1 张采购单」）；重复 seed 幂等（已付款 DEMO 单稳定 29 = 28 主租户 + 1 第二租户）；`seed:demo:full:clean` + `verify` 输出 `zero DEMO- residual rows`（含 operator 触发生成的采购单联动清理）。
 - 2026-08-06（R132 线1）：Docker 全栈（main `eb626bd9` 本地叠加 `fix/round132-p2`）重建后针对本轮改动点实跑核对：`DB_HOST=127.0.0.1 pnpm seed:demo:full` 成功（`order_item_sku_matches` 计 6）；订单列表 API `orderNo=DEMO-AT-1004` 返回 `skuMatchStatus=all_matched`、`inventoryDeductStatus=none`（「库存扣减」列显示「未扣减」而非「SKU 未就绪」，与「SKU 已匹配」前置一致）；重复 seed 幂等；`seed:demo:full:clean` + `verify` 输出 `zero DEMO- residual rows` 且 `order_item_sku_matches` 归零。第二租户账号/19b 步骤沿用大回归 v19 实测证据（PR #272 评论）。
