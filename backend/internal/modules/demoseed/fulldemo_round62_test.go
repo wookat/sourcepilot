@@ -16,7 +16,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/finance"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/mcptoken"
 	"github.com/trademind-ai/trademind/backend/internal/modules/migrationimport"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
@@ -109,6 +111,8 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&finance.ShopMonthlyExpense{},
 		&bannedwords.BannedWord{},
 		&bannedwords.BannedWordCategoryState{},
+		&mcptoken.Token{},
+		&operationlog.OperationLog{},
 	); err != nil {
 		t.Fatal(err)
 	}

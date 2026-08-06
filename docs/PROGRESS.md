@@ -1848,3 +1848,10 @@ Final Production Acceptance Deferred to P10
 - **未发现**：跨租户数据泄露、写路径可达、token 明文入库/入日志/入 API 响应、SQL/路径注入、tenant 0 平台数据经租户 token 泄露，均为零发现。
 - **遗留（P2）**：token 无过期字段（仅显式吊销）；限流为进程内本地桶，多副本部署时额度按副本数放大（与 P7 Redis 限流收口项同源）；MCP 工具调用无逐次审计日志（仅 `lastUsedAt` 每分钟节流更新）。
 - **测试**：新增 `mcpserver/hardening_test.go`（无效 token 限流 + 合法流量不被失败预算牵连 + 租户桶封顶多 token 放大）、`mcptoken/hardening_test.go`（非 readonly scope 拒绝、活跃 token 上限与吊销释放槽位）；contracts 端点 114。
+
+### 变更记录（2026-08-06）第 147 轮线1：杂项收口——裸枚举中文化 + MCP token demo seed + R146 QA 复核（fullstack-engineer）
+
+- **裸枚举中文化收口**：采购单详情支付状态/支付渠道、订单异常处理状态、客服消息 role/source/type 直出英文枚举改为既有语义映射口径（未知值兜底原值）；映射统一沉淀 `admin/src/constants/status.ts` 并补单测。
+- **MCP token demo seed**：seed 新增 `DEMO-MCP 演示只读 token`（仅落哈希+脱敏元数据，明文即弃）+ `mcp_token_create` 审计样本（幂等）；Cleanup/VerifyClean 覆盖 `mcp_api_tokens` 零残留。
+- **R146 QA 复核**：零数据租户空态、长租户名/大数值截断 Docker 实测复核。
+- 详见 `docs/progress/R147.md`。

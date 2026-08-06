@@ -26,6 +26,9 @@ import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CUSTOMER_CONVERSATION_STATUS,
+  CUSTOMER_MESSAGE_ROLE_LABEL,
+  CUSTOMER_MESSAGE_SOURCE_LABEL,
+  CUSTOMER_MESSAGE_TYPE_LABEL,
   ORDER_FULFILLMENT_STATUS,
   ORDER_INVENTORY_DEDUCT_SUMMARY,
   ORDER_PAYMENT_STATUS,
@@ -670,9 +673,11 @@ export default function CustomerConversationDetailPage() {
                                 <Typography.Text type="secondary">
                                   {formatDateTime(item.createdAt)}
                                 </Typography.Text>
-                                <Tag>{item.role}</Tag>
-                                <Tag>{item.source}</Tag>
-                                {item.messageType ? <Tag>{item.messageType}</Tag> : null}
+                                <Tag>{CUSTOMER_MESSAGE_ROLE_LABEL[item.role] ?? item.role}</Tag>
+                                <Tag>{CUSTOMER_MESSAGE_SOURCE_LABEL[item.source] ?? item.source}</Tag>
+                                {item.messageType ? (
+                                  <Tag>{CUSTOMER_MESSAGE_TYPE_LABEL[item.messageType] ?? item.messageType}</Tag>
+                                ) : null}
                               </Space>
                             }
                           >
