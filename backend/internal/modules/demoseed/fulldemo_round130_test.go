@@ -53,6 +53,14 @@ func TestFullDemoSeedRound130AutomationLogSamples(t *testing.T) {
 		}
 	}
 
+	// 执行日志必须带 shop_id 快照，否则店铺 scope 过滤后 operator 视角为空。
+	var missingShop int64
+	db.Model(&order.OrderAutomationLog{}).
+		Where("rule_name LIKE ? AND shop_id IS NULL", "DEMO-%").Count(&missingShop)
+	if missingShop != 0 {
+		t.Fatalf("expected all demo automation logs to carry shop_id, %d missing", missingShop)
+	}
+
 	// 第二租户三种状态齐全，且成功样本覆盖 recommend 文案。
 	var tenant platformtenant.Tenant
 	if err := db.First(&tenant, "name = ?", DemoTenant2Name).Error; err != nil {

@@ -199,7 +199,7 @@ func (s *FullDemoSeeder) seedSecondTenant(tx *gorm.DB, res *FullDemoResult) erro
 		}
 		log := order.OrderAutomationLog{
 			TenantID: tenant.ID, RuleID: sp.rule.ID, RuleName: sp.rule.Name,
-			OrderID: o.ID, OrderNo: o.OrderNo,
+			OrderID: o.ID, OrderNo: o.OrderNo, ShopID: o.ShopID,
 			TriggerEvent: sp.rule.TriggerEvent, Action: sp.rule.Action,
 			Status: sp.status, Reason: sp.reason, Attempts: attempts,
 			DedupKey: fmt.Sprintf("%d:%s:%s:%s", tenant.ID, sp.rule.ID, o.ID, sp.rule.TriggerEvent),

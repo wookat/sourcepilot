@@ -65,7 +65,7 @@ func (s *FullDemoSeeder) seedRound126AutoActions(tx *gorm.DB, res *FullDemoResul
 	}
 	appliedLog := order.OrderAutomationLog{
 		TenantID: s.TenantID, RuleID: carrierRule.ID, RuleName: carrierRule.Name,
-		OrderID: applied.ID, OrderNo: applied.OrderNo,
+		OrderID: applied.ID, OrderNo: applied.OrderNo, ShopID: applied.ShopID,
 		TriggerEvent: carrierRule.TriggerEvent, Action: carrierRule.Action,
 		Status:   order.AutomationLogSuccess,
 		Reason:   "已按发货规则「DEMO-高客单价订单走顺丰」应用物流商：顺丰速运（发货时仍可人工改选）",
@@ -105,7 +105,7 @@ func (s *FullDemoSeeder) seedRound126AutoActions(tx *gorm.DB, res *FullDemoResul
 	}
 	shortLog := order.OrderAutomationLog{
 		TenantID: s.TenantID, RuleID: warehouseRule.ID, RuleName: warehouseRule.Name,
-		OrderID: short.ID, OrderNo: short.OrderNo,
+		OrderID: short.ID, OrderNo: short.OrderNo, ShopID: short.ShopID,
 		TriggerEvent: warehouseRule.TriggerEvent, Action: warehouseRule.Action,
 		Status:   order.AutomationLogFailed,
 		Reason:   fmt.Sprintf("执行失败（本轮尝试 3 次）：库存不足，无法分配发货仓：所有仓库均无法整单覆盖（如 %s：%s 需 %d 件）", "默认仓", shortItem.SKUCode, shortQty),
@@ -184,7 +184,7 @@ func (s *FullDemoSeeder) seedRound126AutoActions(tx *gorm.DB, res *FullDemoResul
 			}
 			log := order.OrderAutomationLog{
 				TenantID: s.TenantID, RuleID: sp.rule.ID, RuleName: sp.rule.Name,
-				OrderID: o.ID, OrderNo: o.OrderNo,
+				OrderID: o.ID, OrderNo: o.OrderNo, ShopID: o.ShopID,
 				TriggerEvent: sp.rule.TriggerEvent, Action: sp.rule.Action,
 				Status: sp.status, Reason: sp.reason, Attempts: attempts,
 				DedupKey: fmt.Sprintf("%d:%s:%s:%s", s.TenantID, sp.rule.ID, o.ID, sp.rule.TriggerEvent),
