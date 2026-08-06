@@ -1717,6 +1717,10 @@ Final Production Acceptance Deferred to P10
 - 未处理并列入 P2（均为构建期或框架内部固定版本，补丁需跨大版本或与 umi 4 绑定）：`react-router 6.3.0`（umi 4 内部固定）、`node-fetch 1.7.3`（dva → isomorphic-fetch 传递）、`vite` / `esbuild`（devDependencies）、`send`、`elliptic`、`hono` / `@hono/node-server`。
 - `govulncheck ./...`：0 命中（另有 1 条仅存在于 require 图、代码未调用）。
 
+### 变更记录（2026-08-06）第 129 轮线2：UX 视觉复核 v8（user-experience-officer / ui-designer）
+
+- **UX 视觉复核 v8**：报告归档 `docs/ux-review/UX_REVIEW_V8_REPORT.md`。基线 main `16f1ec52`（R124–R128 已合并批次）+ 本地叠加唯一未合并 PR #272；Docker 全栈 + `seed:demo:full`，375/767/768/769/1440 五档，admin+operator 实走 + tenant2 隔离抽查。v7 历史 P2 四项全部收口无回退（#264 深链重定向、日志行高 ellipsis、买家消息保存渲染、选品摘要折行）；R126 新动作参数表单（应用方式/分仓策略）、执行日志真实触发（DEMO-AT-1004 三动作成功）与失败重试、买家消息、财务对账三页、选品数据面、375 底部导航全动线与 768 断点互斥边界全部通过；#272 第二租户隔离与自动化日志中文化验证通过（可合并，需先解 `docs/PROGRESS.md` 冲突）。硬指标全零（console error/pageerror/根节点溢出/403·500 噪音）。**无 P0/P1**；P2×2 登记（T2 缺执行日志 seed 演示样本、操作日志操作类型列英文技术 key），本轮纯走查归档无代码变更。
+
 ### 变更记录（2026-08-05）第 123 轮：验收前最终全站大回归 v17（qa-engineer）
 
 - **大回归 v17**：基于 main（#254–#260 已合并）本地叠加 #261 perf/round122（合并无冲突）。全量门禁通过：go build/vet/gofmt/test（97 包）+ 集成（integration/redis，TEST_DATABASE_URL/TEST_REDIS_URL）、contracts 15、frontend 46 文件 315 用例、collector 18、build:admin/collector、`check:ui-copy --strict`；全量 admin/e2e 280 passed / 3 skipped（webServer 冷构建超 120s 超时，改为预启 `max preview :8001` 复用后全绿，非用例失败）。Docker 全栈（当前分支镜像）+ `seed:demo:full` 实走 R57 主链路、R119 自动化（正样本 DEMO-AT-1004 标记已付款→生成采购单成功并跳转、负样本 DEMO-AT-1002 SKU 未匹配安全阻断、DEMO-AT-1003 跳过、?tab=automation 深链）、R119 买家消息闭环、R120 数据面板/趋势/对比 CSV、R121 回款登记→CSV 导入→差异工作台→实算毛利→对账报表、R122 收口面 + #261 索引后订单/日志/报表/选品页加载无回退且 SQL 数值对照 4 处全一致、审单/多仓/订单导入/375 底部导航叠加面；双租户（Redis 注入验证码正规开租、数据隔离、越权 not found）三角色三视口硬指标全零；clean+verify `zero DEMO- residual rows`。
