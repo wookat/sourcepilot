@@ -11,10 +11,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// Statuses of one tool call.
+// Statuses of one audit row. success/error describe completed tool calls;
+// auth_failed / rate_limited record entry-level rejections (401/429) so
+// brute-force attempts and throttling events stay visible in the audit table.
+// Rows for unauthenticated callers carry tenant 0 (platform scope).
 const (
-	StatusSuccess = "success"
-	StatusError   = "error"
+	StatusSuccess     = "success"
+	StatusError       = "error"
+	StatusAuthFailed  = "auth_failed"
+	StatusRateLimited = "rate_limited"
 )
 
 // ToolCallLog is one immutable MCP tool-call audit row (no soft delete).
