@@ -158,7 +158,7 @@ func (s *Service) loadDouyinPublicationSKU(c *gin.Context, publicationSkuID uuid
 	if err := s.DB.WithContext(c.Request.Context()).First(&psku, "id = ?", publicationSkuID).Error; err != nil {
 		return nil, nil, err
 	}
-	pub, err := s.loadDouyinPublicationScoped(c, psku.PublicationID)
+	pub, err := s.loadDouyinPublicationForWrite(c, psku.PublicationID)
 	if err != nil {
 		return nil, nil, err
 	}

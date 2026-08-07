@@ -132,6 +132,9 @@ func (h *Handler) PostReviewApprove(c *gin.Context) {
 	}
 	res, err := h.Svc.ApproveReviewOrders(c, body, adminUUID(c))
 	if err != nil {
+		if failRuleShopScope(c, err) {
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -147,6 +150,9 @@ func (h *Handler) PostReviewReject(c *gin.Context) {
 	}
 	res, err := h.Svc.RejectReviewOrders(c, body, adminUUID(c))
 	if err != nil {
+		if failRuleShopScope(c, err) {
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}

@@ -243,3 +243,14 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - **view-only persona（防 #322 同类漂移）**：harness 新增第六个 persona `viewOnlyOperator`（tenant A、角色 operator，唯一店铺授权为 `ShopViewOnly` 的 `view` scope）。它是**可选 persona**（同 `platformAdmin`）：matrix.json 条目显式声明时才参与路由级探测；数据级覆盖由专用契约测试承担。
 - **新增契约测试** `view_only_persona_test.go` `TestViewOnlyPersonaStoreWriteScope`：对全部 `/orders/:id*` 与 `/order-items/:itemId*` 写路由（带路由完整性检查，新增此类路由未登记探针即失败）及买家消息草稿写路径（update/regenerate/mark-sent/ignore）断言 view-only → 403 且业务码 **40303**、零落库；纯计算 POST（`sku-candidates/batch`）与读路由保持可用（view 授权可见）。
 - **业务码统一（40301 → 40303）**：店铺级「可见但仅 view 授权」的 403 统一为 `40303 CodeStorePermissionDenied`（改动面：order 各写 handler、customerchat 草稿、finance 对账/费用）。取舍：`40303` 已是 R125 商品创建线与 `adminperm.DenyStorePermission` 的既有口径，且语义最精确（店铺数据权限）；`40301 CodeForbidden` 保留给全局/租户级 forbidden（readonly 账号写操作、跨租户 settings、生产闸门等），`40302` 保留给权限位拒绝。前端无按 40301/40303 分支的逻辑（`httpErrorCopy` 按 HTTP 403 文案），契约 fixtures 无引用，无前端改动。
+
+## round164 客服会话 view-only 写收口
+
+- **新增契约测试** `view_only_conversation_test.go` `TestViewOnlyPersonaConversationWriteScope`：客服会话族写路径（编辑/删除会话、创建绑定店铺会话、添加消息、`mark-replied`、`ai/generate-reply`、建议编辑/采纳/丢弃/apply/reject、`send-platform-message`）对 view-only 授权断言 403 + 40303、零落库；会话/消息读路径保持可用，会话详情 `canWrite=false`。
+- 实现口径：`customerchat` 写路径经 `findScopedConversationForWrite`/`findScopedSuggestionForWrite`（`adminperm.EnsureStoreOperable`），不可见店铺仍 404 不泄露存在性。
+
+## round165 线2 店铺写路由 scope 收口（安全审计）
+
+- **新增契约测试** `r165_store_write_scope_test.go`（6 用例）：订单审单决定（approve/reject）、异常工作台标记族（handle/ignore/mark）、店铺删除、店铺授权写（`PUT /shops/:id/auth`、抖店 refresh/revoke/sync-shop-info、TikTok callback）、同步创建与重试（`sync-orders`、`sync-customer-messages`、`order-sync/tasks/:id/retry`）、商品刊登目标店（publish、单品/批量 create-drafts）对 view-only 授权断言 403 + 40303 且零落库；跨租户断言 404；授权 operator/admin 正例保持放行。
+- **实现口径**：写路径统一 `adminperm.EnsureStoreOperable`（不可见/跨租户仍 404 不泄露存在性）——`order` 审单批量前置 `ensureReviewBatchOperable`（整批拒绝，避免部分生效）、`orderexception` 新增 `source_scope.go` 按 source 类型解析真实租户/店铺（未知 source fail-closed 404）、`shop` 新增 `findScopedShopForWrite`/`ensureShopOperable`（授权写与 OAuth 写路径）、`ordersync`/`customersync` 的 `CreateShopSync` 与 `RetryFailed`、`productpublish` 的 `ensureTargetsOperable` 与 `loadDouyinPublicationForWrite`。
+- **口径定调**：店铺同步（订单/客服消息）视为**店铺业务写**，需 operate 授权（闭合 R164 线2 P2 第 4 项）；`*/check`、`test-connection` 等纯探测/纯计算路径保持 view 可用。

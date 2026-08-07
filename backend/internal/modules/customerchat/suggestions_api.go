@@ -86,7 +86,7 @@ func (s *Service) RejectSuggestion(c *gin.Context, id uuid.UUID, body RejectSugg
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
 	}
-	rowPtr, err := s.findScopedSuggestion(c, id)
+	rowPtr, err := s.findScopedSuggestionForWrite(c, id)
 	if err != nil {
 		return err
 	}

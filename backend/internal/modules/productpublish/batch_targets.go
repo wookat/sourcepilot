@@ -292,6 +292,9 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	if err := s.validateBatchTargets(req.Targets); err != nil {
 		return nil, err
 	}
+	if err := s.ensureTargetsOperable(c, req.Targets); err != nil {
+		return nil, err
+	}
 	if err := s.validateBatchTaskCount(len(productIDs), len(req.Targets)); err != nil {
 		return nil, err
 	}

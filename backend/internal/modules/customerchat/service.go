@@ -311,6 +311,9 @@ func (s *Service) CreateConversation(c *gin.Context, body CreateConversationBody
 		if err := s.validateShopRef(c, body.ShopID); err != nil {
 			return nil, err
 		}
+		if err := adminperm.EnsureStoreOperable(c, s.DB, body.ShopID); err != nil {
+			return nil, err
+		}
 		row.ShopID = body.ShopID
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(row).Error; err != nil {
@@ -407,6 +410,20 @@ func (s *Service) findScopedConversation(c *gin.Context, id uuid.UUID) (*Custome
 	return &row, nil
 }
 
+// findScopedConversationForWrite loads a conversation for a mutating
+// operation: invisible/cross-tenant rows stay gorm.ErrRecordNotFound (404)
+// while view-only store grants surface adminperm.ErrStoreNotOperable (403).
+func (s *Service) findScopedConversationForWrite(c *gin.Context, id uuid.UUID) (*CustomerConversation, error) {
+	row, err := s.findScopedConversation(c, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, row.ShopID); err != nil {
+		return nil, err
+	}
+	return row, nil
+}
+
 // findScopedSuggestion loads a suggestion whose parent conversation is within
 // the request's tenant + store scope; otherwise gorm.ErrRecordNotFound.
 func (s *Service) findScopedSuggestion(c *gin.Context, id uuid.UUID) (*CustomerReplySuggestion, error) {
@@ -421,6 +438,20 @@ func (s *Service) findScopedSuggestion(c *gin.Context, id uuid.UUID) (*CustomerR
 		return nil, err
 	}
 	return &row, nil
+}
+
+// findScopedSuggestionForWrite is the mutating variant of
+// findScopedSuggestion: view-only store grants on the parent conversation
+// surface adminperm.ErrStoreNotOperable (403).
+func (s *Service) findScopedSuggestionForWrite(c *gin.Context, id uuid.UUID) (*CustomerReplySuggestion, error) {
+	row, err := s.findScopedSuggestion(c, id)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.findScopedConversationForWrite(c, row.ConversationID); err != nil {
+		return nil, err
+	}
+	return row, nil
 }
 
 func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDetailDTO, error) {
@@ -476,7 +507,7 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	rowPtr, err := s.findScopedConversation(c, id)
+	rowPtr, err := s.findScopedConversationForWrite(c, id)
 	if err != nil {
 		return nil, err
 	}
@@ -628,7 +659,7 @@ func (s *Service) DeleteConversation(c *gin.Context, id uuid.UUID, adminID *uuid
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
 	}
-	row, err := s.findScopedConversation(c, id)
+	row, err := s.findScopedConversationForWrite(c, id)
 	if err != nil {
 		return err
 	}
@@ -688,7 +719,7 @@ func (s *Service) CreateMessage(c *gin.Context, conversationID uuid.UUID, body C
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	convPtr, err := s.findScopedConversation(c, conversationID)
+	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
 	if err != nil {
 		return nil, err
 	}
@@ -764,7 +795,7 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 	if reply == "" {
 		return nil, fmt.Errorf("reply is required")
 	}
-	convPtr, err := s.findScopedConversation(c, conversationID)
+	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
 	if err != nil {
 		return nil, err
 	}
@@ -816,7 +847,7 @@ func (s *Service) UpdateSuggestion(c *gin.Context, id uuid.UUID, body UpdateSugg
 	if text == "" {
 		return fmt.Errorf("editedReply is required")
 	}
-	rowPtr, err := s.findScopedSuggestion(c, id)
+	rowPtr, err := s.findScopedSuggestionForWrite(c, id)
 	if err != nil {
 		return err
 	}
@@ -852,7 +883,7 @@ func (s *Service) AcceptSuggestion(c *gin.Context, id uuid.UUID, body AcceptSugg
 	if final == "" {
 		return fmt.Errorf("finalReply is required")
 	}
-	suPtr, err := s.findScopedSuggestion(c, id)
+	suPtr, err := s.findScopedSuggestionForWrite(c, id)
 	if err != nil {
 		return err
 	}
@@ -903,7 +934,7 @@ func (s *Service) DiscardSuggestion(c *gin.Context, id uuid.UUID, adminID *uuid.
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
 	}
-	row, err := s.findScopedSuggestion(c, id)
+	row, err := s.findScopedSuggestionForWrite(c, id)
 	if err != nil {
 		return err
 	}

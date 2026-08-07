@@ -189,7 +189,7 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 		return nil, fmt.Errorf("customerchat: ai not configured")
 	}
 
-	convPtr, err := s.findScopedConversation(c, conversationID)
+	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
 	if err != nil {
 		return nil, err
 	}

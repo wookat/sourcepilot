@@ -74,7 +74,7 @@ func (s *Service) AmazonOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redi
 }
 
 func (s *Service) AmazonOAuthCallback(c *gin.Context, shopID uuid.UUID, body AmazonOAuthCallbackBody, adminID *uuid.UUID) (*ShopDetailDTO, error) {
-	if err := s.ensureShopScoped(c, shopID); err != nil {
+	if err := s.ensureShopOperable(c, shopID); err != nil {
 		return nil, err
 	}
 	code := strings.TrimSpace(body.Code)

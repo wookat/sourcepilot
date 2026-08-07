@@ -17,6 +17,16 @@ import (
 	"gorm.io/gorm"
 )
 
+// failIfStoreNotOperable maps a view-only store grant on the parent shop to
+// 403（店铺无操作权限）, mirroring the buyer-message draft write口径.
+func failIfStoreNotOperable(c *gin.Context, err error) bool {
+	if errors.Is(err, adminperm.ErrStoreNotOperable) {
+		response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
+		return true
+	}
+	return false
+}
+
 // Handler exposes customer chat HTTP API.
 type Handler struct {
 	Svc *Service
@@ -121,6 +131,9 @@ func (h *Handler) CreateConversation(c *gin.Context) {
 	}
 	out, err := h.Svc.CreateConversation(c, body, adminUUID(c))
 	if err != nil {
+		if failIfStoreNotOperable(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -148,7 +161,8 @@ func (h *Handler) GetConversation(c *gin.Context) {
 		return
 	}
 	if out != nil {
-		out.CanWrite = adminperm.CanWriteCustomer(c, h.Svc.DB)
+		out.CanWrite = adminperm.CanWriteCustomer(c, h.Svc.DB) &&
+			adminperm.EnsureStoreOperable(c, h.Svc.DB, out.ShopID) == nil
 	}
 	response.OK(c, out)
 }
@@ -179,6 +193,9 @@ func (h *Handler) UpdateConversation(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
+		if failIfStoreNotOperable(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -203,6 +220,9 @@ func (h *Handler) DeleteConversation(c *gin.Context) {
 	if err := h.Svc.DeleteConversation(c, id, adminUUID(c)); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		if failIfStoreNotOperable(c, err) {
 			return
 		}
 		response.HandleError(c, err)
@@ -260,6 +280,9 @@ func (h *Handler) CreateMessage(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
+		if failIfStoreNotOperable(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -290,6 +313,9 @@ func (h *Handler) MarkReplied(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		if failIfStoreNotOperable(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -324,6 +350,9 @@ func (h *Handler) GenerateReply(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
+		if failIfStoreNotOperable(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -353,6 +382,9 @@ func (h *Handler) UpdateSuggestion(c *gin.Context) {
 	if err := h.Svc.UpdateSuggestion(c, id, body, adminUUID(c)); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		if failIfStoreNotOperable(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -386,6 +418,9 @@ func (h *Handler) AcceptSuggestion(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
+		if failIfStoreNotOperable(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -410,6 +445,9 @@ func (h *Handler) DiscardSuggestion(c *gin.Context) {
 	if err := h.Svc.DiscardSuggestion(c, id, adminUUID(c)); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		if failIfStoreNotOperable(c, err) {
 			return
 		}
 		response.HandleError(c, err)
@@ -443,6 +481,8 @@ func (h *Handler) SendPlatformMessage(c *gin.Context) {
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			response.Fail(c, 404, response.CodeNotFound, "not found")
+		case errors.Is(err, adminperm.ErrStoreNotOperable):
+			response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
 		case errors.Is(err, platformp.ErrCustomerMessageNotImplemented):
 			response.Fail(c, http.StatusNotImplemented, response.CodeBadRequest, err.Error())
 		case errors.Is(err, platformp.ErrPlatformCustomerMessagePermissionDenied):
@@ -530,6 +570,9 @@ func (h *Handler) ApplySuggestion(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
+		if failIfStoreNotOperable(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -559,6 +602,9 @@ func (h *Handler) RejectSuggestion(c *gin.Context) {
 	if err := h.Svc.RejectSuggestion(c, id, body, adminUUID(c)); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		if failIfStoreNotOperable(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

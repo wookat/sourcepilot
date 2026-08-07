@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -21,6 +22,21 @@ import (
 // Handler exposes customer message sync routes.
 type Handler struct {
 	Svc *Service
+}
+
+// failSyncStoreScope maps the store gate of sync writes: an invisible store
+// answers 404 and a view-only store 403 with business code 40303.
+func failSyncStoreScope(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, adminperm.ErrStoreNotOperable):
+		adminperm.DenyStorePermission(c)
+		return true
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		return true
+	default:
+		return false
+	}
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -71,6 +87,9 @@ func (h *Handler) SyncShopCustomerMessages(c *gin.Context) {
 	}
 	out, err := h.Svc.CreateShopSync(c, id, body, adminUUID(c))
 	if err != nil {
+		if failSyncStoreScope(c, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -145,6 +164,9 @@ func (h *Handler) GetTask(c *gin.Context) {
 	}
 	out, err := h.Svc.GetDTO(c, id)
 	if err != nil {
+		if failSyncStoreScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
@@ -168,6 +190,9 @@ func (h *Handler) RetryTask(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
+		if failSyncStoreScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return

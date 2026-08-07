@@ -1987,7 +1987,6 @@ Final Production Acceptance Deferred to P10
 - **P2 遗留**：MCP 页文档入口不可点击（待产品定文档挂载位置）、v9 P2-3 财务 CSV 未折算占位口径待产品确认。
 - 报告归档 `docs/ux-review/UX_REVIEW_V10_REPORT.md`，详见 `docs/progress/R162-line2.md`。
 
-
 ### 变更记录（2026-08-07）第 163 轮线2：验收包补 R158–R162 增量（fullstack-engineer）
 
 - **ACCEPTANCE_R123.md**：§一/16 合入状态收口（#312/#317/#318 已合入 main，四个 ⏳ 转 ✅）；新增 §一/17「R158–R162 增量能力」八行（#320/#321/#322/#323/#326 ✅；#326 MCP 写白名单标「方案待决策」；合并期更新：#324/#325/#327 亦已先后合入 main，八行全部 ✅）；§三/§五 同步。
@@ -2002,3 +2001,18 @@ Final Production Acceptance Deferred to P10
 - **文档核对**：env 示例/部署/升级/清单文档与实测一致，无 P0/P1 失实；P2 3 项登记（settings 直连 API 写数值型汇率被静默忽略；#327 币种设置离开确认未合入 main 待补验；恢复回退备份点后新增数据沿 R159 口径）。
 - **合并期更新（本 PR 合并 main 时点）**：#327（R162 线2 UX v10，含币种设置离开确认 `useUnsavedChangesGuard`）已合入 main，上述 P2② 由「未合入待补验」更新为「已合入，离开确认待下轮生产面补验」。
 - 详见 `docs/progress/R164.md`。
+
+### 变更记录（2026-08-07）第 164 轮线2：客服/AI 工作流季度复查（qa-engineer）
+
+- **Docker 全栈实测客服/AI 全链路**（R142 消息规则/回溯、R152 多语言模板、AI 建议降级、变量填充、批量标记、人工发送闸门）：API 层 38 项 + 双租户隔离 16 项 + 三角色三视口 UI 走查全部通过，人工确认发送闸门（绝不自动外发）成立。
+- **P1 修复：view-only 店铺授权可写客服会话**——会话族写路径（编辑/删除会话、添加消息、mark-replied、AI 建议生成与编辑/采纳/丢弃/apply/reject、send-platform-message、创建绑定店铺会话）此前对店铺 `view` 授权放行；收口为 403/40303（与订单写路由、买家消息草稿一致），detail `canWrite=false`，新增 permmatrix 契约测试 `TestViewOnlyPersonaConversationWriteScope`。
+- **P2**：regenerate 缺变体口径文档漂移（已按实现修正 `docs/api.md`）；view-only 前端只读呈现、列表写入口展示、message-sync 对 view-only 放行口径等登记待下轮。
+- 详见 `docs/progress/R164-line2.md`。
+
+### 变更记录（2026-08-07）第 165 轮线2：安全审计季度复跑（security-auditor）
+
+- **R159 零回退核实 + #322/#330 复验**：token purpose 隔离、跨租户、限流/XFF、审计 fail-closed、脱敏、生产闸门、大屏 scope 全部零回退；订单写面与客服会话写面（叠加未合并的 #330 分支）403/40303 口径成立。
+- **发现并修复 6 处 P1 view-only/跨租户越权**（Docker 双租户实测 + 先补失败测试再修）：订单审单决定、异常工作台标记族（另含跨租户可写）、店铺删除、店铺授权凭证写入与四平台 OAuth 写路径、店铺同步创建与重试、商品刊登目标店与抖店 SKU 绑定——根因均为写路径误用 `EnsureStoreVisible`/只读 scope 或漏店铺闸门，统一收口为 `EnsureStoreOperable`（403/40303，不可见/跨租户 404）。
+- **口径定调**：店铺同步属店铺业务写需 operate 授权（闭合 R164 线2 P2 第 4 项）；`PUT /settings` 数值型静默忽略经评估为非安全面（数值型返回 400，请求体 `tenantId` 为 advisory，写入一律落 JWT 租户）。
+- **回归测试**：`permmatrix` 新增 `r165_store_write_scope_test.go`（6 用例，含授权账号不被过度收紧的正例）；backend `go test ./...`、`go vet`、`govulncheck`（0 可达）全绿，`pnpm audit --prod` 13 条构建链告警无增量。
+- 报告 `docs/SECURITY_AUDIT_R165.md`，详见 `docs/progress/R165-line2.md`。

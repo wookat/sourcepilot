@@ -24,6 +24,22 @@ type Handler struct {
 	Svc *Service
 }
 
+// failPublishStoreScope maps the store gate of publish writes: a store outside
+// the caller's grants answers 404 (no existence leak) and a view-only store
+// answers 403 with business code 40303.
+func failPublishStoreScope(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, adminperm.ErrStoreNotOperable):
+		response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "当前账号无该店铺的操作权限")
+		return true
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "资源不存在")
+		return true
+	default:
+		return false
+	}
+}
+
 func adminUUID(c *gin.Context) *uuid.UUID {
 	if v, ok := c.Get(ctxkey.AdminID); ok {
 		if s, ok := v.(string); ok {
@@ -95,6 +111,9 @@ func (h *Handler) Publish(c *gin.Context) {
 	}
 	out, err := h.Svc.CreatePublishTask(c, pid, body, adminUUID(c))
 	if err != nil {
+		if failPublishStoreScope(c, err) {
+			return
+		}
 		var blocked *productcheck.BlockedError
 		if errors.As(err, &blocked) && blocked.Result != nil {
 			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
@@ -186,6 +205,9 @@ func (h *Handler) CreatePublishTargetDrafts(c *gin.Context) {
 	}
 	out, err := h.Svc.CreateDraftsForTargets(c, pid, body, adminUUID(c))
 	if err != nil {
+		if failPublishStoreScope(c, err) {
+			return
+		}
 		var blocked *productcheck.BlockedError
 		if errors.As(err, &blocked) && blocked.Result != nil {
 			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
@@ -438,6 +460,9 @@ func (h *Handler) SyncDouyinSKUBindings(c *gin.Context) {
 	}
 	out, err := h.Svc.SyncDouyinSKUBindings(c, id, adminUUID(c))
 	if err != nil {
+		if failPublishStoreScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
@@ -465,6 +490,9 @@ func (h *Handler) BindDouyinSKU(c *gin.Context) {
 	}
 	out, err := h.Svc.ManualBindDouyinSKU(c, id, body, adminUUID(c))
 	if err != nil {
+		if failPublishStoreScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
@@ -492,6 +520,9 @@ func (h *Handler) UnbindDouyinSKU(c *gin.Context) {
 	}
 	out, err := h.Svc.UnbindDouyinSKU(c, id, body, adminUUID(c))
 	if err != nil {
+		if failPublishStoreScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
@@ -587,6 +618,9 @@ func (h *Handler) CreateBatchTargetDrafts(c *gin.Context) {
 	}
 	out, err := h.Svc.CreateBatchTargetDrafts(c, body, adminUUID(c))
 	if err != nil {
+		if failPublishStoreScope(c, err) {
+			return
+		}
 		if pe, ok := err.(*PublishConfigInvalidError); ok {
 			response.JSON(c, 400, response.CodePublishConfigInvalid, pe.Message, gin.H{
 				"code":             ErrorPublishConfigInvalid,
