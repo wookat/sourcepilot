@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantquery"
 	"gorm.io/gorm"
 )
@@ -201,6 +202,13 @@ func (s *Service) AuthenticateFor(ctx context.Context, plain string, entry strin
 		return nil, fmt.Errorf("mcptoken: auth: %w", err)
 	}
 	if subtle.ConstantTimeCompare([]byte(row.TokenHash), []byte(hash)) != 1 || row.TenantID < 0 || row.Expired(time.Now().UTC()) {
+		return nil, ErrInvalidToken
+	}
+	// A tenant disabled by a platform administrator loses the token entries too,
+	// otherwise a terminated tenant keeps reading its data through MCP / Open API
+	// after the admin console has locked it out. An unavailable tenant state
+	// fails closed, matching the JWT path.
+	if err := auth.EnsureTenantActive(ctx, s.DB, row.TenantID); err != nil {
 		return nil, ErrInvalidToken
 	}
 	return &row, nil

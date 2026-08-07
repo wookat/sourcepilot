@@ -1874,3 +1874,10 @@ Final Production Acceptance Deferred to P10
 - **零发现项**：跨租户数据泄露、MCP 写路径可达、token 明文入库/入日志/入响应、SQL/参数注入、平台租户接口越权、R139 修复项回退，均无。
 - **P2 清单**：MCP 审计写失败仅告警不阻断；大屏 today 销售/毛利口径忽略 shopId/platform 筛选；大屏非法 shopId 静默降级不报 400；MCP token 上限 count→insert 竞态及其回归测试缺失；前端工具链依赖告警 13 条（2 high，均为构建/开发期）。
 - 详见 `docs/SECURITY_AUDIT_R148.md`。
+
+### 变更记录（2026-08-07）第 153 轮线1：R152 两新功能交叉 QA + 安全审查（security-engineer / qa-engineer）
+
+- **范围**：最新 `main` 上按 #308 → #309 顺序本地叠加，做开放 API 攻击面（purpose 越权、跨租户、限流绕过、泄密扫描、规范一致性、审计口径、注入）与多语言模板（regenerate 越权、语言回退、XSS/变量注入、seed 零残留）专项，含双租户三角色 Docker 实测。
+- **P1 修复**：① 被禁用/清退租户的 MCP / 开放 API token 仍可读数据（token 鉴权补租户状态校验）；② 伪造 `X-Forwarded-For` 绕过每 IP 鉴权失败预算（新增 `TRUSTED_PROXIES`，默认不信任任何代理）；③ 开放 API 审计 fail-open 与 MCP（#303）fail-closed 口径不一致（改为审计落库后才返回结果）。
+- **P2 清单**：both token 双入口双份额度；401/429 不写审计；分页非法参数静默归一化与日期 400 口径不一；operator 未授权店铺 regenerate 返回 404 与 readonly 403 口径不一；token 上限 count→insert 竞态（#303 已修未合）。
+- 详见 `docs/progress/R153.md`。
