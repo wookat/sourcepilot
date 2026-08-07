@@ -73,7 +73,8 @@ if [ "$PRE_UPGRADE_CHECK" -eq 1 ]; then
   PG_USER="$(grep -E '^POSTGRES_USER=' .env | head -n1 | cut -d= -f2- || true)"; PG_USER="${PG_USER:-trademind}"
   PG_DB="$(grep -E '^POSTGRES_DB=' .env | head -n1 | cut -d= -f2- || true)"; PG_DB="${PG_DB:-trademind}"
 
-  mkdir -p "$BACKUP_DIR" 2>/dev/null || fail "无法创建备份目录 $BACKUP_DIR（可用 BACKUP_DIR=路径 覆盖）"
+  mkdir -p "$BACKUP_DIR" 2>/dev/null || fail "无法创建备份目录 $BACKUP_DIR（当前用户 $(id -un)）：请以 root 运行，或用 BACKUP_DIR=<可写目录> 覆盖"
+  [ -w "$BACKUP_DIR" ] || fail "备份目录 $BACKUP_DIR 不可写（当前用户 $(id -un)）：请以 root 运行，或用 BACKUP_DIR=<可写目录> 覆盖"
   BACKUP_FILE="$BACKUP_DIR/trademind-pre-upgrade-$(date +%F-%H%M%S).dump"
   log "全量备份到 $BACKUP_FILE"
   "${COMPOSE[@]}" exec -T postgres pg_dump -U "$PG_USER" -d "$PG_DB" -Fc > "$BACKUP_FILE" \
