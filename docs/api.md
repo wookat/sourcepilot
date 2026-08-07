@@ -835,7 +835,7 @@ Current code-level P7 endpoints affected: product and order list APIs reject exc
 | `DELETE` | `/api/v1/order-review-rules/:ruleId` | 删除规则；越权/不存在 404；历史命中快照保留。 |
 | `POST` | `/api/v1/order-review-rules/dry-run` | 测试跑（不落库）：请求体同新增规则，对租户最近订单（≤500 单）dry-run → `{scanned, matched, samples:[{orderId, orderNo, amount, reason}]}`（样本 ≤10 条）。 |
 | `GET` | `/api/v1/order-review` | 审单工作台列表：`?page=&pageSize=&reviewStatus=&keyword=`；`reviewStatus` 缺省时只看 `pending_review`+`held`；返回 `{items:[{...订单字段, reviewStatus, itemCount, hits:[{ruleId, ruleName, action, reason, decisive}]}], total, page, pageSize, totalPages, pendingTotal}`（租户+店铺范围隔离）。 |
-| `POST` | `/api/v1/order-review/approve` | 单个/批量放行：`{orderIds:[UUID]}`（≤100）→ `{total, done, failed, results:[{orderId, orderNo?, ok, error?}]}`；仅待审/挂起订单可放行，放行后 `reviewStatus=approved` 回正常流。 |
+| `POST` | `/api/v1/order-review/approve` | 单个/批量放行：`{orderIds:[UUID]}`（≤100）→ `{total, done, failed, results:[{orderId, orderNo?, ok, error?}]}`；仅待审/挂起订单可放行，放行后 `reviewStatus=approved` 回正常流。批量中任一订单属 view-only 授权店铺时**整批 403（业务码 40303）拒绝**、零生效（R167 定案）；不可见店铺订单保持逐行「订单不存在」不泄露存在性。 |
 | `POST` | `/api/v1/order-review/reject` | 单个/批量拒绝（入取消动线）：请求/返回同放行；拒绝后 `reviewStatus=rejected` 且订单 `status=cancelled`。 |
 
 ### 自动化订单规则与执行日志（order-automation，round119 / round126）

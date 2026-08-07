@@ -261,6 +261,6 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - **本轮收口面**：手动订单/客服消息同步及各类同步任务 retry（含任务中心委托 retry）、库存同步任务（创建/retry/批量）、inventory-sync P9 run、productpublish 全写族（任务/目标草稿/抖音建品/SKU 绑定/卡死恢复）、运营任务写族、订单异常 handle/ignore、采购单写族（经关联销售订单店铺）、审单 approve/reject 行级校验、店铺记录 Update/Delete、店铺凭证 `PUT /shops/:id/auth` 与 OAuth refresh/revoke/callback/sync-shop-info。
 - **同步定性**：手动 sync-orders / sync-customer-messages 及 retry 定性为写操作（创建任务并 upsert 业务行），view-only 不再放行（R164 P2-4 定案）。
 - **批量 API 取舍（R166 集成定案）**：`/order-review/approve|reject` 采用线2 口径——批量前置 `ensureReviewBatchOperable` 整批拒绝（403 + 40303，避免部分生效）；行级 `EnsureStoreOperable` 保留为纵深防御（不可见店仍逐行「订单不存在」不泄露存在性）。OAuth authorize-url / 连接测试类只读路径保持可见性口径。
-- **新增契约测试** `view_only_sweep_test.go` `TestViewOnlyPersonaShopWriteSweep`：30 条写探针 403+40303、审单行级失败、不可见店铺 404、零落库（任务状态不变、无新建任务/运营任务/P9 run）、读路径保持可用。
+- **新增契约测试** `view_only_sweep_test.go` `TestViewOnlyPersonaShopWriteSweep`：30 条写探针 403+40303、审单批量整批拒绝（R166/R167 定案，见下条）、不可见店铺 404、零落库（任务状态不变、无新建任务/运营任务/P9 run）、读路径保持可用。
 - **matrix.json 补全**：为 shops / order-sync / message-sync / inventory-sync / product-publish / task-center / operation-tasks / orders / order-items / order-review / procurement / customer 系非 GET 探测路由补 `viewOnlyOperator` 期望 113 条（路由级防漂移；数据级由专项契约测试承担）。
 - **前端一致性**：`operableStoreIds`/`canOperateAnyStore`/`canOperateStore`（与后端 `Principal.OperableStoreIDs` 同口径）；会话列表 readonly/view-only 隐藏「新建会话/拉取平台消息」，写表单店铺选择器仅列可操作店铺，详情「废弃建议」readOnly 禁用。后端 403 仍为最终边界。
