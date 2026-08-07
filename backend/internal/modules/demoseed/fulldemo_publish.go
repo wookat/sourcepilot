@@ -95,18 +95,19 @@ func (s *FullDemoSeeder) seedPublishCapabilityPreset(tx *gorm.DB, res *FullDemoR
 	return nil
 }
 
-// seedReportCurrencyRates fills the manual USD report rate when the tenant-0
-// rate table is still empty, so demo USD orders convert in reports out of the
-// box instead of showing the "unconverted currency" notice. A non-empty rate
-// table (real configuration) is never modified.
+// seedReportCurrencyRates fills the manual USD report rate when the demo
+// tenant's rate table is still empty, so demo USD orders convert in reports
+// out of the box instead of showing the "unconverted currency" notice (the
+// fxrate provider reads rates strictly per tenant, never from tenant 0). A
+// non-empty rate table (real configuration) is never modified.
 func (s *FullDemoSeeder) seedReportCurrencyRates(tx *gorm.DB, res *FullDemoResult) error {
 	if !tx.Migrator().HasTable("settings") {
 		return nil
 	}
 	const demoRates = `{"USD":"7.20"}`
 	var row settings.Setting
-	err := tx.Where("tenant_id = 0 AND group_key = ? AND item_key = ?",
-		fxrate.SettingsGroup, fxrate.KeyRates).First(&row).Error
+	err := tx.Where("tenant_id = ? AND group_key = ? AND item_key = ?",
+		s.TenantID, fxrate.SettingsGroup, fxrate.KeyRates).First(&row).Error
 	switch {
 	case err == nil:
 		if v := strings.TrimSpace(row.ItemValue); v != "" && v != "{}" {
@@ -117,7 +118,7 @@ func (s *FullDemoSeeder) seedReportCurrencyRates(tx *gorm.DB, res *FullDemoResul
 			return fmt.Errorf("demoseed: update report currency rates: %w", err)
 		}
 	case errors.Is(err, gorm.ErrRecordNotFound):
-		create := settings.Setting{TenantID: 0, GroupKey: fxrate.SettingsGroup,
+		create := settings.Setting{TenantID: s.TenantID, GroupKey: fxrate.SettingsGroup,
 			ItemKey: fxrate.KeyRates, ItemValue: demoRates, ValueType: "json", Remark: demoSettingRemark}
 		if err := tx.Create(&create).Error; err != nil {
 			return fmt.Errorf("demoseed: create report currency rates: %w", err)

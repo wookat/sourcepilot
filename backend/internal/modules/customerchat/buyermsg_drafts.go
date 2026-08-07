@@ -196,11 +196,27 @@ func (s *Service) findTenantDraft(c *gin.Context, id uuid.UUID) (*BuyerMessageDr
 	return &row, nil
 }
 
+// findTenantDraftForWrite resolves one draft for a write action: out-of-scope
+// drafts stay 404 while view-only store grants are rejected with 403.
+func (s *Service) findTenantDraftForWrite(c *gin.Context, id uuid.UUID) (*BuyerMessageDraft, error) {
+	row, err := s.findTenantDraft(c, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, row.ShopID); err != nil {
+		if errors.Is(err, adminperm.ErrStoreNotOperable) {
+			return nil, err
+		}
+		return nil, ErrBuyerMsgDraftNotFound
+	}
+	return row, nil
+}
+
 const buyerMsgDraftContentMaxLen = 4000
 
 // UpdateBuyerMsgDraft edits the content of one pending draft.
 func (s *Service) UpdateBuyerMsgDraft(c *gin.Context, id uuid.UUID, content string, adminID *uuid.UUID) (*BuyerMsgDraftRow, error) {
-	row, err := s.findTenantDraft(c, id)
+	row, err := s.findTenantDraftForWrite(c, id)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +253,7 @@ func (s *Service) UpdateBuyerMsgDraft(c *gin.Context, id uuid.UUID, content stri
 // template using the requested language variant（工作台人工切换语言）。只改
 // 草稿内容与语言标注，不发送任何平台消息。
 func (s *Service) RegenerateBuyerMsgDraft(c *gin.Context, id uuid.UUID, language string, adminID *uuid.UUID) (*BuyerMsgDraftRow, error) {
-	row, err := s.findTenantDraft(c, id)
+	row, err := s.findTenantDraftForWrite(c, id)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +330,7 @@ func (s *Service) buyerMsgShopNamesForDraft(c *gin.Context, row *BuyerMessageDra
 
 // MarkBuyerMsgDraftSent records the human "已在平台后台发送" receipt for one draft.
 func (s *Service) MarkBuyerMsgDraftSent(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (*BuyerMsgDraftRow, error) {
-	row, err := s.findTenantDraft(c, id)
+	row, err := s.findTenantDraftForWrite(c, id)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +357,7 @@ func (s *Service) MarkBuyerMsgDraftSent(c *gin.Context, id uuid.UUID, adminID *u
 
 // IgnoreBuyerMsgDraft marks one pending draft as ignored (won't be regenerated).
 func (s *Service) IgnoreBuyerMsgDraft(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (*BuyerMsgDraftRow, error) {
-	row, err := s.findTenantDraft(c, id)
+	row, err := s.findTenantDraftForWrite(c, id)
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +403,7 @@ func (s *Service) BatchMarkBuyerMsgDraftsSent(c *gin.Context, ids []uuid.UUID, a
 	now := time.Now().UTC()
 	tx := s.DB.WithContext(c.Request.Context()).Model(&BuyerMessageDraft{}).
 		Where("tenant_id = ? AND id IN ? AND status = ?", tid, ids, BuyerMsgDraftPending)
-	tx, err = adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
+	tx, err = adminperm.ApplyStoreOperateScope(c, s.DB, tx, "shop_id")
 	if err != nil {
 		return nil, err
 	}

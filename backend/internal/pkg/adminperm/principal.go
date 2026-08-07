@@ -63,6 +63,34 @@ func (p *Principal) AllowedStoreIDs() []uuid.UUID {
 	return out
 }
 
+// OperableStoreIDs returns nil for admin (all stores), otherwise the store ids
+// the principal may write to (grant scope operate/manage).
+func (p *Principal) OperableStoreIDs() []uuid.UUID {
+	if p == nil || p.IsAdmin() {
+		return nil
+	}
+	if p.IsReadonly() || len(p.StoreGrants) == 0 {
+		return []uuid.UUID{}
+	}
+	seen := make(map[uuid.UUID]struct{}, len(p.StoreGrants))
+	out := make([]uuid.UUID, 0, len(p.StoreGrants))
+	for _, g := range p.StoreGrants {
+		if g.StoreID == uuid.Nil {
+			continue
+		}
+		scope := strings.TrimSpace(strings.ToLower(g.PermissionScope))
+		if scope != "operate" && scope != "manage" {
+			continue
+		}
+		if _, ok := seen[g.StoreID]; ok {
+			continue
+		}
+		seen[g.StoreID] = struct{}{}
+		out = append(out, g.StoreID)
+	}
+	return out
+}
+
 // CanViewStore checks read access to a store.
 func (p *Principal) CanViewStore(storeID uuid.UUID) bool {
 	if p == nil || storeID == uuid.Nil {

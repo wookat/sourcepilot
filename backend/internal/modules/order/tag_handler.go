@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -26,6 +27,8 @@ func failOrderTagError(c *gin.Context, err error) {
 		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "标签不存在")
 	case errors.Is(err, ErrNotFound), errors.Is(err, gorm.ErrRecordNotFound):
 		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "订单不存在")
+	case errors.Is(err, adminperm.ErrStoreNotOperable):
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "店铺无操作权限")
 	default:
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 	}
