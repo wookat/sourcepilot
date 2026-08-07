@@ -142,15 +142,15 @@ test.describe('R115 数据搬家：库存期初导入与映射方案', () => {
     await writeGuard.expectRequestCount('save-mapping', 1);
   });
 
-  test('数据导出：四类全量 CSV 导出入口', async ({ admin }) => {
+  test('数据导出：五类全量 CSV 导出入口', async ({ admin }) => {
     const { page } = admin;
     routeMappings(page, []);
 
     await admin.goto('/settings/migration');
     await page.getByRole('tab', { name: '数据导出' }).click();
 
-    await expect(page.getByText('四类数据均可全量导出为 CSV', { exact: false })).toBeVisible();
-    for (const label of ['商品', '订单', '库存期初', '货源档案']) {
+    await expect(page.getByText('五类数据均可全量导出为 CSV', { exact: false })).toBeVisible();
+    for (const label of ['商品', '订单', '库存期初', '货源档案', '回款记录']) {
       await expect(
         page.getByRole('row').filter({ hasText: label }).getByRole('button', { name: '导出 CSV' }).first(),
       ).toBeVisible();

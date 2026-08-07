@@ -52,7 +52,9 @@ export function uploadStatusTag(row: Pick<BackupJob, 'uploadStatus' | 'uploadErr
 }
 
 export default function BackupsPage() {
-  const { initialState } = useModel('@@initialState');
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: API.CurrentUser };
+  };
   const readonly = isReadonly(initialState?.currentUser?.role);
   const [items, setItems] = useState<BackupJob[]>([]);
   const [loading, setLoading] = useState(false);

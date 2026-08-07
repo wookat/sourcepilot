@@ -67,6 +67,14 @@ const AUDIT_STATUS_TAGS: Record<string, { color: string; label: string }> = {
   rate_limited: { color: 'gold', label: '已限流' },
 };
 
+const OPENAPI_ENDPOINT_OPTIONS = [
+  'openapi:orders_list',
+  'openapi:orders_detail',
+  'openapi:inventory_list',
+  'openapi:reports_summary',
+  'openapi:exceptions_list',
+];
+
 function expiryCell(row: McpTokenRow) {
   if (!row.expiresAt) {
     return <Typography.Text type="secondary">不过期</Typography.Text>;
@@ -350,18 +358,22 @@ export default function McpTokensPage() {
         </Typography.Paragraph>
       </Modal>
 
-      <Card title="工具调用审计日志" style={{ marginTop: 16 }}>
+      <Card title="MCP / 开放 API 调用审计日志" style={{ marginTop: 16 }}>
         <Space style={{ marginBottom: 16 }} wrap>
           <Select
             allowClear
-            placeholder="工具"
-            style={{ width: 200 }}
+            showSearch
+            placeholder="工具 / 开放 API 接口"
+            style={{ width: 220 }}
             value={auditTool}
             onChange={(v) => {
               setAuditPage(1);
               setAuditTool(v);
             }}
-            options={MCP_TOOL_OPTIONS.map((t) => ({ value: t, label: t }))}
+            options={[
+              { label: 'MCP 工具', options: MCP_TOOL_OPTIONS.map((t) => ({ value: t, label: t })) },
+              { label: '开放 API', options: OPENAPI_ENDPOINT_OPTIONS.map((t) => ({ value: t, label: t })) },
+            ]}
           />
           <Select
             allowClear
@@ -379,7 +391,7 @@ export default function McpTokensPage() {
           />
           <Button onClick={() => void loadAudits()}>刷新</Button>
           <Typography.Text type="secondary">
-            每次 MCP 工具调用记录一条；鉴权失败与限流事件按来源每分钟至多一条；不记录查询参数与查询结果内容
+            每次 MCP 工具调用与开放 API 调用（openapi: 前缀）各记录一条；鉴权失败与限流事件按来源每分钟至多一条；不记录查询参数与查询结果内容
           </Typography.Text>
         </Space>
         {auditError ? (
