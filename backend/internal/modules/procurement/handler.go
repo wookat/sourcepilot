@@ -44,6 +44,7 @@ func (h *Handler) requestScope(c *gin.Context) Scope {
 	}
 	if p, _ := adminperm.LoadPrincipal(c, db); p != nil {
 		sc.AllowedShopIDs = p.AllowedStoreIDs()
+		sc.OperableShopIDs = p.OperableStoreIDs()
 	}
 	return sc
 }
@@ -70,6 +71,35 @@ func (h *Handler) scopePO() gin.HandlerFunc {
 		}
 		if !visible {
 			response.Fail(c, 404, response.CodeNotFound, "采购单不存在")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// operatePO is the route-level guard for /procurement/orders/:id write
+// endpoints: purchase orders whose sales orders belong to view-only stores
+// answer 403/40303 (invisible ones already answered 404 in scopePO).
+func (h *Handler) operatePO() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !h.ok() {
+			c.Next()
+			return
+		}
+		id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+		if err != nil {
+			c.Next() // the handler reports invalid id as 400
+			return
+		}
+		operable, err := h.Svc.POOperable(c.Request.Context(), id, h.requestScope(c))
+		if err != nil {
+			handleProcurementError(c, err)
+			c.Abort()
+			return
+		}
+		if !operable {
+			response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
 			c.Abort()
 			return
 		}
@@ -155,6 +185,15 @@ func (h *Handler) Generate(c *gin.Context) {
 		}
 		if !visible {
 			response.Fail(c, 404, response.CodeNotFound, "订单不存在")
+			return
+		}
+		operable, err := h.Svc.SalesOrderOperable(c.Request.Context(), oid, sc)
+		if err != nil {
+			handleProcurementError(c, err)
+			return
+		}
+		if !operable {
+			response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
 			return
 		}
 	}

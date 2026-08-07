@@ -148,6 +148,51 @@ export function canRetryTasks(role?: string | null, perms?: string[]): boolean {
   return hasPermission(role, PERMISSIONS.TASK_RETRY, perms);
 }
 
+export type StoreScopeGrant = {
+  storeId: string;
+  permissionScope?: string;
+};
+
+/**
+ * 可写店铺范围（与后端 adminperm.OperableStoreIDs 口径一致）：
+ * admin 返回 'all'；readonly 返回 []；其余角色仅返回 scope 为
+ * operate/manage 的授权店铺（scope 为 view 的店铺只读）。
+ */
+export function operableStoreIds(
+  role?: string | null,
+  grants?: StoreScopeGrant[] | null,
+): 'all' | string[] {
+  const r = normalizeRole(role);
+  if (r === ROLES.ADMIN) return 'all';
+  if (r === ROLES.READONLY) return [];
+  return (grants || [])
+    .filter((g) => {
+      const scope = (g.permissionScope || '').trim().toLowerCase();
+      return scope === 'operate' || scope === 'manage';
+    })
+    .map((g) => g.storeId)
+    .filter(Boolean);
+}
+
+export function canOperateAnyStore(
+  role?: string | null,
+  grants?: StoreScopeGrant[] | null,
+): boolean {
+  const ids = operableStoreIds(role, grants);
+  return ids === 'all' || ids.length > 0;
+}
+
+export function canOperateStore(
+  storeId: string | undefined | null,
+  role?: string | null,
+  grants?: StoreScopeGrant[] | null,
+): boolean {
+  const ids = operableStoreIds(role, grants);
+  if (ids === 'all') return true;
+  if (!storeId) return false;
+  return ids.includes(storeId);
+}
+
 export function canReadOperationTasks(role?: string | null, perms?: string[]): boolean {
   return hasPermission(role, PERMISSIONS.OPERATION_TASK_AUDIT_READ, perms);
 }

@@ -2,6 +2,8 @@ import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import {
   canManageSettings,
   canManageUsers,
+  canOperateAnyStore,
+  canOperateStore,
   canRetryTasks,
   canWriteCustomer,
   canWriteInventory,
@@ -32,5 +34,8 @@ export function usePermission() {
     canManageUsers: canManageUsers(role, user?.permissions),
     canRetryTasks: canRetryTasks(role, user?.permissions),
     storePermissions: user?.storePermissions || [],
+    canOperateAnyStore: canOperateAnyStore(role, user?.storePermissions),
+    canOperateStore: (storeId?: string | null) =>
+      canOperateStore(storeId, role, user?.storePermissions),
   };
 }

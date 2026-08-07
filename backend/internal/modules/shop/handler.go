@@ -255,8 +255,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 	if _, err := h.Svc.Update(c, id, body, adminUUID(c)); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failShopStoreScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

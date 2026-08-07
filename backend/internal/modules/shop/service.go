@@ -344,14 +344,11 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 	if err != nil {
 		return nil, err
 	}
-	if !adminperm.RequireStoreOperate(c, s.DB, id) {
-		return nil, gorm.ErrRecordNotFound
+	if _, err := s.findScopedShopForWrite(c, id); err != nil {
+		return nil, err
 	}
 	var row Shop
 	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, id); err != nil {
-		return nil, err
-	}
-	if err := adminperm.EnsureStoreVisible(c, s.DB, &id); err != nil {
 		return nil, err
 	}
 	if v := strings.TrimSpace(body.ShopName); v != "" {

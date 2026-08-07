@@ -326,8 +326,7 @@ func (h *Handler) RetryTask(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failPublishStoreScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -545,8 +544,7 @@ func (h *Handler) CancelTask(c *gin.Context) {
 	}
 	out, err := h.Svc.CancelTask(c, id, adminUUID(c))
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failPublishStoreScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -698,8 +696,7 @@ func (h *Handler) RetryFailedBatch(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailedBatchTasks(c, id, adminUUID(c))
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failPublishStoreScope(c, err) {
 			return
 		}
 		if errors.Is(err, ErrBatchAccessDenied) {
@@ -724,8 +721,7 @@ func (h *Handler) CancelPendingBatch(c *gin.Context) {
 	}
 	out, err := h.Svc.CancelPendingBatchTasks(c, id, adminUUID(c))
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failPublishStoreScope(c, err) {
 			return
 		}
 		if errors.Is(err, ErrBatchAccessDenied) {

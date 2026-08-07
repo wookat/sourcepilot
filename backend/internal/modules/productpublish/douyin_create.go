@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
@@ -57,6 +58,9 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 	sid, err := uuid.Parse(strings.TrimSpace(body.ShopID))
 	if err != nil || sid == uuid.Nil {
 		return nil, fmt.Errorf("invalid shopId")
+	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &sid); err != nil {
+		return nil, err
 	}
 
 	var cfg product.ProductPlatformPublishConfig

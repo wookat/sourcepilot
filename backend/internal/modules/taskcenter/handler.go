@@ -206,6 +206,9 @@ func (h *Handler) Retry(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.RetryFailure(c, tid, id); err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		msg := err.Error()
 		switch {
 		case strings.Contains(msg, "collect queue disabled"):

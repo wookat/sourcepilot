@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -166,7 +167,7 @@ func (s *APIService) CreateInitialDraft(ctx context.Context, actor APIActor, tas
 	if err := s.Authorizer.CanEdit(ctx, actor.TenantID, actor.ActorID, taskID); err != nil {
 		return nil, ErrPermissionDenied
 	}
-	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
+	if _, err := s.operableTask(ctx, actor, taskID); err != nil {
 		return nil, err
 	}
 	payload, err := apiJSONPayload(req.Payload)
@@ -191,7 +192,7 @@ func (s *APIService) EditLatestDraft(ctx context.Context, actor APIActor, taskID
 	if err := s.Authorizer.CanEdit(ctx, actor.TenantID, actor.ActorID, taskID); err != nil {
 		return nil, ErrPermissionDenied
 	}
-	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
+	if _, err := s.operableTask(ctx, actor, taskID); err != nil {
 		return nil, err
 	}
 	payload, err := apiJSONPayload(req.Payload)
@@ -262,7 +263,7 @@ func (s *APIService) decide(ctx context.Context, actor APIActor, taskID uuid.UUI
 	if err := apiValidateComment(req.Comment); err != nil {
 		return nil, err
 	}
-	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
+	if _, err := s.operableTask(ctx, actor, taskID); err != nil {
 		return nil, err
 	}
 	input := ApprovalInput{TenantID: actor.TenantID, OperationTaskID: taskID, ExpectedRevision: req.ExpectedTaskRevision, DraftVersion: req.DraftVersion, DraftPayloadHash: req.DraftPayloadHash, ReviewerID: actor.ActorID, ReviewerRole: reviewerRoleForActor(actor.Role), Reason: req.Reason, Comment: req.Comment, RequestID: requestID, IdempotencyKey: idemKey}
@@ -290,7 +291,7 @@ func (s *APIService) Execute(ctx context.Context, actor APIActor, taskID uuid.UU
 	if err := s.Authorizer.CanExecute(ctx, actor.TenantID, actor.ActorID, taskID); err != nil {
 		return nil, ErrPermissionDenied
 	}
-	task, err := s.visibleTask(ctx, actor, taskID)
+	task, err := s.operableTask(ctx, actor, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +315,7 @@ func (s *APIService) RetryExecution(ctx context.Context, actor APIActor, taskID 
 	if err := apiValidateReason(req.Reason, true); err != nil {
 		return nil, err
 	}
-	task, err := s.visibleTask(ctx, actor, taskID)
+	task, err := s.operableTask(ctx, actor, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +348,7 @@ func (s *APIService) Cancel(ctx context.Context, actor APIActor, taskID uuid.UUI
 	if err := apiValidateReason(req.Reason, true); err != nil {
 		return nil, err
 	}
-	if _, err := s.visibleTask(ctx, actor, taskID); err != nil {
+	if _, err := s.operableTask(ctx, actor, taskID); err != nil {
 		return nil, err
 	}
 	keyHash := safeKeyHash(idemKey)
@@ -488,6 +489,20 @@ func (s *APIService) visibleTask(ctx context.Context, actor APIActor, taskID uui
 	return task, nil
 }
 
+// operableTask loads a task and enforces the actor's writable store scope
+// for mutations: invisible tasks stay 404, visible view-only-shop tasks
+// surface adminperm.ErrStoreNotOperable (403/40303).
+func (s *APIService) operableTask(ctx context.Context, actor APIActor, taskID uuid.UUID) (*OperationTask, error) {
+	task, err := s.visibleTask(ctx, actor, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if !actor.shopOperable(task.ShopID) {
+		return nil, adminperm.ErrStoreNotOperable
+	}
+	return task, nil
+}
+
 // resolveCreateShop validates the create-request shop binding. Admin may
 // omit shopId to create a tenant-level task; scoped roles must bind an
 // authorized shop. Unauthorized or foreign-tenant shops surface as
@@ -506,6 +521,9 @@ func (s *APIService) resolveCreateShop(ctx context.Context, actor APIActor, rawS
 	}
 	if !actor.shopAllowed(&shopID) {
 		return nil, ErrNotFound
+	}
+	if !actor.shopOperable(&shopID) {
+		return nil, adminperm.ErrStoreNotOperable
 	}
 	var count int64
 	if err := s.DB.WithContext(ctx).Table("shops").

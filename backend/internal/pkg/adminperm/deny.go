@@ -1,6 +1,8 @@
 package adminperm
 
 import (
+	"errors"
+
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -19,6 +21,21 @@ func DenyReadonly(c *gin.Context) {
 // DenyStorePermission responds when store scope blocks access.
 func DenyStorePermission(c *gin.Context) {
 	response.Fail(c, 403, response.CodeStorePermissionDenied, "当前账号无权访问该店铺数据")
+}
+
+// FailStoreWriteScope maps store write scope violations onto the unified
+// envelope: missing / cross-tenant / invisible stores → 404 (no existence
+// leak), view-only stores → 403/40303. It reports whether err was consumed.
+func FailStoreWriteScope(c *gin.Context, err error) bool {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		response.Fail(c, 404, response.CodeNotFound, "记录不存在或已被删除")
+		return true
+	}
+	if errors.Is(err, ErrStoreNotOperable) {
+		response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
+		return true
+	}
+	return false
 }
 
 // DenySettings responds when settings management is required.

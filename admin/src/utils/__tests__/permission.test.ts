@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { canReviewOperationTasks, isPlatformAdmin } from '../permission';
+import {
+  canOperateAnyStore,
+  canOperateStore,
+  canReviewOperationTasks,
+  isPlatformAdmin,
+  operableStoreIds,
+} from '../permission';
 import { canAccessPath } from '../menuAccess';
 
 describe('isPlatformAdmin / 平台租户路由', () => {
@@ -52,5 +58,33 @@ describe('canReviewOperationTasks', () => {
   it('profile 权限列表优先于角色默认权限', () => {
     expect(canReviewOperationTasks('readonly', ['operationtask.review'])).toBe(true);
     expect(canReviewOperationTasks('admin', ['product.view'])).toBe(false);
+  });
+});
+
+describe('operableStoreIds / 可写店铺范围（round165）', () => {
+  const grants = [
+    { storeId: 's-view', permissionScope: 'view' },
+    { storeId: 's-op', permissionScope: 'operate' },
+    { storeId: 's-manage', permissionScope: 'manage' },
+  ];
+
+  it('admin 全部可写；readonly 不可写', () => {
+    expect(operableStoreIds('admin', grants)).toBe('all');
+    expect(operableStoreIds('readonly', grants)).toEqual([]);
+  });
+
+  it('operator 仅 operate/manage 授权店铺可写，view 授权只读', () => {
+    expect(operableStoreIds('operator', grants)).toEqual(['s-op', 's-manage']);
+    expect(canOperateStore('s-view', 'operator', grants)).toBe(false);
+    expect(canOperateStore('s-op', 'operator', grants)).toBe(true);
+    expect(canOperateStore('s-view', 'admin', grants)).toBe(true);
+  });
+
+  it('仅 view 授权的 operator 无任何可写店铺', () => {
+    const viewOnly = [{ storeId: 's-view', permissionScope: 'view' }];
+    expect(canOperateAnyStore('operator', viewOnly)).toBe(false);
+    expect(canOperateAnyStore('operator', grants)).toBe(true);
+    expect(canOperateAnyStore('readonly', grants)).toBe(false);
+    expect(canOperateAnyStore('admin', [])).toBe(true);
   });
 });
