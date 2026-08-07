@@ -2030,3 +2030,9 @@ Final Production Acceptance Deferred to P10
 - **门禁全绿**：permmatrix 30 探针 sweep + viewOnlyOperator 113 契约行 + r165 用例、backend 全量/integration、前端 358、契约、构建、全量 E2E 358 passed。
 - **Docker 全栈重建实测**：R57 主链路无过度收紧、view-only 六处修复面 403/40303、跨租户 404、双租户零残留、三角色三视口通过。
 - **P0/P1 零**；P2 2 项（view-only 同步重试无前端提示；#332 PR 描述批量语义待更新）。详见 `docs/progress/R166.md`。
+
+### 变更记录（2026-08-07）第 166 轮线2：view-only 前端体验与后端权限一致性审计（qa-engineer / user-experience-officer）
+
+- **Docker 全栈三账号实测**（operator 含 view-only 店铺授权 / readonly / admin）R165 修复的六个 view-only 写操作面（审单决定、异常标记族、店铺删除、店铺授权/OAuth 写、店铺同步/重试、刊登目标店）：六面全部 PASS，无 P0/P1；403/40303 均有中文提示「店铺无操作权限」，无裸 JSON/英文原文/越权状态变化。
+- **P2 登记**：删除店铺确认弹窗按钮英文 `Cancel`/`OK`；审单按钮未按店铺 scope 预禁用（靠点击后提示兜底）。
+- 详见 `docs/progress/R166-line2.md`。
