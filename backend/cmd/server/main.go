@@ -309,6 +309,13 @@ func main() {
 
 	engine := gin.New()
 	engine.MaxMultipartMemory = cfg.MaxUploadBytes()
+	// Only listed proxies may set the client IP through X-Forwarded-For; with
+	// the default (empty) list gin falls back to the peer address, so per-IP
+	// budgets cannot be evaded by rotating the header.
+	if err := engine.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		log.Error("trusted_proxies_invalid", "error", err.Error())
+		os.Exit(1)
+	}
 	engine.Use(
 		middleware.CORS(cfg),
 		middleware.RequestID(),

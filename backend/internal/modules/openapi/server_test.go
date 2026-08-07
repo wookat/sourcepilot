@@ -33,6 +33,10 @@ func openTestDB(t *testing.T) *gorm.DB {
 		&order.Order{}, &order.OrderItem{}, &product.Product{}, &product.ProductSKU{}); err != nil {
 		t.Fatal(err)
 	}
+	// Token authentication also checks the tenant is not disabled.
+	if err := db.Exec(`CREATE TABLE tenants (id integer primary key, status text, deleted_at datetime)`).Error; err != nil {
+		t.Fatal(err)
+	}
 	return db
 }
 
