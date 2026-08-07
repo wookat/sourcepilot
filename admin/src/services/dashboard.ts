@@ -1,4 +1,4 @@
-import { getWithParams } from './request';
+import { getWithParams, putJSON } from './request';
 
 export type DashboardSummary = {
   totalProducts: number;
@@ -161,12 +161,19 @@ export async function queryProductOperationDashboard(params?: {
   });
 }
 
+export type ScreenMoney = {
+  currency: string;
+  amount: number;
+};
+
 export type ScreenToday = {
   orderCount: number;
   paidOrderCount: number;
   salesBase: number;
   baseCurrency: string;
   unconvertedCurrencies?: string[];
+  unconvertedRevenue?: ScreenMoney[];
+  convertedCurrencies?: string[];
   grossProfitBase?: number;
   marginPercent?: number;
 };
@@ -200,6 +207,22 @@ export type ScreenAlert = {
   occurredAt?: string;
 };
 
+export type ScreenCardKey =
+  | 'kpi_orders'
+  | 'kpi_sales'
+  | 'kpi_profit'
+  | 'kpi_alerts'
+  | 'todos'
+  | 'funnel'
+  | 'trend'
+  | 'alerts';
+
+export type ScreenCard = {
+  key: ScreenCardKey;
+  title: string;
+  enabled: boolean;
+};
+
 export type DashboardScreenDTO = {
   generatedAt: string;
   funnelDays: number;
@@ -209,6 +232,7 @@ export type DashboardScreenDTO = {
   funnel: ScreenFunnelStage[];
   trend: ScreenTrendPoint[];
   alerts: ScreenAlert[];
+  cards?: ScreenCard[];
 };
 
 export async function queryDashboardScreen(params?: { platform?: string; shopId?: string }) {
@@ -216,4 +240,16 @@ export async function queryDashboardScreen(params?: { platform?: string; shopId?
     platform: params?.platform,
     shopId: params?.shopId,
   });
+}
+
+export type DashboardScreenConfigDTO = {
+  cards: ScreenCard[];
+};
+
+export async function queryDashboardScreenConfig() {
+  return getWithParams<DashboardScreenConfigDTO>('/api/v1/dashboard/screen/config', {});
+}
+
+export async function updateDashboardScreenConfig(cards: { key: ScreenCardKey; enabled: boolean }[]) {
+  return putJSON<DashboardScreenConfigDTO>('/api/v1/dashboard/screen/config', { cards });
 }
