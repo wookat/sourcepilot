@@ -60,6 +60,8 @@ chmod 600 .env
 
 数据库结构迁移由 backend 容器启动时自动执行，无需手工建表。
 
+> **客户端 IP 口径（TRUSTED_PROXIES）**：本 compose 的外部流量链路为 Caddy → admin(nginx) → backend。`TRUSTED_PROXIES` 留空（默认）时 backend 按 TCP peer（admin 容器 IP）计每 IP 限流与访问日志，所有外部客户端共享同一预算，且伪造 `X-Forwarded-For` 无效；需按真实客户端 IP 计时，把 caddy 与 admin 所在的 compose 网络网段填入 `TRUSTED_PROXIES`（Caddy 会丢弃不可信客户端自带的 `X-Forwarded-For`，伪造仍然无效）。详见 `.env.prod.example` 与 `docs/env.md`。
+
 ## 三、日常升级
 
 ```bash
