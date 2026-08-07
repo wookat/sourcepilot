@@ -263,3 +263,7 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - **新增契约测试** `view_only_sweep_test.go` `TestViewOnlyPersonaShopWriteSweep`：30 条写探针 403+40303、审单批量整批拒绝（R166/R167 定案，见下条）、不可见店铺 404、零落库（任务状态不变、无新建任务/运营任务/P9 run）、读路径保持可用。
 - **matrix.json 补全**：为 shops / order-sync / message-sync / inventory-sync / product-publish / task-center / operation-tasks / orders / order-items / order-review / procurement / customer 系非 GET 探测路由补 `viewOnlyOperator` 期望 113 条（路由级防漂移；数据级由专项契约测试承担）。
 - **前端一致性**：`operableStoreIds`/`canOperateAnyStore`/`canOperateStore`（与后端 `Principal.OperableStoreIDs` 同口径）；会话列表 readonly/view-only 隐藏「新建会话/拉取平台消息」，写表单店铺选择器仅列可操作店铺，详情「废弃建议」readOnly 禁用。后端 403 仍为最终边界。
+
+## round168 店铺权限拒绝文案统一
+
+- **统一文案**：所有 `40303 CodeStorePermissionDenied` 拒绝响应的 message 统一为「店铺无操作权限」。收口面：`adminperm.DenyStorePermission`（原「当前账号无权访问该店铺数据」）、`security.Deny` 的 `ErrShopAccessDenied` 分支与 `tasktenant.WrapError` 的店铺 scope 分支（原「当前账号无权访问此店铺」）、`product.ErrDraftShopNotOperable`（原「当前账号无权访问该店铺数据」）。前端 toast 走 envelope message、tooltip/预禁用文案已为同文案，全站一致。

@@ -74,7 +74,7 @@ func WrapError(err error) string {
 	case err == security.ErrTaskTenantMismatch, err == security.ErrTaskResourceMismatch:
 		return "资源不属于当前租户"
 	case err == security.ErrTaskShopScopeMismatch:
-		return "当前账号无权访问此店铺"
+		return "店铺无操作权限"
 	default:
 		return fmt.Sprintf("%v", err)
 	}
