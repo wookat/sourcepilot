@@ -105,7 +105,7 @@ func TestAuditWriteFailureRejectsToolCall(t *testing.T) {
 	db := openTestDB(t)
 	seedOrders(t, db)
 	srv, tokens, _ := newAuditedServer(t, db)
-	res, err := tokens.Create(context.Background(), 1, "audit-outage", nil, nil)
+	res, err := tokens.Create(context.Background(), 1, "audit-outage", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
