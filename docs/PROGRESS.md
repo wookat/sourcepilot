@@ -1961,3 +1961,9 @@ Final Production Acceptance Deferred to P10
 - **P2-3 业务码统一**：店铺级「可见但仅 view 授权」403 统一 40303（order/customerchat/finance 各写 handler），40301 保留全局/租户级 forbidden、40302 保留权限位拒绝；前端与契约无引用无需改动。
 - **P2-4 依赖告警**：13 条构建链告警逐项评估，0 条可不跨 major 净收敛（react-router minor 覆盖实测反增告警已回退），登记 `docs/DEPENDENCY_ADVISORIES_R160.md`。
 - 详见 `docs/progress/R160.md`。
+
+### 变更记录（2026-08-07）第 163 轮线2：验收包补 R158–R162 增量（fullstack-engineer）
+
+- **ACCEPTANCE_R123.md**：§一/16 合入状态收口（#312/#317/#318 已合入 main，四个 ⏳ 转 ✅）；新增 §一/17「R158–R162 增量能力」八行（#320/#321/#322/#323/#326 ✅，#324/#325/#327 ⏳ 待合并；#326 MCP 写白名单标「方案待决策」）；§三/§五 同步。
+- **DEMO_SCRIPT.md**：新增 R163 增补段（不新增独立步骤，30 分钟不变；#318 合入后第 1b 步无需叠加分支；币种未保存提示并入第 19 步后顺带演示；MCP 审计卡更名口径同步第 23 步）；清理 #308/#309/#318 陈旧 ⏳ 标注；Docker 全栈三角色按更新后脚本实跑留证（录屏外置不入库），失实处即修。
+- 详见 `docs/progress/R163-line2.md`。
