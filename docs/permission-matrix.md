@@ -237,3 +237,9 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 
 - **`GET /api/open/v1/orders` / `GET /api/open/v1/orders/:orderNo` / `GET /api/open/v1/inventory` / `GET /api/open/v1/reports/summary` / `GET /api/open/v1/exceptions`** 均登记为 `probe: false`：入口不走后台 JWT persona，鉴权为同一租户级只读 API token 体系（token 用途须为 `openapi`/`both`，存量/默认 `mcp` 用途 token 不能访问）。租户隔离、跨租户 404、用途限制、吊销失效、只读方法面（仅 GET）与 401/429 行为由 `openapi` 模块测试（`server_test.go`、`spec_test.go`）覆盖。
 - token 管理路由不变（`/api/v1/mcp/tokens*`），创建 body 新增可选 `purpose`，权限预期不变。使用说明见 `docs/open-api.md`。
+
+## round160 R159 审计 P2 收口
+
+- **view-only persona（防 #322 同类漂移）**：harness 新增第六个 persona `viewOnlyOperator`（tenant A、角色 operator，唯一店铺授权为 `ShopViewOnly` 的 `view` scope）。它是**可选 persona**（同 `platformAdmin`）：matrix.json 条目显式声明时才参与路由级探测；数据级覆盖由专用契约测试承担。
+- **新增契约测试** `view_only_persona_test.go` `TestViewOnlyPersonaStoreWriteScope`：对全部 `/orders/:id*` 与 `/order-items/:itemId*` 写路由（带路由完整性检查，新增此类路由未登记探针即失败）及买家消息草稿写路径（update/regenerate/mark-sent/ignore）断言 view-only → 403 且业务码 **40303**、零落库；纯计算 POST（`sku-candidates/batch`）与读路由保持可用（view 授权可见）。
+- **业务码统一（40301 → 40303）**：店铺级「可见但仅 view 授权」的 403 统一为 `40303 CodeStorePermissionDenied`（改动面：order 各写 handler、customerchat 草稿、finance 对账/费用）。取舍：`40303` 已是 R125 商品创建线与 `adminperm.DenyStorePermission` 的既有口径，且语义最精确（店铺数据权限）；`40301 CodeForbidden` 保留给全局/租户级 forbidden（readonly 账号写操作、跨租户 settings、生产闸门等），`40302` 保留给权限位拒绝。前端无按 40301/40303 分支的逻辑（`httpErrorCopy` 按 HTTP 403 文案），契约 fixtures 无引用，无前端改动。

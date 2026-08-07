@@ -1924,6 +1924,13 @@ Final Production Acceptance Deferred to P10
 - **Docker 全栈三角色实跑**（main 合入 v26 集成预演分支构建，录屏证据外置不入库）：新演示点与抽查动线全部符合，两处失实即修（「已折算：X」与未折算行互斥、卡片配置无「恢复默认」按钮），并登记进 demo SKILL 常见坑。
 - 详见 `docs/progress/R158-line2.md`。
 
+### 变更记录（2026-08-07）第 159 轮线2：生产升级演练季度复跑（devops-engineer）
+
+- **升级演练**：R149 时点基线（`7f5645c1`，双业务租户 2 万订单/存量 MCP token/存量话术模板等）→ 最新 main（`6a64eb39` 与演练中合入 #312 后的 `32a9aaea` 两个时点）全流程通过：R152 `mcp_api_tokens.purpose`/`customer_reply_template_variants`/drafts 语言列落地，业务指纹逐项 0 差异（仅 `order_automation_logs.shop_id` 回填为预期变化）；从零部署 165s、升级部署 464s/246s（<15 分钟目标）。
+- **升级后实测**：purpose 三口径（mcp/openapi/both 互斥与放行）、开放 API 限流/租户隔离/审计/分页 400、多语言模板变体、`OPENAPI_ENABLED=false` 404、`TRUSTED_PROXIES` 配置与留空两口径 XFF 实测均与文档一致；`--pre-upgrade-check` 备份+预检、备份→恢复→幂等重跑闭环通过。
+- **文档核对**：无 P0/P1；P2 三条登记（#317 -w 报错口径已于演练后合入、待下轮实测、#318 大屏折算/汇率 seed 演练时未合入、演练后已合入待下轮补验、恢复窗口回退增量数据口径）。证据外置不入库；演练记录已补 `docs/upgrade-guide.md` §五。
+- 详见 `docs/progress/R159-line2.md`。
+
 ### 变更记录（2026-08-07）第 156 轮线2：经营大屏汇率折算与自定义指标（fullstack-engineer）
 
 - **多币种折算显式口径**：大屏今日销售额/毛利沿既有租户 `report_currency` 手工汇率折算本位币（复用 /reports/profit 口径），新增 `today.unconvertedRevenue`（无汇率币种原币金额显式列出、不计入合计）与 `today.convertedCurrencies`；前端销售额/毛利卡补折算口径角标 tooltip 与「未折算（不计入合计）」原币金额展示。
@@ -1947,10 +1954,18 @@ Final Production Acceptance Deferred to P10
 - **P2 清单**：非法入参静默降级（`severity`/`lowStockOnly`）、前端构建工具链依赖 13 条（2 high）、view-only 403 业务码 40301 与 40303 不统一、入口级拒绝审计 best effort、矩阵 harness 缺 view-only persona。
 - 报告归档 `docs/SECURITY_AUDIT_R159.md`，详见 `docs/progress/R159.md`。
 
+### 变更记录（2026-08-07）第 160 轮线1：R159 审计 P2 收口（fullstack-engineer）
+
+- **P2-1 view-only persona**：权限矩阵 harness 新增可选 persona `viewOnlyOperator`（店铺仅 `view` 授权），新增契约测试覆盖全部订单/订单行写路由与买家消息草稿写路径（403 + 40303 + 零落库，带路由完整性检查防 #322 同类漂移）。
+- **P2-2 非法入参显式 400**：共享只读查询层新增枚举校验（orders `status`/`paymentStatus`、exceptions `exceptionType`/`severity`），Open API `lowStockOnly` 改严格布尔；非法值 400/40001（沿 #303/#312 口径），Open API 与 MCP 同层收敛；OpenAPI 规范补齐枚举并修正 `severity` 漂移。
+- **P2-3 业务码统一**：店铺级「可见但仅 view 授权」403 统一 40303（order/customerchat/finance 各写 handler），40301 保留全局/租户级 forbidden、40302 保留权限位拒绝；前端与契约无引用无需改动。
+- **P2-4 依赖告警**：13 条构建链告警逐项评估，0 条可不跨 major 净收敛（react-router minor 覆盖实测反增告警已回退），登记 `docs/DEPENDENCY_ADVISORIES_R160.md`。
+- 详见 `docs/progress/R160.md`。
+
 ### 变更记录（2026-08-07）第 161 轮线1：竞品复评 v8（product-researcher + qa-engineer）
 
 - **最新 main（b2d20535）Docker 全栈实测复评 R151 16 项矩阵：零回退，矩阵升位为超越 4 / 达到 12 / 落后 0**——v7 建议 1（开放 API #308）与建议 2（消息多语言）已合入并实测坐实（开放 API 五端点端到端 + MCP 复测 + 多语言草稿/回退/400 白名单 + 安全边界抽验 + UI 走查录屏），第 12 项客服管理升位、新增第 20 增项「开放 API/可编程集成」评超越；v7 建议 3（#318）未合入不计入。
 - **竞品 2026 复查**（店小秘经营看板、马帮 TikTok 双赛道认证、AutoDS Claude MCP 写操作等）：无新结构性缺口；MCP 写白名单决策紧迫性上升。
 - **下一阶段建议（按杠杆）**：①合入积压收口（#322 P1 安全优先→#323→#318→#321）②MCP 写白名单设计稿（决策项）③维护期节奏（复评每 12 轮或触发式）。
-- **合并期更新（本 PR 合并 main 时点，37a57dc1）**：#318（大屏折算/自定义指标）与 #322（view-only P1 安全修复）已合入 main——积压收口建议 ①中两项已闭合，剩余 #321/#323；#318 相关项升位待下轮实测复核。
+- **合并期更新（本 PR 合并 main 时点，260bf123）**：#318/#321/#322/#323 已全部合入 main（积压收口建议①闭合），R162 MCP 写白名单设计稿（#326，建议②）亦已归档；#318 相关项（第 11 项报表/财务）升位待下轮 Docker 实测复核。
 - 报告：`docs/COMPETITIVE_BENCHMARK_R161.md`；详见 `docs/progress/R161.md`。

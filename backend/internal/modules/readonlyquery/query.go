@@ -58,6 +58,21 @@ func MaskName(name string) string {
 	return string(r[0]) + "**"
 }
 
+// ParseEnum accepts an empty string or one of the allowed values; anything
+// else is ErrBadInput (no silent empty-result degradation).
+func ParseEnum(name, s string, allowed ...string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	for _, a := range allowed {
+		if s == a {
+			return s, nil
+		}
+	}
+	return "", fmt.Errorf("%w: invalid %s %q (want one of %s)", ErrBadInput, name, s, strings.Join(allowed, "/"))
+}
+
 // ParseDate accepts YYYY-MM-DD or an empty string (nil).
 func ParseDate(s string) (*time.Time, error) {
 	s = strings.TrimSpace(s)
@@ -73,8 +88,8 @@ func ParseDate(s string) (*time.Time, error) {
 
 // OrdersQueryIn filters the order list query.
 type OrdersQueryIn struct {
-	Status        string `json:"status,omitempty" jsonschema:"订单状态过滤（如 pending/completed/cancelled）"`
-	PaymentStatus string `json:"paymentStatus,omitempty" jsonschema:"支付状态过滤（unpaid/paid/refunded）"`
+	Status        string `json:"status,omitempty" jsonschema:"订单状态过滤（pending/paid/processing/shipped/delivered/cancelled/refunded/closed）"`
+	PaymentStatus string `json:"paymentStatus,omitempty" jsonschema:"支付状态过滤（unpaid/paid/partially_refunded/refunded）"`
 	Platform      string `json:"platform,omitempty" jsonschema:"平台过滤（如 douyin）"`
 	Keyword       string `json:"keyword,omitempty" jsonschema:"按订单号模糊匹配"`
 	StartDate     string `json:"startDate,omitempty" jsonschema:"创建时间起（YYYY-MM-DD，含当日）"`
@@ -114,12 +129,23 @@ func (s *Service) OrdersQuery(ctx context.Context, tenantID int64, in OrdersQuer
 	if err != nil {
 		return out, err
 	}
-	tx := s.DB.WithContext(ctx).Model(&order.Order{}).Where("tenant_id = ?", tenantID)
-	if v := strings.TrimSpace(in.Status); v != "" {
-		tx = tx.Where("status = ?", v)
+	status, err := ParseEnum("status", in.Status,
+		order.StatusPending, order.StatusPaid, order.StatusProcessing, order.StatusShipped,
+		order.StatusDelivered, order.StatusCancelled, order.StatusRefunded, order.StatusClosed)
+	if err != nil {
+		return out, err
 	}
-	if v := strings.TrimSpace(in.PaymentStatus); v != "" {
-		tx = tx.Where("payment_status = ?", v)
+	payStatus, err := ParseEnum("paymentStatus", in.PaymentStatus,
+		order.PaymentUnpaid, order.PaymentPaid, order.PaymentPartiallyRefunded, order.PaymentRefunded)
+	if err != nil {
+		return out, err
+	}
+	tx := s.DB.WithContext(ctx).Model(&order.Order{}).Where("tenant_id = ?", tenantID)
+	if status != "" {
+		tx = tx.Where("status = ?", status)
+	}
+	if payStatus != "" {
+		tx = tx.Where("payment_status = ?", payStatus)
 	}
 	if v := strings.TrimSpace(in.Platform); v != "" {
 		tx = tx.Where("platform = ?", v)
@@ -417,13 +443,29 @@ type ExceptionsPendingOut struct {
 // ExceptionsPending lists pending exceptions within the tenant scope.
 func (s *Service) ExceptionsPending(ctx context.Context, tenantID int64, in ExceptionsPendingIn) (ExceptionsPendingOut, error) {
 	var out ExceptionsPendingOut
+	page, ps := NormPage(in.Page, in.PageSize)
+	excType, err := ParseEnum("exceptionType", in.ExceptionType,
+		orderexception.TypeSKUUnmatched, orderexception.TypeSKUAmbiguous,
+		orderexception.TypeInsufficientStock, orderexception.TypeInventoryDeductFailed,
+		orderexception.TypeInventoryRestoreFailed, orderexception.TypeInventorySyncFailed,
+		orderexception.TypeOrderSyncPartialFailed, orderexception.TypeMissingOrderItem,
+		orderexception.TypeProcurementBlocked, orderexception.TypeNegativeMargin,
+		orderexception.TypeUnknown)
+	if err != nil {
+		return out, err
+	}
+	severity, err := ParseEnum("severity", in.Severity,
+		orderexception.SeverityLow, orderexception.SeverityMedium,
+		orderexception.SeverityHigh, orderexception.SeverityCritical)
+	if err != nil {
+		return out, err
+	}
 	if s.Exceptions == nil {
 		return out, fmt.Errorf("exceptions_pending: unavailable")
 	}
-	page, ps := NormPage(in.Page, in.PageSize)
 	res, err := s.Exceptions.ListOrderExceptions(ctx, orderexception.ListOrderExceptionsRequest{
-		ExceptionType: strings.TrimSpace(in.ExceptionType),
-		Severity:      strings.TrimSpace(in.Severity),
+		ExceptionType: excType,
+		Severity:      severity,
 		Page:          page,
 		PageSize:      ps,
 		TenantID:      &tenantID,

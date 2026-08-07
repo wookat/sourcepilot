@@ -13,8 +13,8 @@
         "operationId": "listOrders",
         "summary": "订单列表（脱敏）",
         "parameters": [
-          { "name": "status", "in": "query", "schema": { "type": "string" } },
-          { "name": "paymentStatus", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["pending", "paid", "processing", "shipped", "delivered", "cancelled", "refunded", "closed"] } },
+          { "name": "paymentStatus", "in": "query", "schema": { "type": "string", "enum": ["unpaid", "paid", "partially_refunded", "refunded"] } },
           { "name": "platform", "in": "query", "schema": { "type": "string" } },
           { "name": "keyword", "in": "query", "schema": { "type": "string" } },
           { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" } },
@@ -160,8 +160,8 @@
         "operationId": "listExceptions",
         "summary": "异常待办查询",
         "parameters": [
-          { "name": "exceptionType", "in": "query", "schema": { "type": "string" } },
-          { "name": "severity", "in": "query", "schema": { "type": "string", "enum": ["error", "warning"] } },
+          { "name": "exceptionType", "in": "query", "schema": { "type": "string", "enum": ["sku_unmatched", "sku_ambiguous", "insufficient_stock", "inventory_deduct_failed", "inventory_restore_failed", "inventory_sync_failed", "order_sync_partial_failed", "missing_order_item", "procurement_blocked", "negative_margin", "unknown"] } },
+          { "name": "severity", "in": "query", "schema": { "type": "string", "enum": ["low", "medium", "high", "critical"] } },
           { "$ref": "#/components/parameters/page" },
           { "$ref": "#/components/parameters/pageSize" }
         ],

@@ -195,7 +195,7 @@ func (h *Handler) PostBindOrderItemSKU(c *gin.Context) {
 	line, err = h.Svc.GetOrderItemByID(c, itemID)
 	if err != nil {
 		if errors.Is(err, adminperm.ErrStoreNotOperable) {
-			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "店铺无操作权限")
+			response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "店铺无操作权限")
 			return
 		}
 		response.Fail(c, 404, response.CodeNotFound, "order item not found")

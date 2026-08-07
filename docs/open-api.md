@@ -41,6 +41,8 @@ Authorization: Bearer sp_mcp_ro_...
 
 分页沿全站惯例：`page` 从 1 起，`pageSize` 默认 20、最大 100；响应 `data` 内为 `list` + `total`（异常另有 `totalOpen`）。`page` / `pageSize` 传入非整数或非正数返回 `400`（`40001`，与日期非法口径一致，R154 起不再静默归一化）；超过 100 的 `pageSize` 按 100 截断。
 
+枚举与布尔参数同口径（R160 起不再静默降级为空结果/不过滤）：`status`（`pending`/`paid`/`processing`/`shipped`/`delivered`/`cancelled`/`refunded`/`closed`）、`paymentStatus`（`unpaid`/`paid`/`partially_refunded`/`refunded`）、`exceptionType`（见 OpenAPI 规范枚举）、`severity`（`low`/`medium`/`high`/`critical`）传入非法值返回 `400`（`40001`）；`lowStockOnly` 仅接受 `true`/`false`/`1`/`0`（空缺为 false），其余值返回 `400`（`40001`）。MCP 只读工具走同一共享查询层，非法枚举以工具错误返回。
+
 ## curl 示例
 
 ```bash
