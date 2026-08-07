@@ -1,6 +1,7 @@
 package order
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,20 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
+
+// failOrderWriteScope maps order write scope violations: missing / cross-tenant
+// / invisible-store orders → 404 (no existence leak), view-only stores → 403.
+func failOrderWriteScope(c *gin.Context, err error) bool {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		response.Fail(c, 404, response.CodeNotFound, "not found")
+		return true
+	}
+	if errors.Is(err, adminperm.ErrStoreNotOperable) {
+		response.Fail(c, 403, response.CodeForbidden, "店铺无操作权限")
+		return true
+	}
+	return false
+}
 
 func (h *Handler) denyWrite(c *gin.Context) bool {
 	if h == nil || h.Svc == nil || h.Svc.DB == nil {
@@ -132,8 +147,7 @@ func (h *Handler) ExportShippingListCSV(c *gin.Context) {
 	}
 	data, name, err := h.Svc.ExportShippingListCSV(c, ids)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -225,6 +239,10 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	out, err := h.Svc.Create(c, body, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, adminperm.ErrStoreNotOperable) {
+			response.Fail(c, 403, response.CodeForbidden, "店铺无操作权限")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -284,8 +302,7 @@ func (h *Handler) Get(c *gin.Context) {
 	}
 	out, err := h.Svc.Get(c, id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.HandleError(c, err)
@@ -334,8 +351,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	out, err := h.Svc.Update(c, id, body, adminUUID(c))
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -385,8 +401,7 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.Delete(c, id, adminUUID(c)); err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.HandleError(c, err)
@@ -413,8 +428,7 @@ func (h *Handler) PostItem(c *gin.Context) {
 	}
 	row, err := h.Svc.AppendItem(c, oid, body, adminUUID(c))
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -446,8 +460,7 @@ func (h *Handler) PutItem(c *gin.Context) {
 	}
 	row, err := h.Svc.PatchItem(c, oid, iid, body, adminUUID(c))
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -473,8 +486,7 @@ func (h *Handler) DeleteItem(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.DeleteItem(c, oid, iid, adminUUID(c)); err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.HandleError(c, err)
@@ -501,8 +513,7 @@ func (h *Handler) PostShipment(c *gin.Context) {
 	}
 	row, err := h.Svc.AppendShipment(c, oid, body, adminUUID(c))
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -640,8 +651,7 @@ func (h *Handler) PutShipment(c *gin.Context) {
 	}
 	row, err := h.Svc.PatchShipment(c, oid, sid, body, adminUUID(c))
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -667,8 +677,7 @@ func (h *Handler) DeleteShipment(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.DeleteShipment(c, oid, sid, adminUUID(c)); err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.HandleError(c, err)

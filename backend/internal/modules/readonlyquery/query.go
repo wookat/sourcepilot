@@ -386,7 +386,7 @@ func (s *Service) ReportSummary(ctx context.Context, tenantID int64, in ReportSu
 // ExceptionsPendingIn filters the pending exception query.
 type ExceptionsPendingIn struct {
 	ExceptionType string `json:"exceptionType,omitempty" jsonschema:"异常类型过滤（如 sku_unmatched/insufficient_stock）"`
-	Severity      string `json:"severity,omitempty" jsonschema:"级别过滤（error/warning）"`
+	Severity      string `json:"severity,omitempty" jsonschema:"级别过滤（low/medium/high/critical）"`
 	Page          int    `json:"page,omitempty" jsonschema:"页码，默认 1"`
 	PageSize      int    `json:"pageSize,omitempty" jsonschema:"每页条数，默认 20，最大 100"`
 }

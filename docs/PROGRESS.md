@@ -1924,3 +1924,10 @@ Final Production Acceptance Deferred to P10
 - **Docker 全栈三角色实跑**（main 合入 v26 集成预演分支构建，录屏证据外置不入库）：新演示点与抽查动线全部符合，两处失实即修（「已折算：X」与未折算行互斥、卡片配置无「恢复默认」按钮），并登记进 demo SKILL 常见坑。
 - 详见 `docs/progress/R158-line2.md`。
 
+### 变更记录（2026-08-07）第 159 轮线1：安全审计季度复跑（security-auditor）
+
+- **P1 修复**：仅 `view` 授权的店铺可被写入（同租户内店铺授权粒度越权写）——R149–R158 新增/改造的订单与买家消息草稿写路径只校验店铺可见性，未校验可操作性；按 R125 口径收口（view-only 403 / 不可见 404 / admin 与 operate·manage 不变 / 被拒零落库），`adminperm` 新增 `OperableStoreIDs`、`EnsureStoreOperable`、`ApplyStoreOperateScope`，覆盖草稿五路由与订单创建·更新迁店·删除·行项·发货单·打标·物流刷新·自动化重试·库存扣减回滚·SKU 匹配与 bind-sku·打单标记，附先失败后通过的回归测试。
+- **文档/契约修正**：开放 API `severity` 枚举由 `error/warning` 更正为实际 `low/medium/high/critical`（jsonschema + `docs/open-api.md`）；`docs/mcp.md` 明确入口级 401/429 留痕为 best effort、fail-closed 仅作用于 `tools/call`。
+- **复验无回退**：开放 API purpose 双向隔离/跨租户 404/脱敏/XFF 无绕过/逐次审计 fail-closed/`OPENAPI_ENABLED=false` 运行时；MCP R145·R148 修复项与 `-32603`、租户禁用即失效；多语言模板注入面与授权；大屏折算与卡片配置 scope/readonly/参数校验；权限矩阵 644 条 route 无漂移；govulncheck 0 可达；seed 生产拒绝。
+- **P2 清单**：非法入参静默降级（`severity`/`lowStockOnly`）、前端构建工具链依赖 13 条（2 high）、view-only 403 业务码 40301 与 40303 不统一、入口级拒绝审计 best effort、矩阵 harness 缺 view-only persona。
+- 报告归档 `docs/SECURITY_AUDIT_R159.md`，详见 `docs/progress/R159.md`。
