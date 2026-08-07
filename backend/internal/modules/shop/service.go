@@ -344,7 +344,7 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 	if err != nil {
 		return nil, err
 	}
-	if err := adminperm.EnsureStoreOperable(c, s.DB, &id); err != nil {
+	if _, err := s.findScopedShopForWrite(c, id); err != nil {
 		return nil, err
 	}
 	var row Shop

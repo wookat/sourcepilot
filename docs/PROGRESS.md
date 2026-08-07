@@ -2011,7 +2011,7 @@ Final Production Acceptance Deferred to P10
 
 ### 变更记录（2026-08-07）第 165 轮线1：view-only 店铺写入口全站扫尾（fullstack-engineer）
 
-- **全站排查**：#322/#330 两次同类越权漂移后，系统梳理全部带 shop_id 维度写接口，统一「可见性管读、可操作性管写」——手动订单/客服消息同步及 retry（含任务中心委托）、库存同步、inventory-sync P9、productpublish 全写族、运营任务、订单异常、采购单（经关联销售订单）、审单行级、店铺记录/凭证/OAuth 写路径全部收口为 view-only → 403/40303、不可见 → 404。
+- **全站排查**：#322/#330 两次同类越权漂移后，系统梳理全部带 shop_id 维度写接口，统一「可见性管读、可操作性管写」——手动订单/客服消息同步及 retry（含任务中心委托）、库存同步、inventory-sync P9、productpublish 全写族、运营任务、订单异常、采购单（经关联销售订单）、审单整批前置校验、店铺记录/凭证/OAuth 写路径全部收口为 view-only → 403/40303、不可见 → 404（与 R165 线2 #331 口径合流）。
 - **防漂移**：permmatrix 新增 `TestViewOnlyPersonaShopWriteSweep`（30 写探针 + 零落库 + 404 + 读可用）；matrix.json 补 `viewOnlyOperator` 契约行 113 条。
 - **R164 P2 收口**：前端 `operableStoreIds` 系列 helper，会话列表/详情写入口对 readonly/view-only 隐藏或禁用、写表单仅列可操作店铺；message-sync 口径定案为写操作（创建任务并 upsert 业务行）。
 - 详见 `docs/progress/R165.md`。
@@ -2023,7 +2023,6 @@ Final Production Acceptance Deferred to P10
 - **口径定调**：店铺同步属店铺业务写需 operate 授权（闭合 R164 线2 P2 第 4 项）；`PUT /settings` 数值型静默忽略经评估为非安全面（数值型返回 400，请求体 `tenantId` 为 advisory，写入一律落 JWT 租户）。
 - **回归测试**：`permmatrix` 新增 `r165_store_write_scope_test.go`（6 用例，含授权账号不被过度收紧的正例）；backend `go test ./...`、`go vet`、`govulncheck`（0 可达）全绿，`pnpm audit --prod` 13 条构建链告警无增量。
 - 报告 `docs/SECURITY_AUDIT_R165.md`，详见 `docs/progress/R165-line2.md`。
-
 ### 变更记录（2026-08-07）第 166 轮线1：全站大回归 v29——view-only 安全大批修复合入前集成验证（qa-engineer）
 
 - **集成叠加**：main + #330（含 #331）+ #332 + #329，冲突 13 文件已解；审单批量语义定案为整批 403/40303（#331 口径），#332 sweep 契约与 `docs/permission-matrix.md` 已对齐。
@@ -2042,3 +2041,10 @@ Final Production Acceptance Deferred to P10
 - **语义定案落地**：`/order-review/approve|reject` 批量含 view-only 店铺订单整批 403/40303（#331/v29 口径）；新增混批先红后绿回归 `TestR167ReviewBatchWholeBatchDenied`（operate+view 混批整批拒绝、零生效）；`docs/api.md`/`docs/permission-matrix.md`/R166-line2 报告与 #332 描述（评论区更正）全部对齐。
 - **P2×4 收口**：同步任务重试失败中文 toast、删除店铺弹窗按钮中文化、审单按钮按店铺 scope 预禁用（含 round167 E2E）、#332 批量语义描述更正。
 - **门禁**：前端 358 / 契约 17 / 构建 / ui-copy / backend 103 包 / integration+redis / 审单 E2E 11 全绿；Docker 双租户实测另附证据。详见 `docs/progress/R167.md`。
+
+### 变更记录（2026-08-07）第 167 轮线2：竞品矩阵前哨确认 + 验收包 R163–R166 增量 + Docker 三角色（含 view-only persona）实跑（fullstack-engineer）
+
+- **竞品矩阵前哨抽验（R161 v8 基线，6/16 项）**：订单管理、MCP、开放 API、实时大屏、多语言消息、权限体系在安全修复期（#322/#330/#331 合入）后 API 探针 + Docker 全栈 UI 实测**无回退、无 P1**；operator 正向写不受过度收紧。
+- **验收包增量**：`ACCEPTANCE_R123.md` 新增 §一/18「R163–R166 增量能力」（view-only 权限体系收口合并状态如实标注：#328/#329/#330/#331 已合入，#332 OPEN 有冲突、#333 OPEN 依赖 #332；大回归 v29 报告在 `integration/r166-regression-v29` 分支，v28 报告不可检索登记为会话侧未归档）+ §三证据索引 + §五 R167 待办；`DEMO_SCRIPT.md` 新增第 21b 步 view-only 演示点（403 中文提示「店铺无操作权限」，30 分钟总长不变）。
+- **Docker 三角色（含 view-only persona）实跑**：12 项 UI 断言全部 PASS（含 UX v10 #327 补验：币种设置路由离开确认弹窗、备份页时间列/中文按钮），录屏留证外置不入库；clean + verify 零残留。`pnpm check:ui-copy --strict` 通过。
+- 详见 `docs/progress/R167-line2.md`。

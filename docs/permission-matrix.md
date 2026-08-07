@@ -254,7 +254,6 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - **新增契约测试** `r165_store_write_scope_test.go`（6 用例）：订单审单决定（approve/reject）、异常工作台标记族（handle/ignore/mark）、店铺删除、店铺授权写（`PUT /shops/:id/auth`、抖店 refresh/revoke/sync-shop-info、TikTok callback）、同步创建与重试（`sync-orders`、`sync-customer-messages`、`order-sync/tasks/:id/retry`）、商品刊登目标店（publish、单品/批量 create-drafts）对 view-only 授权断言 403 + 40303 且零落库；跨租户断言 404；授权 operator/admin 正例保持放行。
 - **实现口径**：写路径统一 `adminperm.EnsureStoreOperable`（不可见/跨租户仍 404 不泄露存在性）——`order` 审单批量前置 `ensureReviewBatchOperable`（整批拒绝，避免部分生效）、`orderexception` 新增 `source_scope.go` 按 source 类型解析真实租户/店铺（未知 source fail-closed 404）、`shop` 新增 `findScopedShopForWrite`/`ensureShopOperable`（授权写与 OAuth 写路径）、`ordersync`/`customersync` 的 `CreateShopSync` 与 `RetryFailed`、`productpublish` 的 `ensureTargetsOperable` 与 `loadDouyinPublicationForWrite`。
 - **口径定调**：店铺同步（订单/客服消息）视为**店铺业务写**，需 operate 授权（闭合 R164 线2 P2 第 4 项）；`*/check`、`test-connection` 等纯探测/纯计算路径保持 view 可用。
-
 ## round165 view-only 店铺写入口全站扫尾
 
 - **统一口径**：带 shop_id 维度（含经订单/商品/采购单/发布记录/任务行间接关联）的写路径一律走可操作性 scope（`adminperm.EnsureStoreOperable` / `EnsureStoresOperable` / `ApplyStoreOperateScope`）：可见但仅 `view` 授权 → **403 业务码 40303**；不可见/跨租户 → **404** 不泄露存在性。可见性 scope（`AllowedStoreIDs`/`ApplyStoreScope`/`EnsureStoreVisible`）仅用于读。错误映射统一走 `adminperm.FailStoreWriteScope`。
