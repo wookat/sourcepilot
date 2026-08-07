@@ -1928,6 +1928,14 @@ Final Production Acceptance Deferred to P10
 
 - **升级演练**：R149 时点基线（`7f5645c1`，双业务租户 2 万订单/存量 MCP token/存量话术模板等）→ 最新 main（`6a64eb39` 与演练中合入 #312 后的 `32a9aaea` 两个时点）全流程通过：R152 `mcp_api_tokens.purpose`/`customer_reply_template_variants`/drafts 语言列落地，业务指纹逐项 0 差异（仅 `order_automation_logs.shop_id` 回填为预期变化）；从零部署 165s、升级部署 464s/246s（<15 分钟目标）。
 - **升级后实测**：purpose 三口径（mcp/openapi/both 互斥与放行）、开放 API 限流/租户隔离/审计/分页 400、多语言模板变体、`OPENAPI_ENABLED=false` 404、`TRUSTED_PROXIES` 配置与留空两口径 XFF 实测均与文档一致；`--pre-upgrade-check` 备份+预检、备份→恢复→幂等重跑闭环通过。
-- **文档核对**：无 P0/P1；P2 三条登记（#317 -w 报错口径在途、#318 大屏折算/汇率 seed 未合入待补验、恢复窗口回退增量数据口径）。证据外置不入库；演练记录已补 `docs/upgrade-guide.md` §五。
+- **文档核对**：无 P0/P1；P2 三条登记（#317 -w 报错口径已于演练后合入、待下轮实测、#318 大屏折算/汇率 seed 未合入待补验、恢复窗口回退增量数据口径）。证据外置不入库；演练记录已补 `docs/upgrade-guide.md` §五。
 - 详见 `docs/progress/R159-line2.md`。
+
+### 变更记录（2026-08-07）第 156 轮线1：R155 登记 P2 + 合并期杂项收口（fullstack-engineer）
+
+- **MCP 审计 fail-closed 错误码**：拒绝调用由普通 error（wire 上 JSON-RPC `code:0`，非规范值）改为 `-32603 internal error`（`jsonrpc.CodeInternalError`），补 code 断言回归测试；开放 API 侧同场景本就是 HTTP 500 + envelope `50000`，口径一致无改动。
+- **`--pre-upgrade-check` 备份目录**：维持默认 `/var/backups`（root 部署面向），非 root 下 mkdir 失败与目录不可写（新增 `-w` 检查）都启动即清晰报错并提示 `BACKUP_DIR=<可写目录>` 覆盖，不再误报「pg_dump 备份失败」。
+- **demo clean 覆盖面核实**：`seed:demo:full:clean` 只清 `DEMO-` 前缀 token，`e2e-refresh-verify` 等测试遗留不覆盖（实测确认）；不扩大删除面，SKILL 常见坑登记「测试收尾自行吊销」。
+- **合并期预案落地**：#308 purpose 签名冲突按 R155 §3 预案修复（叠加分支内调用处补 `""`）；permmatrix harness 补 `OpenAPIEnabled`（cherry-pick #313）。
+- 详见 `docs/progress/R156.md`。
 
