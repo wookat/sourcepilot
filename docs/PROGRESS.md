@@ -1931,3 +1931,10 @@ Final Production Acceptance Deferred to P10
 - **demo clean 覆盖面核实**：`seed:demo:full:clean` 只清 `DEMO-` 前缀 token，`e2e-refresh-verify` 等测试遗留不覆盖（实测确认）；不扩大删除面，SKILL 常见坑登记「测试收尾自行吊销」。
 - **合并期预案落地**：#308 purpose 签名冲突按 R155 §3 预案修复（叠加分支内调用处补 `""`）；permmatrix harness 补 `OpenAPIEnabled`（cherry-pick #313）。
 - 详见 `docs/progress/R156.md`。
+
+### 变更记录（2026-08-07）第 161 轮线1：竞品复评 v8（product-researcher + qa-engineer）
+
+- **最新 main（b2d20535）Docker 全栈实测复评 R151 16 项矩阵：零回退，矩阵升位为超越 4 / 达到 12 / 落后 0**——v7 建议 1（开放 API #308）与建议 2（消息多语言）已合入并实测坐实（开放 API 五端点端到端 + MCP 复测 + 多语言草稿/回退/400 白名单 + 安全边界抽验 + UI 走查录屏），第 12 项客服管理升位、新增第 20 增项「开放 API/可编程集成」评超越；v7 建议 3（#318）未合入不计入。
+- **竞品 2026 复查**（店小秘经营看板、马帮 TikTok 双赛道认证、AutoDS Claude MCP 写操作等）：无新结构性缺口；MCP 写白名单决策紧迫性上升。
+- **下一阶段建议（按杠杆）**：①合入积压收口（#322 P1 安全优先→#323→#318→#321）②MCP 写白名单设计稿（决策项）③维护期节奏（复评每 12 轮或触发式）。
+- 报告：`docs/COMPETITIVE_BENCHMARK_R161.md`；详见 `docs/progress/R161.md`。
