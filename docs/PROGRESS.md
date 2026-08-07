@@ -1994,3 +1994,11 @@ Final Production Acceptance Deferred to P10
 - **DEMO_SCRIPT.md**：新增 R163 增补段（不新增独立步骤，30 分钟不变；#318 合入后第 1b 步无需叠加分支；币种未保存提示并入第 19 步后顺带演示；MCP 审计卡更名口径同步第 23 步）；清理 #308/#309/#318 陈旧 ⏳ 标注；Docker 全栈三角色按更新后脚本实跑留证（录屏外置不入库），失实处即修。
 - 详见 `docs/progress/R163-line2.md`。
 
+### 变更记录（2026-08-07）第 164 轮线1：生产部署演练季度复检（devops-engineer）
+
+- **从零部署**：production compose + Caddy 全新构建部署 236 秒（<15 分钟），六服务 healthy，HTTPS `/health-backend` 全绿；TRUSTED_PROXIES/OPENAPI_ENABLED 按 #316 口径实测（可信网段 XFF 落地、外部伪造 XFF 不落地、开关 401/404 切换）。
+- **R159 双租户存量升级**：`32a9aaea` 基线（2 万订单/4 万订单行/6 万库存流水/存量 token/多语言模板/view-only 授权）升级至 `a78e2fb0`——AutoMigrate 落地、8 类数值指纹 0 差异（唯一预期变化为 `order_automation_logs.shop_id` 回填）、迁移幂等；升级后 view-only 403+40303、readonly 40301、OpenAPI 分页 400、大屏折算（未配汇率不计入 + 配置后折算）与自定义卡片配置读写实测通过。
+- **--pre-upgrade-check（#317）**：备份+同租户重复订单号预检通过；目录不可写/不可创建均清晰报错提示 `BACKUP_DIR` 覆盖（R159 P2① 闭环坐实）。备份→`pg_restore --clean --if-exists` 恢复→指纹与升级前一致→重启幂等重跑闭环通过。
+- **文档核对**：env 示例/部署/升级/清单文档与实测一致，无 P0/P1 失实；P2 3 项登记（settings 直连 API 写数值型汇率被静默忽略；#327 币种设置离开确认未合入 main 待补验；恢复回退备份点后新增数据沿 R159 口径）。
+- **合并期更新（本 PR 合并 main 时点）**：#327（R162 线2 UX v10，含币种设置离开确认 `useUnsavedChangesGuard`）已合入 main，上述 P2② 由「未合入待补验」更新为「已合入，离开确认待下轮生产面补验」。
+- 详见 `docs/progress/R164.md`。
