@@ -288,6 +288,15 @@ jobs:
           TEST_DATABASE_URL: postgres://trademind:trademind@127.0.0.1:5432/trademind_test?sslmode=disable
         run: pnpm test:db
 
+      # Permission-matrix contract tests skip without a test database; running
+      # them here with the PostgreSQL service turns silent skips into a CI
+      # drift alarm (SECURITY_AUDIT_R148 P2).
+      - name: Permission matrix contract tests
+        env:
+          APP_ENV: test
+          TEST_DATABASE_URL: postgres://trademind:trademind@127.0.0.1:5432/trademind_test?sslmode=disable
+        run: pnpm test:permmatrix
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:

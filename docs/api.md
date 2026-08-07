@@ -273,8 +273,8 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/customer/reply-templates` | 模板列表。query：`group`（分组）、`keyword`（名称/内容模糊）、`enabled`（三态布尔）。返回 `{ list, canWrite }`，按 `groupKey + sortOrder` 排序。 |
-| `POST` | `/api/v1/customer/reply-templates` | 新建模板。body：`groupKey`、`name`、`content`（≤4000 字符）、可选 `sortOrder`（缺省追加到组尾）、`enabled`（默认启用）。 |
-| `PUT` | `/api/v1/customer/reply-templates/:id` | 更新模板（支持部分字段：改名、改内容、换分组、启停、排序）。跨租户/不存在返回 **404**。 |
+| `POST` | `/api/v1/customer/reply-templates` | 新建模板。body：`groupKey`、`name`、`content`（≤4000 字符）、可选 `sortOrder`（缺省追加到组尾）、`enabled`（默认启用）、可选 `defaultLanguage`（缺省 `zh-CN`）、可选 `variants`（`[{language, content}]`，见 round152）。 |
+| `PUT` | `/api/v1/customer/reply-templates/:id` | 更新模板（支持部分字段：改名、改内容、换分组、启停、排序、`defaultLanguage`；传 `variants` 时事务内全量替换语言变体）。跨租户/不存在返回 **404**。 |
 | `DELETE` | `/api/v1/customer/reply-templates/:id` | 删除模板（软删除）。返回 `{ ok: true }`。 |
 | `POST` | `/api/v1/customer/reply-templates/reorder` | 组内重排。body：`groupKey`、`ids`（该组完整有序 ID 列表，校验归属后按顺序写 `sortOrder`）。 |
 
@@ -295,6 +295,18 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 | `POST` | `/api/v1/customer/buyer-messages/drafts/:id/mark-sent` | 人工回执：标记已发送（幂等；记录操作人与时间）。 |
 | `POST` | `/api/v1/customer/buyer-messages/drafts/:id/ignore` | 忽略草稿（幂等；仅 `pending` 可忽略）。 |
 | `POST` | `/api/v1/customer/buyer-messages/drafts/batch-mark-sent` | 批量标记已发送。body：`ids`；仅更新当前租户 `pending` 行，返回 `{ updated, skipped }`。 |
+| `POST` | `/api/v1/customer/buyer-messages/drafts/:id/regenerate` | 按指定语言重新生成草稿内容（仅 `pending` 可操作，只改草稿不外发）。body：`language`；成功后 `langSource=manual`，该语言无变体时回退默认语言并标 `no_variant`。见 round152。 |
+
+### 买家消息多语言模板（round152）
+
+面向跨境多语种买家：同一话术模板下按语言维护多份正文，变量占位符口径与默认语言一致；人工确认发送口径不变（绝不自动外发）。
+
+- **语言表**（可扩展，`backend/internal/modules/customerchat/template_lang.go`）：`zh-CN`、`en`、`es`、`pt`、`fr`、`de`、`it`、`ru`、`ja`、`ko`、`th`、`vi`、`id`、`ms`、`ar`；默认语言 `zh-CN`。
+- **数据模型**：`customer_reply_templates.default_language`（既有 `content` 即默认语言正文）；新表 `customer_reply_template_variants`（`tenant_id + template_id + language` 唯一，变体正文 ≤4000 字符）。模板 DTO 新增 `defaultLanguage`、`variants`。
+- **草稿生成语言选择**：生成时按优先级推断目标语言：①订单 `RawData` 收货地国家（`order_country`）→②店铺默认语言配置（`shop_language`）→③店铺平台（`platform`，如 mercadolibre→es、国内平台→zh-CN）→④无法推断回退模板默认语言并标 `fallback`。推断出目标语言但模板缺该语言变体时，使用默认语言正文并标 `no_variant`。
+- **草稿 DTO** 新增 `language`（实际使用语言）与 `langSource`（`order_country` / `shop_language` / `platform` / `fallback` / `no_variant` / `manual`），保证语言选择可解释。
+- **工作台切换语言**：`POST /buyer-messages/drafts/:id/regenerate` 按所选语言重填变量重新生成（仅 `pending`，写权限同客服口径，readonly 403，跨租户 404）；只修改草稿，不触发任何外部发送。
+- **demo seed**：话术模板补英/西/葡变体样本；买家消息补正样本 `DEMO-BM-1005`（US→en，order_country）、`DEMO-BM-1006`（BR→pt，order_country）与负样本 `DEMO-BM-1001`（无国家→zh-CN，fallback）；clean/verify 覆盖 `customer_reply_template_variants`。
 
 ## Dev / Demo 种子（非 production）
 

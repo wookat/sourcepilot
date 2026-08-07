@@ -156,6 +156,42 @@ test.describe('@round119 自动化执行日志页', () => {
     const row = page.getByRole('row', { name: /SO-E2E-AT-2/ });
     await expect(row.getByRole('button', { name: '重试' })).toBeDisabled();
   });
+
+  test('readonly 空列表空态提示店铺权限范围（R150 v24 P2-2 回归）', async ({ admin, page }) => {
+    await page.route('**/api/v1/auth/profile', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({ ...e2eUser, role: 'readonly', permissions: [] })),
+      });
+    });
+    await page.route('**/api/v1/order-automation-logs**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 })),
+      });
+    });
+    await admin.goto('/orders/automation-logs');
+    await expect(page.getByText('暂无执行日志')).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText('店铺权限范围导致看不到数据')).toBeVisible();
+    // readonly 账号不展示引导动作按钮
+    await expect(page.getByRole('button', { name: '前往自动化规则' })).toHaveCount(0);
+  });
+
+  test('非 readonly 账号空列表空态保留引导动作与权限提示', async ({ admin, page }) => {
+    await page.route('**/api/v1/order-automation-logs**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 })),
+      });
+    });
+    await admin.goto('/orders/automation-logs');
+    await expect(page.getByText('暂无执行日志')).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText('店铺权限范围导致看不到数据')).toBeVisible();
+    await expect(page.getByRole('button', { name: '前往自动化规则' })).toBeVisible();
+  });
 });
 
 test.describe('@round119 响应式视口', () => {

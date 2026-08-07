@@ -11,6 +11,7 @@ import {
   type AutomationTriggerEvent,
   type OrderAutomationLogRow,
 } from '@/services/orderAutomation';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { isReadonly } from '@/utils/permission';
 import { Link, useModel } from '@umijs/max';
 import { Alert, Button, Card, Input, Select, Space, Table, Tag, Tooltip, message } from 'antd';
@@ -29,6 +30,7 @@ export default function OrderAutomationLogsPage() {
     initialState?: { currentUser?: API.CurrentUser };
   };
   const readonly = isReadonly(initialState?.currentUser?.role);
+  const emptyLocale = useListEmptyLocale('automationLogs', { permissionScoped: true });
 
   const [rows, setRows] = useState<OrderAutomationLogRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -141,7 +143,7 @@ export default function OrderAutomationLogsPage() {
           loading={loading}
           dataSource={rows}
           scroll={{ x: 1400 }}
-          locale={{ emptyText: '暂无执行日志' }}
+          locale={emptyLocale}
           pagination={{
             current: page,
             pageSize,

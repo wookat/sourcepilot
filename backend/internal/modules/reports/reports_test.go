@@ -249,6 +249,61 @@ func TestProfitReportDimensions(t *testing.T) {
 	}
 }
 
+// 大屏 today 口径：ProfitReportFiltered 必须按 shopId / platform 收窄汇总，
+// 且过滤只能收窄、不改变租户与店铺授权范围。
+func TestProfitReportFilteredShopAndPlatform(t *testing.T) {
+	db := openReportsTestDB(t)
+	shopID, productID, skuID := seedProfitFixture(t, db)
+	svc := newReportsService(db, &fakeSettings{groups: map[string]map[string]string{
+		"report_currency": {"base_currency": "CNY", "rates": `{}`},
+	}})
+	seedPaidOrder(t, db, 1, &shopID, "SO-F1", "CNY", 100, &productID, &skuID, 1)
+	seedPaidOrder(t, db, 1, &shopID, "SO-F2", "CNY", 50, &productID, &skuID, 1)
+	other := seedPaidOrder(t, db, 1, nil, "SO-F3", "CNY", 30, &productID, &skuID, 1)
+	if err := db.Model(other).Update("platform", "shopee").Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r, _ := reports.ResolveRange(30, "", "")
+	all, err := svc.ProfitReportFiltered(reportsTestCtx(1, nil), reports.DimensionShop, r, reports.ProfitFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all.Summary.OrderCount != 3 || all.Summary.RevenueBase != 180 {
+		t.Fatalf("unfiltered: %+v", all.Summary)
+	}
+
+	byShop, err := svc.ProfitReportFiltered(reportsTestCtx(1, nil), reports.DimensionShop, r, reports.ProfitFilter{ShopID: &shopID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byShop.Summary.OrderCount != 2 || byShop.Summary.RevenueBase != 150 {
+		t.Fatalf("shop filtered: %+v", byShop.Summary)
+	}
+
+	// platform 过滤大小写不敏感
+	byPlatform, err := svc.ProfitReportFiltered(reportsTestCtx(1, nil), reports.DimensionShop, r, reports.ProfitFilter{Platform: "SHOPEE"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byPlatform.Summary.OrderCount != 1 || byPlatform.Summary.RevenueBase != 30 {
+		t.Fatalf("platform filtered: %+v", byPlatform.Summary)
+	}
+
+	// 过滤不放宽店铺授权：operator 未获授权的 shopId 过滤仍为空
+	scoped := &adminperm.Principal{
+		UserID: uuid.New(), Role: adminperm.RoleOperator,
+		StoreGrants: []adminperm.StoreGrant{{StoreID: uuid.New(), PermissionScope: "operate"}},
+	}
+	res, err := svc.ProfitReportFiltered(reportsTestCtx(1, scoped), reports.DimensionShop, r, reports.ProfitFilter{ShopID: &shopID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Summary.OrderCount != 0 {
+		t.Fatalf("filter must not widen store scope: %+v", res.Summary)
+	}
+}
+
 func TestProfitReportStoreScope(t *testing.T) {
 	db := openReportsTestDB(t)
 	shopID, productID, skuID := seedProfitFixture(t, db)
