@@ -985,6 +985,22 @@ POST /api/mcp   # MCP Streamable HTTP；Authorization: Bearer sp_mcp_ro_...
 - `MCP_ENABLED=false` 时入口不注册。
 - 客户端配置与工具说明见 `docs/mcp.md`。
 
+## 开放 API 只读入口（round152）
+
+对外只读 REST API（不走 JWT，用同一只读 token 体系鉴权，token 用途须为 `openapi`/`both`）：
+
+```text
+GET /api/open/v1/orders            # 订单列表（脱敏），query: status/paymentStatus/platform/keyword/startDate/endDate/page/pageSize
+GET /api/open/v1/orders/:orderNo   # 订单详情（含行项目）；跨租户订单号与不存在统一 404
+GET /api/open/v1/inventory         # SKU 库存，query: keyword/lowStockOnly/page/pageSize
+GET /api/open/v1/reports/summary   # 经营摘要（按币种已支付销售额，不做汇率折算），query: startDate/endDate
+GET /api/open/v1/exceptions        # 异常待办，query: exceptionType/severity/page/pageSize
+```
+
+- token 创建时可选用途（`POST /api/v1/mcp/tokens` body 新增可选 `purpose`：`mcp`（默认，存量 token 均为此值）/ `openapi` / `both`；列表项新增 `purpose` 字段）。用途不符与未知 token 统一 401。
+- 鉴权/过期/吊销/逐次审计/三层限流沿 MCP 口径（限流变量 `OPENAPI_RATE_RPS`/`OPENAPI_RATE_BURST`，桶与 MCP 独立）；响应为全站统一 envelope；输出脱敏（客户名仅首字符，无内部 UUID/联系方式/rawData）。
+- `OPENAPI_ENABLED=false` 时入口不注册。OpenAPI 3 规范：`docs/openapi/open-api.v1.json`；使用说明见 `docs/open-api.md`。
+
 ## 权限矩阵契约（round52）
 
 - 全部已注册路由的「路由 × {admin, operator, readonly, 跨租户}」授权预期登记在

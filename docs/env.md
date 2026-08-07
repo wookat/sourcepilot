@@ -172,6 +172,7 @@ docker compose -f docker-compose.full.yml up -d --build
 | `PAGINATION_*` | `PAGINATION_DEFAULT_LIMIT`、`PAGINATION_MAX_LIMIT`、`PAGINATION_MAX_OFFSET`、`PAGINATION_CURSOR_SIGNING_KEY` | backend | P7 列表分页默认值、最大 limit、深 offset 保护与 Cursor HMAC 签名密钥；production 必须显式配置签名密钥。 |
 | `RATE_LIMIT_*` | `RATE_LIMIT_ENABLED`、`RATE_LIMIT_MODE`、`RATE_LIMIT_FAIL_MODE`、`RATE_LIMIT_POLICY_VERSION` | backend | P7 HTTP 限流配置；production 禁用需显式审批变量。 |
 | `MCP_*` | `MCP_ENABLED`、`MCP_RATE_RPS`、`MCP_RATE_BURST` | backend | R144 MCP 只读入口（`POST /api/mcp`）：`MCP_ENABLED` 控制入口开关（默认 true）；`MCP_RATE_RPS` / `MCP_RATE_BURST` 为每个 token 的持续速率与突发上限（默认 5 / 10）。鉴权用租户级只读 API token（设置页「MCP 只读接入」创建）。R146：限流状态在 Redis 可用时复用队列 `REDIS_URL`（多副本共享额度，无新变量），Redis 不可用时降级为进程内限流（多副本下额度按副本数放大，需调低 RPS/BURST），详见 `docs/mcp.md`。 |
+| `OPENAPI_*` | `OPENAPI_ENABLED`、`OPENAPI_RATE_RPS`、`OPENAPI_RATE_BURST` | backend | R152 开放 API 只读入口（`GET /api/open/v1/*`）：`OPENAPI_ENABLED` 控制入口开关（默认 true）；`OPENAPI_RATE_RPS` / `OPENAPI_RATE_BURST` 为每个 token 的持续速率与突发上限（默认 5 / 10）。与 MCP 共用只读 token 体系（token 用途须为 `openapi` 或 `both`），限流桶与 MCP 相互独立，Redis 可用时共享额度，详见 `docs/open-api.md`。 |
 | `CACHE_*` | `CACHE_ENABLED`、`CACHE_DEFAULT_TTL_SECONDS`、`CACHE_MAX_ENTRIES`、`CACHE_SINGLEFLIGHT_ENABLED` | backend | P7 缓存与 singleflight 治理基础配置。 |
 | `EXPORT_*` | `EXPORT_BATCH_SIZE`、`EXPORT_MAX_ROWS`、`EXPORT_MAX_BYTES`、`EXPORT_MAX_CONCURRENT` | backend | P7 导出批量、行数、字节数和并发上限。 |
 | `PPROF_*` | `PPROF_ENABLED`、`PPROF_INTERNAL_ONLY` | backend | P7 Profiling 安全开关；production 禁止 public pprof。 |

@@ -6325,5 +6325,35 @@
     "path": "/api/mcp",
     "probe": false,
     "note": "MCP read-only entry; authenticated by tenant-scoped API token (sp_mcp_ro_*), not admin JWT; tenant scope, revocation, rate limit and read-only surface covered by mcpserver module tests"
+  },
+  {
+    "method": "GET",
+    "path": "/api/open/v1/orders",
+    "probe": false,
+    "note": "Open API read-only entry; authenticated by tenant-scoped API token (purpose openapi/both), not admin JWT; tenant scope, revocation, rate limit and read-only surface covered by openapi module tests"
+  },
+  {
+    "method": "GET",
+    "path": "/api/open/v1/orders/:orderNo",
+    "probe": false,
+    "note": "Open API read-only entry; authenticated by tenant-scoped API token (purpose openapi/both), not admin JWT; cross-tenant order numbers answer 404; covered by openapi module tests"
+  },
+  {
+    "method": "GET",
+    "path": "/api/open/v1/inventory",
+    "probe": false,
+    "note": "Open API read-only entry; authenticated by tenant-scoped API token (purpose openapi/both), not admin JWT; tenant scope covered by openapi module tests"
+  },
+  {
+    "method": "GET",
+    "path": "/api/open/v1/reports/summary",
+    "probe": false,
+    "note": "Open API read-only entry; authenticated by tenant-scoped API token (purpose openapi/both), not admin JWT; tenant scope covered by openapi module tests"
+  },
+  {
+    "method": "GET",
+    "path": "/api/open/v1/exceptions",
+    "probe": false,
+    "note": "Open API read-only entry; authenticated by tenant-scoped API token (purpose openapi/both), not admin JWT; tenant scope covered by openapi module tests"
   }
 ]

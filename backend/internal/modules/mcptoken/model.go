@@ -7,9 +7,27 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 )
 
-// ScopeReadonly is the only scope tokens can carry today: MCP tools are
-// strictly read-only and tokens never authorize writes.
+// ScopeReadonly is the only scope tokens can carry today: both the MCP entry
+// and the Open API entry are strictly read-only and tokens never authorize
+// writes.
 const ScopeReadonly = "readonly"
+
+// Purposes bind a token to one or both read-only entries. Scope stays the
+// single privilege axis (readonly); purpose is a surface selector so a token
+// issued for one entry cannot be replayed against the other.
+const (
+	// PurposeMCP restricts the token to the MCP entry (POST /api/mcp).
+	PurposeMCP = "mcp"
+	// PurposeOpenAPI restricts the token to the Open API entry (/api/open/v1/*).
+	PurposeOpenAPI = "openapi"
+	// PurposeBoth authorizes both read-only entries.
+	PurposeBoth = "both"
+)
+
+// ValidPurpose reports whether p is a known token purpose.
+func ValidPurpose(p string) bool {
+	return p == PurposeMCP || p == PurposeOpenAPI || p == PurposeBoth
+}
 
 // Token is a tenant-scoped API token for the MCP read-only entry. Only the
 // SHA-256 hash of the secret is stored; the plaintext is shown once at
@@ -25,6 +43,9 @@ type Token struct {
 	// TokenHash is the hex-encoded SHA-256 of the full plaintext token.
 	TokenHash string `gorm:"size:64;not null;uniqueIndex" json:"-"`
 	Scope     string `gorm:"size:32;not null;default:readonly" json:"scope"`
+	// Purpose selects which read-only entry accepts the token: mcp, openapi or
+	// both. Pre-existing tokens default to mcp so their surface never widens.
+	Purpose string `gorm:"size:16;not null;default:mcp" json:"purpose"`
 	// ExpiresAt, when set, is the instant after which the token stops
 	// authenticating. NULL means the token never expires.
 	ExpiresAt  *time.Time `gorm:"index" json:"expiresAt,omitempty"`
@@ -44,4 +65,15 @@ func (t Token) Masked() string {
 // Expired reports whether the token has an expiry in the past.
 func (t Token) Expired(now time.Time) bool {
 	return t.ExpiresAt != nil && !t.ExpiresAt.After(now)
+}
+
+// AllowsMCP reports whether the token may call the MCP entry. An empty
+// purpose is treated as mcp for rows written before the column existed.
+func (t Token) AllowsMCP() bool {
+	return t.Purpose == PurposeMCP || t.Purpose == PurposeBoth || t.Purpose == ""
+}
+
+// AllowsOpenAPI reports whether the token may call the Open API entry.
+func (t Token) AllowsOpenAPI() bool {
+	return t.Purpose == PurposeOpenAPI || t.Purpose == PurposeBoth
 }

@@ -1150,6 +1150,7 @@
         "items[].name",
         "items[].maskedToken",
         "items[].scope",
+        "items[].purpose",
         "items[].revoked",
         "items[].expired",
         "items[].createdAt",
@@ -1168,6 +1169,7 @@
       "auth": true,
       "requestBody": [
         "name",
+        "purpose",
         "expiresInDays"
       ],
       "responseData": "McpTokenCreateResult",
@@ -1234,6 +1236,149 @@
         "429": 42901
       },
       "note": "MCP Streamable HTTP read-only entry; not the admin JSON envelope on success (JSON-RPC 2.0 body), errors before the MCP handler use the standard envelope"
+    },
+    {
+      "method": "GET",
+      "path": "/api/open/v1/orders",
+      "auth": true,
+      "authScheme": "bearer-openapi-readonly-token",
+      "query": [
+        "status",
+        "paymentStatus",
+        "platform",
+        "keyword",
+        "startDate",
+        "endDate",
+        "page",
+        "pageSize"
+      ],
+      "responseData": "{ list: OpenApiOrderSummary[], total: number }",
+      "responseFields": [
+        "list[].orderNo",
+        "list[].platform",
+        "list[].status",
+        "list[].paymentStatus",
+        "list[].fulfillmentStatus",
+        "list[].currency",
+        "list[].totalAmount",
+        "list[].customerName",
+        "list[].createdAt"
+      ],
+      "forbiddenResponseFields": [
+        "list[].id",
+        "list[].customerEmail",
+        "list[].customerPhone",
+        "list[].rawData"
+      ],
+      "errorEnvelope": {
+        "401": 40101,
+        "429": 42901
+      },
+      "openapiSpec": "docs/openapi/open-api.v1.json",
+      "note": "Open API read-only entry; customerName is masked (first character only); no internal UUIDs, contacts or raw platform payloads"
+    },
+    {
+      "method": "GET",
+      "path": "/api/open/v1/orders/:orderNo",
+      "auth": true,
+      "authScheme": "bearer-openapi-readonly-token",
+      "responseData": "OpenApiOrderDetail",
+      "responseFields": [
+        "orderNo",
+        "items[].productTitle",
+        "items[].quantity",
+        "items[].unitPrice",
+        "items[].totalPrice"
+      ],
+      "forbiddenResponseFields": [
+        "id",
+        "customerEmail",
+        "customerPhone",
+        "rawData"
+      ],
+      "errorEnvelope": {
+        "401": 40101,
+        "404": 40401,
+        "429": 42901
+      },
+      "openapiSpec": "docs/openapi/open-api.v1.json",
+      "note": "cross-tenant order numbers answer 404 exactly like missing ones"
+    },
+    {
+      "method": "GET",
+      "path": "/api/open/v1/inventory",
+      "auth": true,
+      "authScheme": "bearer-openapi-readonly-token",
+      "query": [
+        "keyword",
+        "lowStockOnly",
+        "page",
+        "pageSize"
+      ],
+      "responseData": "{ list: OpenApiInventoryItem[], total: number }",
+      "responseFields": [
+        "list[].skuCode",
+        "list[].productTitle",
+        "list[].stock",
+        "list[].warningStock"
+      ],
+      "errorEnvelope": {
+        "401": 40101,
+        "429": 42901
+      },
+      "openapiSpec": "docs/openapi/open-api.v1.json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/open/v1/reports/summary",
+      "auth": true,
+      "authScheme": "bearer-openapi-readonly-token",
+      "query": [
+        "startDate",
+        "endDate"
+      ],
+      "responseData": "OpenApiReportSummary",
+      "responseFields": [
+        "startDate",
+        "endDate",
+        "orderCount",
+        "paidOrderCount",
+        "salesByCurrency",
+        "openExceptionCount",
+        "lowStockSkuCount"
+      ],
+      "errorEnvelope": {
+        "400": 40001,
+        "401": 40101,
+        "429": 42901
+      },
+      "openapiSpec": "docs/openapi/open-api.v1.json",
+      "note": "amounts stay per-currency; no FX conversion"
+    },
+    {
+      "method": "GET",
+      "path": "/api/open/v1/exceptions",
+      "auth": true,
+      "authScheme": "bearer-openapi-readonly-token",
+      "query": [
+        "exceptionType",
+        "severity",
+        "page",
+        "pageSize"
+      ],
+      "responseData": "{ list: OpenApiExceptionItem[], total: number, totalOpen: number }",
+      "responseFields": [
+        "list[].exceptionType",
+        "list[].severity",
+        "list[].status",
+        "list[].orderNo",
+        "list[].createdAt"
+      ],
+      "errorEnvelope": {
+        "401": 40101,
+        "429": 42901
+      },
+      "openapiSpec": "docs/openapi/open-api.v1.json"
     }
   ]
 }
