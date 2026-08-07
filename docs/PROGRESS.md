@@ -1892,3 +1892,10 @@ Final Production Acceptance Deferred to P10
 - **P2 权限矩阵 CI 漂移预警**：`project-tests.yml` PostgreSQL 集成 job 新增 `pnpm test:permmatrix` 步骤（APP_ENV=test + TEST_DATABASE_URL），消除套件在 CI 静默 skip。
 - **登记（本轮不改）**：operator 是否可管理 MCP token 收紧为 admin-only 属产品决策，待老板拍板。
 - 前端工具链依赖告警（P2-3/审计编号）不在本轮范围。
+
+### 变更记录（2026-08-07）第 153 轮线1：R152 两新功能交叉 QA + 安全审查（security-engineer / qa-engineer）
+
+- **范围**：最新 `main` 上按 #308 → #309 顺序本地叠加，做开放 API 攻击面（purpose 越权、跨租户、限流绕过、泄密扫描、规范一致性、审计口径、注入）与多语言模板（regenerate 越权、语言回退、XSS/变量注入、seed 零残留）专项，含双租户三角色 Docker 实测。
+- **P1 修复**：① 被禁用/清退租户的 MCP / 开放 API token 仍可读数据（token 鉴权补租户状态校验）；② 伪造 `X-Forwarded-For` 绕过每 IP 鉴权失败预算（新增 `TRUSTED_PROXIES`，默认不信任任何代理）；③ 开放 API 审计 fail-open 与 MCP（#303）fail-closed 口径不一致（改为审计落库后才返回结果）。
+- **P2 清单**：both token 双入口双份额度；401/429 不写审计；分页非法参数静默归一化与日期 400 口径不一；operator 未授权店铺 regenerate 返回 404 与 readonly 403 口径不一；token 上限 count→insert 竞态（#303 已修未合）。
+- 详见 `docs/progress/R153.md`。
