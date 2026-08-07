@@ -347,6 +347,19 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/dashboard/screen/config",
+      "auth": true,
+      "responseData": "DashboardScreenConfigDTO"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/dashboard/screen/config",
+      "auth": true,
+      "requestBody": "{ cards: [{ key, enabled }] }",
+      "responseData": "DashboardScreenConfigDTO"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/reports/profit",
       "auth": true,
       "query": [

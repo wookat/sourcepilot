@@ -23,13 +23,23 @@ const (
 // filled by the handler from the profit report (same #276 SQL 下推口径);
 // nil means the base conversion is unavailable, never faked as 0.
 type ScreenTodayDTO struct {
-	OrderCount            int64    `json:"orderCount"`
-	PaidOrderCount        int64    `json:"paidOrderCount"`
-	SalesBase             float64  `json:"salesBase"`
-	BaseCurrency          string   `json:"baseCurrency"`
-	UnconvertedCurrencies []string `json:"unconvertedCurrencies,omitempty"`
-	GrossProfitBase       *float64 `json:"grossProfitBase,omitempty"`
-	MarginPercent         *float64 `json:"marginPercent,omitempty"`
+	OrderCount            int64            `json:"orderCount"`
+	PaidOrderCount        int64            `json:"paidOrderCount"`
+	SalesBase             float64          `json:"salesBase"`
+	BaseCurrency          string           `json:"baseCurrency"`
+	UnconvertedCurrencies []string         `json:"unconvertedCurrencies,omitempty"`
+	UnconvertedRevenue    []ScreenMoneyDTO `json:"unconvertedRevenue,omitempty"`
+	ConvertedCurrencies   []string         `json:"convertedCurrencies,omitempty"`
+	GrossProfitBase       *float64         `json:"grossProfitBase,omitempty"`
+	MarginPercent         *float64         `json:"marginPercent,omitempty"`
+}
+
+// ScreenMoneyDTO is one original-currency amount that could not be converted
+// to the base currency (no manual rate): shown explicitly on the screen and
+// never mixed into salesBase.
+type ScreenMoneyDTO struct {
+	Currency string  `json:"currency"`
+	Amount   float64 `json:"amount"`
 }
 
 // ScreenTodoDTO is one of the five order-lifecycle todo counters.
@@ -76,14 +86,20 @@ type ScreenDTO struct {
 	Funnel      []ScreenFunnelStageDTO `json:"funnel"`
 	Trend       []ScreenTrendPointDTO  `json:"trend"`
 	Alerts      []ScreenAlertDTO       `json:"alerts"`
+	// Cards is the tenant's card layout (default layout when unset), so the
+	// frontend renders order / visibility from the same aggregate response.
+	Cards []ScreenCardDTO `json:"cards"`
 }
 
 // GetScreen aggregates the big-screen board. Each block is one grouped SQL
 // query (no per-row N+1); today's sales / profit are attached by the handler.
-func (s *Service) GetScreen(ctx context.Context, q Query, sc Scope) (*ScreenDTO, error) {
+// enabled (nil = all) lets the handler skip aggregation for cards the tenant
+// disabled, so a trimmed layout is also cheaper, never slower.
+func (s *Service) GetScreen(ctx context.Context, q Query, sc Scope, enabled map[string]bool) (*ScreenDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("operationdashboard: no db")
 	}
+	on := func(key string) bool { return enabled == nil || enabled[key] }
 	now := time.Now()
 	out := &ScreenDTO{
 		GeneratedAt: now.UTC().Format(time.RFC3339),
@@ -92,13 +108,23 @@ func (s *Service) GetScreen(ctx context.Context, q Query, sc Scope) (*ScreenDTO,
 	}
 
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	todayTx := s.screenOrderScope(ctx, q).Where("created_at >= ?", todayStart)
-	_ = todayTx.Count(&out.Today.OrderCount).Error
+	if on(CardKPIOrders) {
+		todayTx := s.screenOrderScope(ctx, q).Where("created_at >= ?", todayStart)
+		_ = todayTx.Count(&out.Today.OrderCount).Error
+	}
 
-	out.Funnel = s.screenFunnel(ctx, q, todayStart.AddDate(0, 0, -(screenFunnelDays-1)))
-	out.Trend = s.screenTrend(ctx, q, now)
-	out.Todos = s.screenTodos(ctx, q)
-	out.Alerts = s.screenAlerts(ctx, q)
+	if on(CardFunnel) {
+		out.Funnel = s.screenFunnel(ctx, q, todayStart.AddDate(0, 0, -(screenFunnelDays-1)))
+	}
+	if on(CardTrend) {
+		out.Trend = s.screenTrend(ctx, q, now)
+	}
+	if on(CardTodos) {
+		out.Todos = s.screenTodos(ctx, q)
+	}
+	if on(CardAlerts) || on(CardKPIAlerts) {
+		out.Alerts = s.screenAlerts(ctx, q)
+	}
 	return out, nil
 }
 
