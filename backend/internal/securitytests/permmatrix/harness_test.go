@@ -90,6 +90,7 @@ func buildHarness(dbURL string) (*harness, error) {
 		CollectorBaseURL:        "http://127.0.0.1:59321", // intentionally unreachable
 		EnableDemoSeed:          true,
 		MCPEnabled:              true,
+		OpenAPIEnabled:          true,
 	}
 	keys, err := auth.BuildKeySet(cfg)
 	if err != nil {
