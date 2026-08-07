@@ -35,7 +35,7 @@ func buyerMsgHandleErr(c *gin.Context, err error) {
 		return
 	}
 	if errors.Is(err, adminperm.ErrStoreNotOperable) {
-		response.Fail(c, 403, response.CodeForbidden, "店铺无操作权限")
+		response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
 		return
 	}
 	response.Fail(c, 400, response.CodeBadRequest, err.Error())

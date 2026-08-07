@@ -55,7 +55,7 @@ func handleFinanceError(c *gin.Context, err error) {
 	case errors.Is(err, ErrNotFound):
 		response.Fail(c, 404, response.CodeNotFound, "资源不存在")
 	case errors.Is(err, ErrForbidden):
-		response.Fail(c, 403, response.CodeForbidden, "当前账号无该店铺的操作权限")
+		response.Fail(c, 403, response.CodeStorePermissionDenied, "当前账号无该店铺的操作权限")
 	default:
 		response.Fail(c, 500, response.CodeInternalError, "服务器内部错误")
 	}

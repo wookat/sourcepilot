@@ -26,7 +26,7 @@ func failOrderWriteScope(c *gin.Context, err error) bool {
 		return true
 	}
 	if errors.Is(err, adminperm.ErrStoreNotOperable) {
-		response.Fail(c, 403, response.CodeForbidden, "店铺无操作权限")
+		response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
 		return true
 	}
 	return false
@@ -240,7 +240,7 @@ func (h *Handler) Create(c *gin.Context) {
 	out, err := h.Svc.Create(c, body, adminUUID(c))
 	if err != nil {
 		if errors.Is(err, adminperm.ErrStoreNotOperable) {
-			response.Fail(c, 403, response.CodeForbidden, "店铺无操作权限")
+			response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

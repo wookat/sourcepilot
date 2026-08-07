@@ -41,6 +41,22 @@ func positiveIntQ(c *gin.Context, key string, def int) (int, bool) {
 	return n, true
 }
 
+// boolQ validates a boolean query value: absent means false, and only
+// true/false/1/0 are accepted — anything else answers 400 instead of being
+// silently treated as false (same policy as dates and pagination).
+func boolQ(c *gin.Context, key string) (bool, bool) {
+	raw := strings.TrimSpace(c.Query(key))
+	switch {
+	case raw == "" || strings.EqualFold(raw, "false") || raw == "0":
+		return false, true
+	case strings.EqualFold(raw, "true") || raw == "1":
+		return true, true
+	}
+	response.Fail(c, http.StatusBadRequest, response.CodeBadRequest,
+		"invalid "+key+" (want true/false/1/0)")
+	return false, false
+}
+
 // tenantID resolves the authenticated tenant; the middleware guarantees the
 // token is present, so a miss is a server-side wiring error.
 func tenantID(c *gin.Context) (int64, bool) {
@@ -108,10 +124,13 @@ func (h *handlers) inventoryList(c *gin.Context) {
 	if !ok {
 		return
 	}
-	raw := strings.TrimSpace(c.Query("lowStockOnly"))
+	lowStockOnly, ok := boolQ(c, "lowStockOnly")
+	if !ok {
+		return
+	}
 	in := readonlyquery.InventoryQueryIn{
 		Keyword:      c.Query("keyword"),
-		LowStockOnly: strings.EqualFold(raw, "true") || raw == "1",
+		LowStockOnly: lowStockOnly,
 		Page:         page,
 		PageSize:     pageSize,
 	}
