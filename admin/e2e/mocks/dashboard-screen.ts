@@ -6,6 +6,23 @@ function hourIso(offset: number): string {
   return d.toISOString();
 }
 
+export const dashboardScreenDefaultCards = [
+  { key: 'kpi_orders', title: '今日订单', enabled: true },
+  { key: 'kpi_sales', title: '今日销售额', enabled: true },
+  { key: 'kpi_profit', title: '今日毛利', enabled: true },
+  { key: 'kpi_alerts', title: '当前告警', enabled: true },
+  { key: 'todos', title: '待办事项', enabled: true },
+  { key: 'funnel', title: '订单状态漏斗', enabled: true },
+  { key: 'trend', title: '24 小时订单趋势', enabled: true },
+  { key: 'alerts', title: '告警滚动列表', enabled: true },
+];
+
+export function dashboardScreenConfigResponse(
+  cards: { key: string; title: string; enabled: boolean }[] = dashboardScreenDefaultCards,
+) {
+  return ok({ cards });
+}
+
 export function dashboardScreenResponse() {
   const trend = Array.from({ length: 24 }, (_, i) => ({
     hour: hourIso(23 - i),
@@ -22,9 +39,12 @@ export function dashboardScreenResponse() {
       salesBase: 45230.5,
       baseCurrency: 'USD',
       unconvertedCurrencies: ['EUR'],
+      unconvertedRevenue: [{ currency: 'EUR', amount: 320.5 }],
+      convertedCurrencies: ['CNY'],
       grossProfitBase: 12890.25,
       marginPercent: 28.5,
     },
+    cards: dashboardScreenDefaultCards,
     todos: [
       { key: 'await_payment', title: '待收款确认', count: 12, priority: 'P1', link: '/orders/list?payStatus=unpaid' },
       { key: 'await_procurement', title: '待采购', count: 8, priority: 'P1', link: '/orders/list?payStatus=paid&hasPurchase=0' },

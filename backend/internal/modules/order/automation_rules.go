@@ -502,7 +502,7 @@ func (s *Service) RetryAutomationLog(c *gin.Context, logID uuid.UUID, adminID *u
 		}
 		return nil, err
 	}
-	if _, err := s.findOrderBare(c, row.OrderID); err != nil {
+	if _, err := s.findOrderOperable(c, row.OrderID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrAutomationLogNotFound
 		}

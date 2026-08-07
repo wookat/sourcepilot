@@ -883,6 +883,9 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	if err := s.validateShopRef(c, o.ShopID); err != nil {
 		return nil, err
 	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, o.ShopID); err != nil {
+		return nil, err
+	}
 	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		return nil, err
@@ -1049,6 +1052,9 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 			return nil, err
 		}
 	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, o.ShopID); err != nil {
+		return nil, err
+	}
 	prevPaymentStatus := o.PaymentStatus
 
 	if strings.TrimSpace(body.CustomerName) != "" {
@@ -1068,6 +1074,9 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 			o.ShopID = nil
 		} else {
 			if err := s.validateShopRef(c, body.ShopID); err != nil {
+				return nil, err
+			}
+			if err := adminperm.EnsureStoreOperable(c, s.DB, body.ShopID); err != nil {
 				return nil, err
 			}
 			o.ShopID = body.ShopID
@@ -1247,7 +1256,7 @@ func (s *Service) Delete(c *gin.Context, orderID uuid.UUID, adminID *uuid.UUID) 
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("order: no db")
 	}
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderOperable(c, orderID)
 	if err != nil {
 		return err
 	}
@@ -1268,7 +1277,7 @@ func (s *Service) Delete(c *gin.Context, orderID uuid.UUID, adminID *uuid.UUID) 
 }
 
 func (s *Service) AppendItem(c *gin.Context, orderID uuid.UUID, body OrderItemInput, adminID *uuid.UUID) (*OrderItem, error) {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderOperable(c, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -1315,6 +1324,19 @@ func (s *Service) AppendItem(c *gin.Context, orderID uuid.UUID, body OrderItemIn
 	return &row, nil
 }
 
+// findOrderOperable resolves an order for a write action: invisible stores
+// stay 404 while view-only store grants surface adminperm.ErrStoreNotOperable.
+func (s *Service) findOrderOperable(c *gin.Context, orderID uuid.UUID) (*Order, error) {
+	o, err := s.findOrderBare(c, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, o.ShopID); err != nil {
+		return nil, err
+	}
+	return o, nil
+}
+
 func (s *Service) findOrderBare(c *gin.Context, orderID uuid.UUID) (*Order, error) {
 	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
@@ -1332,7 +1354,7 @@ func (s *Service) findOrderBare(c *gin.Context, orderID uuid.UUID) (*Order, erro
 
 // Update single item belonging to order.
 func (s *Service) PatchItem(c *gin.Context, orderID, itemID uuid.UUID, body OrderItemInput, adminID *uuid.UUID) (*OrderItem, error) {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderOperable(c, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -1385,7 +1407,7 @@ func (s *Service) PatchItem(c *gin.Context, orderID, itemID uuid.UUID, body Orde
 
 // DeleteItem removes one line permanently.
 func (s *Service) DeleteItem(c *gin.Context, orderID, itemID uuid.UUID, adminID *uuid.UUID) error {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderOperable(c, orderID)
 	if err != nil {
 		return err
 	}
@@ -1410,7 +1432,7 @@ func (s *Service) DeleteItem(c *gin.Context, orderID, itemID uuid.UUID, adminID 
 }
 
 func (s *Service) AppendShipment(c *gin.Context, orderID uuid.UUID, body OrderShipmentInput, adminID *uuid.UUID) (*OrderShipment, error) {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderOperable(c, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -1463,7 +1485,7 @@ func (s *Service) AppendShipment(c *gin.Context, orderID uuid.UUID, body OrderSh
 }
 
 func (s *Service) PatchShipment(c *gin.Context, orderID, shipmentID uuid.UUID, body OrderShipmentInput, adminID *uuid.UUID) (*OrderShipment, error) {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderOperable(c, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -1516,7 +1538,7 @@ func (s *Service) PatchShipment(c *gin.Context, orderID, shipmentID uuid.UUID, b
 }
 
 func (s *Service) DeleteShipment(c *gin.Context, orderID, shipmentID uuid.UUID, adminID *uuid.UUID) error {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderOperable(c, orderID)
 	if err != nil {
 		return err
 	}

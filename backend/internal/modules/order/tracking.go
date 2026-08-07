@@ -14,7 +14,7 @@ import (
 // in_transit / delivered keep advancing the order exactly as manual edits
 // do). With the manual provider this is a no-op returning the current row.
 func (s *Service) RefreshShipmentTracking(c *gin.Context, orderID, shipmentID uuid.UUID, adminID *uuid.UUID) (*OrderShipment, error) {
-	if _, err := s.findOrderBare(c, orderID); err != nil {
+	if _, err := s.findOrderOperable(c, orderID); err != nil {
 		return nil, err
 	}
 	var row OrderShipment
