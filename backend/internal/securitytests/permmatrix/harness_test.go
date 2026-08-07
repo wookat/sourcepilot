@@ -44,8 +44,11 @@ type harness struct {
 	Personas map[string]*persona
 	// ShopGranted is a tenant A shop granted to the operator persona;
 	// ShopUngranted is a tenant A shop the operator has no grant for.
+	// ShopViewOnly is a tenant A shop the viewOnlyOperator persona can view
+	// but not operate (grant scope "view").
 	ShopGranted   uuid.UUID
 	ShopUngranted uuid.UUID
+	ShopViewOnly  uuid.UUID
 }
 
 var (
@@ -137,6 +140,7 @@ func (h *harness) seedPersonas() error {
 		{personaAdmin, adminperm.RoleAdmin, tenantA},
 		{personaOperator, adminperm.RoleOperator, tenantA},
 		{personaReadonly, adminperm.RoleReadonly, tenantA},
+		{personaViewOnly, adminperm.RoleOperator, tenantA},
 		{personaCrossTenant, adminperm.RoleAdmin, tenantB},
 		{personaPlatformAdmin, adminperm.RoleAdmin, 0},
 	}
@@ -177,7 +181,20 @@ func (h *harness) seedPersonas() error {
 		Platform:        "manual",
 		PermissionScope: admin.StorePermScopeOperate,
 	}
-	return h.DB.Create(grant).Error
+	if err := h.DB.Create(grant).Error; err != nil {
+		return err
+	}
+	if h.ShopViewOnly, err = h.seedShop(tenantA, "perm-matrix-view-only"); err != nil {
+		return err
+	}
+	viewGrant := &admin.UserStorePermission{
+		ID:              uuid.New(),
+		UserID:          h.Personas[personaViewOnly].UserID,
+		StoreID:         h.ShopViewOnly,
+		Platform:        "manual",
+		PermissionScope: admin.StorePermScopeView,
+	}
+	return h.DB.Create(viewGrant).Error
 }
 
 // fillPathParams replaces gin path params with syntactically valid values that
