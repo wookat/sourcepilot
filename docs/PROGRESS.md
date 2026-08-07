@@ -1962,6 +1962,7 @@ Final Production Acceptance Deferred to P10
 - **P2-4 依赖告警**：13 条构建链告警逐项评估，0 条可不跨 major 净收敛（react-router minor 覆盖实测反增告警已回退），登记 `docs/DEPENDENCY_ADVISORIES_R160.md`。
 - 详见 `docs/progress/R160.md`。
 
+
 ### 变更记录（2026-08-07）第 161 轮线1：竞品复评 v8（product-researcher + qa-engineer）
 
 - **最新 main（b2d20535）Docker 全栈实测复评 R151 16 项矩阵：零回退，矩阵升位为超越 4 / 达到 12 / 落后 0**——v7 建议 1（开放 API #308）与建议 2（消息多语言）已合入并实测坐实（开放 API 五端点端到端 + MCP 复测 + 多语言草稿/回退/400 白名单 + 安全边界抽验 + UI 走查录屏），第 12 项客服管理升位、新增第 20 增项「开放 API/可编程集成」评超越；v7 建议 3（#318）未合入不计入。
@@ -1985,6 +1986,22 @@ Final Production Acceptance Deferred to P10
 - **P2 顺手修**：备份确认弹窗英文按钮、备份/恢复创建时间 raw ISO、大屏趋势 tooltip raw ISO、操作日志新动作英文 key（补 `dashboard` 资源 + 18 动作中文映射）。
 - **P2 遗留**：MCP 页文档入口不可点击（待产品定文档挂载位置）、v9 P2-3 财务 CSV 未折算占位口径待产品确认。
 - 报告归档 `docs/ux-review/UX_REVIEW_V10_REPORT.md`，详见 `docs/progress/R162-line2.md`。
+
+
+### 变更记录（2026-08-07）第 163 轮线2：验收包补 R158–R162 增量（fullstack-engineer）
+
+- **ACCEPTANCE_R123.md**：§一/16 合入状态收口（#312/#317/#318 已合入 main，四个 ⏳ 转 ✅）；新增 §一/17「R158–R162 增量能力」八行（#320/#321/#322/#323/#326 ✅；#326 MCP 写白名单标「方案待决策」；合并期更新：#324/#325/#327 亦已先后合入 main，八行全部 ✅）；§三/§五 同步。
+- **DEMO_SCRIPT.md**：新增 R163 增补段（不新增独立步骤，30 分钟不变；#318 合入后第 1b 步无需叠加分支；币种未保存提示并入第 19 步后顺带演示；MCP 审计卡更名口径同步第 23 步）；清理 #308/#309/#318 陈旧 ⏳ 标注；Docker 全栈三角色按更新后脚本实跑留证（录屏外置不入库），失实处即修。
+- 详见 `docs/progress/R163-line2.md`。
+
+### 变更记录（2026-08-07）第 164 轮线1：生产部署演练季度复检（devops-engineer）
+
+- **从零部署**：production compose + Caddy 全新构建部署 236 秒（<15 分钟），六服务 healthy，HTTPS `/health-backend` 全绿；TRUSTED_PROXIES/OPENAPI_ENABLED 按 #316 口径实测（可信网段 XFF 落地、外部伪造 XFF 不落地、开关 401/404 切换）。
+- **R159 双租户存量升级**：`32a9aaea` 基线（2 万订单/4 万订单行/6 万库存流水/存量 token/多语言模板/view-only 授权）升级至 `a78e2fb0`——AutoMigrate 落地、8 类数值指纹 0 差异（唯一预期变化为 `order_automation_logs.shop_id` 回填）、迁移幂等；升级后 view-only 403+40303、readonly 40301、OpenAPI 分页 400、大屏折算（未配汇率不计入 + 配置后折算）与自定义卡片配置读写实测通过。
+- **--pre-upgrade-check（#317）**：备份+同租户重复订单号预检通过；目录不可写/不可创建均清晰报错提示 `BACKUP_DIR` 覆盖（R159 P2① 闭环坐实）。备份→`pg_restore --clean --if-exists` 恢复→指纹与升级前一致→重启幂等重跑闭环通过。
+- **文档核对**：env 示例/部署/升级/清单文档与实测一致，无 P0/P1 失实；P2 3 项登记（settings 直连 API 写数值型汇率被静默忽略；#327 币种设置离开确认未合入 main 待补验；恢复回退备份点后新增数据沿 R159 口径）。
+- **合并期更新（本 PR 合并 main 时点）**：#327（R162 线2 UX v10，含币种设置离开确认 `useUnsavedChangesGuard`）已合入 main，上述 P2② 由「未合入待补验」更新为「已合入，离开确认待下轮生产面补验」。
+- 详见 `docs/progress/R164.md`。
 
 ### 变更记录（2026-08-07）第 164 轮线2：客服/AI 工作流季度复查（qa-engineer）
 
