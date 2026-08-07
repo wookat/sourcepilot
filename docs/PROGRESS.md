@@ -1905,3 +1905,11 @@ Final Production Acceptance Deferred to P10
 - **跳过（#303 已覆盖未合入）**：token 上限 count→insert 竞态、MCP 审计 fail-closed，随 #303 合入闭合。
 - **文档收口**：#311 三个行为变更补入 `docs/mcp.md`、`docs/open-api.md`、`docs/upgrade-guide.md`（R152/R153/R154 版本要点行）。
 - 详见 `docs/progress/R154.md`。
+
+### 变更记录（2026-08-07）第 156 轮线1：R155 登记 P2 + 合并期杂项收口（fullstack-engineer）
+
+- **MCP 审计 fail-closed 错误码**：拒绝调用由普通 error（wire 上 JSON-RPC `code:0`，非规范值）改为 `-32603 internal error`（`jsonrpc.CodeInternalError`），补 code 断言回归测试；开放 API 侧同场景本就是 HTTP 500 + envelope `50000`，口径一致无改动。
+- **`--pre-upgrade-check` 备份目录**：维持默认 `/var/backups`（root 部署面向），非 root 下 mkdir 失败与目录不可写（新增 `-w` 检查）都启动即清晰报错并提示 `BACKUP_DIR=<可写目录>` 覆盖，不再误报「pg_dump 备份失败」。
+- **demo clean 覆盖面核实**：`seed:demo:full:clean` 只清 `DEMO-` 前缀 token，`e2e-refresh-verify` 等测试遗留不覆盖（实测确认）；不扩大删除面，SKILL 常见坑登记「测试收尾自行吊销」。
+- **合并期预案落地**：#308 purpose 签名冲突按 R155 §3 预案修复（叠加分支内调用处补 `""`）；permmatrix harness 补 `OpenAPIEnabled`（cherry-pick #313）。
+- 详见 `docs/progress/R156.md`。
