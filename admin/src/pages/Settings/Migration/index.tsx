@@ -809,6 +809,7 @@ function ExportCenter() {
     order: '全部订单，每个商品行一行，含订单币种与金额口径',
     inventory: '全部 SKU 库存，按仓库逐行展开，含默认仓与各仓库存',
     source: '全部货源档案与 SKU 映射，含供应商 / 链接 / 参考价',
+    payment: '全部回款记录，每笔回款一行，含订单号 / 金额 / 币种 / 手续费 / 到账时间',
   };
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="middle">
@@ -816,7 +817,7 @@ function ExportCenter() {
         type="info"
         showIcon
         message="数据搬出"
-        description="四类数据均可全量导出为 CSV（UTF-8，Excel 可直接打开），列口径与导入模板兼容，便于迁入其他系统。"
+        description="五类数据均可全量导出为 CSV（UTF-8，Excel 可直接打开），列口径与导入模板兼容，便于迁入其他系统。"
       />
       <Table
         size="small"

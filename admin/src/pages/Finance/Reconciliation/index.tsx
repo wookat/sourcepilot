@@ -241,7 +241,7 @@ export default function FinanceReconciliation() {
           scroll={{ x: 'max-content' }}
           pagination={{ pageSize: 20, showSizeChanger: true }}
           locale={{
-            emptyText: <EmptyState description={`${reportRangeLabel(range)}内暂无对账数据`} />,
+            emptyText: <EmptyState title={`${reportRangeLabel(range)}内暂无对账数据`} />,
           }}
         />
       </Card>

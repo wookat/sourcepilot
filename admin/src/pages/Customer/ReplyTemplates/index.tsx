@@ -32,6 +32,7 @@ import {
   Tabs,
   Tag,
   Tooltip,
+  Typography,
   message,
 } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
@@ -346,7 +347,7 @@ export default function ReplyTemplatesPage() {
               <>
                 <Form.Item label="语言变体" style={{ marginBottom: 8 }} tooltip="同一模板按语言维护多份内容，变量占位符口径不变；正文可为外语">
                   {fields.length === 0 ? (
-                    <span style={{ color: 'rgba(0,0,0,0.45)' }}>暂无语言变体，点击下方添加</span>
+                    <Typography.Text type="secondary">暂无语言变体，点击下方添加</Typography.Text>
                   ) : null}
                   {fields.map((field) => (
                     <div

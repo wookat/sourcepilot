@@ -411,7 +411,7 @@ export default function CustomerConversationDetailPage() {
     const forbidden = loadError.status === 403;
     const notFound = loadError.status === 404;
     return (
-      <TmPageContainer title="AI 客服工作台" onBack={() => history.back()}>
+      <TmPageContainer title="AI 客服工作台" onBack={() => window.history.back()}>
         <Result
           status={forbidden ? '403' : notFound ? '404' : 'error'}
           title={forbidden ? '无权访问该会话' : notFound ? '会话不存在或已被删除' : '会话加载失败'}
@@ -437,7 +437,7 @@ export default function CustomerConversationDetailPage() {
   const readOnly = conv?.canWrite === false;
 
   return (
-    <TmPageContainer title="AI 客服工作台" onBack={() => history.back()}>
+    <TmPageContainer title="AI 客服工作台" onBack={() => window.history.back()}>
       <Spin spinning={loading}>
         {conv && (
           <>
