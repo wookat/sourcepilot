@@ -2030,3 +2030,9 @@ Final Production Acceptance Deferred to P10
 - **验收包增量**：`ACCEPTANCE_R123.md` 新增 §一/18「R163–R166 增量能力」（view-only 权限体系收口合并状态如实标注：#328/#329/#330/#331 已合入，#332 OPEN 有冲突、#333 OPEN 依赖 #332；大回归 v29 报告在 `integration/r166-regression-v29` 分支，v28 报告不可检索登记为会话侧未归档）+ §三证据索引 + §五 R167 待办；`DEMO_SCRIPT.md` 新增第 21b 步 view-only 演示点（403 中文提示「店铺无操作权限」，30 分钟总长不变）。
 - **Docker 三角色（含 view-only persona）实跑**：12 项 UI 断言全部 PASS（含 UX v10 #327 补验：币种设置路由离开确认弹窗、备份页时间列/中文按钮），录屏留证外置不入库；clean + verify 零残留。`pnpm check:ui-copy --strict` 通过。
 - 详见 `docs/progress/R167-line2.md`。
+### 变更记录（2026-08-07）第 168 轮线2：生产升级演练复跑（R164 基线 → 最新 main + #332/#335 叠加）（devops-engineer）
+
+- **升级演练**：R164 时代基线（`a78e2fb0`，双租户 2 万订单/4 万订单行/6 万库存流水/2 万自动化日志/4000 SKU/4000 回款/5 MCP token/20 模板+20 变体/跨租户重复订单号样本）升级到 main `d645ec96` + 未合并 #332/#335 叠加栈（4 处冲突按 R167 定案收口）：AutoMigrate 落地（`order_automation_logs.shop_id` 回填 10000 行）、9 类数值指纹 0 差异；重建 backend 镜像后六处 view-only 修复面 403/40303、跨租户 404（批量审单为整批 failed 零生效，与 api.md 口径一致）实测生效、零落库。
+- **从零部署复验**：最新 main 无缓存从零 223s（<15min）；TRUSTED_PROXIES 伪造 XFF 丢弃/可信网段 XFF 落地、OPENAPI 开关 401/200/404 口径与文档一致。
+- **备份恢复**：`--pre-upgrade-check`（非 root BACKUP_DIR 覆盖口径）+ 备份→`pg_restore --clean --if-exists` 恢复→迁移幂等重跑指纹 0 差异。
+- **文档核对**：未发现 P0/P1 失实；P2×3 登记（六面文案表述差异、参数校验先于 scope 判定、#332/#335 文档冲突需人工收口）。详见 `docs/progress/R168-line2.md`。
