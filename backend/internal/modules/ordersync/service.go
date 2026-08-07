@@ -244,8 +244,8 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("ordersync: no db")
 	}
-	// Manual sync creates a write task (order rows are upserted), so a
-	// view-only store grant is rejected like other store writes (403/40303).
+	// Starting a sync writes to the store and calls the platform: a view-only
+	// grant must be rejected, not just an invisible store.
 	if err := adminperm.EnsureStoreOperable(c, s.DB, &shopID); err != nil {
 		return nil, err
 	}
@@ -789,6 +789,8 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
 		return nil, err
 	}
+	// Retrying re-runs the platform sync for the task's store: require an
+	// operate grant on it, not just tenant membership.
 	if err := adminperm.EnsureStoreOperable(c, s.DB, &task.ShopID); err != nil {
 		return nil, err
 	}

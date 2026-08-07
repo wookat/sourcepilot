@@ -203,9 +203,8 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncCust
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customersync: no db")
 	}
-	// Manual sync creates a write task (conversation/message rows are
-	// upserted), so a view-only store grant is rejected like other store
-	// writes (403/40303).
+	// Starting a sync writes to the store and calls the platform: a view-only
+	// grant must be rejected, not just an invisible store.
 	if err := adminperm.EnsureStoreOperable(c, s.DB, &shopID); err != nil {
 		return nil, err
 	}

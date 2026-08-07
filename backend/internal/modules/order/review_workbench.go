@@ -227,6 +227,29 @@ func parseReviewOrderIDs(body ReviewDecisionBody) ([]uuid.UUID, error) {
 	return out, nil
 }
 
+// ensureReviewBatchOperable rejects the whole batch when any addressed order
+// belongs to a store the caller may see but not operate (grant scope "view"),
+// so a view-only account can never release or reject an order. Orders outside
+// the caller's visible stores stay per-row "订单不存在" (no existence leak).
+func (s *Service) ensureReviewBatchOperable(c *gin.Context, tenantID int64, ids []uuid.UUID) error {
+	var rows []Order
+	if err := s.DB.WithContext(c.Request.Context()).
+		Select("id", "shop_id").
+		Where("id IN ? AND tenant_id = ? AND deleted_at IS NULL", ids, tenantID).
+		Find(&rows).Error; err != nil {
+		return err
+	}
+	for i := range rows {
+		// Invisible stores are handled per row below; anything else (including a
+		// principal load failure) fails the whole batch closed.
+		if err := adminperm.EnsureStoreOperable(c, s.DB, rows[i].ShopID); err != nil &&
+			!errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+	}
+	return nil
+}
+
 // decideReview applies approve / reject to a batch of待审/挂起 orders.
 // approve 放行回正常流；reject 拒绝并进入取消动线（订单状态置为 cancelled）。
 func (s *Service) decideReview(c *gin.Context, body ReviewDecisionBody, adminID *uuid.UUID, approve bool) (*ReviewDecisionResult, error) {
@@ -239,6 +262,12 @@ func (s *Service) decideReview(c *gin.Context, body ReviewDecisionBody, adminID 
 	}
 	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
+		return nil, err
+	}
+	// Store operability gates the whole batch before anything is written: a
+	// store the caller may only view must never have its orders released or
+	// rejected, and denying up-front keeps the batch free of partial effects.
+	if err := s.ensureReviewBatchOperable(c, tid, ids); err != nil {
 		return nil, err
 	}
 	res := &ReviewDecisionResult{Total: len(ids)}
@@ -255,12 +284,8 @@ func (s *Service) decideReview(c *gin.Context, body ReviewDecisionBody, adminID 
 			}
 			// Store scope must gate the decision itself: the workbench list is
 			// scoped, but ids arrive from the client and an operator may only
-			// approve / reject orders of stores granted with operate scope
-			// (view-only grants can read the order but not decide it).
+			// approve / reject orders of the stores granted to the account.
 			if err := adminperm.EnsureStoreOperable(c, s.DB, o.ShopID); err != nil {
-				if errors.Is(err, adminperm.ErrStoreNotOperable) {
-					return fmt.Errorf("店铺无操作权限")
-				}
 				return fmt.Errorf("订单不存在")
 			}
 			row.OrderNo = o.OrderNo
