@@ -14,7 +14,7 @@ TradeMind 提供一个符合 MCP（Model Context Protocol）标准的只读 serv
 ## 获取只读 token
 
 1. 登录管理后台，进入「系统设置 → MCP 只读接入」（`/settings/mcp-tokens`）。
-2. 点击「创建只读 token」，输入用途名称（如 `claude-desktop`），可选设置有效期（7/30/90/180/365 天，默认不过期）。
+2. 点击「创建只读 token」，输入用途名称（如 `claude-desktop`），选择 token 用途（R152 起：「MCP 只读」（默认）/「开放 API」/「MCP + 开放 API」；MCP 入口只接受 `mcp`/`both`，开放 API 入口（`GET /api/open/v1/*`，见 `docs/open-api.md`）只接受 `openapi`/`both`，存量 token 均为 MCP 用途），可选设置有效期（7/30/90/180/365 天，默认不过期）。
 3. **明文 token 只在创建时展示一次**，请立即复制保存；数据库中只保存 SHA-256 哈希。
 4. 列表中 token 以脱敏形式展示（如 `sp_mcp_ro_ab…cdef`），可随时吊销；创建与吊销都会写入操作日志。
 

@@ -1,0 +1,345 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "TradeMind Open API (read-only)",
+    "description": "贸灵 TradeMind 对外只读 REST API。Bearer token 鉴权（token 用途须为 openapi 或 both），所有查询强制租户隔离，仅提供 GET 端点，无任何写操作。响应为全站统一 envelope：{ code, message, data }。",
+    "version": "1.0.0"
+  },
+  "servers": [{ "url": "/", "description": "TradeMind backend" }],
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/api/open/v1/orders": {
+      "get": {
+        "operationId": "listOrders",
+        "summary": "订单列表（脱敏）",
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "paymentStatus", "in": "query", "schema": { "type": "string" } },
+          { "name": "platform", "in": "query", "schema": { "type": "string" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "$ref": "#/components/parameters/page" },
+          { "$ref": "#/components/parameters/pageSize" }
+        ],
+        "responses": {
+          "200": {
+            "description": "订单列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "list": { "type": "array", "items": { "$ref": "#/components/schemas/OrderSummary" } },
+                            "total": { "type": "integer", "format": "int64" }
+                          },
+                          "required": ["list", "total"]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/api/open/v1/orders/{orderNo}": {
+      "get": {
+        "operationId": "getOrder",
+        "summary": "订单详情（脱敏，含行项目）",
+        "parameters": [
+          { "name": "orderNo", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "订单详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    {
+                      "type": "object",
+                      "properties": { "data": { "$ref": "#/components/schemas/OrderDetail" } }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/api/open/v1/inventory": {
+      "get": {
+        "operationId": "listInventory",
+        "summary": "SKU 库存查询",
+        "parameters": [
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } },
+          { "name": "lowStockOnly", "in": "query", "schema": { "type": "boolean" } },
+          { "$ref": "#/components/parameters/page" },
+          { "$ref": "#/components/parameters/pageSize" }
+        ],
+        "responses": {
+          "200": {
+            "description": "SKU 库存列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "list": { "type": "array", "items": { "$ref": "#/components/schemas/InventoryItem" } },
+                            "total": { "type": "integer", "format": "int64" }
+                          },
+                          "required": ["list", "total"]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/api/open/v1/reports/summary": {
+      "get": {
+        "operationId": "getReportSummary",
+        "summary": "经营/利润报表摘要",
+        "parameters": [
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "经营摘要（金额按原币种合计，不做汇率折算）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    {
+                      "type": "object",
+                      "properties": { "data": { "$ref": "#/components/schemas/ReportSummary" } }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/api/open/v1/exceptions": {
+      "get": {
+        "operationId": "listExceptions",
+        "summary": "异常待办查询",
+        "parameters": [
+          { "name": "exceptionType", "in": "query", "schema": { "type": "string" } },
+          { "name": "severity", "in": "query", "schema": { "type": "string", "enum": ["error", "warning"] } },
+          { "$ref": "#/components/parameters/page" },
+          { "$ref": "#/components/parameters/pageSize" }
+        ],
+        "responses": {
+          "200": {
+            "description": "未处理异常待办",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "list": { "type": "array", "items": { "$ref": "#/components/schemas/ExceptionItem" } },
+                            "total": { "type": "integer", "format": "int64" },
+                            "totalOpen": { "type": "integer", "format": "int64" }
+                          },
+                          "required": ["list", "total", "totalOpen"]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "只读 API token（sp_mcp_ro_ 前缀，用途 openapi 或 both），在管理后台「只读 API 接入」页创建"
+      }
+    },
+    "parameters": {
+      "page": {
+        "name": "page",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "default": 1 }
+      },
+      "pageSize": {
+        "name": "pageSize",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "参数非法（业务码 40001）",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } }
+      },
+      "Unauthorized": {
+        "description": "缺失、非法、过期、已吊销或用途不符的 token（业务码 40101）",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } }
+      },
+      "NotFound": {
+        "description": "订单不存在或不属于当前租户（业务码 40401）",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } }
+      },
+      "TooManyRequests": {
+        "description": "超出限流（业务码 42901，附带 Retry-After 响应头）",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } }
+      }
+    },
+    "schemas": {
+      "Envelope": {
+        "type": "object",
+        "description": "全站统一响应 envelope；code 为 0 表示成功，非 0 为业务错误码",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "traceId": { "type": "string" }
+        },
+        "required": ["code", "message"]
+      },
+      "OrderSummary": {
+        "type": "object",
+        "properties": {
+          "orderNo": { "type": "string" },
+          "platform": { "type": "string" },
+          "status": { "type": "string" },
+          "paymentStatus": { "type": "string" },
+          "fulfillmentStatus": { "type": "string" },
+          "currency": { "type": "string" },
+          "totalAmount": { "type": "number" },
+          "customerName": { "type": "string", "description": "脱敏客户名（仅保留首字符）" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["orderNo", "platform", "status", "paymentStatus", "fulfillmentStatus", "currency", "totalAmount", "createdAt"]
+      },
+      "OrderItemSummary": {
+        "type": "object",
+        "properties": {
+          "productTitle": { "type": "string" },
+          "skuName": { "type": "string" },
+          "skuCode": { "type": "string" },
+          "quantity": { "type": "integer" },
+          "unitPrice": { "type": "number" },
+          "totalPrice": { "type": "number" }
+        },
+        "required": ["productTitle", "quantity", "unitPrice", "totalPrice"]
+      },
+      "OrderDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/OrderSummary" },
+          {
+            "type": "object",
+            "properties": {
+              "paidAt": { "type": "string", "format": "date-time" },
+              "shippedAt": { "type": "string", "format": "date-time" },
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/OrderItemSummary" } }
+            },
+            "required": ["items"]
+          }
+        ]
+      },
+      "InventoryItem": {
+        "type": "object",
+        "properties": {
+          "skuCode": { "type": "string" },
+          "skuName": { "type": "string" },
+          "productTitle": { "type": "string" },
+          "stock": { "type": "integer", "nullable": true },
+          "warningStock": { "type": "integer" },
+          "stockStatus": { "type": "string" }
+        },
+        "required": ["skuCode", "productTitle", "warningStock"]
+      },
+      "CurrencySales": {
+        "type": "object",
+        "properties": {
+          "currency": { "type": "string" },
+          "paidAmount": { "type": "number" },
+          "orderCount": { "type": "integer", "format": "int64" }
+        },
+        "required": ["currency", "paidAmount", "orderCount"]
+      },
+      "ReportSummary": {
+        "type": "object",
+        "properties": {
+          "startDate": { "type": "string", "format": "date" },
+          "endDate": { "type": "string", "format": "date" },
+          "orderCount": { "type": "integer", "format": "int64" },
+          "paidOrderCount": { "type": "integer", "format": "int64" },
+          "salesByCurrency": { "type": "array", "items": { "$ref": "#/components/schemas/CurrencySales" } },
+          "openExceptionCount": { "type": "integer", "format": "int64" },
+          "lowStockSkuCount": { "type": "integer", "format": "int64" }
+        },
+        "required": ["startDate", "endDate", "orderCount", "paidOrderCount", "salesByCurrency", "openExceptionCount", "lowStockSkuCount"]
+      },
+      "ExceptionItem": {
+        "type": "object",
+        "properties": {
+          "exceptionType": { "type": "string" },
+          "severity": { "type": "string" },
+          "status": { "type": "string" },
+          "orderNo": { "type": "string" },
+          "platform": { "type": "string" },
+          "shopName": { "type": "string" },
+          "skuCode": { "type": "string" },
+          "productTitle": { "type": "string" },
+          "quantity": { "type": "integer" },
+          "errorMessage": { "type": "string" },
+          "suggestedAction": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["exceptionType", "severity", "status", "createdAt"]
+      }
+    }
+  }
+}

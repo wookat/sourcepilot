@@ -42,7 +42,7 @@ func TestToolCallsAreAudited(t *testing.T) {
 	db := openTestDB(t)
 	seedOrders(t, db)
 	srv, tokens, audits := newAuditedServer(t, db)
-	res, err := tokens.Create(context.Background(), 1, "audited", nil, nil)
+	res, err := tokens.Create(context.Background(), 1, "audited", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestToolCallsAreAudited(t *testing.T) {
 func TestFailedToolCallAuditedAsError(t *testing.T) {
 	db := openTestDB(t)
 	srv, tokens, audits := newAuditedServer(t, db)
-	res, err := tokens.Create(context.Background(), 1, "audited-err", nil, nil)
+	res, err := tokens.Create(context.Background(), 1, "audited-err", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestExpiredTokenRejectedAtEntry(t *testing.T) {
 	db := openTestDB(t)
 	srv, tokens, _ := newAuditedServer(t, db)
 	future := time.Now().UTC().Add(time.Hour)
-	res, err := tokens.Create(context.Background(), 1, "expiring", &future, nil)
+	res, err := tokens.Create(context.Background(), 1, "expiring", "", &future, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
