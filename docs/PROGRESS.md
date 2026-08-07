@@ -1946,3 +1946,11 @@ Final Production Acceptance Deferred to P10
 - **复验无回退**：开放 API purpose 双向隔离/跨租户 404/脱敏/XFF 无绕过/逐次审计 fail-closed/`OPENAPI_ENABLED=false` 运行时；MCP R145·R148 修复项与 `-32603`、租户禁用即失效；多语言模板注入面与授权；大屏折算与卡片配置 scope/readonly/参数校验；权限矩阵 644 条 route 无漂移；govulncheck 0 可达；seed 生产拒绝。
 - **P2 清单**：非法入参静默降级（`severity`/`lowStockOnly`）、前端构建工具链依赖 13 条（2 high）、view-only 403 业务码 40301 与 40303 不统一、入口级拒绝审计 best effort、矩阵 harness 缺 view-only persona。
 - 报告归档 `docs/SECURITY_AUDIT_R159.md`，详见 `docs/progress/R159.md`。
+
+### 变更记录（2026-08-07）第 162 轮线2：全站视觉/UX 复核 v10（user-experience-officer / ui-designer）
+
+- **走查**：距 v9 25 轮的全站复核。Docker 全栈 + `seed:demo:full` 三角色实测录屏；headless 硬指标矩阵 3 角色 × 5 精确视口（1920/1440/1024/768/375）× 29 路由全零（溢出/NaN/Invalid Date/console/pageerror/403·500 噪音）；v9「精确 375/1920 未达」覆盖限制收口；v9 遗留无回退；R137–R161 新面（备份 Ops、MCP token、大屏、开放 API 入口、多语言模板、币种设置、标签/自动化、财务对账）全走查。
+- **P1 修复**：`/settings/report-currency` dirty 时路由跳转静默丢弃修改 → 新增共享 `useUnsavedChangesGuard`（history.block + beforeunload）并接入。
+- **P2 顺手修**：备份确认弹窗英文按钮、备份/恢复创建时间 raw ISO、大屏趋势 tooltip raw ISO、操作日志新动作英文 key（补 `dashboard` 资源 + 18 动作中文映射）。
+- **P2 遗留**：MCP 页文档入口不可点击（待产品定文档挂载位置）、v9 P2-3 财务 CSV 未折算占位口径待产品确认。
+- 报告归档 `docs/ux-review/UX_REVIEW_V10_REPORT.md`，详见 `docs/progress/R162-line2.md`。
