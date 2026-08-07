@@ -33,6 +33,10 @@ func openTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(&mcptoken.Token{}, &order.Order{}, &product.Product{}, &product.ProductSKU{}); err != nil {
 		t.Fatal(err)
 	}
+	// Token authentication also checks the tenant is not disabled.
+	if err := db.Exec(`CREATE TABLE tenants (id integer primary key, status text, deleted_at datetime)`).Error; err != nil {
+		t.Fatal(err)
+	}
 	return db
 }
 
@@ -117,7 +121,7 @@ func TestUnauthorizedRejected(t *testing.T) {
 	}
 
 	// Revoked token.
-	res, err := tokens.Create(context.Background(), 1, "revoked", nil, nil)
+	res, err := tokens.Create(context.Background(), 1, "revoked", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +142,7 @@ func TestUnauthorizedRejected(t *testing.T) {
 
 func TestToolsAreReadOnly(t *testing.T) {
 	srv, tokens := newTestServer(t, openTestDB(t), 100, 100)
-	res, err := tokens.Create(context.Background(), 1, "list", nil, nil)
+	res, err := tokens.Create(context.Background(), 1, "list", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +187,7 @@ func TestOrdersQueryTenantScopeAndMasking(t *testing.T) {
 	db := openTestDB(t)
 	seedOrders(t, db)
 	srv, tokens := newTestServer(t, db, 100, 100)
-	res, err := tokens.Create(context.Background(), 1, "orders", nil, nil)
+	res, err := tokens.Create(context.Background(), 1, "orders", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +217,7 @@ func TestReportSummaryTenantScope(t *testing.T) {
 	db := openTestDB(t)
 	seedOrders(t, db)
 	srv, tokens := newTestServer(t, db, 100, 100)
-	res, err := tokens.Create(context.Background(), 2, "report", nil, nil)
+	res, err := tokens.Create(context.Background(), 2, "report", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +257,7 @@ func TestInventoryQueryTenantScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv, tokens := newTestServer(t, db, 100, 100)
-	res, err := tokens.Create(context.Background(), 1, "inventory", nil, nil)
+	res, err := tokens.Create(context.Background(), 1, "inventory", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +277,7 @@ func TestInventoryQueryTenantScope(t *testing.T) {
 
 func TestRateLimit(t *testing.T) {
 	srv, tokens := newTestServer(t, openTestDB(t), 1, 2)
-	res, err := tokens.Create(context.Background(), 1, "burst", nil, nil)
+	res, err := tokens.Create(context.Background(), 1, "burst", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

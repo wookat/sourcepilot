@@ -5,6 +5,8 @@ export type McpTokenRow = {
   name: string;
   maskedToken: string;
   scope: string;
+  /** token 用途：mcp（MCP 只读）/ openapi（开放 API）/ both（两者）。 */
+  purpose: string;
   revoked: boolean;
   expired: boolean;
   createdAt: string;
@@ -27,9 +29,11 @@ export type CreateMcpTokenResult = {
 export async function createMcpToken(
   name: string,
   expiresInDays?: number,
+  purpose?: string,
 ): Promise<CreateMcpTokenResult> {
   return postJSON('/api/v1/mcp/tokens', {
     name,
+    ...(purpose ? { purpose } : {}),
     ...(expiresInDays && expiresInDays > 0 ? { expiresInDays } : {}),
   });
 }
@@ -44,7 +48,7 @@ export type McpAuditLogRow = {
   tokenName: string;
   tokenMasked: string;
   tool: string;
-  status: 'success' | 'error';
+  status: 'success' | 'error' | 'auth_failed' | 'rate_limited';
   durationMs: number;
   createdAt: string;
 };

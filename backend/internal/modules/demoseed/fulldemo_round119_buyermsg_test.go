@@ -44,16 +44,18 @@ func TestFullDemoSeedBuyerMessages(t *testing.T) {
 	if err := db.Find(&drafts).Error; err != nil {
 		t.Fatal(err)
 	}
-	if len(drafts) != 4 {
-		t.Fatalf("expected 4 demo drafts, got %d", len(drafts))
+	if len(drafts) != 6 {
+		t.Fatalf("expected 6 demo drafts, got %d", len(drafts))
 	}
 	statuses := map[string]int{}
 	missingSample := 0
+	langByOrder := map[string][2]string{}
 	for _, d := range drafts {
 		if d.TenantID != 1 {
 			t.Fatalf("draft %s wrong tenant %d", d.OrderNo, d.TenantID)
 		}
 		statuses[d.Status]++
+		langByOrder[d.OrderNo] = [2]string{d.Language, d.LangSource}
 		var miss []string
 		if len(d.MissingVars) > 0 {
 			miss = jsonList(t, d.MissingVars)
@@ -62,13 +64,22 @@ func TestFullDemoSeedBuyerMessages(t *testing.T) {
 			missingSample++
 		}
 	}
-	if statuses[customerchat.BuyerMsgDraftPending] != 2 ||
+	if statuses[customerchat.BuyerMsgDraftPending] != 4 ||
 		statuses[customerchat.BuyerMsgDraftSent] != 1 ||
 		statuses[customerchat.BuyerMsgDraftIgnored] != 1 {
 		t.Fatalf("draft statuses: %+v", statuses)
 	}
 	if missingSample < 1 {
 		t.Fatal("expected at least one draft with missing vars sample")
+	}
+	if v := langByOrder["DEMO-BM-1005"]; v != [2]string{"en", customerchat.BuyerMsgLangSourceOrderCountry} {
+		t.Fatalf("DEMO-BM-1005 language sample: %v", v)
+	}
+	if v := langByOrder["DEMO-BM-1006"]; v != [2]string{"pt", customerchat.BuyerMsgLangSourceOrderCountry} {
+		t.Fatalf("DEMO-BM-1006 language sample: %v", v)
+	}
+	if v := langByOrder["DEMO-BM-1001"]; v != [2]string{"zh-CN", customerchat.BuyerMsgLangSourceFallback} {
+		t.Fatalf("DEMO-BM-1001 fallback sample: %v", v)
 	}
 
 	if _, err := s.Cleanup(context.Background()); err != nil {

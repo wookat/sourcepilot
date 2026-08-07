@@ -273,8 +273,8 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/customer/reply-templates` | 模板列表。query：`group`（分组）、`keyword`（名称/内容模糊）、`enabled`（三态布尔）。返回 `{ list, canWrite }`，按 `groupKey + sortOrder` 排序。 |
-| `POST` | `/api/v1/customer/reply-templates` | 新建模板。body：`groupKey`、`name`、`content`（≤4000 字符）、可选 `sortOrder`（缺省追加到组尾）、`enabled`（默认启用）。 |
-| `PUT` | `/api/v1/customer/reply-templates/:id` | 更新模板（支持部分字段：改名、改内容、换分组、启停、排序）。跨租户/不存在返回 **404**。 |
+| `POST` | `/api/v1/customer/reply-templates` | 新建模板。body：`groupKey`、`name`、`content`（≤4000 字符）、可选 `sortOrder`（缺省追加到组尾）、`enabled`（默认启用）、可选 `defaultLanguage`（缺省 `zh-CN`）、可选 `variants`（`[{language, content}]`，见 round152）。 |
+| `PUT` | `/api/v1/customer/reply-templates/:id` | 更新模板（支持部分字段：改名、改内容、换分组、启停、排序、`defaultLanguage`；传 `variants` 时事务内全量替换语言变体）。跨租户/不存在返回 **404**。 |
 | `DELETE` | `/api/v1/customer/reply-templates/:id` | 删除模板（软删除）。返回 `{ ok: true }`。 |
 | `POST` | `/api/v1/customer/reply-templates/reorder` | 组内重排。body：`groupKey`、`ids`（该组完整有序 ID 列表，校验归属后按顺序写 `sortOrder`）。 |
 
@@ -295,6 +295,18 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 | `POST` | `/api/v1/customer/buyer-messages/drafts/:id/mark-sent` | 人工回执：标记已发送（幂等；记录操作人与时间）。 |
 | `POST` | `/api/v1/customer/buyer-messages/drafts/:id/ignore` | 忽略草稿（幂等；仅 `pending` 可忽略）。 |
 | `POST` | `/api/v1/customer/buyer-messages/drafts/batch-mark-sent` | 批量标记已发送。body：`ids`；仅更新当前租户 `pending` 行，返回 `{ updated, skipped }`。 |
+| `POST` | `/api/v1/customer/buyer-messages/drafts/:id/regenerate` | 按指定语言重新生成草稿内容（仅 `pending` 可操作，只改草稿不外发）。body：`language`；成功后 `langSource=manual`，该语言无变体时回退默认语言并标 `no_variant`。见 round152。 |
+
+### 买家消息多语言模板（round152）
+
+面向跨境多语种买家：同一话术模板下按语言维护多份正文，变量占位符口径与默认语言一致；人工确认发送口径不变（绝不自动外发）。
+
+- **语言表**（可扩展，`backend/internal/modules/customerchat/template_lang.go`）：`zh-CN`、`en`、`es`、`pt`、`fr`、`de`、`it`、`ru`、`ja`、`ko`、`th`、`vi`、`id`、`ms`、`ar`；默认语言 `zh-CN`。
+- **数据模型**：`customer_reply_templates.default_language`（既有 `content` 即默认语言正文）；新表 `customer_reply_template_variants`（`tenant_id + template_id + language` 唯一，变体正文 ≤4000 字符）。模板 DTO 新增 `defaultLanguage`、`variants`。
+- **草稿生成语言选择**：生成时按优先级推断目标语言：①订单 `RawData` 收货地国家（`order_country`）→②店铺默认语言配置（`shop_language`）→③店铺平台（`platform`，如 mercadolibre→es、国内平台→zh-CN）→④无法推断回退模板默认语言并标 `fallback`。推断出目标语言但模板缺该语言变体时，使用默认语言正文并标 `no_variant`。
+- **草稿 DTO** 新增 `language`（实际使用语言）与 `langSource`（`order_country` / `shop_language` / `platform` / `fallback` / `no_variant` / `manual`），保证语言选择可解释。
+- **工作台切换语言**：`POST /buyer-messages/drafts/:id/regenerate` 按所选语言重填变量重新生成（仅 `pending`，写权限同客服口径，readonly 403，跨租户 404）；只修改草稿，不触发任何外部发送。
+- **demo seed**：话术模板补英/西/葡变体样本；买家消息补正样本 `DEMO-BM-1005`（US→en，order_country）、`DEMO-BM-1006`（BR→pt，order_country）与负样本 `DEMO-BM-1001`（无国家→zh-CN，fallback）；clean/verify 覆盖 `customer_reply_template_variants`。
 
 ## Dev / Demo 种子（非 production）
 
@@ -984,6 +996,22 @@ POST /api/mcp   # MCP Streamable HTTP；Authorization: Bearer sp_mcp_ro_...
 - 鉴权强制要求 `scope=readonly`（过期/吊销/未知 token 统一 401）；限流分三层：每 token（`MCP_RATE_RPS` / `MCP_RATE_BURST`）、每租户聚合（token 额度 2 倍）、每 IP 鉴权失败预算（1 req/s、突发 10，仅失败计费）。超限返回 `429` + envelope `code=42901`（`CodeTooManyRequests`），带 `Retry-After`。R146 起限流状态 Redis 可用时走 Redis（多副本共享额度），不可用时降级进程内，见 `docs/mcp.md`。
 - `MCP_ENABLED=false` 时入口不注册。
 - 客户端配置与工具说明见 `docs/mcp.md`。
+
+## 开放 API 只读入口（round152）
+
+对外只读 REST API（不走 JWT，用同一只读 token 体系鉴权，token 用途须为 `openapi`/`both`）：
+
+```text
+GET /api/open/v1/orders            # 订单列表（脱敏），query: status/paymentStatus/platform/keyword/startDate/endDate/page/pageSize
+GET /api/open/v1/orders/:orderNo   # 订单详情（含行项目）；跨租户订单号与不存在统一 404
+GET /api/open/v1/inventory         # SKU 库存，query: keyword/lowStockOnly/page/pageSize
+GET /api/open/v1/reports/summary   # 经营摘要（按币种已支付销售额，不做汇率折算），query: startDate/endDate
+GET /api/open/v1/exceptions        # 异常待办，query: exceptionType/severity/page/pageSize
+```
+
+- token 创建时可选用途（`POST /api/v1/mcp/tokens` body 新增可选 `purpose`：`mcp`（默认，存量 token 均为此值）/ `openapi` / `both`；列表项新增 `purpose` 字段）。用途不符与未知 token 统一 401。
+- 鉴权/过期/吊销/逐次审计/三层限流沿 MCP 口径（限流变量 `OPENAPI_RATE_RPS`/`OPENAPI_RATE_BURST`，桶与 MCP 独立）；响应为全站统一 envelope；输出脱敏（客户名仅首字符，无内部 UUID/联系方式/rawData）。
+- `OPENAPI_ENABLED=false` 时入口不注册。OpenAPI 3 规范：`docs/openapi/open-api.v1.json`；使用说明见 `docs/open-api.md`。
 
 ## 权限矩阵契约（round52）
 

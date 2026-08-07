@@ -62,7 +62,7 @@ func TestInvalidTokenAttemptsAreRateLimited(t *testing.T) {
 // A valid token must not be throttled by the authentication-failure budget.
 func TestValidTokenNotChargedByAuthFailureBudget(t *testing.T) {
 	srv, tokens := newTestServer(t, openTestDB(t), 100, 100)
-	res, err := tokens.Create(context.Background(), 1, "valid", nil, nil)
+	res, err := tokens.Create(context.Background(), 1, "valid", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestTenantBucketCapsMultiTokenTraffic(t *testing.T) {
 	srv, tokens := newTestServer(t, db, 2, 2)
 	var plaintexts []string
 	for i := 0; i < 4; i++ {
-		res, err := tokens.Create(context.Background(), 1, "tok", nil, nil)
+		res, err := tokens.Create(context.Background(), 1, "tok", "", nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -38,7 +38,7 @@ func setupBuyerMsgHTTPFixture(t *testing.T) *buyerMsgHTTPFixture {
 	}
 	if err := db.AutoMigrate(
 		&admin.AdminUser{}, &admin.UserStorePermission{},
-		&CustomerConversation{}, &CustomerMessage{}, &CustomerReplyTemplate{},
+		&CustomerConversation{}, &CustomerMessage{}, &CustomerReplyTemplate{}, &CustomerReplyTemplateVariant{},
 		&BuyerMessageRule{}, &BuyerMessageDraft{},
 	); err != nil {
 		t.Fatal(err)

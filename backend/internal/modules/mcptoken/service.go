@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantquery"
 	"gorm.io/gorm"
 )
@@ -77,10 +78,14 @@ type CreateResult struct {
 	Plaintext string
 }
 
+// ErrInvalidPurpose indicates an unknown token purpose.
+var ErrInvalidPurpose = errors.New("mcptoken: invalid purpose (want mcp/openapi/both)")
+
 // Create issues a new readonly token for the tenant. The plaintext is
 // returned once; only its SHA-256 hash is persisted. expiresAt is optional:
 // nil issues a non-expiring token, a non-nil value must lie in the future.
-func (s *Service) Create(ctx context.Context, tenantID int64, name string, expiresAt *time.Time, createdBy *uuid.UUID) (*CreateResult, error) {
+// purpose selects the entry the token may call (empty defaults to mcp).
+func (s *Service) Create(ctx context.Context, tenantID int64, name string, purpose string, expiresAt *time.Time, createdBy *uuid.UUID) (*CreateResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("mcptoken: no db")
 	}
@@ -93,6 +98,13 @@ func (s *Service) Create(ctx context.Context, tenantID int64, name string, expir
 	}
 	if len([]rune(name)) > 64 {
 		return nil, fmt.Errorf("mcptoken: name too long (max 64)")
+	}
+	purpose = strings.TrimSpace(purpose)
+	if purpose == "" {
+		purpose = PurposeMCP
+	}
+	if !ValidPurpose(purpose) {
+		return nil, ErrInvalidPurpose
 	}
 	if expiresAt != nil {
 		utc := expiresAt.UTC()
@@ -113,6 +125,7 @@ func (s *Service) Create(ctx context.Context, tenantID int64, name string, expir
 		LastFour:  plain[len(plain)-4:],
 		TokenHash: HashToken(plain),
 		Scope:     ScopeReadonly,
+		Purpose:   purpose,
 		ExpiresAt: expiresAt,
 		CreatedBy: createdBy,
 	}
@@ -184,9 +197,16 @@ func (s *Service) Revoke(ctx context.Context, tenantID int64, id uuid.UUID) (*To
 	return &row, nil
 }
 
-// Authenticate resolves an active token row from a presented plaintext.
-// It fails closed on malformed, unknown, or revoked tokens.
+// Authenticate resolves an active token row from a presented plaintext for
+// the MCP entry. It fails closed on malformed, unknown, or revoked tokens.
 func (s *Service) Authenticate(ctx context.Context, plain string) (*Token, error) {
+	return s.AuthenticateFor(ctx, plain, PurposeMCP)
+}
+
+// AuthenticateFor resolves an active token row from a presented plaintext for
+// one entry (PurposeMCP or PurposeOpenAPI). Tokens issued for the other entry
+// are rejected exactly like unknown tokens so the surfaces stay disjoint.
+func (s *Service) AuthenticateFor(ctx context.Context, plain string, entry string) (*Token, error) {
 	if s == nil || s.DB == nil {
 		return nil, ErrInvalidToken
 	}
@@ -195,11 +215,20 @@ func (s *Service) Authenticate(ctx context.Context, plain string) (*Token, error
 		return nil, ErrInvalidToken
 	}
 	hash := HashToken(plain)
-	var row Token
-	err := s.DB.WithContext(ctx).Model(&Token{}).
+	q := s.DB.WithContext(ctx).Model(&Token{}).
 		Where("token_hash = ? AND revoked_at IS NULL AND scope = ?", hash, ScopeReadonly).
-		Where("expires_at IS NULL OR expires_at > ?", time.Now().UTC()).
-		First(&row).Error
+		Where("expires_at IS NULL OR expires_at > ?", time.Now().UTC())
+	switch entry {
+	case PurposeMCP:
+		// Empty purpose covers rows written before the column existed.
+		q = q.Where("purpose IN ?", []string{PurposeMCP, PurposeBoth, ""})
+	case PurposeOpenAPI:
+		q = q.Where("purpose IN ?", []string{PurposeOpenAPI, PurposeBoth})
+	default:
+		return nil, ErrInvalidToken
+	}
+	var row Token
+	err := q.First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrInvalidToken
@@ -207,6 +236,13 @@ func (s *Service) Authenticate(ctx context.Context, plain string) (*Token, error
 		return nil, fmt.Errorf("mcptoken: auth: %w", err)
 	}
 	if subtle.ConstantTimeCompare([]byte(row.TokenHash), []byte(hash)) != 1 || row.TenantID < 0 || row.Expired(time.Now().UTC()) {
+		return nil, ErrInvalidToken
+	}
+	// A tenant disabled by a platform administrator loses the token entries too,
+	// otherwise a terminated tenant keeps reading its data through MCP / Open API
+	// after the admin console has locked it out. An unavailable tenant state
+	// fails closed, matching the JWT path.
+	if err := auth.EnsureTenantActive(ctx, s.DB, row.TenantID); err != nil {
 		return nil, ErrInvalidToken
 	}
 	return &row, nil

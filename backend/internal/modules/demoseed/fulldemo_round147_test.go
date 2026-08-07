@@ -27,8 +27,21 @@ func TestFullDemoSeedRound147MCPToken(t *testing.T) {
 	if err := db.First(&tok, "name = ?", demoMCPTokenName).Error; err != nil {
 		t.Fatalf("expected seeded MCP demo token: %v", err)
 	}
-	if tok.TenantID != 1 || tok.Scope != mcptoken.ScopeReadonly {
+	if tok.TenantID != 1 || tok.Scope != mcptoken.ScopeReadonly || tok.Purpose != mcptoken.PurposeMCP {
 		t.Fatalf("unexpected token state: %+v", tok)
+	}
+
+	// Round 152: one Open API purpose token sample for the purpose column and
+	// the /api/open/v1/* entry demo.
+	var openTok mcptoken.Token
+	if err := db.First(&openTok, "name = ?", demoOpenAPITokenName).Error; err != nil {
+		t.Fatalf("expected seeded Open API demo token: %v", err)
+	}
+	if openTok.TenantID != 1 || openTok.Scope != mcptoken.ScopeReadonly || openTok.Purpose != mcptoken.PurposeOpenAPI {
+		t.Fatalf("unexpected open api token state: %+v", openTok)
+	}
+	if len(openTok.TokenHash) != 64 || strings.HasPrefix(openTok.TokenHash, mcptoken.TokenPrefix) {
+		t.Fatalf("expected SHA-256 hash only, got %q", openTok.TokenHash)
 	}
 	if !strings.HasPrefix(tok.Prefix, mcptoken.TokenPrefix) || len(tok.LastFour) != 4 {
 		t.Fatalf("expected masked prefix/last-four metadata, got prefix=%q lastFour=%q", tok.Prefix, tok.LastFour)
@@ -63,14 +76,14 @@ func TestFullDemoSeedRound147MCPToken(t *testing.T) {
 		t.Fatalf("audit message must not leak token hash: %q", entry.Message)
 	}
 
-	// Idempotent re-seed: still exactly 1 token and 1 audit sample.
+	// Idempotent re-seed: still exactly 2 tokens (mcp + openapi) and 1 audit sample.
 	if _, err := s.Seed(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	var tokens int64
 	db.Model(&mcptoken.Token{}).Where("name LIKE ?", "DEMO-%").Count(&tokens)
-	if tokens != 1 {
-		t.Fatalf("expected 1 demo token after re-seed, got %d", tokens)
+	if tokens != 2 {
+		t.Fatalf("expected 2 demo tokens after re-seed, got %d", tokens)
 	}
 	var audits int64
 	db.Model(&operationlog.OperationLog{}).Where("request_id = ?", demoMCPAuditRequestID).Count(&audits)

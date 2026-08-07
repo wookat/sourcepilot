@@ -77,6 +77,7 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/customer/buyer-messages/drafts',
         'POST /api/v1/customer/buyer-messages/generate',
         'PUT /api/v1/customer/buyer-messages/drafts/:id',
+        'POST /api/v1/customer/buyer-messages/drafts/:id/regenerate',
         'POST /api/v1/customer/buyer-messages/drafts/:id/mark-sent',
         'POST /api/v1/customer/buyer-messages/drafts/:id/ignore',
         'POST /api/v1/customer/buyer-messages/drafts/batch-mark-sent',
@@ -131,6 +132,11 @@ describe('TradeMind API contract registry', () => {
         'POST /api/v1/mcp/tokens/:id/revoke',
         'GET /api/v1/mcp/audit-logs',
         'POST /api/mcp',
+        'GET /api/open/v1/orders',
+        'GET /api/open/v1/orders/:orderNo',
+        'GET /api/open/v1/inventory',
+        'GET /api/open/v1/reports/summary',
+        'GET /api/open/v1/exceptions',
       ]),
     );
   });
@@ -286,7 +292,7 @@ describe('TradeMind API contract registry', () => {
       (item) => routeKey(item) === 'POST /api/v1/customer/reply-templates/reorder',
     );
 
-    const upsertBody = ['groupKey', 'name', 'content', 'sortOrder', 'enabled'];
+    const upsertBody = ['groupKey', 'name', 'content', 'sortOrder', 'enabled', 'defaultLanguage', 'variants'];
     expect(list?.query).toEqual(['group', 'keyword', 'enabled']);
     expect(create?.requestBody).toEqual(upsertBody);
     expect(update?.requestBody).toEqual(upsertBody);
@@ -426,7 +432,8 @@ describe('TradeMind API contract registry', () => {
     expect(create?.note).toContain('exactly once');
     expect(revoke?.forbiddenResponseFields).toEqual(['token.plaintext', 'token.tokenHash']);
 
-    expect(create?.requestBody).toEqual(['name', 'expiresInDays']);
+    expect(create?.requestBody).toEqual(['name', 'purpose', 'expiresInDays']);
+    expect(list?.responseFields).toContain('items[].purpose');
     expect(list?.responseFields).toContain('items[].expiresAt');
     expect(list?.responseFields).toContain('items[].expired');
 
@@ -444,8 +451,50 @@ describe('TradeMind API contract registry', () => {
     expect(mcp?.errorEnvelope).toEqual({ 401: 40101, 429: 42901 });
   });
 
+  it('keeps the Open API read-only surface consistent with the OpenAPI 3 spec', () => {
+    const openEndpoints = contracts.endpoints.filter((item) => item.path.startsWith('/api/open/v1/'));
+    expect(openEndpoints).toHaveLength(5);
+    for (const endpoint of openEndpoints) {
+      expect(endpoint.method).toBe('GET');
+      expect(endpoint.authScheme).toBe('bearer-openapi-readonly-token');
+      expect(endpoint.openapiSpec).toBe('docs/openapi/open-api.v1.json');
+      expect(endpoint.errorEnvelope?.['401']).toBe(40101);
+      expect(endpoint.errorEnvelope?.['429']).toBe(42901);
+    }
+
+    const orders = openEndpoints.find((item) => item.path === '/api/open/v1/orders');
+    expect(orders?.query).toEqual([
+      'status',
+      'paymentStatus',
+      'platform',
+      'keyword',
+      'startDate',
+      'endDate',
+      'page',
+      'pageSize',
+    ]);
+    expect(orders?.forbiddenResponseFields).toEqual([
+      'list[].id',
+      'list[].customerEmail',
+      'list[].customerPhone',
+      'list[].rawData',
+    ]);
+
+    const detail = openEndpoints.find((item) => item.path === '/api/open/v1/orders/:orderNo');
+    expect(detail?.errorEnvelope?.['404']).toBe(40401);
+
+    // The OpenAPI 3 spec and the contract registry must list the same paths.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const spec = require('../../docs/openapi/open-api.v1.json');
+    const specPaths = Object.keys(spec.paths).map((p) => p.replace(/\{(\w+)\}/g, ':$1'));
+    expect(new Set(specPaths)).toEqual(new Set(openEndpoints.map((item) => item.path)));
+    for (const methods of Object.values(spec.paths)) {
+      expect(Object.keys(methods as Record<string, unknown>)).toEqual(['get']);
+    }
+  });
+
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(116);
+    expect(contracts.endpoints).toHaveLength(122);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

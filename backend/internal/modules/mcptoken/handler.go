@@ -37,6 +37,7 @@ type tokenView struct {
 	Name        string    `json:"name"`
 	MaskedToken string    `json:"maskedToken"`
 	Scope       string    `json:"scope"`
+	Purpose     string    `json:"purpose"`
 	Revoked     bool      `json:"revoked"`
 	Expired     bool      `json:"expired"`
 	CreatedAt   string    `json:"createdAt"`
@@ -51,6 +52,7 @@ func toView(t Token) tokenView {
 		Name:        t.Name,
 		MaskedToken: t.Masked(),
 		Scope:       t.Scope,
+		Purpose:     normPurpose(t.Purpose),
 		Revoked:     t.RevokedAt != nil,
 		Expired:     t.Expired(time.Now().UTC()),
 		CreatedAt:   t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
@@ -90,9 +92,19 @@ func (h *Handler) List(c *gin.Context) {
 	response.OK(c, gin.H{"items": items})
 }
 
-// CreateBody names a new token; ExpiresInDays is optional (0 = never expires).
+// normPurpose maps legacy empty purposes onto mcp for display.
+func normPurpose(p string) string {
+	if p == "" {
+		return PurposeMCP
+	}
+	return p
+}
+
+// CreateBody names a new token; ExpiresInDays is optional (0 = never
+// expires); Purpose is optional (mcp/openapi/both, default mcp).
 type CreateBody struct {
 	Name          string `json:"name"`
+	Purpose       string `json:"purpose,omitempty"`
 	ExpiresInDays int    `json:"expiresInDays,omitempty"`
 }
 
@@ -120,12 +132,17 @@ func (h *Handler) Create(c *gin.Context) {
 			"有效期天数非法：可选 0（不过期）或 1-730 天")
 		return
 	}
+	if p := strings.TrimSpace(body.Purpose); p != "" && !ValidPurpose(p) {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest,
+			"token 用途非法：可选 mcp（MCP 只读）/ openapi（开放 API）/ both（两者）")
+		return
+	}
 	var expiresAt *time.Time
 	if body.ExpiresInDays > 0 {
 		t := time.Now().UTC().Add(time.Duration(body.ExpiresInDays) * 24 * time.Hour)
 		expiresAt = &t
 	}
-	res, err := h.Svc.Create(c.Request.Context(), tid, body.Name, expiresAt, adminUUID(c))
+	res, err := h.Svc.Create(c.Request.Context(), tid, body.Name, body.Purpose, expiresAt, adminUUID(c))
 	if err != nil {
 		if errors.Is(err, ErrTooManyTokens) {
 			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest,
@@ -135,7 +152,8 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
-	h.log(c, "mcp_token_create", res.Token.ID.String(), "创建 MCP 只读 token："+res.Token.Name)
+	h.log(c, "mcp_token_create", res.Token.ID.String(),
+		"创建只读 token（用途 "+normPurpose(res.Token.Purpose)+"）："+res.Token.Name)
 	response.OK(c, gin.H{
 		"token": toView(res.Token),
 		// plaintext is shown once; clients must store it themselves.
