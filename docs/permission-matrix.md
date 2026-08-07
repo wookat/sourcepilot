@@ -254,13 +254,12 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - **新增契约测试** `r165_store_write_scope_test.go`（6 用例）：订单审单决定（approve/reject）、异常工作台标记族（handle/ignore/mark）、店铺删除、店铺授权写（`PUT /shops/:id/auth`、抖店 refresh/revoke/sync-shop-info、TikTok callback）、同步创建与重试（`sync-orders`、`sync-customer-messages`、`order-sync/tasks/:id/retry`）、商品刊登目标店（publish、单品/批量 create-drafts）对 view-only 授权断言 403 + 40303 且零落库；跨租户断言 404；授权 operator/admin 正例保持放行。
 - **实现口径**：写路径统一 `adminperm.EnsureStoreOperable`（不可见/跨租户仍 404 不泄露存在性）——`order` 审单批量前置 `ensureReviewBatchOperable`（整批拒绝，避免部分生效）、`orderexception` 新增 `source_scope.go` 按 source 类型解析真实租户/店铺（未知 source fail-closed 404）、`shop` 新增 `findScopedShopForWrite`/`ensureShopOperable`（授权写与 OAuth 写路径）、`ordersync`/`customersync` 的 `CreateShopSync` 与 `RetryFailed`、`productpublish` 的 `ensureTargetsOperable` 与 `loadDouyinPublicationForWrite`。
 - **口径定调**：店铺同步（订单/客服消息）视为**店铺业务写**，需 operate 授权（闭合 R164 线2 P2 第 4 项）；`*/check`、`test-connection` 等纯探测/纯计算路径保持 view 可用。
-
 ## round165 view-only 店铺写入口全站扫尾
 
 - **统一口径**：带 shop_id 维度（含经订单/商品/采购单/发布记录/任务行间接关联）的写路径一律走可操作性 scope（`adminperm.EnsureStoreOperable` / `EnsureStoresOperable` / `ApplyStoreOperateScope`）：可见但仅 `view` 授权 → **403 业务码 40303**；不可见/跨租户 → **404** 不泄露存在性。可见性 scope（`AllowedStoreIDs`/`ApplyStoreScope`/`EnsureStoreVisible`）仅用于读。错误映射统一走 `adminperm.FailStoreWriteScope`。
-- **本轮收口面**：手动订单/客服消息同步及各类同步任务 retry（含任务中心委托 retry）、库存同步任务（创建/retry/批量）、inventory-sync P9 run、productpublish 全写族（任务/目标草稿/抖音建品/SKU 绑定/卡死恢复）、运营任务写族、订单异常 handle/ignore、采购单写族（经关联销售订单店铺）、审单 approve/reject 整批前置校验、店铺记录 Update/Delete、店铺凭证 `PUT /shops/:id/auth` 与 OAuth refresh/revoke/callback/sync-shop-info。
+- **本轮收口面**：手动订单/客服消息同步及各类同步任务 retry（含任务中心委托 retry）、库存同步任务（创建/retry/批量）、inventory-sync P9 run、productpublish 全写族（任务/目标草稿/抖音建品/SKU 绑定/卡死恢复）、运营任务写族、订单异常 handle/ignore、采购单写族（经关联销售订单店铺）、审单 approve/reject 行级校验、店铺记录 Update/Delete、店铺凭证 `PUT /shops/:id/auth` 与 OAuth refresh/revoke/callback/sync-shop-info。
 - **同步定性**：手动 sync-orders / sync-customer-messages 及 retry 定性为写操作（创建任务并 upsert 业务行），view-only 不再放行（R164 P2-4 定案）。
-- **批量 API 取舍**：`/order-review/approve|reject` 沿 R165 线2 口径整批前置校验（任一 view-only 行 → 整批 403/40303，避免部分生效）。OAuth authorize-url / 连接测试类只读路径保持可见性口径。
-- **新增契约测试** `view_only_sweep_test.go` `TestViewOnlyPersonaShopWriteSweep`：30 条写探针 403+40303、审单整批 403、不可见店铺 404、零落库（任务状态不变、无新建任务/运营任务/P9 run）、读路径保持可用。
+- **批量 API 取舍（R166 集成定案）**：`/order-review/approve|reject` 采用线2 口径——批量前置 `ensureReviewBatchOperable` 整批拒绝（403 + 40303，避免部分生效）；行级 `EnsureStoreOperable` 保留为纵深防御（不可见店仍逐行「订单不存在」不泄露存在性）。OAuth authorize-url / 连接测试类只读路径保持可见性口径。
+- **新增契约测试** `view_only_sweep_test.go` `TestViewOnlyPersonaShopWriteSweep`：30 条写探针 403+40303、审单批量整批拒绝（R166/R167 定案，见下条）、不可见店铺 404、零落库（任务状态不变、无新建任务/运营任务/P9 run）、读路径保持可用。
 - **matrix.json 补全**：为 shops / order-sync / message-sync / inventory-sync / product-publish / task-center / operation-tasks / orders / order-items / order-review / procurement / customer 系非 GET 探测路由补 `viewOnlyOperator` 期望 113 条（路由级防漂移；数据级由专项契约测试承担）。
 - **前端一致性**：`operableStoreIds`/`canOperateAnyStore`/`canOperateStore`（与后端 `Principal.OperableStoreIDs` 同口径）；会话列表 readonly/view-only 隐藏「新建会话/拉取平台消息」，写表单店铺选择器仅列可操作店铺，详情「废弃建议」readOnly 禁用。后端 403 仍为最终边界。

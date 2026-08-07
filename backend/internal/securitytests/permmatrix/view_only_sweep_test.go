@@ -177,8 +177,8 @@ func TestViewOnlyPersonaShopWriteSweep(t *testing.T) {
 		w := h.doBody(t, http.MethodPost, "/api/v1/order-review/"+action,
 			tok, `{"orderIds":["`+ro.ID.String()+`"]}`)
 		require.Equalf(t, http.StatusForbidden, w.Code,
-			"order-review %s must reject the view-only batch: %s", action, w.Body.String())
-		requireCode40303(t, w, "order-review "+action)
+			"order-review %s [viewOnlyOperator]: batch must be rejected up-front: %s", action, w.Body.String())
+		requireCode40303(t, w, "POST /api/v1/order-review/"+action)
 	}
 
 	// The same resources stay 404 for a principal who cannot see the store.
