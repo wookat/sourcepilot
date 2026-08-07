@@ -18,6 +18,11 @@ import (
 // ever touching real tokens.
 const demoMCPTokenName = "DEMO-MCP 演示只读 token"
 
+// demoOpenAPITokenName is the DEMO- prefixed display name of the seeded Open
+// API read-only token (purpose openapi), so the token page can demonstrate
+// the purpose column and the /api/open/v1/* entry out of the box.
+const demoOpenAPITokenName = "DEMO-开放 API 演示只读 token"
+
 // demoMCPAuditRequestID marks the seeded MCP audit sample so repeated seed
 // runs stay idempotent (operation logs are append-only and never cleaned).
 const demoMCPAuditRequestID = "DEMO-MCP-TOKEN-AUDIT"
@@ -50,10 +55,32 @@ func (s *FullDemoSeeder) seedRound147MCPToken(tx *gorm.DB, res *FullDemoResult, 
 		LastFour:   plain[len(plain)-4:],
 		TokenHash:  mcptoken.HashToken(plain),
 		Scope:      mcptoken.ScopeReadonly,
+		Purpose:    mcptoken.PurposeMCP,
 		LastUsedAt: &lastUsed,
 	}
 	if err := tx.Create(&row).Error; err != nil {
 		return fmt.Errorf("demoseed: mcp token: %w", err)
+	}
+	count("mcp_api_tokens", 1)
+
+	bufOpen := make([]byte, 32)
+	if _, err := rand.Read(bufOpen); err != nil {
+		return fmt.Errorf("demoseed: open api token rand: %w", err)
+	}
+	plainOpen := mcptoken.TokenPrefix + hex.EncodeToString(bufOpen)
+	openLastUsed := now.Add(-30 * time.Minute)
+	openRow := mcptoken.Token{
+		TenantID:   s.TenantID,
+		Name:       demoOpenAPITokenName,
+		Prefix:     plainOpen[:len(mcptoken.TokenPrefix)+4],
+		LastFour:   plainOpen[len(plainOpen)-4:],
+		TokenHash:  mcptoken.HashToken(plainOpen),
+		Scope:      mcptoken.ScopeReadonly,
+		Purpose:    mcptoken.PurposeOpenAPI,
+		LastUsedAt: &openLastUsed,
+	}
+	if err := tx.Create(&openRow).Error; err != nil {
+		return fmt.Errorf("demoseed: open api token: %w", err)
 	}
 	count("mcp_api_tokens", 1)
 

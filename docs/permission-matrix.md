@@ -232,3 +232,8 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - **R145 安全交叉审查补强**：鉴权强制 `scope=readonly`；限流除每 token 外增加每租户聚合桶与每 IP 鉴权失败预算；每租户活跃 token 上限 20；429 envelope 用 `code=42901`。
 - MCP 工具全部只读（`orders_query` / `inventory_query` / `report_summary` / `exceptions_pending`），无任何写操作暴露；使用说明见 `docs/mcp.md`。
 - **R146 加固**：token 可选过期（到期鉴权拒绝）；新增 `GET /api/v1/mcp/audit-logs`（工具调用逐次审计，只读路由，四角色 `allow`，租户 scope 在查询内应用）；限流状态 Redis 可用时走 Redis，不可用降级进程内。
+
+## round152 开放 API 只读入口
+
+- **`GET /api/open/v1/orders` / `GET /api/open/v1/orders/:orderNo` / `GET /api/open/v1/inventory` / `GET /api/open/v1/reports/summary` / `GET /api/open/v1/exceptions`** 均登记为 `probe: false`：入口不走后台 JWT persona，鉴权为同一租户级只读 API token 体系（token 用途须为 `openapi`/`both`，存量/默认 `mcp` 用途 token 不能访问）。租户隔离、跨租户 404、用途限制、吊销失效、只读方法面（仅 GET）与 401/429 行为由 `openapi` 模块测试（`server_test.go`、`spec_test.go`）覆盖。
+- token 管理路由不变（`/api/v1/mcp/tokens*`），创建 body 新增可选 `purpose`，权限预期不变。使用说明见 `docs/open-api.md`。

@@ -12,7 +12,7 @@ import (
 func TestCreateRejectsPastExpiry(t *testing.T) {
 	svc := &mcptoken.Service{DB: openTestDB(t)}
 	past := time.Now().UTC().Add(-time.Hour)
-	if _, err := svc.Create(context.Background(), 1, "past", &past, nil); !errors.Is(err, mcptoken.ErrInvalidExpiry) {
+	if _, err := svc.Create(context.Background(), 1, "past", "", &past, nil); !errors.Is(err, mcptoken.ErrInvalidExpiry) {
 		t.Fatalf("expected ErrInvalidExpiry, got %v", err)
 	}
 }
@@ -21,7 +21,7 @@ func TestAuthenticateHonorsExpiry(t *testing.T) {
 	svc := &mcptoken.Service{DB: openTestDB(t)}
 
 	future := time.Now().UTC().Add(time.Hour)
-	res, err := svc.Create(context.Background(), 1, "future", &future, nil)
+	res, err := svc.Create(context.Background(), 1, "future", "", &future, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestAuthenticateHonorsExpiry(t *testing.T) {
 
 func TestAuthenticateNoExpiryStillWorks(t *testing.T) {
 	svc := &mcptoken.Service{DB: openTestDB(t)}
-	res, err := svc.Create(context.Background(), 1, "forever", nil, nil)
+	res, err := svc.Create(context.Background(), 1, "forever", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
