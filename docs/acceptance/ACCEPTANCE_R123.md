@@ -1,7 +1,7 @@
-# R123 预验收对照表（R91–R122 功能轮验收包，R128 增补 R124–R127，R132 增补 R128–R131，R136 增补 R132–R135，R141 增补 R136–R140，R148 增补 R144–R147）
+# R123 预验收对照表（R91–R122 功能轮验收包，R128 增补 R124–R127，R132 增补 R128–R131，R136 增补 R132–R135，R141 增补 R136–R140，R148 增补 R144–R147，R153 增补 R148–R152）
 
-- 轮次：R123 线1（technical-writer / product-manager）；R128 线2 增量更新（§一·补、§四、§五）；R132 线1 增量更新（§一/10 合入状态收口、§一/11、§五）；R136 线1 增量更新（§一/12、§四、§五）；R141 线1 增量更新（§一/12 合入状态收口、§一/13、§五）；R148 线1 增量更新（§一/14、§三、§五）
-- 日期：2026-08-06
+- 轮次：R123 线1（technical-writer / product-manager）；R128 线2 增量更新（§一·补、§四、§五）；R132 线1 增量更新（§一/10 合入状态收口、§一/11、§五）；R136 线1 增量更新（§一/12、§四、§五）；R141 线1 增量更新（§一/12 合入状态收口、§一/13、§五）；R148 线1 增量更新（§一/14、§三、§五）；R153 线2 增量更新（§一/15、§三、§五）
+- 日期：2026-08-07
 - 基线：main `02b6b086`（#260 已合并）；演示脚本实跑也基于该基线。**#261（R122 线1 性能收口 v2，perf/round122）已于本轮验收包提交后合入 main（合并提交 `60e09b19`）**，性能收口条目已随之收口。
 - 口径：按 CHARTER §7 验收制整理——可运行成果（Docker 全栈）+ 演示（[DEMO_SCRIPT.md](DEMO_SCRIPT.md)）+ 需求（业务闭环）逐条对照 + 竞品对比结论（§四）。
 - 证据类型说明：轮次报告 = `docs/PROGRESS.md` 对应轮次条目与归档报告；E2E = `admin/e2e/specs/` 下对应 Playwright 用例（CI `admin-e2e` 门禁常跑）；实测 = 大回归（v14/v16）Docker 全栈手工走查记录。
@@ -159,6 +159,20 @@
 | R146 QA 收口 + R147 杂项收口：MCP 列表时间格式化与移动端表格内滚、操作日志 MCP 动作/资源中文映射（#297）；裸枚举中文化收口（采购单详情支付状态/渠道、订单异常处理状态、客服会话 role/source/type）+ 采购支付渠道 alipay/bank/other 映射补齐（#300）；MCP token 纳入 demo seed（DEMO-MCP 样本 + 审计样本 + clean/verify 零残留） | R146 QA / #297 + R147 线1 / #299、#300（已合并） | `statusEnumLabels.test.ts`、`fulldemo_round147_test.go`；Docker 实测（PR #299） | ✅ |
 | 大回归 v22 / v23（R144–R147 合入面集成回归证据）：全套门禁 + Docker 全栈走查；v23 P2（MCP 管理页「过期时间」与审计「时间」列 ISO 直出缺 `formatDateTime`）已由 R148 线1 收口（本轮 PR，含 E2E 回归用例） | 大回归 v22 / v23（质量回归轮报告，证据不入库）→ R148 线1 收口 | `round144-mcp-tokens.spec.ts` 新增 ISO 时间格式化用例；R148 Docker 实跑记录（DEMO_SCRIPT 实跑验证记录） | ✅ |
 
+### 15. R148–R152 增量能力（R153 增补）
+
+#301（验收包 R144–R147 增量）/#302（R148 安全审计复跑：权限矩阵 registry 漂移修复 + `docs/SECURITY_AUDIT_R148.md` 归档）已合入 main；#303/#304/#305/#306/#307/#308/#309 尚未合入 main，对应行按 R132 惯例标 ⏳ 待合并（能力已交付并过门禁）。
+
+| 能力点 | 实现轮次 / PR | 验证证据 | 状态 |
+| --- | --- | --- | --- |
+| 安全审计季度复跑（R148）+ P2 批次收口：审计报告归档与权限矩阵 registry 漂移修复（#302，已合并）；P2 收口批次——MCP 审计写失败 fail-closed（审计完整性优先，只读工具可安全重试）、MCP token 上限竞态收口（事务内检查 + `pg_advisory_xact_lock` 跨副本串行化，30 并发恰 20 成功回归测试）、大屏 today 口径对齐 `ProfitReportFiltered`（过滤只收窄不放宽）、非法 shopId 显式 400、权限矩阵 CI 漂移预警（`pnpm test:permmatrix` 入 CI） | R148 线2 / #302（已合并）+ R149 线1 / #303 | `docs/SECURITY_AUDIT_R148.md`；mcptoken 并发回归测试（SQLite/PostgreSQL）；双租户 Docker 实测（PR #303）；operator 管 MCP token 是否收紧 admin-only 已登记待老板拍板 | ⏳ #303 待合并 |
+| 生产升级演练季度复跑（R149，R142 基线 `99fd2e7d` + 存量 → main `7f5645c1`）：从零部署到登录 350s（升级部署 248s）、`--pre-upgrade-check` 0 行、指纹逐项 0 差异、MCP token 创建/调用/审计与大屏三角色升级后可用、MinIO 自签 https 与本地降级、故障→恢复→重跑闭环；upgrade-guide 迁移点表补 R144–R148 行（`mcp_api_tokens`/`mcp_tool_call_logs`）；`.env.prod.example` 补 MCP 配置块 | R149 线2 / #304（纯文档） | `docs/upgrade-guide.md` §五 R149 演练记录（随 #304）；演练报告（会话附件，证据不入库） | ⏳ #304 待合并 |
+| deploy-prod.sh 重跑保 compose override 挂载（R149 演练 P2 收口）：`docker-compose.prod.override.yml` 存在即自动叠加 + `COMPOSE_OVERRIDE_FILES` 显式多 override（缺失 fail-fast），重跑/升级/回滚不再丢挂载（如 `BACKUP_S3_CA_BUNDLE` 自签 CA）；附审计小项巡检（#300 alipay 中文化确认无残留、前端工具链 22 条 advisories 逐项评估均需跨 major 登记不动、MCP/大屏 E2E repeat-each 3 轮零 flake） | R150 线1 / #305 | localhost 生产全栈重跑演练（首跑/重跑/基线对照/fail-fast 四场景，PR #305，证据外置）；`docs/production-deployment.md`/`docs/env.md` 同步 | ⏳ #305 待合并 |
+| 竞品对标复评 v7（R151）：16 项矩阵维持 **超越 3 / 达到 13 / 落后 0**，8 轮差异化期零回退；MCP 只读入口协议级端到端实测坐实「超越」（店小秘/马帮均无）、实时大屏对店小秘 2026-06 大屏「达到/齐平」不宣称超越；确认结构性差距候补：竞品均有开放 API 体系 → R152 第一杠杆 | R151 线2 / #306（纯文档） | `docs/COMPETITIVE_BENCHMARK_R151.md`（随 #306，Docker 全栈实测） | ⏳ #306 待合并 |
+| 大回归 v24 P2×2 收口：MCP 审计卡片轻刷新时序（请求序号护栏防迟到旧响应覆盖，含并发乱序回归单测）、自动化执行日志 readonly 店铺 scope 空态引导（`useListEmptyLocale` 权限范围提示）；`docs/mcp.md` 审计口径改为 fail-closed（依赖 #303 合入生效，PR 内已作避让说明） | R151 线1 / #307 | `McpTokens.test.tsx` 时序回归；round119/round144 E2E 20 例（含新增空态 2 例） | ⏳ #307 待合并 |
+| 对外开放 REST API 只读入口 `GET /api/open/v1/*`（竞品复评 v7 路线①第一杠杆）：订单列表/详情、库存、报表摘要、异常待办 5 端点，仅 GET 无写操作；token 治理复用 MCP（`purpose` 字段 mcp/openapi/both 入口选择器，存量 token 攻击面不变宽）、哈希/过期/吊销/每租户 20 上限/三层限流/逐次审计沿 MCP 口径；共享只读查询层 `readonlyquery`（MCP 4 工具与开放 API 共用防漂移）；OpenAPI 3 规范 + spec↔实现双向契约测试；管理页更名「只读 API 接入」补用途列；`docs/open-api.md` | R152 线1 / #308 | openapi/readonlyquery/mcptoken 单测与 `spec_test.go`；契约 17 例；双租户 Docker 实测（跨租户 401/404、限流 429，PR #308）；demo seed 开放 API 用途 token 样本 | ⏳ #308 待合并 |
+| 买家消息多语言模板（竞品复评 v7 路线②）：话术模板 `default_language` + 语言变体表（15 语种可扩展，历史数据零迁移）；草稿语言推断链 order_country→shop_language→platform→模板默认 fallback（缺变体标 `no_variant`，全程可解释）；工作台切换语言重生成端点（仅 pending、readonly 403、绝不自动外发口径不变）；demo seed 英/西/葡变体与 DEMO-BM-1005（US→en）/1006（BR→pt）/1001（fallback）正负样本 | R152 线2 / #309 | `template_lang_test.go` 等后端单测；`round152-multilang-templates.spec.ts` 8/8；三角色 Docker 实测（录屏见 PR #309 验收评论）；契约受保护端点 117 | ⏳ #309 待合并 |
+
 ## 二、外部凭证依赖项清单（按杠杆排序，含降级路径）
 
 全部依赖项均已做到「代码就绪 + 明确降级 + 凭证到位即插队真实化」，符合 CHARTER §3.7 资源缺口不阻塞：
@@ -182,6 +196,7 @@
 - 安全：权限矩阵契约测试、IDOR 矩阵、R109–R117 每轮安全批次（#244–#250 等）。
 - 本轮演示动线实跑：见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」。
 - R144–R147 合入面集成回归：大回归 v22 / v23（质量回归轮报告，证据不入库，见对应会话/PR 评论）；v23 P2（MCP 管理页时间列 ISO 直出）已由 R148 线1 收口。
+- R148–R152 合入面：大回归 v24（报告登记于 PR #303 评论，证据不入库）；v24 P2×2 由 R151 线1（#307）收口；R153 线2 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-07（R153 线2）条目。
 
 ## 四、竞品对照结论（R125 复评 v4 为准，全文见 [../COMPETITIVE_BENCHMARK_R125.md](../COMPETITIVE_BENCHMARK_R125.md)；R118 版见 [../COMPETITIVE_BENCHMARK_R118.md](../COMPETITIVE_BENCHMARK_R118.md)）
 
@@ -206,3 +221,4 @@
 7. ~~R136 时点待办：按大回归 v20 结论将 #280 → #281 依序合入 main~~——已完成（§一/12 两个 ⏳ 条目已转 ✅）；`@umijs/max` 构建链 advisories 跨 major 升级仍登记待老板决策（`DEPENDENCY_ADVISORIES_R134.md`）。
 8. R141 时点：R136–R140 交付（#283–#288，含 #287 备份对象存储）已全部合入 main，无 open ⏳ 条目；凭证 ①（抖店）注入后插队真实 E2E 仍为正式验收前唯一外部前置项。备份对象存储生产建议 crontab + `BACKUP_S3_*` 上传双路径同时启用（production-launch-checklist §说明）。
 9. R148 时点：R144–R147 交付（#294–#300，MCP 只读入口+token 治理、实时经营大屏、MCP 安全加固、杂项收口）已全部合入 main，无 open ⏳ 条目（见 §一/14）；大回归 v23 P2（MCP 时间列 ISO 直出）已由 R148 线1 收口。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
+10. R153 时点待办：§一/15 七条中 #303/#304/#305/#306/#307/#308/#309 均为 ⏳ 待合并（#301/#302 已合入）；#307 的 `docs/mcp.md` fail-closed 口径依赖 #303 先行合入。合并顺序建议 #303 → #304 → #305 → #306 → #307 → #308 → #309（#303 为 #307 文档口径前置，其余无文件级冲突）。operator 管理 MCP token 是否收紧 admin-only、前端工具链跨 major 依赖升级（`DEPENDENCY_ADVISORIES_R134.md` + #305 登记）仍待老板决策。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
