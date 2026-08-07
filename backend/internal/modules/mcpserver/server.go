@@ -5,7 +5,6 @@ package mcpserver
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/redis/go-redis/v9"
 	"github.com/trademind-ai/trademind/backend/internal/modules/mcpaudit"
@@ -227,7 +227,7 @@ func auditMiddleware(audits *mcpaudit.Service, tok *mcptoken.Token) mcp.Middlewa
 			}); werr != nil {
 				slog.Error("mcp_tool_audit_write_failed", "tool", toolName, "error", werr.Error())
 				if err == nil {
-					return nil, errors.New("audit log unavailable, tool call rejected")
+					return nil, &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: "audit log unavailable, tool call rejected"}
 				}
 			}
 			return res, err
