@@ -80,7 +80,7 @@ describe('McpTokensPage 审计卡片轻刷新时序（R150 v24 P2-1 回归）', 
       await new Promise((r) => setTimeout(r, 0));
     });
     const auditCard = screen
-      .getByText('工具调用审计日志')
+      .getByText('MCP / 开放 API 调用审计日志')
       .closest('.ant-card') as HTMLElement;
     expect(within(auditCard).getByText('tmmcp_****abcd')).toBeInTheDocument();
     expect(within(auditCard).queryByText('暂无数据')).toBeNull();

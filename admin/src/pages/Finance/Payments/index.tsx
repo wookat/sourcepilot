@@ -257,7 +257,7 @@ function PaymentsTab({ writable }: { writable: boolean }) {
         columns={columns}
         dataSource={rows}
         scroll={{ x: 'max-content' }}
-        locale={{ emptyText: <EmptyState description="暂无回款记录，可登记回款或使用 CSV 批量导入" /> }}
+        locale={{ emptyText: <EmptyState title="暂无回款记录" description="可登记回款或使用 CSV 批量导入" /> }}
         pagination={{
           current: page,
           pageSize,
@@ -464,7 +464,7 @@ function ShopExpensesTab({ writable }: { writable: boolean }) {
         columns={columns}
         dataSource={rows}
         scroll={{ x: 'max-content' }}
-        locale={{ emptyText: <EmptyState description="暂无店铺月度费用" /> }}
+        locale={{ emptyText: <EmptyState title="暂无店铺月度费用" /> }}
         pagination={{
           current: page,
           pageSize,

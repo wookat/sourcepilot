@@ -1,4 +1,5 @@
-import type { ReplyTemplateGroupKey } from '@/services/customer';
+/** 话术模板分组（与后端 customerchat 分组口径一致，services/customer 从此处复用） */
+export type ReplyTemplateGroupKey = 'presale' | 'aftersale' | 'logistics' | 'refund' | 'other';
 
 export const REPLY_TEMPLATE_GROUPS: { key: ReplyTemplateGroupKey; label: string }[] = [
   { key: 'presale', label: '售前' },
