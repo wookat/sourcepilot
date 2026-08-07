@@ -20,7 +20,7 @@ func DenyReadonly(c *gin.Context) {
 
 // DenyStorePermission responds when store scope blocks access.
 func DenyStorePermission(c *gin.Context) {
-	response.Fail(c, 403, response.CodeStorePermissionDenied, "当前账号无权访问该店铺数据")
+	response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
 }
 
 // FailStoreWriteScope maps store write scope violations onto the unified
