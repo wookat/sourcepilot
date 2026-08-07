@@ -1928,8 +1928,15 @@ Final Production Acceptance Deferred to P10
 
 - **升级演练**：R149 时点基线（`7f5645c1`，双业务租户 2 万订单/存量 MCP token/存量话术模板等）→ 最新 main（`6a64eb39` 与演练中合入 #312 后的 `32a9aaea` 两个时点）全流程通过：R152 `mcp_api_tokens.purpose`/`customer_reply_template_variants`/drafts 语言列落地，业务指纹逐项 0 差异（仅 `order_automation_logs.shop_id` 回填为预期变化）；从零部署 165s、升级部署 464s/246s（<15 分钟目标）。
 - **升级后实测**：purpose 三口径（mcp/openapi/both 互斥与放行）、开放 API 限流/租户隔离/审计/分页 400、多语言模板变体、`OPENAPI_ENABLED=false` 404、`TRUSTED_PROXIES` 配置与留空两口径 XFF 实测均与文档一致；`--pre-upgrade-check` 备份+预检、备份→恢复→幂等重跑闭环通过。
-- **文档核对**：无 P0/P1；P2 三条登记（#317 -w 报错口径已于演练后合入、待下轮实测、#318 大屏折算/汇率 seed 未合入待补验、恢复窗口回退增量数据口径）。证据外置不入库；演练记录已补 `docs/upgrade-guide.md` §五。
+- **文档核对**：无 P0/P1；P2 三条登记（#317 -w 报错口径已于演练后合入、待下轮实测、#318 大屏折算/汇率 seed 演练时未合入、演练后已合入待下轮补验、恢复窗口回退增量数据口径）。证据外置不入库；演练记录已补 `docs/upgrade-guide.md` §五。
 - 详见 `docs/progress/R159-line2.md`。
+
+### 变更记录（2026-08-07）第 156 轮线2：经营大屏汇率折算与自定义指标（fullstack-engineer）
+
+- **多币种折算显式口径**：大屏今日销售额/毛利沿既有租户 `report_currency` 手工汇率折算本位币（复用 /reports/profit 口径），新增 `today.unconvertedRevenue`（无汇率币种原币金额显式列出、不计入合计）与 `today.convertedCurrencies`；前端销售额/毛利卡补折算口径角标 tooltip 与「未折算（不计入合计）」原币金额展示。
+- **租户级自定义大屏卡片**：新端点 `GET/PUT /api/v1/dashboard/screen/config`（卡片池 8 张：订单/销售额/毛利/告警 KPI + 待办/漏斗/趋势/告警列表；顺序+开关，默认保持现状；GET 四角色可读、PUT 需 `settings.manage`，readonly/operator 403；配置沿 tenant scope 存 settings `dashboard_screen.cards`，记操作日志）；`/dashboard/screen` 响应带 `cards`，禁用卡片跳过对应聚合；前端按配置分段渲染 + 配置弹窗（开关/排序）。
+- **配套**：demo seed 补今日多币种大屏样本 `DEMO-FX-USD-0001`（可折算）/`DEMO-FX-EUR-0001`（无汇率未折算），clean/verify 覆盖；权限矩阵登记两条新端点；契约 117→119；新增后端/前端单测与 `round156-dashboard-screen-config.spec.ts` E2E。
+- 详见 `docs/progress/R156-line2.md`。
 
 ### 变更记录（2026-08-07）第 156 轮线1：R155 登记 P2 + 合并期杂项收口（fullstack-engineer）
 
@@ -1939,3 +1946,10 @@ Final Production Acceptance Deferred to P10
 - **合并期预案落地**：#308 purpose 签名冲突按 R155 §3 预案修复（叠加分支内调用处补 `""`）；permmatrix harness 补 `OpenAPIEnabled`（cherry-pick #313）。
 - 详见 `docs/progress/R156.md`。
 
+### 变更记录（2026-08-07）第 159 轮线1：安全审计季度复跑（security-auditor）
+
+- **P1 修复**：仅 `view` 授权的店铺可被写入（同租户内店铺授权粒度越权写）——R149–R158 新增/改造的订单与买家消息草稿写路径只校验店铺可见性，未校验可操作性；按 R125 口径收口（view-only 403 / 不可见 404 / admin 与 operate·manage 不变 / 被拒零落库），`adminperm` 新增 `OperableStoreIDs`、`EnsureStoreOperable`、`ApplyStoreOperateScope`，覆盖草稿五路由与订单创建·更新迁店·删除·行项·发货单·打标·物流刷新·自动化重试·库存扣减回滚·SKU 匹配与 bind-sku·打单标记，附先失败后通过的回归测试。
+- **文档/契约修正**：开放 API `severity` 枚举由 `error/warning` 更正为实际 `low/medium/high/critical`（jsonschema + `docs/open-api.md`）；`docs/mcp.md` 明确入口级 401/429 留痕为 best effort、fail-closed 仅作用于 `tools/call`。
+- **复验无回退**：开放 API purpose 双向隔离/跨租户 404/脱敏/XFF 无绕过/逐次审计 fail-closed/`OPENAPI_ENABLED=false` 运行时；MCP R145·R148 修复项与 `-32603`、租户禁用即失效；多语言模板注入面与授权；大屏折算与卡片配置 scope/readonly/参数校验；权限矩阵 644 条 route 无漂移；govulncheck 0 可达；seed 生产拒绝。
+- **P2 清单**：非法入参静默降级（`severity`/`lowStockOnly`）、前端构建工具链依赖 13 条（2 high）、view-only 403 业务码 40301 与 40303 不统一、入口级拒绝审计 best effort、矩阵 harness 缺 view-only persona。
+- 报告归档 `docs/SECURITY_AUDIT_R159.md`，详见 `docs/progress/R159.md`。

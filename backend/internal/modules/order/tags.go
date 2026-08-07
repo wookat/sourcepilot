@@ -194,7 +194,7 @@ type BatchOrderTagResult struct {
 
 // AddOrderTags attaches tags to one order (幂等：已有链接跳过).
 func (s *Service) AddOrderTags(c *gin.Context, orderID uuid.UUID, tagIDs []string, adminID *uuid.UUID) ([]OrderTagBrief, error) {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderOperable(c, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func (s *Service) AddOrderTags(c *gin.Context, orderID uuid.UUID, tagIDs []strin
 
 // RemoveOrderTag detaches one tag from one order.
 func (s *Service) RemoveOrderTag(c *gin.Context, orderID, tagID uuid.UUID, adminID *uuid.UUID) ([]OrderTagBrief, error) {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderOperable(c, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -279,6 +279,19 @@ func (s *Service) BatchTagOrders(c *gin.Context, body BatchOrderTagBody, adminID
 	}
 	if visible != int64(len(orderIDs)) {
 		return nil, gorm.ErrRecordNotFound
+	}
+	opTx := s.DB.WithContext(c.Request.Context()).Model(&Order{}).
+		Where("tenant_id = ? AND id IN ?", tid, orderIDs)
+	opTx, err = adminperm.ApplyStoreOperateScope(c, s.DB, opTx, "shop_id")
+	if err != nil {
+		return nil, err
+	}
+	var operable int64
+	if err := opTx.Count(&operable).Error; err != nil {
+		return nil, err
+	}
+	if operable != int64(len(orderIDs)) {
+		return nil, adminperm.ErrStoreNotOperable
 	}
 	res := &BatchOrderTagResult{Orders: len(orderIDs), Tags: len(tags)}
 	if action == "add" {

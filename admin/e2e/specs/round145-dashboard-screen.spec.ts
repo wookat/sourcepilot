@@ -32,7 +32,7 @@ test.describe('@round145 经营大屏', () => {
     await expect(page.getByText('经营大屏').first()).toBeVisible();
     await expect(page.getByTestId('screen-kpi-orders')).toContainText('128');
     await expect(page.getByTestId('screen-kpi-sales')).toContainText('45,230.50');
-    await expect(page.getByTestId('screen-kpi-sales')).toContainText('未折算：EUR');
+    await expect(page.getByTestId('screen-kpi-sales')).toContainText('未折算（不计入合计）：EUR 320.50');
     await expect(page.getByTestId('screen-kpi-profit')).toContainText('12,890.25');
     await expect(page.getByTestId('screen-kpi-profit')).toContainText('毛利率 28.5%');
     await expect(page.getByTestId('screen-todo-await_shipment')).toContainText('待发货');

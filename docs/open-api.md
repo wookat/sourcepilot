@@ -61,7 +61,7 @@ curl -s -H "Authorization: Bearer $TOKEN" "$BASE/api/open/v1/inventory?lowStockO
 curl -s -H "Authorization: Bearer $TOKEN" "$BASE/api/open/v1/reports/summary"
 
 # 未处理异常待办
-curl -s -H "Authorization: Bearer $TOKEN" "$BASE/api/open/v1/exceptions?severity=error"
+curl -s -H "Authorization: Bearer $TOKEN" "$BASE/api/open/v1/exceptions?severity=high"
 ```
 
 成功响应为全站统一 envelope：

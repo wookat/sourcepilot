@@ -3,6 +3,7 @@ package order
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
@@ -64,9 +66,8 @@ func (h *Handler) PostMatchOrderSKUs(c *gin.Context) {
 	}
 	var body matchSkusBody
 	_ = c.ShouldBindJSON(&body)
-	if _, err := h.Svc.findOrderBare(c, oid); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+	if _, err := h.Svc.findOrderOperable(c, oid); err != nil {
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.HandleError(c, err)
@@ -193,6 +194,10 @@ func (h *Handler) PostBindOrderItemSKU(c *gin.Context) {
 	var line *OrderItem
 	line, err = h.Svc.GetOrderItemByID(c, itemID)
 	if err != nil {
+		if errors.Is(err, adminperm.ErrStoreNotOperable) {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "店铺无操作权限")
+			return
+		}
 		response.Fail(c, 404, response.CodeNotFound, "order item not found")
 		return
 	}
