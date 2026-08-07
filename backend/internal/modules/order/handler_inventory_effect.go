@@ -37,9 +37,8 @@ func (h *Handler) PostDeductInventory(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	if _, err := h.Svc.findOrderBare(c, id); err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+	if _, err := h.Svc.findOrderOperable(c, id); err != nil {
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.HandleError(c, err)
@@ -93,9 +92,8 @@ func (h *Handler) PostRestoreInventory(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	if _, err := h.Svc.findOrderBare(c, id); err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+	if _, err := h.Svc.findOrderOperable(c, id); err != nil {
+		if failOrderWriteScope(c, err) {
 			return
 		}
 		response.HandleError(c, err)

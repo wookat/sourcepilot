@@ -45,7 +45,7 @@ func (s *Service) MarkPrinted(c *gin.Context, ids []uuid.UUID, adminID *uuid.UUI
 			return 0, err
 		}
 		if o.ShopID != nil {
-			if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
+			if err := adminperm.EnsureStoreOperable(c, s.DB, o.ShopID); err != nil {
 				return 0, err
 			}
 		}
@@ -83,6 +83,10 @@ func (h *Handler) PostMarkPrinted(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, ErrNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+			return
+		}
+		if errors.Is(err, adminperm.ErrStoreNotOperable) {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "店铺无操作权限")
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
