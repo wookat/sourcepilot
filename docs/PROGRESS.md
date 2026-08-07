@@ -2023,6 +2023,7 @@ Final Production Acceptance Deferred to P10
 - **口径定调**：店铺同步属店铺业务写需 operate 授权（闭合 R164 线2 P2 第 4 项）；`PUT /settings` 数值型静默忽略经评估为非安全面（数值型返回 400，请求体 `tenantId` 为 advisory，写入一律落 JWT 租户）。
 - **回归测试**：`permmatrix` 新增 `r165_store_write_scope_test.go`（6 用例，含授权账号不被过度收紧的正例）；backend `go test ./...`、`go vet`、`govulncheck`（0 可达）全绿，`pnpm audit --prod` 13 条构建链告警无增量。
 - 报告 `docs/SECURITY_AUDIT_R165.md`，详见 `docs/progress/R165-line2.md`。
+
 ### 变更记录（2026-08-07）第 167 轮线2：竞品矩阵前哨确认 + 验收包 R163–R166 增量 + Docker 三角色（含 view-only persona）实跑（fullstack-engineer）
 
 - **竞品矩阵前哨抽验（R161 v8 基线，6/16 项）**：订单管理、MCP、开放 API、实时大屏、多语言消息、权限体系在安全修复期（#322/#330/#331 合入）后 API 探针 + Docker 全栈 UI 实测**无回退、无 P1**；operator 正向写不受过度收紧。
