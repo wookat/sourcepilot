@@ -612,7 +612,7 @@ export default [
       },
       {
         path: '/settings/mcp-tokens',
-        name: 'MCP 只读接入',
+        name: '只读 API 接入',
         component: './Settings/McpTokens',
       },
       {

@@ -27,7 +27,7 @@ func runConcurrentCreates(t *testing.T, db *gorm.DB, n int) {
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			_, err := svc.Create(context.Background(), 1, fmt.Sprintf("conc-%d", i), nil, nil)
+			_, err := svc.Create(context.Background(), 1, fmt.Sprintf("conc-%d", i), "", nil, nil)
 			errCh <- err
 		}(i)
 	}

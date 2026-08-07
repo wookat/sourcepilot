@@ -29,7 +29,7 @@ func openTestDB(t *testing.T) *gorm.DB {
 
 func TestCreateStoresHashOnly(t *testing.T) {
 	svc := &mcptoken.Service{DB: openTestDB(t)}
-	res, err := svc.Create(context.Background(), 1, "claude-desktop", nil, nil)
+	res, err := svc.Create(context.Background(), 1, "claude-desktop", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,21 +60,21 @@ func TestCreateStoresHashOnly(t *testing.T) {
 
 func TestCreateValidation(t *testing.T) {
 	svc := &mcptoken.Service{DB: openTestDB(t)}
-	if _, err := svc.Create(context.Background(), 1, "  ", nil, nil); err == nil {
+	if _, err := svc.Create(context.Background(), 1, "  ", "", nil, nil); err == nil {
 		t.Fatal("expected error for empty name")
 	}
-	if _, err := svc.Create(context.Background(), -1, "x", nil, nil); err == nil {
+	if _, err := svc.Create(context.Background(), -1, "x", "", nil, nil); err == nil {
 		t.Fatal("expected error for negative tenant")
 	}
 	// Tenant 0 stays valid for legacy single-tenant data.
-	if _, err := svc.Create(context.Background(), 0, "legacy", nil, nil); err != nil {
+	if _, err := svc.Create(context.Background(), 0, "legacy", "", nil, nil); err != nil {
 		t.Fatalf("tenant 0 should be allowed: %v", err)
 	}
 }
 
 func TestAuthenticate(t *testing.T) {
 	svc := &mcptoken.Service{DB: openTestDB(t)}
-	res, err := svc.Create(context.Background(), 7, "inspector", nil, nil)
+	res, err := svc.Create(context.Background(), 7, "inspector", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestAuthenticate(t *testing.T) {
 
 func TestRevokeBlocksAuth(t *testing.T) {
 	svc := &mcptoken.Service{DB: openTestDB(t)}
-	res, err := svc.Create(context.Background(), 1, "to-revoke", nil, nil)
+	res, err := svc.Create(context.Background(), 1, "to-revoke", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,11 +121,11 @@ func TestRevokeBlocksAuth(t *testing.T) {
 
 func TestTenantIsolation(t *testing.T) {
 	svc := &mcptoken.Service{DB: openTestDB(t)}
-	a, err := svc.Create(context.Background(), 1, "tenant-a", nil, nil)
+	a, err := svc.Create(context.Background(), 1, "tenant-a", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Create(context.Background(), 2, "tenant-b", nil, nil); err != nil {
+	if _, err := svc.Create(context.Background(), 2, "tenant-b", "", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	rows, err := svc.List(context.Background(), 1)
