@@ -20,6 +20,7 @@ const (
 	personaReadonly      = "readonly"
 	personaCrossTenant   = "crossTenantAdmin"
 	personaPlatformAdmin = "platformAdmin"
+	personaViewOnly      = "viewOnlyOperator"
 )
 
 // Expectation classes.
@@ -33,7 +34,10 @@ var personaOrder = []string{personaReadonly, personaOperator, personaCrossTenant
 // optionalPersonas are only probed on routes that declare an expectation for
 // them. platformAdmin (tenant 0 admin) is registered on the platform tenant
 // management routes; other routes are not probed with it by default.
-var optionalPersonas = []string{personaPlatformAdmin}
+// viewOnlyOperator (operator whose only store grant is scope "view") is
+// probed data-level by TestViewOnlyPersonaStoreWriteScope; matrix entries may
+// also declare it where a route-level expectation is meaningful.
+var optionalPersonas = []string{personaPlatformAdmin, personaViewOnly}
 
 // routeEntry is one row of the permission matrix registry.
 type routeEntry struct {

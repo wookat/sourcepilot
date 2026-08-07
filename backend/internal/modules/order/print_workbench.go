@@ -86,7 +86,7 @@ func (h *Handler) PostMarkPrinted(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, adminperm.ErrStoreNotOperable) {
-			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "店铺无操作权限")
+			response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "店铺无操作权限")
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())

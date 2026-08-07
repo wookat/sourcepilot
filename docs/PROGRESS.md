@@ -1953,3 +1953,11 @@ Final Production Acceptance Deferred to P10
 - **复验无回退**：开放 API purpose 双向隔离/跨租户 404/脱敏/XFF 无绕过/逐次审计 fail-closed/`OPENAPI_ENABLED=false` 运行时；MCP R145·R148 修复项与 `-32603`、租户禁用即失效；多语言模板注入面与授权；大屏折算与卡片配置 scope/readonly/参数校验；权限矩阵 644 条 route 无漂移；govulncheck 0 可达；seed 生产拒绝。
 - **P2 清单**：非法入参静默降级（`severity`/`lowStockOnly`）、前端构建工具链依赖 13 条（2 high）、view-only 403 业务码 40301 与 40303 不统一、入口级拒绝审计 best effort、矩阵 harness 缺 view-only persona。
 - 报告归档 `docs/SECURITY_AUDIT_R159.md`，详见 `docs/progress/R159.md`。
+
+### 变更记录（2026-08-07）第 160 轮线1：R159 审计 P2 收口（fullstack-engineer）
+
+- **P2-1 view-only persona**：权限矩阵 harness 新增可选 persona `viewOnlyOperator`（店铺仅 `view` 授权），新增契约测试覆盖全部订单/订单行写路由与买家消息草稿写路径（403 + 40303 + 零落库，带路由完整性检查防 #322 同类漂移）。
+- **P2-2 非法入参显式 400**：共享只读查询层新增枚举校验（orders `status`/`paymentStatus`、exceptions `exceptionType`/`severity`），Open API `lowStockOnly` 改严格布尔；非法值 400/40001（沿 #303/#312 口径），Open API 与 MCP 同层收敛；OpenAPI 规范补齐枚举并修正 `severity` 漂移。
+- **P2-3 业务码统一**：店铺级「可见但仅 view 授权」403 统一 40303（order/customerchat/finance 各写 handler），40301 保留全局/租户级 forbidden、40302 保留权限位拒绝；前端与契约无引用无需改动。
+- **P2-4 依赖告警**：13 条构建链告警逐项评估，0 条可不跨 major 净收敛（react-router minor 覆盖实测反增告警已回退），登记 `docs/DEPENDENCY_ADVISORIES_R160.md`。
+- 详见 `docs/progress/R160.md`。
