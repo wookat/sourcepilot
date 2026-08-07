@@ -26,7 +26,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const EXPIRY_OPTIONS = [
   { value: 0, label: '不过期' },
@@ -85,6 +85,7 @@ export default function McpTokensPage() {
   const [auditPageSize, setAuditPageSize] = useState(20);
   const [auditTool, setAuditTool] = useState<string>();
   const [auditStatus, setAuditStatus] = useState<string>();
+  const auditSeqRef = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -102,7 +103,10 @@ export default function McpTokensPage() {
     void load();
   }, [load]);
 
+  // 并发请求只认最后一次：手动「刷新」与筛选/翻页触发的加载可能重叠，
+  // 迟到的旧响应不得覆盖新数据（否则会闪回旧列表甚至「暂无数据」）。
   const loadAudits = useCallback(async () => {
+    const seq = ++auditSeqRef.current;
     setAuditLoading(true);
     setAuditError('');
     try {
@@ -112,12 +116,14 @@ export default function McpTokensPage() {
         tool: auditTool,
         status: auditStatus,
       });
+      if (seq !== auditSeqRef.current) return;
       setAuditRows(res.items || []);
       setAuditTotal(res.total || 0);
     } catch (e) {
+      if (seq !== auditSeqRef.current) return;
       setAuditError((e as Error).message || '加载审计日志失败');
     } finally {
-      setAuditLoading(false);
+      if (seq === auditSeqRef.current) setAuditLoading(false);
     }
   }, [auditPage, auditPageSize, auditTool, auditStatus]);
 

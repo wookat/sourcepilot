@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-07 — **Round 151 线2：第七次竞品对标复评**：详见附录 [`docs/progress/R151-line2-competitive-benchmark-v7.md`](progress/R151-line2-competitive-benchmark-v7.md)；报告 [`COMPETITIVE_BENCHMARK_R151.md`](COMPETITIVE_BENCHMARK_R151.md)。
+
 **Stage update**: 2026-08-06 — **Round 148 线1：R144–R147 验收收口（MCP 页时间列 formatDateTime + 验收包增量 + Docker 实跑）**：详见附录 [`docs/progress/R148.md`](progress/R148.md)。
 
 **Stage update**: 2026-08-06 — **Round 143 线1**：详见附录 [`docs/progress/R143.md`](progress/R143.md)（自本轮起每轮进展写入 `docs/progress/R<轮次>.md` 附录，本文件只留一行索引，减少并行 PR 冲突）。
@@ -1865,6 +1867,13 @@ Final Production Acceptance Deferred to P10
 - **R146 QA 复核**：零数据租户空态、长租户名/大数值截断 Docker 实测复核。
 - 详见 `docs/progress/R147.md`。
 
+### 变更记录（2026-08-07）第 152 轮线2：买家消息多语言模板（fullstack-engineer）
+
+- **模板多语言变体**：`customer_reply_templates` 新增 `default_language`（缺省 `zh-CN`，既有 `content` 即默认正文，历史零迁移）；新表 `customer_reply_template_variants`（tenant+template+language 唯一）；语言表可扩展（15 语种）；模板 API 增 `defaultLanguage`/`variants`（事务内全量替换）。
+- **草稿语言口径**：生成时按 收货地国家→店铺语言→平台→回退默认语言 推断，草稿 DTO 增 `language`/`langSource`（`order_country`/`shop_language`/`platform`/`fallback`/`no_variant`/`manual`）；新端点 `POST /buyer-messages/drafts/:id/regenerate` 按所选语言重新生成（仅 pending，只改草稿绝不外发，readonly 403）。
+- **UI**：模板页语言变体维护、工作台语言列+回退标注+切换语言重新生成，全中文管理界面。demo seed 补英/西/葡变体与 US→en / BR→pt 正样本、无国家 fallback 负样本（clean/verify 覆盖）。
+- 详见 `docs/progress/R152.md`。
+
 ### 变更记录（2026-08-06）第 148 轮线2：安全审计季度复跑（security-engineer）
 
 - **审计范围**：基于 main（#289–#300 已全部合入）复跑季度安全审计——MCP 入口（R145 修复零回退 + R146 过期/逐次审计/Redis 限流边界）、实时经营大屏新 API scope 与聚合注入面、备份定时器与恢复开关越权/配置注入、买家消息回溯开关越权，叠加常规越权/跨租户契约、readonly 403、tenant 0 闸门、CSV/XSS、密钥脱敏与日志 grep、seed 生产拒绝、govulncheck、pnpm audit，以及 R139 四项 S3/备份加固零回退核对与双租户 Docker 全栈实测。
@@ -1872,6 +1881,15 @@ Final Production Acceptance Deferred to P10
 - **零发现项**：跨租户数据泄露、MCP 写路径可达、token 明文入库/入日志/入响应、SQL/参数注入、平台租户接口越权、R139 修复项回退，均无。
 - **P2 清单**：MCP 审计写失败仅告警不阻断；大屏 today 销售/毛利口径忽略 shopId/platform 筛选；大屏非法 shopId 静默降级不报 400；MCP token 上限 count→insert 竞态及其回归测试缺失；前端工具链依赖告警 13 条（2 high，均为构建/开发期）。
 - 详见 `docs/SECURITY_AUDIT_R148.md`。
+
+### 变更记录（2026-08-06）第 149 轮线1：R148 安全审计 P2 批次收口（fullstack-engineer）
+
+- **P2-1 MCP 审计写失败收口**：`mcpserver.auditMiddleware` 由 best-effort 改为 fail-closed——审计行写入失败时扣留成功结果并拒绝该次调用（工具只读、可安全重试），同时 `slog.Error` 留可见告警；取舍：审计完整性优先于可用性。
+- **P2-2 MCP token 上限竞态**：`mcptoken.Create` 的 count→insert 改为事务内检查 + 进程内 per-tenant 互斥 + PostgreSQL `pg_advisory_xact_lock`（跨副本），并新增 SQLite/PostgreSQL 并发回归测试（还原旧实现时测试失败，确认能捕捉竞态）。
+- **P2 大屏口径**：`/dashboard/screen` today 销售/毛利改走 `reports.ProfitReportFiltered`，与订单数一致地应用 shopId/platform 过滤（过滤只收窄、不放宽租户/店铺授权）；非法 `shopId` 由静默降级改为 HTTP 400（`CodeBadRequest`），适用于全部 dashboard 端点。
+- **P2 权限矩阵 CI 漂移预警**：`project-tests.yml` PostgreSQL 集成 job 新增 `pnpm test:permmatrix` 步骤（APP_ENV=test + TEST_DATABASE_URL），消除套件在 CI 静默 skip。
+- **登记（本轮不改）**：operator 是否可管理 MCP token 收紧为 admin-only 属产品决策，待老板拍板。
+- 前端工具链依赖告警（P2-3/审计编号）不在本轮范围。
 
 ### 变更记录（2026-08-07）第 155 轮线1：v25 P2×4 收口 + 合并期杂项（fullstack-engineer）
 

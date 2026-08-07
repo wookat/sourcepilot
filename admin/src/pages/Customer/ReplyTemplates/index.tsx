@@ -5,6 +5,8 @@ import {
   queryReplyTemplates,
   reorderReplyTemplates,
   updateReplyTemplate,
+  TEMPLATE_LANGUAGES,
+  templateLanguageLabel,
   type ReplyTemplateGroupKey,
   type ReplyTemplateRow,
 } from '@/services/customer';
@@ -14,7 +16,7 @@ import {
   REPLY_TEMPLATE_VAR_KEYS,
   replyTemplateGroupLabel,
 } from '@/utils/replyTemplateVars';
-import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons';
+import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import {
   Alert,
   Button,
@@ -78,8 +80,20 @@ export default function ReplyTemplatesPage() {
     setModal({ open: true, row });
     form.setFieldsValue(
       row
-        ? { groupKey: row.groupKey, name: row.name, content: row.content }
-        : { groupKey: group === 'all' ? 'presale' : group, name: '', content: '' },
+        ? {
+            groupKey: row.groupKey,
+            name: row.name,
+            content: row.content,
+            defaultLanguage: row.defaultLanguage || 'zh-CN',
+            variants: row.variants || [],
+          }
+        : {
+            groupKey: group === 'all' ? 'presale' : group,
+            name: '',
+            content: '',
+            defaultLanguage: 'zh-CN',
+            variants: [],
+          },
     );
   };
 
@@ -87,10 +101,11 @@ export default function ReplyTemplatesPage() {
     const v = await form.validateFields();
     setSaving(true);
     try {
+      const body = { ...v, variants: v.variants || [] };
       if (modal.row) {
-        await updateReplyTemplate(modal.row.id, v);
+        await updateReplyTemplate(modal.row.id, body);
       } else {
-        await createReplyTemplate(v);
+        await createReplyTemplate(body);
       }
       message.success('已保存');
       setModal({ open: false });
@@ -215,6 +230,18 @@ export default function ReplyTemplatesPage() {
               ),
             },
             {
+              title: '语言',
+              width: 170,
+              render: (_, row) => (
+                <Space size={4} wrap>
+                  <Tag color="blue">{templateLanguageLabel(row.defaultLanguage || 'zh-CN')}</Tag>
+                  {(row.variants || []).map((v) => (
+                    <Tag key={v.language}>{templateLanguageLabel(v.language)}</Tag>
+                  ))}
+                </Space>
+              ),
+            },
+            {
               title: '排序',
               width: 100,
               render: (_, row) => (
@@ -296,13 +323,74 @@ export default function ReplyTemplatesPage() {
             <Input placeholder="如：物流-查询进度" />
           </Form.Item>
           <Form.Item
+            name="defaultLanguage"
+            label="默认语言"
+            tooltip="下方「内容」为默认语言正文；无法推断买家语言时回退到默认语言"
+            rules={[{ required: true, message: '请选择默认语言' }]}
+          >
+            <Select
+              options={TEMPLATE_LANGUAGES.map((l) => ({ value: l.key, label: l.label }))}
+              placeholder="请选择默认语言"
+            />
+          </Form.Item>
+          <Form.Item
             name="content"
-            label="内容"
+            label="内容（默认语言）"
             rules={[{ required: true, message: '请填写内容' }]}
             extra={`支持变量占位：${REPLY_TEMPLATE_VAR_KEYS.map((k) => `{${k}}`).join('、')}，插入时按会话上下文自动填充`}
           >
             <Input.TextArea rows={5} placeholder="如：您好{买家昵称}，您的订单 {订单号} 已发货…" />
           </Form.Item>
+          <Form.List name="variants">
+            {(fields, { add, remove: removeField }) => (
+              <>
+                <Form.Item label="语言变体" style={{ marginBottom: 8 }} tooltip="同一模板按语言维护多份内容，变量占位符口径不变；正文可为外语">
+                  {fields.length === 0 ? (
+                    <span style={{ color: 'rgba(0,0,0,0.45)' }}>暂无语言变体，点击下方添加</span>
+                  ) : null}
+                  {fields.map((field) => (
+                    <div
+                      key={field.key}
+                      style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}
+                    >
+                      <Form.Item
+                        name={[field.name, 'language']}
+                        rules={[{ required: true, message: '请选择语言' }]}
+                        style={{ marginBottom: 0, width: 140, flexShrink: 0 }}
+                      >
+                        <Select
+                          placeholder="语言"
+                          options={TEMPLATE_LANGUAGES.map((l) => ({ value: l.key, label: l.label }))}
+                        />
+                      </Form.Item>
+                      <Form.Item
+                        name={[field.name, 'content']}
+                        rules={[{ required: true, message: '请填写该语言内容' }]}
+                        style={{ marginBottom: 0, flex: 1 }}
+                      >
+                        <Input.TextArea rows={3} placeholder="该语言的模板正文，变量占位符与默认内容一致，如 {订单号}" />
+                      </Form.Item>
+                      <Button
+                        type="text"
+                        danger
+                        aria-label="删除该语言变体"
+                        icon={<DeleteOutlined />}
+                        onClick={() => removeField(field.name)}
+                      />
+                    </div>
+                  ))}
+                  <Button
+                    type="dashed"
+                    block
+                    icon={<PlusOutlined />}
+                    onClick={() => add({ language: undefined, content: '' })}
+                  >
+                    添加语言变体
+                  </Button>
+                </Form.Item>
+              </>
+            )}
+          </Form.List>
         </Form>
       </Modal>
     </TmPageContainer>

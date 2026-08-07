@@ -19,7 +19,7 @@ func newTemplateTestCtx(t *testing.T, tenantID int64) (*gin.Context, *Service) {
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
 	}
-	if err := db.AutoMigrate(&CustomerReplyTemplate{}); err != nil {
+	if err := db.AutoMigrate(&CustomerReplyTemplate{}, &CustomerReplyTemplateVariant{}); err != nil {
 		t.Fatal(err)
 	}
 	gin.SetMode(gin.TestMode)

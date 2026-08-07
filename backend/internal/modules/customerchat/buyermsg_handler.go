@@ -217,6 +217,35 @@ func (h *Handler) UpdateBuyerMsgDraft(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// BuyerMsgDraftRegenerateBody binds POST /customer/buyer-messages/drafts/:id/regenerate.
+type BuyerMsgDraftRegenerateBody struct {
+	Language string `json:"language"`
+}
+
+// RegenerateBuyerMsgDraft POST /api/v1/customer/buyer-messages/drafts/:id/regenerate
+// 按所选语言变体重建草稿内容（只改草稿，不发送任何平台消息）。
+func (h *Handler) RegenerateBuyerMsgDraft(c *gin.Context) {
+	if h.buyerMsgUnavailable(c) || h.buyerMsgDenyWrite(c, "切换语言重新生成") {
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body BuyerMsgDraftRegenerateBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.RegenerateBuyerMsgDraft(c, id, body.Language, adminUUID(c))
+	if err != nil {
+		buyerMsgHandleErr(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
 // MarkBuyerMsgDraftSent POST /api/v1/customer/buyer-messages/drafts/:id/mark-sent
 func (h *Handler) MarkBuyerMsgDraftSent(c *gin.Context) {
 	if h.buyerMsgUnavailable(c) || h.buyerMsgDenyWrite(c, "标记已发送") {

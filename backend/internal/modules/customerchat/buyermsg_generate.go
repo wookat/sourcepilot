@@ -128,6 +128,8 @@ type buyerMsgOrderCtx struct {
 	trackingNo   string
 	productTitle string
 	shopName     string
+	shopLanguage string
+	shopPlatform string
 }
 
 func (s *Service) buyerMsgOrderContext(ctx context.Context, o *order.Order) buyerMsgOrderCtx {
@@ -146,7 +148,59 @@ func (s *Service) buyerMsgOrderContext(ctx context.Context, o *order.Order) buye
 		var sh shop.Shop
 		if err := s.DB.WithContext(ctx).Where("id = ?", *o.ShopID).First(&sh).Error; err == nil {
 			out.shopName = sh.ShopName
+			out.shopLanguage = sh.DefaultLanguage
+			out.shopPlatform = sh.Platform
 		}
+	}
+	return out
+}
+
+// resolveBuyerMsgLanguage infers the buyer target language for one order：
+// ①订单收货地国家（RawData country/countryCode）→ ②店铺默认语言配置 →
+// ③店铺平台推断 → ④无法推断时回退模板默认语言并标注 fallback。
+func resolveBuyerMsgLanguage(o *order.Order, octx buyerMsgOrderCtx, defaultLanguage string) (string, string) {
+	if lang := countryToLanguage(extractOrderCountry(json.RawMessage(o.RawData))); lang != "" {
+		return lang, BuyerMsgLangSourceOrderCountry
+	}
+	if lang := NormalizeTemplateLanguage(octx.shopLanguage); lang != "" {
+		return lang, BuyerMsgLangSourceShopLanguage
+	}
+	platform := octx.shopPlatform
+	if platform == "" {
+		platform = o.Platform
+	}
+	if lang, ok := platformLanguage[strings.ToLower(strings.TrimSpace(platform))]; ok {
+		return lang, BuyerMsgLangSourcePlatform
+	}
+	return defaultLanguage, BuyerMsgLangSourceFallback
+}
+
+// buyerMsgTemplateContent picks the template content for lang：默认语言用
+// tpl.Content，其他语言用对应变体；缺变体时回退默认语言并标注 no_variant。
+func buyerMsgTemplateContent(tpl CustomerReplyTemplate, variants map[string]string, lang, source string) (string, string, string) {
+	dl := tpl.DefaultLanguage
+	if dl == "" {
+		dl = TemplateDefaultLanguage
+	}
+	if lang == dl {
+		return tpl.Content, lang, source
+	}
+	if content, ok := variants[lang]; ok {
+		return content, lang, source
+	}
+	return tpl.Content, dl, BuyerMsgLangSourceNoVariant
+}
+
+func (s *Service) templateVariantContents(ctx context.Context, tenantID int64, templateID uuid.UUID) map[string]string {
+	out := map[string]string{}
+	var rows []CustomerReplyTemplateVariant
+	if err := s.DB.WithContext(ctx).
+		Where("tenant_id = ? AND template_id = ?", tenantID, templateID).
+		Find(&rows).Error; err != nil {
+		return out
+	}
+	for _, r := range rows {
+		out[r.Language] = r.Content
 	}
 	return out
 }
@@ -208,6 +262,7 @@ func (s *Service) generateForRule(ctx context.Context, rule BuyerMessageRule, tp
 	if err := q.Order("orders.created_at ASC").Limit(buyerMsgScanBatch).Find(&orders).Error; err != nil {
 		return 0, err
 	}
+	variants := s.templateVariantContents(ctx, rule.TenantID, tpl.ID)
 	created := 0
 	for i := range orders {
 		o := &orders[i]
@@ -219,7 +274,13 @@ func (s *Service) generateForRule(ctx context.Context, rule BuyerMessageRule, tp
 			"商品名":  octx.productTitle,
 			"店铺名":  octx.shopName,
 		}
-		content, missing := FillBuyerMsgTemplate(tpl.Content, vars)
+		tplDefault := tpl.DefaultLanguage
+		if tplDefault == "" {
+			tplDefault = TemplateDefaultLanguage
+		}
+		targetLang, langSource := resolveBuyerMsgLanguage(o, octx, tplDefault)
+		tplContent, lang, langSource := buyerMsgTemplateContent(tpl, variants, targetLang, langSource)
+		content, missing := FillBuyerMsgTemplate(tplContent, vars)
 		var missingJSON datatypes.JSON
 		if len(missing) > 0 {
 			if b, err := json.Marshal(missing); err == nil {
@@ -238,6 +299,8 @@ func (s *Service) generateForRule(ctx context.Context, rule BuyerMessageRule, tp
 			OrderNo:        o.OrderNo,
 			CustomerName:   o.CustomerName,
 			Content:        content,
+			Language:       lang,
+			LangSource:     langSource,
 			MissingVars:    missingJSON,
 			Status:         BuyerMsgDraftPending,
 			ConversationID: s.buyerMsgConversationID(ctx, rule.TenantID, o.ID),

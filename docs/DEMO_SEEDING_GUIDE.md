@@ -69,6 +69,15 @@ Linux / macOS：
 
 主租户另有挂在手工渠道店（operator/readonly 授权店）的自动化执行日志样本 `DEMO-AT-1301`~`DEMO-AT-1303`（成功/跳过/失败各 1，成功样本为 recommend 仅推荐模式），保证 operator 视角执行日志页不空态。
 
+### 买家消息多语言模板样本（round152）
+
+`pnpm seed:demo:full` 的客服样本包含多语言话术模板与买家消息草稿语言口径样本：
+
+- 话术模板（`DEMO-` 前缀）带英/西/葡语言变体（默认语言 `zh-CN`，变量占位符与默认正文一致）。
+- 正样本：`DEMO-BM-1005`（收货地 US → `en`，`langSource=order_country`）、`DEMO-BM-1006`（收货地 BR → `pt`，`langSource=order_country`）。
+- 负样本：`DEMO-BM-1001`（订单无收货地国家 → 回退默认语言 `zh-CN`，`langSource=fallback`）。
+- clean/verify 覆盖 `customer_reply_template_variants`（零残留），重跑幂等。
+
 ## 验证
 
 ```powershell

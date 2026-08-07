@@ -24,7 +24,7 @@ func newBuyerMsgTestSvc(t *testing.T) *Service {
 		t.Skipf("sqlite unavailable: %v", err)
 	}
 	if err := db.AutoMigrate(
-		&CustomerReplyTemplate{}, &CustomerConversation{},
+		&CustomerReplyTemplate{}, &CustomerReplyTemplateVariant{}, &CustomerConversation{},
 		&BuyerMessageRule{}, &BuyerMessageDraft{},
 		&order.Order{}, &order.OrderItem{}, &order.OrderShipment{}, &shop.Shop{},
 	); err != nil {
