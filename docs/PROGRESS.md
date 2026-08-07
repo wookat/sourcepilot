@@ -1872,3 +1872,9 @@ Final Production Acceptance Deferred to P10
 - **零发现项**：跨租户数据泄露、MCP 写路径可达、token 明文入库/入日志/入响应、SQL/参数注入、平台租户接口越权、R139 修复项回退，均无。
 - **P2 清单**：MCP 审计写失败仅告警不阻断；大屏 today 销售/毛利口径忽略 shopId/platform 筛选；大屏非法 shopId 静默降级不报 400；MCP token 上限 count→insert 竞态及其回归测试缺失；前端工具链依赖告警 13 条（2 high，均为构建/开发期）。
 - 详见 `docs/SECURITY_AUDIT_R148.md`。
+
+### 变更记录（2026-08-07）第 155 轮线1：v25 P2×4 收口 + 合并期杂项（fullstack-engineer）
+
+- **v25 P2×4 逐项处置**：① `GET /api/health` 404 登记不改（全仓无该路径声明，规范健康路径 `/health`、`/healthz`、`/api/v1/health` 文档已正确）；② #307 审计卡轻刷新时序补完整验证——单元级确定性时序 2 用例（新行入库后刷新、迟到错误响应不覆盖）在 main 失败、叠加 #307 通过，随 #307 以 PR #314 合入，Docker 全栈实测复核通过；③ 登录 body 字段 `account` 口径收口进 `docs/api.md`；④ #311 承接 P2 复核仍存在，随 #312/#303 闭合，登记不重复实现。
+- **合并期预案**：#308 `mcptoken.Create` 增 `purpose` 参数与 #303/#311 测试旧签名调用的语义冲突——均未合并，登记提醒（合入时调用处补 `""`）。
+- 详见 `docs/progress/R155.md`。

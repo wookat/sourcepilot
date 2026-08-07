@@ -42,7 +42,7 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/auth/login` | 管理员登录，支持邮箱或手机号。 |
+| `POST` | `/api/v1/auth/login` | 管理员登录，支持邮箱或手机号。body 为 `{ "account": "邮箱或手机号", "password": "..." }`（字段名为 `account`，不是 `email`）。 |
 | `POST` | `/api/v1/auth/logout` | 退出登录，客户端丢弃 token。 |
 | `GET` | `/api/v1/auth/profile` | 当前管理员信息（含 `role` / `permissions` / `tenantId`，前端据此判定平台管理员可见性）。 |
 | `GET` | `/api/v1/auth/register-config` | 注册行为配置（公开）：`{emailVerifyRequired}`。`AUTH_REGISTER_SKIP_EMAIL_VERIFY=true` 且非 staging/production 时为 `false`，登录页据此隐藏验证码输入。 |
