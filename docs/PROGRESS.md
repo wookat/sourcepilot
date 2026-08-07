@@ -1992,3 +1992,11 @@ Final Production Acceptance Deferred to P10
 - **P1 修复：view-only 店铺授权可写客服会话**——会话族写路径（编辑/删除会话、添加消息、mark-replied、AI 建议生成与编辑/采纳/丢弃/apply/reject、send-platform-message、创建绑定店铺会话）此前对店铺 `view` 授权放行；收口为 403/40303（与订单写路由、买家消息草稿一致），detail `canWrite=false`，新增 permmatrix 契约测试 `TestViewOnlyPersonaConversationWriteScope`。
 - **P2**：regenerate 缺变体口径文档漂移（已按实现修正 `docs/api.md`）；view-only 前端只读呈现、列表写入口展示、message-sync 对 view-only 放行口径等登记待下轮。
 - 详见 `docs/progress/R164-line2.md`。
+
+### 变更记录（2026-08-07）第 165 轮线2：安全审计季度复跑（security-auditor）
+
+- **R159 零回退核实 + #322/#330 复验**：token purpose 隔离、跨租户、限流/XFF、审计 fail-closed、脱敏、生产闸门、大屏 scope 全部零回退；订单写面与客服会话写面（叠加未合并的 #330 分支）403/40303 口径成立。
+- **发现并修复 6 处 P1 view-only/跨租户越权**（Docker 双租户实测 + 先补失败测试再修）：订单审单决定、异常工作台标记族（另含跨租户可写）、店铺删除、店铺授权凭证写入与四平台 OAuth 写路径、店铺同步创建与重试、商品刊登目标店与抖店 SKU 绑定——根因均为写路径误用 `EnsureStoreVisible`/只读 scope 或漏店铺闸门，统一收口为 `EnsureStoreOperable`（403/40303，不可见/跨租户 404）。
+- **口径定调**：店铺同步属店铺业务写需 operate 授权（闭合 R164 线2 P2 第 4 项）；`PUT /settings` 数值型静默忽略经评估为非安全面（数值型返回 400，请求体 `tenantId` 为 advisory，写入一律落 JWT 租户）。
+- **回归测试**：`permmatrix` 新增 `r165_store_write_scope_test.go`（6 用例，含授权账号不被过度收紧的正例）；backend `go test ./...`、`go vet`、`govulncheck`（0 可达）全绿，`pnpm audit --prod` 13 条构建链告警无增量。
+- 报告 `docs/SECURITY_AUDIT_R165.md`，详见 `docs/progress/R165-line2.md`。

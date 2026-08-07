@@ -46,6 +46,25 @@ func (h *Handler) denyWrite(c *gin.Context) bool {
 	return false
 }
 
+// denyScope enforces the store-operate gate for one mutating workbench route:
+// out-of-tenant / invisible sources answer 404 and view-only stores 403 (40303).
+func (h *Handler) denyScope(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		return false
+	}
+	err := h.Svc.EnsureSourceOperable(c, strings.TrimSpace(c.Param("sourceType")), strings.TrimSpace(c.Param("sourceId")))
+	switch {
+	case err == nil:
+		return false
+	case errors.Is(err, adminperm.ErrStoreNotOperable):
+		response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "当前账号无该店铺的操作权限")
+		return true
+	default:
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "记录不存在或已被删除")
+		return true
+	}
+}
+
 // requestScope resolves the trusted tenant/store scope from the authenticated
 // principal. Missing tenant context falls back to nil (legacy/unit-test paths).
 func (h *Handler) requestScope(c *gin.Context) (*int64, []uuid.UUID) {
@@ -178,6 +197,9 @@ func (h *Handler) Handle(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "exceptionType required")
 		return
 	}
+	if h.denyScope(c) {
+		return
+	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
 	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkHandled, body.Remark, adminUUID(c)); err != nil {
@@ -209,6 +231,9 @@ func (h *Handler) Ignore(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "exceptionType required")
 		return
 	}
+	if h.denyScope(c) {
+		return
+	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
 	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkIgnored, body.Remark, adminUUID(c)); err != nil {
@@ -232,6 +257,9 @@ func (h *Handler) Ignore(c *gin.Context) {
 func (h *Handler) Unmark(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
+		return
+	}
+	if h.denyScope(c) {
 		return
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
@@ -265,6 +293,9 @@ func (h *Handler) BindSKU(c *gin.Context) {
 	var body BindSKURequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	if h.denyScope(c) {
 		return
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
@@ -306,6 +337,9 @@ func (h *Handler) RetryDeduct(c *gin.Context) {
 	}
 	var body retryDeductBody
 	_ = c.ShouldBindJSON(&body)
+	if h.denyScope(c) {
+		return
+	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
 	sum, err := h.Cmds.RetryDeduct(c.Request.Context(), st, sid, body.SyncPlatforms, adminUUID(c))
@@ -336,6 +370,9 @@ func (h *Handler) RetryInventorySync(c *gin.Context) {
 	sid := strings.TrimSpace(c.Param("sourceId"))
 	if !strings.EqualFold(st, SourceInventorySyncTask) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "only inventory_sync_task sources support inventory sync retry")
+		return
+	}
+	if h.denyScope(c) {
 		return
 	}
 	tid, err := uuid.Parse(sid)

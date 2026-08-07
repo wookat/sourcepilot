@@ -98,7 +98,7 @@ func (s *Service) SyncDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID,
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
-	pub, err := s.loadDouyinPublicationScoped(c, publicationID)
+	pub, err := s.loadDouyinPublicationForWrite(c, publicationID)
 	if err != nil {
 		return nil, err
 	}
@@ -303,6 +303,23 @@ func (s *Service) loadDouyinPublicationScoped(c *gin.Context, publicationID uuid
 	if pub.ShopID != uuid.Nil {
 		sid := pub.ShopID
 		if err := adminperm.EnsureStoreVisible(c, s.DB, &sid); err != nil {
+			return nil, err
+		}
+	}
+	return pub, nil
+}
+
+// loadDouyinPublicationForWrite adds the store-operate gate on top of the read
+// scope: binding / unbinding / calibrating SKUs writes to the store and calls
+// the platform, so a view-only store resolves to adminperm.ErrStoreNotOperable.
+func (s *Service) loadDouyinPublicationForWrite(c *gin.Context, publicationID uuid.UUID) (*ProductPublication, error) {
+	pub, err := s.loadDouyinPublicationScoped(c, publicationID)
+	if err != nil {
+		return nil, err
+	}
+	if pub.ShopID != uuid.Nil {
+		sid := pub.ShopID
+		if err := adminperm.EnsureStoreOperable(c, s.DB, &sid); err != nil {
 			return nil, err
 		}
 	}
