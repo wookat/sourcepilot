@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -12,6 +14,9 @@ import (
 // Service persists and lists MCP tool-call audit logs.
 type Service struct {
 	DB *gorm.DB
+
+	mu        sync.Mutex
+	lastWrite map[string]time.Time
 }
 
 // WriteOpts describes one tool call to audit.
@@ -33,7 +38,9 @@ func (s *Service) Write(ctx context.Context, opts WriteOpts) error {
 		return fmt.Errorf("mcpaudit: no db")
 	}
 	status := strings.TrimSpace(opts.Status)
-	if status != StatusSuccess && status != StatusError {
+	switch status {
+	case StatusSuccess, StatusError, StatusAuthFailed, StatusRateLimited:
+	default:
 		status = StatusError
 	}
 	row := ToolCallLog{
@@ -49,6 +56,42 @@ func (s *Service) Write(ctx context.Context, opts WriteOpts) error {
 		return fmt.Errorf("mcpaudit: write: %w", err)
 	}
 	return nil
+}
+
+// throttleInterval bounds WriteThrottled to one row per key per interval, so
+// per-request events (rejected credentials, rate-limited calls) cannot grow
+// the audit table at the caller's request rate.
+const throttleInterval = time.Minute
+
+// WriteThrottled appends one audit row unless the same key already produced a
+// row within the last minute. The throttle is in-process (per replica), which
+// bounds table growth while keeping at least one visible row per source and
+// minute. Used for auth-failure and rate-limit events where identity may be
+// unknown and volume is attacker-controlled.
+func (s *Service) WriteThrottled(ctx context.Context, key string, opts WriteOpts) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("mcpaudit: no db")
+	}
+	full := opts.Tool + "|" + opts.Status + "|" + key
+	now := time.Now()
+	s.mu.Lock()
+	if s.lastWrite == nil {
+		s.lastWrite = make(map[string]time.Time)
+	}
+	if last, ok := s.lastWrite[full]; ok && now.Sub(last) < throttleInterval {
+		s.mu.Unlock()
+		return nil
+	}
+	s.lastWrite[full] = now
+	if len(s.lastWrite) > 4096 {
+		for k, v := range s.lastWrite {
+			if now.Sub(v) >= throttleInterval {
+				delete(s.lastWrite, k)
+			}
+		}
+	}
+	s.mu.Unlock()
+	return s.Write(ctx, opts)
 }
 
 // ListFilter narrows List within the tenant scope.

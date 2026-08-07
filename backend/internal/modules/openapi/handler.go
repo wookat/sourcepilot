@@ -11,16 +11,34 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
-func atoiQ(c *gin.Context, key string, def int) int {
+// pageParams validates page/pageSize query values: absent values take the
+// defaults, but a non-integer or non-positive value answers 400, matching the
+// date-parameter policy (no silent normalization). Values above the page-size
+// cap stay clamped by the query layer, which the API contract documents.
+func pageParams(c *gin.Context) (page, pageSize int, ok bool) {
+	page, ok = positiveIntQ(c, "page", 1)
+	if !ok {
+		return 0, 0, false
+	}
+	pageSize, ok = positiveIntQ(c, "pageSize", 20)
+	if !ok {
+		return 0, 0, false
+	}
+	return page, pageSize, true
+}
+
+func positiveIntQ(c *gin.Context, key string, def int) (int, bool) {
 	raw := strings.TrimSpace(c.Query(key))
 	if raw == "" {
-		return def
+		return def, true
 	}
 	n, err := strconv.Atoi(raw)
-	if err != nil {
-		return def
+	if err != nil || n < 1 {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest,
+			"invalid "+key+" (want a positive integer)")
+		return 0, false
 	}
-	return n
+	return n, true
 }
 
 // tenantID resolves the authenticated tenant; the middleware guarantees the
@@ -40,6 +58,10 @@ func (h *handlers) ordersList(c *gin.Context) {
 	if !ok {
 		return
 	}
+	page, pageSize, ok := pageParams(c)
+	if !ok {
+		return
+	}
 	in := readonlyquery.OrdersQueryIn{
 		Status:        c.Query("status"),
 		PaymentStatus: c.Query("paymentStatus"),
@@ -47,8 +69,8 @@ func (h *handlers) ordersList(c *gin.Context) {
 		Keyword:       c.Query("keyword"),
 		StartDate:     c.Query("startDate"),
 		EndDate:       c.Query("endDate"),
-		Page:          atoiQ(c, "page", 1),
-		PageSize:      atoiQ(c, "pageSize", 20),
+		Page:          page,
+		PageSize:      pageSize,
 	}
 	out, err := h.d.queries().OrdersQuery(c.Request.Context(), tid, in)
 	if err != nil {
@@ -82,12 +104,16 @@ func (h *handlers) inventoryList(c *gin.Context) {
 	if !ok {
 		return
 	}
+	page, pageSize, ok := pageParams(c)
+	if !ok {
+		return
+	}
 	raw := strings.TrimSpace(c.Query("lowStockOnly"))
 	in := readonlyquery.InventoryQueryIn{
 		Keyword:      c.Query("keyword"),
 		LowStockOnly: strings.EqualFold(raw, "true") || raw == "1",
-		Page:         atoiQ(c, "page", 1),
-		PageSize:     atoiQ(c, "pageSize", 20),
+		Page:         page,
+		PageSize:     pageSize,
 	}
 	out, err := h.d.queries().InventoryQuery(c.Request.Context(), tid, in)
 	if err != nil {
@@ -121,11 +147,15 @@ func (h *handlers) exceptionsList(c *gin.Context) {
 	if !ok {
 		return
 	}
+	page, pageSize, ok := pageParams(c)
+	if !ok {
+		return
+	}
 	in := readonlyquery.ExceptionsPendingIn{
 		ExceptionType: c.Query("exceptionType"),
 		Severity:      c.Query("severity"),
-		Page:          atoiQ(c, "page", 1),
-		PageSize:      atoiQ(c, "pageSize", 20),
+		Page:          page,
+		PageSize:      pageSize,
 	}
 	out, err := h.d.queries().ExceptionsPending(c.Request.Context(), tid, in)
 	if err != nil {

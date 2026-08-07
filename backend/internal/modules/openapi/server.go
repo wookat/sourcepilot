@@ -6,6 +6,7 @@
 package openapi
 
 import (
+	"bytes"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -42,7 +43,8 @@ type Deps struct {
 	DB         *gorm.DB
 	Tokens     *mcptoken.Service
 	Exceptions *orderexception.Service
-	// Audits records one row per endpoint call (best effort; nil disables it).
+	// Audits records one row per endpoint call; a failed audit write rejects the
+	// call (fail closed, same policy as the MCP entry). nil disables auditing.
 	Audits *mcpaudit.Service
 	// Redis, when set, backs the rate-limit buckets so the budget is shared
 	// across replicas; nil keeps the in-process buckets.
@@ -121,15 +123,35 @@ func authMiddleware(d *Deps) gin.HandlerFunc {
 		c.Abort()
 	}
 
+	// auditReject records entry-level 401/429 events (throttled per source and
+	// minute); tok is nil when the caller is unauthenticated (row under tenant 0).
+	auditReject := func(c *gin.Context, key, status string, tok *mcptoken.Token) {
+		if d.Audits == nil {
+			return
+		}
+		opts := mcpaudit.WriteOpts{Tool: "openapi:auth", Status: status}
+		if tok != nil {
+			opts.TenantID = tok.TenantID
+			opts.TokenID = tok.ID
+			opts.TokenName = tok.Name
+			opts.TokenMasked = tok.Masked()
+		}
+		if err := d.Audits.WriteThrottled(c.Request.Context(), key, opts); err != nil {
+			slog.Warn("openapi_auth_audit_write_failed", "status", status, "error", err.Error())
+		}
+	}
+
 	return func(c *gin.Context) {
 		clientKey := "ip:" + c.ClientIP()
 		if !authFailLimiter.HasBudget(c.Request.Context(), clientKey) {
+			auditReject(c, clientKey, mcpaudit.StatusRateLimited, nil)
 			tooMany(c)
 			return
 		}
 		raw := bearerToken(c.GetHeader("Authorization"))
 		if raw == "" {
 			authFailLimiter.Allow(c.Request.Context(), clientKey)
+			auditReject(c, clientKey, mcpaudit.StatusAuthFailed, nil)
 			response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing bearer token")
 			c.Abort()
 			return
@@ -137,15 +159,18 @@ func authMiddleware(d *Deps) gin.HandlerFunc {
 		tok, err := d.Tokens.AuthenticateFor(c.Request.Context(), raw, mcptoken.PurposeOpenAPI)
 		if err != nil {
 			authFailLimiter.Allow(c.Request.Context(), clientKey)
+			auditReject(c, clientKey, mcpaudit.StatusAuthFailed, nil)
 			response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "invalid or revoked token")
 			c.Abort()
 			return
 		}
 		if !limiter.Allow(c.Request.Context(), tok.ID.String()).Allowed {
+			auditReject(c, "token:"+tok.ID.String(), mcpaudit.StatusRateLimited, tok)
 			tooMany(c)
 			return
 		}
 		if !tenantLimiter.Allow(c.Request.Context(), strconv.FormatInt(tok.TenantID, 10)).Allowed {
+			auditReject(c, "tenant:"+strconv.FormatInt(tok.TenantID, 10), mcpaudit.StatusRateLimited, tok)
 			tooMany(c)
 			return
 		}
@@ -176,22 +201,54 @@ type handlers struct {
 	d *Deps
 }
 
+// bufferedWriter holds the endpoint response in memory so it can still be
+// withheld after the handler ran (used by the fail-closed audit trail). The
+// endpoints answer with small JSON documents and never stream.
+type bufferedWriter struct {
+	gin.ResponseWriter
+	status int
+	body   bytes.Buffer
+}
+
+func (w *bufferedWriter) WriteHeader(code int)              { w.status = code }
+func (w *bufferedWriter) WriteHeaderNow()                   {}
+func (w *bufferedWriter) Write(b []byte) (int, error)       { return w.body.Write(b) }
+func (w *bufferedWriter) WriteString(s string) (int, error) { return w.body.WriteString(s) }
+func (w *bufferedWriter) Status() int                       { return w.status }
+func (w *bufferedWriter) Size() int                         { return w.body.Len() }
+func (w *bufferedWriter) Written() bool                     { return w.body.Len() > 0 }
+func (w *bufferedWriter) Flush()                            {}
+
+func (w *bufferedWriter) flushTo(dst gin.ResponseWriter) {
+	dst.WriteHeader(w.status)
+	if w.body.Len() > 0 {
+		_, _ = dst.Write(w.body.Bytes())
+	}
+}
+
 // audited wraps one endpoint with the shared per-call audit trail. Endpoint
 // names live in the same log as the MCP tool names (prefixed "openapi:");
-// request parameters and response payloads are never recorded.
+// request parameters and response payloads are never recorded. The response is
+// buffered until its audit row is persisted: when the audit store is
+// unavailable the query result is withheld and the call fails with 500, so no
+// read ever completes without its audit row (same fail-closed policy as the
+// MCP entry; the endpoints are read-only, so a rejected call is retryable).
 func (h *handlers) audited(name string, fn gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
+		orig := c.Writer
+		buf := &bufferedWriter{ResponseWriter: orig, status: http.StatusOK}
+		c.Writer = buf
 		fn(c)
-		if h.d.Audits == nil {
-			return
-		}
+		c.Writer = orig
+
 		tok := tokenOf(c)
-		if tok == nil {
+		if h.d.Audits == nil || tok == nil {
+			buf.flushTo(orig)
 			return
 		}
 		status := mcpaudit.StatusSuccess
-		if c.Writer.Status() >= 400 {
+		if buf.status >= 400 {
 			status = mcpaudit.StatusError
 		}
 		if err := h.d.Audits.Write(c.Request.Context(), mcpaudit.WriteOpts{
@@ -203,7 +260,11 @@ func (h *handlers) audited(name string, fn gin.HandlerFunc) gin.HandlerFunc {
 			Status:      status,
 			DurationMs:  time.Since(start).Milliseconds(),
 		}); err != nil {
-			slog.Warn("openapi_audit_write_failed", "endpoint", name, "error", err.Error())
+			slog.Error("openapi_audit_write_failed", "endpoint", name, "error", err.Error())
+			response.Fail(c, http.StatusInternalServerError, response.CodeInternalError,
+				"audit log unavailable, request rejected")
+			return
 		}
+		buf.flushTo(orig)
 	}
 }

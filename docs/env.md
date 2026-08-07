@@ -50,6 +50,7 @@ docker compose -f docker-compose.full.yml up -d --build
 | `AUTH_SESSION_MODE` | dev 默认 `legacy_local_storage`；staging/production 强制 `secure_session` | backend | 否 | 会话模式。`secure_session`：refresh token 走 HttpOnly Cookie，access token 必须带 session 绑定；`legacy_local_storage`：仅限开发/遗留本地部署。 |
 | `AUTH_REGISTER_SKIP_EMAIL_VERIFY` | `false` | backend | 否 | 本地/自托管无 SMTP 时显式关闭注册邮箱验证（见下方说明）。 |
 | `UPLOAD_MAX_MB` | `10` | backend | 否 | 单文件上传大小上限。 |
+| `TRUSTED_PROXIES` | 空（不信任任何代理） | backend | 否 | 可信反向代理 IP/CIDR 列表（逗号分隔）。留空时忽略 `X-Forwarded-For`，客户端 IP 取 TCP peer 地址，登录、鉴权失败预算、限流等每 IP 口径无法被伪造该头绕过。部署在 nginx / LB 之后且入口唯一时，填该代理的具体 IP；若同时对外发布了 backend 端口，请保持留空（否则外部请求经端口映射同样落在代理网段内，可伪造该头）。 |
 
 ### secure_session 模式的 legacy token 收紧与迁移
 

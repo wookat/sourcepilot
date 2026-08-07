@@ -51,6 +51,9 @@ docker compose -f docker-compose.prod.yml exec -T postgres \
 | R125–R131（PR #267/#268/#272 等） | 无新表；新列：`order_automation_rules` 增 `shipping_apply_mode`/`warehouse_strategy`（自动化新动作参数），`orders` 增 `planned_carrier_code/name/mode/rule/at` 与 `assigned_warehouse_id/name/strategy`，`order_automation_logs` 增 `shop_id` 列并从 orders 回填（`backfillAutomationLogShopIDs`，SQLite 开发库不支持 `UPDATE FROM` 时跳过不致命） | 无中断风险；回填幂等（只更新 `shop_id IS NULL` 行）。R132 演练实测存量 2 万行执行日志回填 20000/20000、与 orders.shop_id 逐行 0 偏差，回填 UPDATE 为一条 SLOW SQL（约 200ms 级） |
 | R135（PR #282） | 新表 `order_tags`/`order_tag_links`（订单标签），`order_automation_rules` 增 `tag_ids` 列（`add_tag` 自动打标签动作参数） | 无中断风险；均为新表/新列，存量订单无标签、不自动补打；R137 演练实测新表随 AutoMigrate 落地、存量数据 0 影响 |
 | R144–R148（PR #294/#295/#298） | 新表 `mcp_api_tokens`（租户级 MCP 只读 token，含 tenant/hash/expires/revoked 索引）与 `mcp_tool_call_logs`（MCP 调用审计，含 tenant/token/tool/status/created_at 索引） | 无中断风险；均为新表，存量数据 0 影响；大屏（PR #296）/权限矩阵（PR #302）无新增迁移；R149 演练实测新表随 AutoMigrate 落地 |
+| R152（PR #308/#309） | `mcp_api_tokens` 增 `purpose` 列（`mcp`/`openapi`/`both`，存量回填 `mcp`）；买家消息多语言相关新列 | 无中断风险；存量 MCP token 行为不变（`purpose=mcp` 不能调开放 API，需要时重建 `openapi`/`both` 用途 token） |
+| R153（PR #311） | 无表结构迁移；**行为变更**：① 被禁用/清退租户的 MCP / 开放 API token 立即失效（401）；② 新增 `TRUSTED_PROXIES`（默认空 = 不信任任何代理），登录/鉴权失败预算/限流等每 IP 口径默认取 TCP peer 地址——**部署在 nginx / LB 之后必须配置该变量**，否则所有外部请求共享代理 IP 的同一预算；③ 开放 API 审计 fail-closed：审计库故障时开放 API 查询返回 500（只读可重试），不再"读到数据但无审计" | 无中断风险；升级后检查反代部署是否需要设置 `TRUSTED_PROXIES`（见 `docs/env.md`） |
+| R154（本轮） | 无表结构迁移；审计表新增 `auth_failed`/`rate_limited` 状态行（`mcp:auth`/`openapi:auth`，401/429 入口级拒绝留痕，按来源每分钟至多一条）；开放 API `page`/`pageSize` 非法值从静默归一化改为返回 400 | 无中断风险；依赖非法分页参数被静默容忍的调用方需要改传合法值 |
 
 ## 二、升级步骤
 

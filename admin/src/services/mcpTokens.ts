@@ -48,7 +48,7 @@ export type McpAuditLogRow = {
   tokenName: string;
   tokenMasked: string;
   tool: string;
-  status: 'success' | 'error';
+  status: 'success' | 'error' | 'auth_failed' | 'rate_limited';
   durationMs: number;
   createdAt: string;
 };
