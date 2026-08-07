@@ -1924,6 +1924,14 @@ Final Production Acceptance Deferred to P10
 - **Docker 全栈三角色实跑**（main 合入 v26 集成预演分支构建，录屏证据外置不入库）：新演示点与抽查动线全部符合，两处失实即修（「已折算：X」与未折算行互斥、卡片配置无「恢复默认」按钮），并登记进 demo SKILL 常见坑。
 - 详见 `docs/progress/R158-line2.md`。
 
+### 变更记录（2026-08-07）第 156 轮线1：R155 登记 P2 + 合并期杂项收口（fullstack-engineer）
+
+- **MCP 审计 fail-closed 错误码**：拒绝调用由普通 error（wire 上 JSON-RPC `code:0`，非规范值）改为 `-32603 internal error`（`jsonrpc.CodeInternalError`），补 code 断言回归测试；开放 API 侧同场景本就是 HTTP 500 + envelope `50000`，口径一致无改动。
+- **`--pre-upgrade-check` 备份目录**：维持默认 `/var/backups`（root 部署面向），非 root 下 mkdir 失败与目录不可写（新增 `-w` 检查）都启动即清晰报错并提示 `BACKUP_DIR=<可写目录>` 覆盖，不再误报「pg_dump 备份失败」。
+- **demo clean 覆盖面核实**：`seed:demo:full:clean` 只清 `DEMO-` 前缀 token，`e2e-refresh-verify` 等测试遗留不覆盖（实测确认）；不扩大删除面，SKILL 常见坑登记「测试收尾自行吊销」。
+- **合并期预案落地**：#308 purpose 签名冲突按 R155 §3 预案修复（叠加分支内调用处补 `""`）；permmatrix harness 补 `OpenAPIEnabled`（cherry-pick #313）。
+- 详见 `docs/progress/R156.md`。
+
 ### 变更记录（2026-08-07）第 159 轮线1：安全审计季度复跑（security-auditor）
 
 - **P1 修复**：仅 `view` 授权的店铺可被写入（同租户内店铺授权粒度越权写）——R149–R158 新增/改造的订单与买家消息草稿写路径只校验店铺可见性，未校验可操作性；按 R125 口径收口（view-only 403 / 不可见 404 / admin 与 operate·manage 不变 / 被拒零落库），`adminperm` 新增 `OperableStoreIDs`、`EnsureStoreOperable`、`ApplyStoreOperateScope`，覆盖草稿五路由与订单创建·更新迁店·删除·行项·发货单·打标·物流刷新·自动化重试·库存扣减回滚·SKU 匹配与 bind-sku·打单标记，附先失败后通过的回归测试。
