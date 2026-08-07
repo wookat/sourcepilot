@@ -21,7 +21,7 @@ func failRuleShopScope(c *gin.Context, err error) bool {
 		return true
 	}
 	if errors.Is(err, adminperm.ErrStoreNotOperable) {
-		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "店铺无操作权限")
+		response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "店铺无操作权限")
 		return true
 	}
 	return false
@@ -156,7 +156,7 @@ func (h *Handler) PostAutomationLogRetry(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, adminperm.ErrStoreNotOperable) {
-			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "店铺无操作权限")
+			response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "店铺无操作权限")
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
