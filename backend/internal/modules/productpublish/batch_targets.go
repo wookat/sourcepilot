@@ -781,6 +781,12 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 		// Concurrent or duplicate retry: another caller may have already claimed failures.
 		return s.batchCreateResponseFromExisting(ctx, &batch)
 	}
+	for _, ft := range failedTasks {
+		sid := ft.ShopID
+		if err := adminperm.EnsureStoreOperable(c, s.DB, &sid); err != nil {
+			return nil, err
+		}
+	}
 
 	results := make([]BatchTargetTaskResult, 0, len(failedTasks))
 	var successN, failedN int
@@ -899,6 +905,18 @@ func (s *Service) CancelPendingBatchTasks(c *gin.Context, batchID uuid.UUID, adm
 	}
 	if err := s.assertBatchAccess(&batch, adminID); err != nil {
 		return nil, err
+	}
+	var pendingShopIDs []uuid.UUID
+	if err := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
+		Where("batch_id = ? AND status IN ?", batchID, []string{TaskPending}).
+		Distinct().Pluck("shop_id", &pendingShopIDs).Error; err != nil {
+		return nil, err
+	}
+	for _, sid := range pendingShopIDs {
+		sid := sid
+		if err := adminperm.EnsureStoreOperable(c, s.DB, &sid); err != nil {
+			return nil, err
+		}
 	}
 	fin := time.Now().UTC()
 	res := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).

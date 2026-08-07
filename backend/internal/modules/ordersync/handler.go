@@ -94,6 +94,9 @@ func (h *Handler) SyncShopOrders(c *gin.Context) {
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
+		case errors.Is(err, adminperm.ErrStoreNotOperable):
+			response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
+			return
 		case errors.Is(err, platformp.ErrManualOrderSyncUnsupported):
 			response.Fail(c, 400, response.CodeBadRequest, err.Error())
 			return

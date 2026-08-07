@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
@@ -34,6 +35,8 @@ func apiError(err error) apiErrorSpec {
 		return apiErrorSpec{status: http.StatusBadRequest, code: ErrCodeValidation, msg: "validation error", biz: response.CodeBadRequest}
 	case errors.Is(err, ErrNotFound), errors.Is(err, ErrTenantMismatch):
 		return apiErrorSpec{status: http.StatusNotFound, code: ErrCodeNotFound, msg: "not found", biz: response.CodeNotFound}
+	case errors.Is(err, adminperm.ErrStoreNotOperable):
+		return apiErrorSpec{status: http.StatusForbidden, code: ErrCodePermissionDenied, msg: "店铺无操作权限", biz: response.CodeStorePermissionDenied}
 	case errors.Is(err, ErrPermissionDenied):
 		return apiErrorSpec{status: http.StatusForbidden, code: ErrCodePermissionDenied, msg: "permission denied", biz: response.CodePermissionDenied}
 	case errors.Is(err, ErrProductionCapabilityForbidden), errors.Is(err, ErrProviderCapabilityForbidden):

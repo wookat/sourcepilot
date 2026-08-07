@@ -17,6 +17,11 @@ type APIActor struct {
 	// nil means all shops (admin); an empty slice means no shop is
 	// visible. Tasks without a shop binding are admin-only.
 	AllowedShopIDs []uuid.UUID
+
+	// OperableShopIDs is the trusted writable store scope
+	// (adminperm.Principal.OperableStoreIDs): nil means all shops
+	// (admin); view-only grants are excluded.
+	OperableShopIDs []uuid.UUID
 }
 
 // shopAllowed reports whether a task bound to shop sid is inside the
@@ -29,6 +34,23 @@ func (a APIActor) shopAllowed(sid *uuid.UUID) bool {
 		return false
 	}
 	for _, id := range a.AllowedShopIDs {
+		if id == *sid {
+			return true
+		}
+	}
+	return false
+}
+
+// shopOperable reports whether a task bound to shop sid may be mutated by
+// the actor (view-only store grants are visible but not operable).
+func (a APIActor) shopOperable(sid *uuid.UUID) bool {
+	if a.OperableShopIDs == nil {
+		return true
+	}
+	if sid == nil || *sid == uuid.Nil {
+		return false
+	}
+	for _, id := range a.OperableShopIDs {
 		if id == *sid {
 			return true
 		}
