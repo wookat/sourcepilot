@@ -6131,6 +6131,16 @@
   },
   {
     "method": "POST",
+    "path": "/api/v1/customer-service/buyer-messages/drafts/:id/regenerate",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
     "path": "/api/v1/customer-service/buyer-messages/drafts/:id/mark-sent",
     "personas": {
       "admin": "allow",
@@ -6233,6 +6243,16 @@
   {
     "method": "POST",
     "path": "/api/v1/customer/buyer-messages/drafts/:id/ignore",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/customer/buyer-messages/drafts/:id/regenerate",
     "personas": {
       "admin": "allow",
       "crossTenantAdmin": "allow",

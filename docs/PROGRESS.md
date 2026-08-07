@@ -1867,6 +1867,13 @@ Final Production Acceptance Deferred to P10
 - **R146 QA 复核**：零数据租户空态、长租户名/大数值截断 Docker 实测复核。
 - 详见 `docs/progress/R147.md`。
 
+### 变更记录（2026-08-07）第 152 轮线2：买家消息多语言模板（fullstack-engineer）
+
+- **模板多语言变体**：`customer_reply_templates` 新增 `default_language`（缺省 `zh-CN`，既有 `content` 即默认正文，历史零迁移）；新表 `customer_reply_template_variants`（tenant+template+language 唯一）；语言表可扩展（15 语种）；模板 API 增 `defaultLanguage`/`variants`（事务内全量替换）。
+- **草稿语言口径**：生成时按 收货地国家→店铺语言→平台→回退默认语言 推断，草稿 DTO 增 `language`/`langSource`（`order_country`/`shop_language`/`platform`/`fallback`/`no_variant`/`manual`）；新端点 `POST /buyer-messages/drafts/:id/regenerate` 按所选语言重新生成（仅 pending，只改草稿绝不外发，readonly 403）。
+- **UI**：模板页语言变体维护、工作台语言列+回退标注+切换语言重新生成，全中文管理界面。demo seed 补英/西/葡变体与 US→en / BR→pt 正样本、无国家 fallback 负样本（clean/verify 覆盖）。
+- 详见 `docs/progress/R152.md`。
+
 ### 变更记录（2026-08-06）第 148 轮线2：安全审计季度复跑（security-engineer）
 
 - **审计范围**：基于 main（#289–#300 已全部合入）复跑季度安全审计——MCP 入口（R145 修复零回退 + R146 过期/逐次审计/Redis 限流边界）、实时经营大屏新 API scope 与聚合注入面、备份定时器与恢复开关越权/配置注入、买家消息回溯开关越权，叠加常规越权/跨租户契约、readonly 403、tenant 0 闸门、CSV/XSS、密钥脱敏与日志 grep、seed 生产拒绝、govulncheck、pnpm audit，以及 R139 四项 S3/备份加固零回退核对与双租户 Docker 全栈实测。
