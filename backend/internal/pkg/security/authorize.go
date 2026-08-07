@@ -108,7 +108,7 @@ func Deny(c *gin.Context, err error) {
 	case errors.Is(err, ErrTenantAccessDenied):
 		response.Fail(c, 403, response.CodeForbidden, "该资源不属于当前租户")
 	case errors.Is(err, ErrShopAccessDenied):
-		response.Fail(c, 403, response.CodeStorePermissionDenied, "当前账号无权访问此店铺")
+		response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
 	default:
 		response.Fail(c, 403, response.CodeForbidden, err.Error())
 	}
