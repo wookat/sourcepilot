@@ -38,7 +38,7 @@ type TikTokOAuthCallbackBody struct {
 }
 
 func (s *Service) TikTokOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redirectOverride string, adminID *uuid.UUID) (*TikTokAuthorizeURLResult, error) {
-	if err := s.ensureShopScoped(c, shopID); err != nil {
+	if err := s.ensureShopOperable(c, shopID); err != nil {
 		return nil, err
 	}
 	_ = adminID
@@ -83,7 +83,7 @@ func (s *Service) TikTokOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redi
 }
 
 func (s *Service) TikTokOAuthCallback(c *gin.Context, shopID uuid.UUID, body TikTokOAuthCallbackBody, adminID *uuid.UUID) (*ShopDetailDTO, error) {
-	if err := s.ensureShopScoped(c, shopID); err != nil {
+	if err := s.ensureShopOperable(c, shopID); err != nil {
 		return nil, err
 	}
 	code := strings.TrimSpace(body.Code)

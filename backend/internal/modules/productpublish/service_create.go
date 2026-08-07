@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -29,6 +30,9 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	sid, err := uuid.Parse(strings.TrimSpace(body.ShopID))
 	if err != nil {
 		return nil, fmt.Errorf("invalid shopId")
+	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &sid); err != nil {
+		return nil, err
 	}
 
 	var prod product.Product

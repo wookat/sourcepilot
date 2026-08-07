@@ -26,6 +26,9 @@ func (s *Service) CancelTask(c *gin.Context, taskID uuid.UUID, adminID *uuid.UUI
 	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
 		return nil, err
 	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &task.ShopID); err != nil {
+		return nil, err
+	}
 	st := strings.TrimSpace(task.Status)
 	if st != TaskPending && st != TaskRunning {
 		return nil, fmt.Errorf("only pending or running tasks can be cancelled")

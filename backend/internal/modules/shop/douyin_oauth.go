@@ -182,7 +182,7 @@ func (s *Service) DouyinOAuthStart(c *gin.Context, shopID *uuid.UUID, adminID *u
 	}
 	ctx := c.Request.Context()
 	if shopID != nil && *shopID != uuid.Nil {
-		rowPtr, err := s.findScopedShop(c, *shopID)
+		rowPtr, err := s.findOperableShop(c, *shopID)
 		if err != nil {
 			return nil, err
 		}
@@ -571,7 +571,7 @@ func (s *Service) markDouyinShopInfoFailed(ctx context.Context, shopID uuid.UUID
 }
 
 func (s *Service) DouyinOAuthRefresh(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*ShopDetailDTO, error) {
-	if err := s.ensureShopScoped(c, shopID); err != nil {
+	if err := s.ensureShopOperable(c, shopID); err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
@@ -606,7 +606,7 @@ func (s *Service) DouyinOAuthRefresh(c *gin.Context, shopID uuid.UUID, adminID *
 }
 
 func (s *Service) DouyinOAuthRevoke(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*ShopDetailDTO, error) {
-	if err := s.ensureShopScoped(c, shopID); err != nil {
+	if err := s.ensureShopOperable(c, shopID); err != nil {
 		return nil, err
 	}
 	ctx := c.Request.Context()
@@ -726,7 +726,7 @@ func (s *Service) testDouyinShopConnection(c *gin.Context, shopID uuid.UUID, adm
 }
 
 func (s *Service) DouyinSyncShopInfo(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*ShopDetailDTO, error) {
-	if err := s.ensureShopScoped(c, shopID); err != nil {
+	if err := s.ensureShopOperable(c, shopID); err != nil {
 		return nil, err
 	}
 	if _, err := s.testDouyinShopConnection(c, shopID, adminID); err != nil {

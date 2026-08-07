@@ -13,6 +13,7 @@ import (
 	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -41,6 +42,11 @@ func (s *Service) ManualBindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID
 	psku, pub, err := s.loadDouyinPublicationSKU(c, publicationSkuID)
 	if err != nil {
 		return nil, err
+	}
+	if sid := pub.ShopID; sid != uuid.Nil {
+		if err := adminperm.EnsureStoreOperable(c, s.DB, &sid); err != nil {
+			return nil, err
+		}
 	}
 	if strings.TrimSpace(pub.ExternalProductID) == "" {
 		return nil, fmt.Errorf("%s: platform product id missing", platformdouyin.CodeDouyinProductNotBound)
@@ -111,6 +117,11 @@ func (s *Service) UnbindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID, bo
 	psku, pub, err := s.loadDouyinPublicationSKU(c, publicationSkuID)
 	if err != nil {
 		return nil, err
+	}
+	if sid := pub.ShopID; sid != uuid.Nil {
+		if err := adminperm.EnsureStoreOperable(c, s.DB, &sid); err != nil {
+			return nil, err
+		}
 	}
 
 	oldExt := strings.TrimSpace(psku.ExternalSKUID)

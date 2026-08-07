@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tenantsettings"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
@@ -210,7 +211,20 @@ type batchCandScan struct {
 	SafetyStock       int        `gorm:"column:safety_stock"`
 }
 
-func (s *Service) queryInventoryBatchCandidates(ctx context.Context, body CreateInventorySyncBatchBody) ([]batchCandScan, error) {
+// shopInOperable reports whether shop is writable under operable (nil = all).
+func shopInOperable(operable []uuid.UUID, shop uuid.UUID) bool {
+	if operable == nil {
+		return true
+	}
+	for _, id := range operable {
+		if id == shop {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Service) queryInventoryBatchCandidates(ctx context.Context, body CreateInventorySyncBatchBody, operable []uuid.UUID) ([]batchCandScan, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -235,6 +249,12 @@ func (s *Service) queryInventoryBatchCandidates(ctx context.Context, body Create
 			return nil, fmt.Errorf("invalid shopId")
 		}
 		tx = tx.Where("pp.shop_id = ?", u)
+	}
+	if operable != nil {
+		if len(operable) == 0 {
+			return []batchCandScan{}, nil
+		}
+		tx = tx.Where("pp.shop_id IN ?", operable)
 	}
 	if pl := strings.TrimSpace(strings.ToLower(body.Platform)); pl != "" {
 		tx = tx.Where("LOWER(pp.platform) = ?", pl)
@@ -485,7 +505,9 @@ func (s *Service) batchToDTO(ctx context.Context, b *InventorySyncBatch, shopLab
 }
 
 // CreateInventorySyncBatch creates batch rows + tasks (≤ configured max).
-func (s *Service) CreateInventorySyncBatch(ctx context.Context, body CreateInventorySyncBatchBody, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
+// CreateInventorySyncBatch plans and creates one manual sync batch. operable
+// restricts candidate shops to the caller's writable stores (nil = all).
+func (s *Service) CreateInventorySyncBatch(ctx context.Context, body CreateInventorySyncBatchBody, operable []uuid.UUID, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -505,7 +527,7 @@ func (s *Service) CreateInventorySyncBatch(ctx context.Context, body CreateInven
 		return nil, err
 	}
 
-	cands, err := s.queryInventoryBatchCandidates(ctx, body)
+	cands, err := s.queryInventoryBatchCandidates(ctx, body, operable)
 	if err != nil {
 		return nil, err
 	}
@@ -803,7 +825,7 @@ func (s *Service) ListInventorySyncBatchTasks(c *gin.Context, batchID uuid.UUID,
 }
 
 // RetryInventorySyncBatchFailed retries every failed task still tied to this batch (same batch record).
-func (s *Service) RetryInventorySyncBatchFailed(ctx context.Context, batchID uuid.UUID, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
+func (s *Service) RetryInventorySyncBatchFailed(ctx context.Context, batchID uuid.UUID, operable []uuid.UUID, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -820,6 +842,9 @@ func (s *Service) RetryInventorySyncBatchFailed(ctx context.Context, batchID uui
 		var row InventorySyncTask
 		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
 			return nil, err
+		}
+		if !shopInOperable(operable, row.ShopID) {
+			return nil, adminperm.ErrStoreNotOperable
 		}
 		if _, err := s.retryInventorySyncTaskScoped(ctx, row.TenantID, id, admin); err != nil {
 			return nil, err
@@ -841,7 +866,7 @@ func (s *Service) RetryInventorySyncBatchFailed(ctx context.Context, batchID uui
 }
 
 // RetryInventorySyncTasksIntoBatch binds failed tasks to a new batch and retries them (≤100).
-func (s *Service) RetryInventorySyncTasksIntoBatch(ctx context.Context, taskIDs []uuid.UUID, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
+func (s *Service) RetryInventorySyncTasksIntoBatch(ctx context.Context, taskIDs []uuid.UUID, operable []uuid.UUID, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -861,6 +886,9 @@ func (s *Service) RetryInventorySyncTasksIntoBatch(ctx context.Context, taskIDs 
 	for _, t := range tasks {
 		if strings.TrimSpace(t.Status) != StatusFailed {
 			return nil, fmt.Errorf("task %s is not failed", t.ID.String())
+		}
+		if !shopInOperable(operable, t.ShopID) {
+			return nil, adminperm.ErrStoreNotOperable
 		}
 	}
 	batchNo, err := s.nextInventoryBatchNo(ctx)

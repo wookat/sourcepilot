@@ -1992,3 +1992,10 @@ Final Production Acceptance Deferred to P10
 - **P1 修复：view-only 店铺授权可写客服会话**——会话族写路径（编辑/删除会话、添加消息、mark-replied、AI 建议生成与编辑/采纳/丢弃/apply/reject、send-platform-message、创建绑定店铺会话）此前对店铺 `view` 授权放行；收口为 403/40303（与订单写路由、买家消息草稿一致），detail `canWrite=false`，新增 permmatrix 契约测试 `TestViewOnlyPersonaConversationWriteScope`。
 - **P2**：regenerate 缺变体口径文档漂移（已按实现修正 `docs/api.md`）；view-only 前端只读呈现、列表写入口展示、message-sync 对 view-only 放行口径等登记待下轮。
 - 详见 `docs/progress/R164-line2.md`。
+
+### 变更记录（2026-08-07）第 165 轮线1：view-only 店铺写入口全站扫尾（fullstack-engineer）
+
+- **全站排查**：#322/#330 两次同类越权漂移后，系统梳理全部带 shop_id 维度写接口，统一「可见性管读、可操作性管写」——手动订单/客服消息同步及 retry（含任务中心委托）、库存同步、inventory-sync P9、productpublish 全写族、运营任务、订单异常、采购单（经关联销售订单）、审单行级、店铺记录/凭证/OAuth 写路径全部收口为 view-only → 403/40303、不可见 → 404。
+- **防漂移**：permmatrix 新增 `TestViewOnlyPersonaShopWriteSweep`（30 写探针 + 零落库 + 404 + 读可用）；matrix.json 补 `viewOnlyOperator` 契约行 113 条。
+- **R164 P2 收口**：前端 `operableStoreIds` 系列 helper，会话列表/详情写入口对 readonly/view-only 隐藏或禁用、写表单仅列可操作店铺；message-sync 口径定案为写操作（创建任务并 upsert 业务行）。
+- 详见 `docs/progress/R165.md`。

@@ -244,7 +244,9 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("ordersync: no db")
 	}
-	if err := adminperm.EnsureStoreVisible(c, s.DB, &shopID); err != nil {
+	// Manual sync creates a write task (order rows are upserted), so a
+	// view-only store grant is rejected like other store writes (403/40303).
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &shopID); err != nil {
 		return nil, err
 	}
 	tid, err := adminperm.TenantIDFromGin(c)
@@ -785,6 +787,9 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		return nil, err
 	}
 	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &task.ShopID); err != nil {
 		return nil, err
 	}
 	st := strings.TrimSpace(task.Status)

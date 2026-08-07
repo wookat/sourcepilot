@@ -1,6 +1,7 @@
 package order
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -254,8 +255,12 @@ func (s *Service) decideReview(c *gin.Context, body ReviewDecisionBody, adminID 
 			}
 			// Store scope must gate the decision itself: the workbench list is
 			// scoped, but ids arrive from the client and an operator may only
-			// approve / reject orders of the stores granted to the account.
-			if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
+			// approve / reject orders of stores granted with operate scope
+			// (view-only grants can read the order but not decide it).
+			if err := adminperm.EnsureStoreOperable(c, s.DB, o.ShopID); err != nil {
+				if errors.Is(err, adminperm.ErrStoreNotOperable) {
+					return fmt.Errorf("店铺无操作权限")
+				}
 				return fmt.Errorf("订单不存在")
 			}
 			row.OrderNo = o.OrderNo

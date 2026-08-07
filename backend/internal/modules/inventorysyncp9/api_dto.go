@@ -10,6 +10,41 @@ type APIActor struct {
 	TenantID int64
 	ActorID  uuid.UUID
 	Role     string
+	// AllowedShopIDs is the visible store scope (nil means all shops).
+	AllowedShopIDs []uuid.UUID
+	// OperableShopIDs is the writable store scope (nil means all shops);
+	// view-only grants are excluded.
+	OperableShopIDs []uuid.UUID
+}
+
+func (a APIActor) shopVisible(sid uuid.UUID) bool {
+	if a.AllowedShopIDs == nil {
+		return true
+	}
+	if sid == uuid.Nil {
+		return false
+	}
+	for _, id := range a.AllowedShopIDs {
+		if id == sid {
+			return true
+		}
+	}
+	return false
+}
+
+func (a APIActor) shopOperable(sid uuid.UUID) bool {
+	if a.OperableShopIDs == nil {
+		return true
+	}
+	if sid == uuid.Nil {
+		return false
+	}
+	for _, id := range a.OperableShopIDs {
+		if id == sid {
+			return true
+		}
+	}
+	return false
 }
 
 type CreateInventorySyncRunRequest struct {

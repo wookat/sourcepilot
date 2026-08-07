@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 )
@@ -552,6 +553,18 @@ func (s *Service) CreateDraftsForTargets(c *gin.Context, productID uuid.UUID, re
 	}
 	if len(targets) == 0 {
 		return nil, fmt.Errorf("targets required")
+	}
+	for _, t := range targets {
+		if t.ShopID == nil || strings.TrimSpace(*t.ShopID) == "" {
+			continue
+		}
+		u, err := uuid.Parse(strings.TrimSpace(*t.ShopID))
+		if err != nil {
+			continue
+		}
+		if err := adminperm.EnsureStoreOperable(c, s.DB, &u); err != nil {
+			return nil, err
+		}
 	}
 
 	checkRes, err := s.CheckPublishTargets(c, productID, PublishTargetsCheckRequest{Targets: targets})

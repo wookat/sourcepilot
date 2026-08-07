@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -74,6 +75,9 @@ func (h *Handler) SyncShopCustomerMessages(c *gin.Context) {
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		case errors.Is(err, adminperm.ErrStoreNotOperable):
+			response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
 			return
 		case errors.Is(err, platformp.ErrManualCustomerMessageUnsupported):
 			response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -168,8 +172,7 @@ func (h *Handler) RetryTask(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

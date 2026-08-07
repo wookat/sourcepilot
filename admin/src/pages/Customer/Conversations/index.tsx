@@ -6,6 +6,7 @@ import { history, useLocation } from '@umijs/max';
 import { Button, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { usePermission } from '@/hooks/usePermission';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
 import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
@@ -99,13 +100,20 @@ export default function CustomerConversationsPage() {
     [location.search],
   );
   const [createOpen, setCreateOpen] = useState(false);
+  const { canWriteCustomer, canOperateAnyStore, canOperateStore } = usePermission();
+  const canWrite = canWriteCustomer && canOperateAnyStore;
   const emptyLocale = useListEmptyLocale('customerConversations', {
     permissionScoped: true,
-    onAction: () => setCreateOpen(true),
-    actionLabel: '新建会话',
+    onAction: canWrite ? () => setCreateOpen(true) : undefined,
+    actionLabel: canWrite ? '新建会话' : undefined,
   });
   const [pullOpen, setPullOpen] = useState(false);
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
+  // 写操作（拉取消息/新建会话）仅允许选择可操作店铺；view 授权店铺只读
+  const writableShopOptions = useMemo(
+    () => shopOptions.filter((o) => canOperateStore(o.value)),
+    [shopOptions, canOperateStore],
+  );
 
   const urlFilters = legacyFilters;
 
@@ -400,12 +408,16 @@ export default function CustomerConversationsPage() {
           <Button key="hub" onClick={() => history.push('/customer/hub')}>
             客服中心
           </Button>,
-          <Button key="pull" onClick={() => setPullOpen(true)}>
-            拉取平台消息
-          </Button>,
-          <Button key="new" type="primary" onClick={() => setCreateOpen(true)}>
-            新建会话
-          </Button>,
+          ...(canWrite
+            ? [
+                <Button key="pull" onClick={() => setPullOpen(true)}>
+                  拉取平台消息
+                </Button>,
+                <Button key="new" type="primary" onClick={() => setCreateOpen(true)}>
+                  新建会话
+                </Button>,
+              ]
+            : []),
         ]}
         request={async () => {
           // 筛选条件一律以 URL query 为准（单一来源）；表单提交通过 onSubmit 写回 URL 后再触发查询
@@ -464,7 +476,7 @@ export default function CustomerConversationsPage() {
         <ProFormSelect
           name="shopId"
           label="店铺"
-          options={shopOptions}
+          options={writableShopOptions}
           rules={[{ required: true, message: '请选择店铺' }]}
           fieldProps={{ showSearch: true, optionFilterProp: 'label' }}
         />
@@ -510,7 +522,7 @@ export default function CustomerConversationsPage() {
         <ProFormSelect
           name="shopId"
           label="关联店铺（可选）"
-          options={shopOptions}
+          options={writableShopOptions}
           fieldProps={{ allowClear: true, showSearch: true }}
         />
         <ProFormText name="customerName" label="客户名称" rules={[{ required: true }]} />

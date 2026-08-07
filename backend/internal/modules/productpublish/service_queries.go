@@ -196,6 +196,9 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
 		return nil, err
 	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &task.ShopID); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(task.Status) != TaskFailed {
 		return nil, fmt.Errorf("only failed tasks can be retried")
 	}

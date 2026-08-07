@@ -62,6 +62,22 @@ func (s *APIService) require(ctx context.Context, actor APIActor, permission str
 	return s.Authorizer.require(ctx, actor.TenantID, actor.ActorID, permission)
 }
 
+// ensureShopOperable enforces the actor's store scope for mutations:
+// invisible shops stay not-found, visible view-only shops surface
+// adminperm.ErrStoreNotOperable (403/40303).
+func (s *APIService) ensureShopOperable(actor APIActor, shopID uuid.UUID) error {
+	if shopID == uuid.Nil {
+		return nil
+	}
+	if !actor.shopVisible(shopID) {
+		return ErrNotFound
+	}
+	if !actor.shopOperable(shopID) {
+		return adminperm.ErrStoreNotOperable
+	}
+	return nil
+}
+
 func (s *APIService) CreateRun(ctx context.Context, actor APIActor, req CreateInventorySyncRunRequest, requestID, idemHash string) (*InventorySyncRunResponse, error) {
 	if err := s.require(ctx, actor, adminperm.PermInventorySyncRun); err != nil {
 		return nil, err
@@ -71,6 +87,9 @@ func (s *APIService) CreateRun(ctx context.Context, actor APIActor, req CreateIn
 	req.FixtureScenario = strings.TrimSpace(req.FixtureScenario)
 	if req.ShopConnectionID == uuid.Nil || req.Platform != PlatformDouyin || (!allowedProviderModes[req.ProviderMode] && !forbiddenProductionProviderModes[req.ProviderMode]) || strings.TrimSpace(requestID) == "" || len(idemHash) != 64 {
 		return nil, ErrValidation
+	}
+	if err := s.ensureShopOperable(actor, req.ShopConnectionID); err != nil {
+		return nil, err
 	}
 	result, err := s.Orchestrator.Run(ctx, InventorySyncOrchestratorInput{
 		TenantID:           actor.TenantID,
@@ -102,6 +121,9 @@ func (s *APIService) Rerun(ctx context.Context, actor APIActor, runID uuid.UUID,
 	}
 	source, err := s.Repo.GetRun(ctx, actor.TenantID, runID)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureShopOperable(actor, source.ShopConnectionID); err != nil {
 		return nil, err
 	}
 	if req.ExpectedRevision < 1 || source.Revision != req.ExpectedRevision {
@@ -266,6 +288,9 @@ func (s *APIService) Recalibrate(ctx context.Context, actor APIActor, snapshotID
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ensureShopOperable(actor, snapshot.ShopConnectionID); err != nil {
+		return nil, err
+	}
 	keyHash := sha256Hex(rawIdemKey)
 	requestHash := hashString(actor.TenantID, snapshotID.String(), req.ExpectedCalibrationVersion, strings.TrimSpace(req.Reason))
 	owner := "p9-api:" + actor.ActorID.String()
@@ -355,6 +380,11 @@ func (s *APIService) ConfirmManual(ctx context.Context, actor APIActor, requestI
 	if req.ExpectedRevision < 1 || req.SelectedLocalSKUID == uuid.Nil || apiValidateComment(req.Comment) != nil {
 		return nil, ErrValidation
 	}
+	if pre, err := s.Repo.GetManualRequest(ctx, actor.TenantID, requestID); err == nil {
+		if err := s.ensureShopOperable(actor, pre.ShopConnectionID); err != nil {
+			return nil, err
+		}
+	}
 	result, err := s.ManualBinding.ConfirmBinding(ctx, ConfirmManualBindingInput{Actor: ManualBindingActor{TenantID: actor.TenantID, ActorID: actor.ActorID}, RequestID: requestID, CorrelationID: requestIDHeader, ExpectedRevision: req.ExpectedRevision, SelectedLocalSKUID: req.SelectedLocalSKUID, IdempotencyKeyHash: idemHash, Comment: req.Comment})
 	if err != nil {
 		return nil, err
@@ -369,6 +399,11 @@ func (s *APIService) ConfirmManual(ctx context.Context, actor APIActor, requestI
 func (s *APIService) RejectManual(ctx context.Context, actor APIActor, requestID uuid.UUID, req RejectManualBindingRequest, requestIDHeader, idemHash string) (*ManualBindingRequestResponse, error) {
 	if req.ExpectedRevision < 1 || apiValidateReason(req.ReasonCode, true) != nil || apiValidateComment(req.Comment) != nil {
 		return nil, ErrValidation
+	}
+	if pre, err := s.Repo.GetManualRequest(ctx, actor.TenantID, requestID); err == nil {
+		if err := s.ensureShopOperable(actor, pre.ShopConnectionID); err != nil {
+			return nil, err
+		}
 	}
 	result, err := s.ManualBinding.RejectBinding(ctx, RejectManualBindingInput{Actor: ManualBindingActor{TenantID: actor.TenantID, ActorID: actor.ActorID}, RequestID: requestID, CorrelationID: requestIDHeader, ExpectedRevision: req.ExpectedRevision, ReasonCode: req.ReasonCode, IdempotencyKeyHash: idemHash, Comment: req.Comment})
 	if err != nil {
