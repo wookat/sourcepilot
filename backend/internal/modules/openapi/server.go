@@ -123,15 +123,35 @@ func authMiddleware(d *Deps) gin.HandlerFunc {
 		c.Abort()
 	}
 
+	// auditReject records entry-level 401/429 events (throttled per source and
+	// minute); tok is nil when the caller is unauthenticated (row under tenant 0).
+	auditReject := func(c *gin.Context, key, status string, tok *mcptoken.Token) {
+		if d.Audits == nil {
+			return
+		}
+		opts := mcpaudit.WriteOpts{Tool: "openapi:auth", Status: status}
+		if tok != nil {
+			opts.TenantID = tok.TenantID
+			opts.TokenID = tok.ID
+			opts.TokenName = tok.Name
+			opts.TokenMasked = tok.Masked()
+		}
+		if err := d.Audits.WriteThrottled(c.Request.Context(), key, opts); err != nil {
+			slog.Warn("openapi_auth_audit_write_failed", "status", status, "error", err.Error())
+		}
+	}
+
 	return func(c *gin.Context) {
 		clientKey := "ip:" + c.ClientIP()
 		if !authFailLimiter.HasBudget(c.Request.Context(), clientKey) {
+			auditReject(c, clientKey, mcpaudit.StatusRateLimited, nil)
 			tooMany(c)
 			return
 		}
 		raw := bearerToken(c.GetHeader("Authorization"))
 		if raw == "" {
 			authFailLimiter.Allow(c.Request.Context(), clientKey)
+			auditReject(c, clientKey, mcpaudit.StatusAuthFailed, nil)
 			response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing bearer token")
 			c.Abort()
 			return
@@ -139,15 +159,18 @@ func authMiddleware(d *Deps) gin.HandlerFunc {
 		tok, err := d.Tokens.AuthenticateFor(c.Request.Context(), raw, mcptoken.PurposeOpenAPI)
 		if err != nil {
 			authFailLimiter.Allow(c.Request.Context(), clientKey)
+			auditReject(c, clientKey, mcpaudit.StatusAuthFailed, nil)
 			response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "invalid or revoked token")
 			c.Abort()
 			return
 		}
 		if !limiter.Allow(c.Request.Context(), tok.ID.String()).Allowed {
+			auditReject(c, "token:"+tok.ID.String(), mcpaudit.StatusRateLimited, tok)
 			tooMany(c)
 			return
 		}
 		if !tenantLimiter.Allow(c.Request.Context(), strconv.FormatInt(tok.TenantID, 10)).Allowed {
+			auditReject(c, "tenant:"+strconv.FormatInt(tok.TenantID, 10), mcpaudit.StatusRateLimited, tok)
 			tooMany(c)
 			return
 		}

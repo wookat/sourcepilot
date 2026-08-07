@@ -134,32 +134,55 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 		response.Fail(c, http.StatusTooManyRequests, response.CodeTooManyRequests, "rate limit exceeded")
 	}
 
+	// auditReject records entry-level 401/429 events (throttled per source and
+	// minute); tok is nil when the caller is unauthenticated (row under tenant 0).
+	auditReject := func(c *gin.Context, key, status string, tok *mcptoken.Token) {
+		if d.Audits == nil {
+			return
+		}
+		opts := mcpaudit.WriteOpts{Tool: "mcp:auth", Status: status}
+		if tok != nil {
+			opts.TenantID = tok.TenantID
+			opts.TokenID = tok.ID
+			opts.TokenName = tok.Name
+			opts.TokenMasked = tok.Masked()
+		}
+		if err := d.Audits.WriteThrottled(c.Request.Context(), key, opts); err != nil {
+			slog.Warn("mcp_auth_audit_write_failed", "status", status, "error", err.Error())
+		}
+	}
+
 	return func(c *gin.Context) {
 		clientKey := "ip:" + c.ClientIP()
 		// The failure budget is only charged for rejected credentials, so valid
 		// traffic is never throttled by it; it is checked first so a client that
 		// burned its budget stops costing token lookups.
 		if !authFailLimiter.HasBudget(c.Request.Context(), clientKey) {
+			auditReject(c, clientKey, mcpaudit.StatusRateLimited, nil)
 			tooMany(c)
 			return
 		}
 		raw := bearerToken(c.GetHeader("Authorization"))
 		if raw == "" {
 			authFailLimiter.Allow(c.Request.Context(), clientKey)
+			auditReject(c, clientKey, mcpaudit.StatusAuthFailed, nil)
 			response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing bearer token")
 			return
 		}
 		tok, err := d.Tokens.Authenticate(c.Request.Context(), raw)
 		if err != nil {
 			authFailLimiter.Allow(c.Request.Context(), clientKey)
+			auditReject(c, clientKey, mcpaudit.StatusAuthFailed, nil)
 			response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "invalid or revoked token")
 			return
 		}
 		if !limiter.Allow(c.Request.Context(), tok.ID.String()).Allowed {
+			auditReject(c, "token:"+tok.ID.String(), mcpaudit.StatusRateLimited, tok)
 			tooMany(c)
 			return
 		}
 		if !tenantLimiter.Allow(c.Request.Context(), strconv.FormatInt(tok.TenantID, 10)).Allowed {
+			auditReject(c, "tenant:"+strconv.FormatInt(tok.TenantID, 10), mcpaudit.StatusRateLimited, tok)
 			tooMany(c)
 			return
 		}

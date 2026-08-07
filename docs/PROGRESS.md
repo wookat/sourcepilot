@@ -1884,6 +1884,7 @@ Final Production Acceptance Deferred to P10
 - **P2 清单**：MCP 审计写失败仅告警不阻断；大屏 today 销售/毛利口径忽略 shopId/platform 筛选；大屏非法 shopId 静默降级不报 400；MCP token 上限 count→insert 竞态及其回归测试缺失；前端工具链依赖告警 13 条（2 high，均为构建/开发期）。
 - 详见 `docs/SECURITY_AUDIT_R148.md`。
 
+
 ### 变更记录（2026-08-06）第 149 轮线1：R148 安全审计 P2 批次收口（fullstack-engineer）
 
 - **P2-1 MCP 审计写失败收口**：`mcpserver.auditMiddleware` 由 best-effort 改为 fail-closed——审计行写入失败时扣留成功结果并拒绝该次调用（工具只读、可安全重试），同时 `slog.Error` 留可见告警；取舍：审计完整性优先于可用性。
@@ -1893,9 +1894,19 @@ Final Production Acceptance Deferred to P10
 - **登记（本轮不改）**：operator 是否可管理 MCP token 收紧为 admin-only 属产品决策，待老板拍板。
 - 前端工具链依赖告警（P2-3/审计编号）不在本轮范围。
 
+
 ### 变更记录（2026-08-07）第 153 轮线1：R152 两新功能交叉 QA + 安全审查（security-engineer / qa-engineer）
 
 - **范围**：最新 `main` 上按 #308 → #309 顺序本地叠加，做开放 API 攻击面（purpose 越权、跨租户、限流绕过、泄密扫描、规范一致性、审计口径、注入）与多语言模板（regenerate 越权、语言回退、XSS/变量注入、seed 零残留）专项，含双租户三角色 Docker 实测。
 - **P1 修复**：① 被禁用/清退租户的 MCP / 开放 API token 仍可读数据（token 鉴权补租户状态校验）；② 伪造 `X-Forwarded-For` 绕过每 IP 鉴权失败预算（新增 `TRUSTED_PROXIES`，默认不信任任何代理）；③ 开放 API 审计 fail-open 与 MCP（#303）fail-closed 口径不一致（改为审计落库后才返回结果）。
 - **P2 清单**：both token 双入口双份额度；401/429 不写审计；分页非法参数静默归一化与日期 400 口径不一；operator 未授权店铺 regenerate 返回 404 与 readonly 403 口径不一；token 上限 count→insert 竞态（#303 已修未合）。
 - 详见 `docs/progress/R153.md`。
+
+### 变更记录（2026-08-07）第 154 轮线1：R153 安全审查 P2 批次收口（fullstack-engineer）
+
+- **修复**：① 401/429 入口级拒绝写审计行（`mcp:auth`/`openapi:auth`，状态 `auth_failed`/`rate_limited`，未认证来源记租户 0，按来源每分钟至多一条防审计表放大，管理页筛选同步）；② 开放 API `page`/`pageSize` 非法值从静默归一化改为 400（与日期口径一致）。
+- **登记不改**：both token 双入口额度合并需产品决策；operator 未授权店铺 regenerate 404 为店铺可见性口径（改 403 会泄露资源存在性）。
+- **跳过（#303 已覆盖）**：token 上限 count→insert 竞态、MCP 审计 fail-closed，已随 #303 合入 main 闭合。
+- **文档收口**：#311 三个行为变更补入 `docs/mcp.md`、`docs/open-api.md`、`docs/upgrade-guide.md`（R152/R153/R154 版本要点行）。
+- 详见 `docs/progress/R154.md`。
+
