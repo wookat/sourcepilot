@@ -1884,7 +1884,6 @@ Final Production Acceptance Deferred to P10
 - **P2 清单**：MCP 审计写失败仅告警不阻断；大屏 today 销售/毛利口径忽略 shopId/platform 筛选；大屏非法 shopId 静默降级不报 400；MCP token 上限 count→insert 竞态及其回归测试缺失；前端工具链依赖告警 13 条（2 high，均为构建/开发期）。
 - 详见 `docs/SECURITY_AUDIT_R148.md`。
 
-
 ### 变更记录（2026-08-06）第 149 轮线1：R148 安全审计 P2 批次收口（fullstack-engineer）
 
 - **P2-1 MCP 审计写失败收口**：`mcpserver.auditMiddleware` 由 best-effort 改为 fail-closed——审计行写入失败时扣留成功结果并拒绝该次调用（工具只读、可安全重试），同时 `slog.Error` 留可见告警；取舍：审计完整性优先于可用性。
@@ -1893,7 +1892,6 @@ Final Production Acceptance Deferred to P10
 - **P2 权限矩阵 CI 漂移预警**：`project-tests.yml` PostgreSQL 集成 job 新增 `pnpm test:permmatrix` 步骤（APP_ENV=test + TEST_DATABASE_URL），消除套件在 CI 静默 skip。
 - **登记（本轮不改）**：operator 是否可管理 MCP token 收紧为 admin-only 属产品决策，待老板拍板。
 - 前端工具链依赖告警（P2-3/审计编号）不在本轮范围。
-
 
 ### 变更记录（2026-08-07）第 153 轮线1：R152 两新功能交叉 QA + 安全审查（security-engineer / qa-engineer）
 
@@ -1910,9 +1908,16 @@ Final Production Acceptance Deferred to P10
 - **文档收口**：#311 三个行为变更补入 `docs/mcp.md`、`docs/open-api.md`、`docs/upgrade-guide.md`（R152/R153/R154 版本要点行）。
 - 详见 `docs/progress/R154.md`。
 
-
 ### 变更记录（2026-08-07）第 155 轮线1：v25 P2×4 收口 + 合并期杂项（fullstack-engineer）
 
 - **v25 P2×4 逐项处置**：① `GET /api/health` 404 登记不改（全仓无该路径声明，规范健康路径 `/health`、`/healthz`、`/api/v1/health` 文档已正确）；② #307 审计卡轻刷新时序补完整验证——单元级确定性时序 2 用例（新行入库后刷新、迟到错误响应不覆盖）在 main 失败、叠加 #307 通过，随 #307 以 PR #314 合入，Docker 全栈实测复核通过；③ 登录 body 字段 `account` 口径收口进 `docs/api.md`；④ #311 承接 P2 复核仍存在，随 #312/#303 闭合，登记不重复实现。
 - **合并期预案**：#308 `mcptoken.Create` 增 `purpose` 参数与 #303/#311 测试旧签名调用的语义冲突——均未合并，登记提醒（合入时调用处补 `""`）。
 - 详见 `docs/progress/R155.md`。
+
+### 变更记录（2026-08-07）第 156 轮线1：R155 登记 P2 + 合并期杂项收口（fullstack-engineer）
+
+- **MCP 审计 fail-closed 错误码**：拒绝调用由普通 error（wire 上 JSON-RPC `code:0`，非规范值）改为 `-32603 internal error`（`jsonrpc.CodeInternalError`），补 code 断言回归测试；开放 API 侧同场景本就是 HTTP 500 + envelope `50000`，口径一致无改动。
+- **`--pre-upgrade-check` 备份目录**：维持默认 `/var/backups`（root 部署面向），非 root 下 mkdir 失败与目录不可写（新增 `-w` 检查）都启动即清晰报错并提示 `BACKUP_DIR=<可写目录>` 覆盖，不再误报「pg_dump 备份失败」。
+- **demo clean 覆盖面核实**：`seed:demo:full:clean` 只清 `DEMO-` 前缀 token，`e2e-refresh-verify` 等测试遗留不覆盖（实测确认）；不扩大删除面，SKILL 常见坑登记「测试收尾自行吊销」。
+- **合并期预案落地**：#308 purpose 签名冲突按 R155 §3 预案修复（叠加分支内调用处补 `""`）；permmatrix harness 补 `OpenAPIEnabled`（cherry-pick #313）。
+- 详见 `docs/progress/R156.md`。

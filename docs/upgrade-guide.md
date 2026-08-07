@@ -10,7 +10,7 @@
 cd trademind
 
 # 一键方式：备份 + 预检一步完成
-# 备份目录默认 /var/backups；非 root 账号该目录通常不可创建，需显式 BACKUP_DIR=<可写目录> 运行
+# 备份目录默认 /var/backups；非 root 账号该目录通常不可写，脚本会在启动时清晰报错并提示用 BACKUP_DIR=<可写目录> 覆盖（保持 root 部署默认路径不变）
 ./scripts/deploy-prod.sh --pre-upgrade-check
 
 # 可选增强（R138）：配置 BACKUP_S3_*（endpoint/AK/SK + BACKUP_STORAGE_BUCKET）后，

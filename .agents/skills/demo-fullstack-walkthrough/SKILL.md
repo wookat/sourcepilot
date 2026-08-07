@@ -24,5 +24,7 @@ description: TradeMind Docker 全栈 demo 环境手工走查要点：seed 账号
 ## 常见坑
 - 注册验证码依赖 SMTP；未配置时可临时注入：`docker exec trademind-full-redis-1 redis-cli set "email_code:register:<email>" "<code>" EX 600`，UI 中填该 code 完成注册（仅测试环境）。
 - seed clean 不会删除自行注册的租户账号，需要单独处理。
+- 接手已运行的 full 栈环境时先确认 demo 数据在库（`SELECT count(*) FROM orders WHERE order_no LIKE 'DEMO-%'`）；clean 过则需重新 `DB_HOST=127.0.0.1 pnpm seed:demo:full`。MCP `tools/call` 需先 `initialize` 并带 `Accept: application/json, text/event-stream` 头。
+- seed clean 只清理 `DEMO-` 前缀命名的 MCP/开放 API token（`mcp_api_tokens.name LIKE 'DEMO-%'`）；e2e 测试临时创建的其他命名 token（如 `e2e-refresh-verify`）clean/verify 都不覆盖，测试收尾需自行吊销或删除。
 - 响应式检查用 DevTools device toolbar；默认 auto-fit 缩放（29%）截图不可读，把 zoom 改成 100%。硬指标用 `document.documentElement.scrollWidth <= clientWidth` 判断根节点横向溢出。
 - 移动端（375）出现底部导航（首页/订单/采购/库存/我的），表格是横向内滚，不算根节点溢出。
