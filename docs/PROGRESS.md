@@ -2023,12 +2023,20 @@ Final Production Acceptance Deferred to P10
 - **口径定调**：店铺同步属店铺业务写需 operate 授权（闭合 R164 线2 P2 第 4 项）；`PUT /settings` 数值型静默忽略经评估为非安全面（数值型返回 400，请求体 `tenantId` 为 advisory，写入一律落 JWT 租户）。
 - **回归测试**：`permmatrix` 新增 `r165_store_write_scope_test.go`（6 用例，含授权账号不被过度收紧的正例）；backend `go test ./...`、`go vet`、`govulncheck`（0 可达）全绿，`pnpm audit --prod` 13 条构建链告警无增量。
 - 报告 `docs/SECURITY_AUDIT_R165.md`，详见 `docs/progress/R165-line2.md`。
+
 ### 变更记录（2026-08-07）第 167 轮线2：竞品矩阵前哨确认 + 验收包 R163–R166 增量 + Docker 三角色（含 view-only persona）实跑（fullstack-engineer）
 
 - **竞品矩阵前哨抽验（R161 v8 基线，6/16 项）**：订单管理、MCP、开放 API、实时大屏、多语言消息、权限体系在安全修复期（#322/#330/#331 合入）后 API 探针 + Docker 全栈 UI 实测**无回退、无 P1**；operator 正向写不受过度收紧。
 - **验收包增量**：`ACCEPTANCE_R123.md` 新增 §一/18「R163–R166 增量能力」（view-only 权限体系收口合并状态如实标注：#328/#329/#330/#331 已合入，#332 OPEN 有冲突、#333 OPEN 依赖 #332；大回归 v29 报告在 `integration/r166-regression-v29` 分支，v28 报告不可检索登记为会话侧未归档）+ §三证据索引 + §五 R167 待办；`DEMO_SCRIPT.md` 新增第 21b 步 view-only 演示点（403 中文提示「店铺无操作权限」，30 分钟总长不变）。
 - **Docker 三角色（含 view-only persona）实跑**：12 项 UI 断言全部 PASS（含 UX v10 #327 补验：币种设置路由离开确认弹窗、备份页时间列/中文按钮），录屏留证外置不入库；clean + verify 零残留。`pnpm check:ui-copy --strict` 通过。
 - 详见 `docs/progress/R167-line2.md`。
+
+### 变更记录（2026-08-07）第 168 轮线2：生产升级演练复跑（R164 基线 → 最新 main + #332/#335 叠加）（devops-engineer）
+
+- **升级演练**：R164 时代基线（`a78e2fb0`，双租户 2 万订单/4 万订单行/6 万库存流水/2 万自动化日志/4000 SKU/4000 回款/5 MCP token/20 模板+20 变体/跨租户重复订单号样本）升级到 main `d645ec96` + 未合并 #332/#335 叠加栈（4 处冲突按 R167 定案收口）：AutoMigrate 落地（`order_automation_logs.shop_id` 回填 10000 行）、9 类数值指纹 0 差异；重建 backend 镜像后六处 view-only 修复面 403/40303、跨租户 404（批量审单为整批 failed 零生效，与 api.md 口径一致）实测生效、零落库。
+- **从零部署复验**：最新 main 无缓存从零 223s（<15min）；TRUSTED_PROXIES 伪造 XFF 丢弃/可信网段 XFF 落地、OPENAPI 开关 401/200/404 口径与文档一致。
+- **备份恢复**：`--pre-upgrade-check`（非 root BACKUP_DIR 覆盖口径）+ 备份→`pg_restore --clean --if-exists` 恢复→迁移幂等重跑指纹 0 差异。
+- **文档核对**：未发现 P0/P1 失实；P2×3 登记（六面文案表述差异、参数校验先于 scope 判定、#332/#335 文档冲突需人工收口）。详见 `docs/progress/R168-line2.md`。
 
 ### 变更记录（2026-08-07）第 169 轮线2：MCP/开放 API token 治理季度复查（qa-engineer）
 
@@ -2037,3 +2045,12 @@ Final Production Acceptance Deferred to P10
 - **R148/R153/R159 零回退**：租户 disabled 双入口失效、限流分层、view-only 审单整批 403/40303；permmatrix/mcptoken/mcpserver/openapi/mcpaudit/idor/shopscope 套件全绿。
 - **P0/P1 零**；P2 4 项（MCP 分页钳制与开放 API 400 口径差异待文档化；Redis 降级期超时延迟放大；租户 0 上限路径无单测；权限矩阵套件测试库配置手工）。
 - 详见 `docs/progress/R169-line2.md`。
+||||||| 4c20efce
+=======
+### 变更记录（2026-08-07）第 168 轮线2：生产升级演练复跑（R164 基线 → 最新 main + #332/#335 叠加）（devops-engineer）
+
+- **升级演练**：R164 时代基线（`a78e2fb0`，双租户 2 万订单/4 万订单行/6 万库存流水/2 万自动化日志/4000 SKU/4000 回款/5 MCP token/20 模板+20 变体/跨租户重复订单号样本）升级到 main `d645ec96` + 未合并 #332/#335 叠加栈（4 处冲突按 R167 定案收口）：AutoMigrate 落地（`order_automation_logs.shop_id` 回填 10000 行）、9 类数值指纹 0 差异；重建 backend 镜像后六处 view-only 修复面 403/40303、跨租户 404（批量审单为整批 failed 零生效，与 api.md 口径一致）实测生效、零落库。
+- **从零部署复验**：最新 main 无缓存从零 223s（<15min）；TRUSTED_PROXIES 伪造 XFF 丢弃/可信网段 XFF 落地、OPENAPI 开关 401/200/404 口径与文档一致。
+- **备份恢复**：`--pre-upgrade-check`（非 root BACKUP_DIR 覆盖口径）+ 备份→`pg_restore --clean --if-exists` 恢复→迁移幂等重跑指纹 0 差异。
+- **文档核对**：未发现 P0/P1 失实；P2×3 登记（六面文案表述差异、参数校验先于 scope 判定、#332/#335 文档冲突需人工收口）。详见 `docs/progress/R168-line2.md`。
+>>>>>>> origin/main
