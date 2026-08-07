@@ -1978,10 +1978,19 @@ Final Production Acceptance Deferred to P10
 - **Docker 实测**：真实后端 + admin dev，768×900 登录→侧栏客服→客服中心直达，根节点无横向溢出；证据外置不入库。
 - 详见 `docs/progress/R161-line2.md`。
 
+### 变更记录（2026-08-07）第 162 轮线2：全站视觉/UX 复核 v10（user-experience-officer / ui-designer）
+
+- **走查**：距 v9 25 轮的全站复核。Docker 全栈 + `seed:demo:full` 三角色实测录屏；headless 硬指标矩阵 3 角色 × 5 精确视口（1920/1440/1024/768/375）× 29 路由全零（溢出/NaN/Invalid Date/console/pageerror/403·500 噪音）；v9「精确 375/1920 未达」覆盖限制收口；v9 遗留无回退；R137–R161 新面（备份 Ops、MCP token、大屏、开放 API 入口、多语言模板、币种设置、标签/自动化、财务对账）全走查。
+- **P1 修复**：`/settings/report-currency` dirty 时路由跳转静默丢弃修改 → 新增共享 `useUnsavedChangesGuard`（history.block + beforeunload）并接入。
+- **P2 顺手修**：备份确认弹窗英文按钮、备份/恢复创建时间 raw ISO、大屏趋势 tooltip raw ISO、操作日志新动作英文 key（补 `dashboard` 资源 + 18 动作中文映射）。
+- **P2 遗留**：MCP 页文档入口不可点击（待产品定文档挂载位置）、v9 P2-3 财务 CSV 未折算占位口径待产品确认。
+- 报告归档 `docs/ux-review/UX_REVIEW_V10_REPORT.md`，详见 `docs/progress/R162-line2.md`。
+
 ### 变更记录（2026-08-07）第 164 轮线1：生产部署演练季度复检（devops-engineer）
 
 - **从零部署**：production compose + Caddy 全新构建部署 236 秒（<15 分钟），六服务 healthy，HTTPS `/health-backend` 全绿；TRUSTED_PROXIES/OPENAPI_ENABLED 按 #316 口径实测（可信网段 XFF 落地、外部伪造 XFF 不落地、开关 401/404 切换）。
 - **R159 双租户存量升级**：`32a9aaea` 基线（2 万订单/4 万订单行/6 万库存流水/存量 token/多语言模板/view-only 授权）升级至 `a78e2fb0`——AutoMigrate 落地、8 类数值指纹 0 差异（唯一预期变化为 `order_automation_logs.shop_id` 回填）、迁移幂等；升级后 view-only 403+40303、readonly 40301、OpenAPI 分页 400、大屏折算（未配汇率不计入 + 配置后折算）与自定义卡片配置读写实测通过。
 - **--pre-upgrade-check（#317）**：备份+同租户重复订单号预检通过；目录不可写/不可创建均清晰报错提示 `BACKUP_DIR` 覆盖（R159 P2① 闭环坐实）。备份→`pg_restore --clean --if-exists` 恢复→指纹与升级前一致→重启幂等重跑闭环通过。
 - **文档核对**：env 示例/部署/升级/清单文档与实测一致，无 P0/P1 失实；P2 3 项登记（settings 直连 API 写数值型汇率被静默忽略；#327 币种设置离开确认未合入 main 待补验；恢复回退备份点后新增数据沿 R159 口径）。
+- **合并期更新（本 PR 合并 main 时点）**：#327（R162 线2 UX v10，含币种设置离开确认 `useUnsavedChangesGuard`）已合入 main，上述 P2② 由「未合入待补验」更新为「已合入，离开确认待下轮生产面补验」。
 - 详见 `docs/progress/R164.md`。

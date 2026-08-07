@@ -8,6 +8,7 @@ import {
   saveReportCurrencySettings,
   type ReportCurrencyRate,
 } from '@/services/settings';
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 
 const { Paragraph } = Typography;
 
@@ -36,6 +37,8 @@ export default function ReportCurrencySettingsPage() {
     () => savedSnapshot !== null && snapshotOf(watched) !== savedSnapshot,
     [watched, savedSnapshot],
   );
+
+  useUnsavedChangesGuard(dirty, '汇率设置有未保存的更改，离开后修改将丢失。');
 
   const load = useCallback(async () => {
     setLoading(true);
