@@ -1970,6 +1970,14 @@ Final Production Acceptance Deferred to P10
 - **合并期更新（本 PR 合并 main 时点，260bf123）**：#318/#321/#322/#323 已全部合入 main（积压收口建议①闭合），R162 MCP 写白名单设计稿（#326，建议②）亦已归档；#318 相关项（第 11 项报表/财务）升位待下轮 Docker 实测复核。
 - 报告：`docs/COMPETITIVE_BENCHMARK_R161.md`；详见 `docs/progress/R161.md`。
 
+### 变更记录（2026-08-07）第 161 轮线2：合并后收尾杂项 + E2E flaky 收口（fullstack-engineer）
+
+- **round142 768px E2E flaky 收口**：根因为单次 hover(客服 submenu)→click(客服中心) 竞态——弹层可在两步之间因菜单重渲染（dashboard 数据到达、断点 settle）关闭；改为整段 `toPass` 重试（单次 click 限时 2s），不放宽断言、不改生产代码。整文件 `--repeat-each 3` ×2、768px 用例 `--repeat-each 5`、CPU 加压 `--repeat-each 10`、`@smoke` 全绿。
+- **合并期红灯**：#323 与 main（#317/#320 批次）的 `docs/mcp.md`/`docs/PROGRESS.md` 冲突已代为解决并推送——mcp.md 保留 `-32603` fail-closed（tools/call 逐次审计）+ 401/429 入口级留痕 best effort 双口径；合并树 go test/契约全绿。#318/#321/#322 无冲突。
+- **R159/R160 合入面前端巡检**：错误提示中文化（httpErrorCopy 兜底 + view-only 403 后端中文 message）、canWrite 禁用态、40303 统一对前端无影响，未发现 P2 及以上问题，无需改动。
+- **Docker 实测**：真实后端 + admin dev，768×900 登录→侧栏客服→客服中心直达，根节点无横向溢出；证据外置不入库。
+- 详见 `docs/progress/R161-line2.md`。
+
 ### 变更记录（2026-08-07）第 162 轮线2：全站视觉/UX 复核 v10（user-experience-officer / ui-designer）
 
 - **走查**：距 v9 25 轮的全站复核。Docker 全栈 + `seed:demo:full` 三角色实测录屏；headless 硬指标矩阵 3 角色 × 5 精确视口（1920/1440/1024/768/375）× 29 路由全零（溢出/NaN/Invalid Date/console/pageerror/403·500 噪音）；v9「精确 375/1920 未达」覆盖限制收口；v9 遗留无回退；R137–R161 新面（备份 Ops、MCP token、大屏、开放 API 入口、多语言模板、币种设置、标签/自动化、财务对账）全走查。
