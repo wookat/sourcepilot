@@ -123,9 +123,12 @@ func (s *Service) transition(ctx context.Context, id uuid.UUID, to, source strin
 // Scope is the trusted tenant/store visibility scope resolved from the
 // authenticated caller. TenantID nil skips tenant filtering (legacy/unit-test
 // paths); AllowedShopIDs nil means all stores (admin), empty means none.
+// OperableShopIDs carries the writable subset (view-only grants excluded);
+// nil means all stores (admin).
 type Scope struct {
-	TenantID       *int64
-	AllowedShopIDs []uuid.UUID
+	TenantID        *int64
+	AllowedShopIDs  []uuid.UUID
+	OperableShopIDs []uuid.UUID
 }
 
 // POInScope reports whether one purchase order is visible under sc. Purchase
@@ -158,6 +161,35 @@ func (s *Service) POInScope(ctx context.Context, id uuid.UUID, sc Scope) (bool, 
 	return n > 0, err
 }
 
+// POOperable reports whether one purchase order may be written under sc:
+// every sales-order store it references must be in the operable set.
+func (s *Service) POOperable(ctx context.Context, id uuid.UUID, sc Scope) (bool, error) {
+	if sc.OperableShopIDs == nil {
+		return true, nil
+	}
+	var total int64
+	if err := s.DB.WithContext(ctx).
+		Table("purchase_order_items").
+		Joins("JOIN orders ON orders.id = purchase_order_items.sales_order_id").
+		Where("purchase_order_items.purchase_order_id = ? AND orders.shop_id IS NOT NULL", id).
+		Count(&total).Error; err != nil {
+		return false, err
+	}
+	if total == 0 {
+		return true, nil
+	}
+	if len(sc.OperableShopIDs) == 0 {
+		return false, nil
+	}
+	var ok int64
+	err := s.DB.WithContext(ctx).
+		Table("purchase_order_items").
+		Joins("JOIN orders ON orders.id = purchase_order_items.sales_order_id").
+		Where("purchase_order_items.purchase_order_id = ? AND orders.shop_id IN ?", id, sc.OperableShopIDs).
+		Count(&ok).Error
+	return ok == total, err
+}
+
 // SalesOrderInScope reports whether one sales order is visible under sc.
 func (s *Service) SalesOrderInScope(ctx context.Context, id uuid.UUID, sc Scope) (bool, error) {
 	var o order.Order
@@ -178,6 +210,31 @@ func (s *Service) SalesOrderInScope(ctx context.Context, id uuid.UUID, sc Scope)
 		return false, nil
 	}
 	for _, sid := range sc.AllowedShopIDs {
+		if sid == *o.ShopID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// SalesOrderOperable reports whether one sales order's store may be written
+// under sc (view-only grants excluded).
+func (s *Service) SalesOrderOperable(ctx context.Context, id uuid.UUID, sc Scope) (bool, error) {
+	if sc.OperableShopIDs == nil {
+		return true, nil
+	}
+	var o order.Order
+	err := s.DB.WithContext(ctx).Select("id", "shop_id").First(&o, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if o.ShopID == nil {
+		return true, nil
+	}
+	for _, sid := range sc.OperableShopIDs {
 		if sid == *o.ShopID {
 			return true, nil
 		}

@@ -2,6 +2,7 @@ package shop
 
 import (
 	"errors"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -19,21 +19,6 @@ import (
 // Handler serves shop + platform provider metadata routes.
 type Handler struct {
 	Svc *Service
-}
-
-// failShopStoreScope maps the store gate of shop writes: a view-only grant is
-// 403 with business code 40303, an invisible / cross-tenant shop stays 404.
-func failShopStoreScope(c *gin.Context, err error) bool {
-	switch {
-	case errors.Is(err, adminperm.ErrStoreNotOperable):
-		adminperm.DenyStorePermission(c)
-		return true
-	case errors.Is(err, gorm.ErrRecordNotFound):
-		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
-		return true
-	default:
-		return false
-	}
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -225,9 +210,6 @@ func (h *Handler) Get(c *gin.Context) {
 	}
 	out, err := h.Svc.GetDetail(c, id)
 	if err != nil {
-		if failShopStoreScope(c, err) {
-			return
-		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
@@ -255,8 +237,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 	if _, err := h.Svc.Update(c, id, body, adminUUID(c)); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -282,11 +263,7 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.Delete(c, id, adminUUID(c)); err != nil {
-		if failShopStoreScope(c, err) {
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		response.HandleError(c, err)
@@ -313,7 +290,7 @@ func (h *Handler) PutAuth(c *gin.Context) {
 	}
 	out, err := h.Svc.UpdateAuth(c, id, body, adminUUID(c))
 	if err != nil {
-		if failShopStoreScope(c, err) {
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -350,7 +327,7 @@ func (h *Handler) TestConnection(c *gin.Context) {
 }
 
 func failDouyin(c *gin.Context, err error) {
-	if failShopStoreScope(c, err) {
+	if adminperm.FailStoreWriteScope(c, err) {
 		return
 	}
 	var ce *DouyinCategoryError
@@ -619,6 +596,9 @@ func (h *Handler) TikTokOAuthAuthorizeURL(c *gin.Context) {
 	redirect := strings.TrimSpace(c.Query("redirectUri"))
 	out, err := h.Svc.TikTokOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -643,7 +623,7 @@ func (h *Handler) TikTokOAuthCallback(c *gin.Context) {
 	}
 	out, err := h.Svc.TikTokOAuthCallback(c, id, body, adminUUID(c))
 	if err != nil {
-		if failShopStoreScope(c, err) {
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -666,6 +646,9 @@ func (h *Handler) ShopeeOAuthAuthorizeURL(c *gin.Context) {
 	redirect := strings.TrimSpace(c.Query("redirectUri"))
 	out, err := h.Svc.ShopeeOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -690,7 +673,7 @@ func (h *Handler) ShopeeOAuthCallback(c *gin.Context) {
 	}
 	out, err := h.Svc.ShopeeOAuthCallback(c, id, body, adminUUID(c))
 	if err != nil {
-		if failShopStoreScope(c, err) {
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -713,6 +696,9 @@ func (h *Handler) LazadaOAuthAuthorizeURL(c *gin.Context) {
 	redirect := strings.TrimSpace(c.Query("redirectUri"))
 	out, err := h.Svc.LazadaOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -737,7 +723,7 @@ func (h *Handler) LazadaOAuthCallback(c *gin.Context) {
 	}
 	out, err := h.Svc.LazadaOAuthCallback(c, id, body, adminUUID(c))
 	if err != nil {
-		if failShopStoreScope(c, err) {
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -760,6 +746,9 @@ func (h *Handler) AmazonOAuthAuthorizeURL(c *gin.Context) {
 	redirect := strings.TrimSpace(c.Query("redirectUri"))
 	out, err := h.Svc.AmazonOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -784,7 +773,7 @@ func (h *Handler) AmazonOAuthCallback(c *gin.Context) {
 	}
 	out, err := h.Svc.AmazonOAuthCallback(c, id, body, adminUUID(c))
 	if err != nil {
-		if failShopStoreScope(c, err) {
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

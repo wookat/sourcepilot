@@ -1315,6 +1315,50 @@ func (s *Service) DeleteMarks(ctx context.Context, sourceType, sourceID string) 
 		Delete(&OrderExceptionMark{}).Error
 }
 
+// SourceShopID resolves the store an exception source belongs to
+// (nil = no store dimension).
+func (s *Service) SourceShopID(ctx context.Context, sourceType, sourceID string) (*uuid.UUID, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("orderexception: unavailable")
+	}
+	switch strings.TrimSpace(sourceType) {
+	case SourceInventorySyncTask:
+		sid, err := uuid.Parse(strings.TrimSpace(sourceID))
+		if err != nil {
+			return nil, fmt.Errorf("invalid sourceId")
+		}
+		var t inventory.InventorySyncTask
+		if err := s.DB.WithContext(ctx).Select("shop_id").First(&t, "id = ?", sid).Error; err != nil {
+			return nil, err
+		}
+		sh := t.ShopID
+		return &sh, nil
+	case SourceOrderSyncTask:
+		sid, err := uuid.Parse(strings.TrimSpace(sourceID))
+		if err != nil {
+			return nil, fmt.Errorf("invalid sourceId")
+		}
+		var t ordersync.OrderSyncTask
+		if err := s.DB.WithContext(ctx).Select("shop_id").First(&t, "id = ?", sid).Error; err != nil {
+			return nil, err
+		}
+		sh := t.ShopID
+		return &sh, nil
+	}
+	oid, _, err := s.resolveOrderPointers(ctx, sourceType, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	if oid == nil {
+		return nil, nil
+	}
+	var o order.Order
+	if err := s.DB.WithContext(ctx).Select("shop_id").First(&o, "id = ?", *oid).Error; err != nil {
+		return nil, err
+	}
+	return o.ShopID, nil
+}
+
 func (s *Service) resolveOrderPointers(ctx context.Context, sourceType, sourceID string) (*uuid.UUID, *uuid.UUID, error) {
 	sid, err := uuid.Parse(strings.TrimSpace(sourceID))
 	if err != nil {

@@ -30,7 +30,7 @@ type LazadaOAuthCallbackBody struct {
 }
 
 func (s *Service) LazadaOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redirectOverride string, adminID *uuid.UUID) (*LazadaAuthorizeURLResult, error) {
-	if err := s.ensureShopScoped(c, shopID); err != nil {
+	if err := s.ensureShopOperable(c, shopID); err != nil {
 		return nil, err
 	}
 	_ = adminID

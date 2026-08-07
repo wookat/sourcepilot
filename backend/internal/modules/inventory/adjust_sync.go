@@ -257,6 +257,9 @@ func (s *Service) CreatePublicationSKUInventoryTask(c *gin.Context, publicationS
 	if err := s.DB.WithContext(ctx).First(&pub, "id = ?", psku.PublicationID).Error; err != nil {
 		return nil, err
 	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &pub.ShopID); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(psku.ExternalSKUID) == "" {
 		return nil, fmt.Errorf("%s: external sku id missing for mapped listing SKU; please bind douyin sku first", platformdouyin.CodeDouyinSKUBindingRequired)
 	}
@@ -330,6 +333,9 @@ func (s *Service) CreateProductShopInventoryTasks(c *gin.Context, productID uuid
 	}
 	if len(body.SKUIDs) == 0 {
 		return nil, fmt.Errorf("skuIds required")
+	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &shopID); err != nil {
+		return nil, err
 	}
 	optCopy := platformp.TrimRawMap(body.Options, 12, 200)
 	ctx := c.Request.Context()

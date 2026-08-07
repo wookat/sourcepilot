@@ -344,14 +344,11 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 	if err != nil {
 		return nil, err
 	}
-	if !adminperm.RequireStoreOperate(c, s.DB, id) {
-		return nil, gorm.ErrRecordNotFound
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &id); err != nil {
+		return nil, err
 	}
 	var row Shop
 	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, id); err != nil {
-		return nil, err
-	}
-	if err := adminperm.EnsureStoreVisible(c, s.DB, &id); err != nil {
 		return nil, err
 	}
 	if v := strings.TrimSpace(body.ShopName); v != "" {
@@ -405,8 +402,6 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if err != nil {
 		return err
 	}
-	// Deleting a store is a store-scoped write: an invisible store resolves
-	// 404 and a view-only grant 403 (40303), before the row is touched.
 	if err := adminperm.EnsureStoreOperable(c, s.DB, &id); err != nil {
 		return err
 	}
@@ -639,29 +634,27 @@ func (s *Service) ensureShopScoped(c *gin.Context, shopID uuid.UUID) error {
 	return err
 }
 
-// findScopedShopForWrite is findScopedShop for paths that mutate the shop or
-// its stored platform authorization: a view-only grant is rejected with
-// ErrStoreNotOperable instead of being treated as readable-therefore-writable.
-func (s *Service) findScopedShopForWrite(c *gin.Context, shopID uuid.UUID) (*Shop, error) {
+// findOperableShop loads a shop under the caller's tenant and writable store
+// scope. Credential/OAuth mutations must go through it: a visible view-only
+// shop yields adminperm.ErrStoreNotOperable, an out-of-scope shop stays 404.
+func (s *Service) findOperableShop(c *gin.Context, shopID uuid.UUID) (*Shop, error) {
 	row, err := s.findScopedShop(c, shopID)
 	if err != nil {
 		return nil, err
 	}
-	if c != nil {
-		if err := adminperm.EnsureStoreOperable(c, s.DB, &shopID); err != nil {
-			return nil, err
-		}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &shopID); err != nil {
+		return nil, err
 	}
 	return row, nil
 }
 
-// ensureShopOperable guards an HTTP-driven shop write. Worker paths pass a nil
-// gin context and are trusted (they resolve the shop themselves).
+// ensureShopOperable guards an HTTP-driven shop mutation. Worker paths pass a
+// nil gin context and are trusted (they resolve the shop themselves).
 func (s *Service) ensureShopOperable(c *gin.Context, shopID uuid.UUID) error {
 	if c == nil {
 		return nil
 	}
-	_, err := s.findScopedShopForWrite(c, shopID)
+	_, err := s.findOperableShop(c, shopID)
 	return err
 }
 
@@ -669,7 +662,7 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop: no db")
 	}
-	shopRowPtr, err := s.findScopedShopForWrite(c, shopID)
+	shopRowPtr, err := s.findOperableShop(c, shopID)
 	if err != nil {
 		return nil, err
 	}

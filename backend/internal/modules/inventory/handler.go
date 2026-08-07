@@ -199,6 +199,9 @@ func (h *Handler) SyncPublicationSku(c *gin.Context) {
 	}
 	out, err := h.Svc.CreatePublicationSKUInventoryTask(c, id, body, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		if mapInventoryEnqueueErr(c, err) {
 			return
 		}
@@ -229,6 +232,9 @@ func (h *Handler) BatchSyncProduct(c *gin.Context) {
 	}
 	list, err := h.Svc.CreateProductShopInventoryTasks(c, pid, body, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		if mapInventoryEnqueueErr(c, err) {
 			return
 		}
@@ -581,6 +587,9 @@ func (h *Handler) RetryTask(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -613,12 +622,34 @@ func (h *Handler) CreateInventorySyncBatch(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.CreateInventorySyncBatch(c.Request.Context(), body, adminUUID(c))
+	if sid := strings.TrimSpace(body.ShopID); sid != "" {
+		if u, err := uuid.Parse(sid); err == nil {
+			if err := adminperm.EnsureStoreOperable(c, h.Svc.DB, &u); err != nil {
+				if !adminperm.FailStoreWriteScope(c, err) {
+					response.HandleError(c, err)
+				}
+				return
+			}
+		}
+	}
+	out, err := h.Svc.CreateInventorySyncBatch(c.Request.Context(), body, h.operableShopIDs(c), adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
 	response.OK(c, out)
+}
+
+// operableShopIDs resolves the caller's writable store ids (nil = all).
+func (h *Handler) operableShopIDs(c *gin.Context) []uuid.UUID {
+	var db *gorm.DB
+	if h != nil && h.Svc != nil {
+		db = h.Svc.DB
+	}
+	if p, _ := adminperm.LoadPrincipal(c, db); p != nil {
+		return p.OperableStoreIDs()
+	}
+	return nil
 }
 
 // ListInventorySyncBatches GET /inventory-sync/batches
@@ -749,8 +780,11 @@ func (h *Handler) RetryInventorySyncBatchFailed(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.RetryInventorySyncBatchFailed(c.Request.Context(), id, adminUUID(c))
+	out, err := h.Svc.RetryInventorySyncBatchFailed(c.Request.Context(), id, h.operableShopIDs(c), adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -784,8 +818,11 @@ func (h *Handler) RetryInventorySyncTasksBatch(c *gin.Context) {
 		}
 		ids = append(ids, u)
 	}
-	out, err := h.Svc.RetryInventorySyncTasksIntoBatch(c.Request.Context(), ids, adminUUID(c))
+	out, err := h.Svc.RetryInventorySyncTasksIntoBatch(c.Request.Context(), ids, h.operableShopIDs(c), adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

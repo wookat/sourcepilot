@@ -36,7 +36,7 @@ func (h *Handler) actor(c *gin.Context) (APIActor, error) {
 	if err != nil || principal == nil || principal.Disabled {
 		return actor, ErrPermissionDenied
 	}
-	return APIActor{TenantID: tenantID, ActorID: actorID, Role: principal.Role, AllowedShopIDs: principal.AllowedStoreIDs()}, nil
+	return APIActor{TenantID: tenantID, ActorID: actorID, Role: principal.Role, AllowedShopIDs: principal.AllowedStoreIDs(), OperableShopIDs: principal.OperableStoreIDs()}, nil
 }
 
 func (h *Handler) CreateTask(c *gin.Context) {

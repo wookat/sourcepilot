@@ -519,6 +519,13 @@ func (s *Service) RetryInventorySyncTask(c *gin.Context, taskID uuid.UUID, admin
 	if err != nil {
 		return nil, err
 	}
+	var task InventorySyncTask
+	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreOperable(c, s.DB, &task.ShopID); err != nil {
+		return nil, err
+	}
 	return s.retryInventorySyncTaskScoped(c.Request.Context(), tid, taskID, admin)
 }
 

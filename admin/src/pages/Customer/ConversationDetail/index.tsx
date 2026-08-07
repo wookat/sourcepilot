@@ -809,7 +809,7 @@ export default function CustomerConversationDetailPage() {
                   >
                     发送到平台
                   </Button>
-                  <Button danger onClick={() => void onDiscard()} disabled={!suggestionId}>
+                  <Button danger onClick={() => void onDiscard()} disabled={readOnly || !suggestionId}>
                     废弃建议
                   </Button>
                   <Button onClick={() => void onCopy()}>复制回复</Button>
