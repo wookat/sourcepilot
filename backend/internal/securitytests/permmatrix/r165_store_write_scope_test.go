@@ -35,11 +35,17 @@ func TestR165ReviewDecisionStoreOperateScope(t *testing.T) {
 	viewOrder := seedPending(h.ShopViewOnly, "r165-view")
 	body := func(id uuid.UUID) string { return `{"orderIds":["` + id.String() + `"],"remark":"r165"}` }
 
+	// Merge resolution with the round165 sweep (#332): the batch endpoint keeps
+	// its 200 envelope and denies the view-only row per row ("店铺无操作权限"),
+	// without flipping review_status.
 	for _, path := range []string{"/api/v1/order-review/approve", "/api/v1/order-review/reject"} {
 		w := h.doBody(t, http.MethodPost, path, h.Personas[personaViewOnly].Token, body(viewOrder.ID))
-		require.Equalf(t, http.StatusForbidden, w.Code,
-			"%s [viewOnlyOperator]: expected 403, got %d: %s", path, w.Code, w.Body.String())
-		requireCode40303(t, w, path)
+		require.Equalf(t, http.StatusOK, w.Code,
+			"%s [viewOnlyOperator]: batch envelope expected: %s", path, w.Body.String())
+		require.Containsf(t, w.Body.String(), `"failed":1`,
+			"%s must reject the view-only row: %s", path, w.Body.String())
+		require.Containsf(t, w.Body.String(), "店铺无操作权限",
+			"%s must surface the store-operate denial: %s", path, w.Body.String())
 		require.Equalf(t, order.ReviewStatusPending, reviewStatus(viewOrder.ID),
 			"%s must not mutate review_status of a view-only store order", path)
 	}
