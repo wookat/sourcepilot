@@ -39,7 +39,27 @@ const EXPIRY_OPTIONS = [
 
 const EXPIRING_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
+const PURPOSE_OPTIONS = [
+  { value: 'mcp', label: 'MCP 只读' },
+  { value: 'openapi', label: '开放 API' },
+  { value: 'both', label: 'MCP + 开放 API' },
+];
+
+const PURPOSE_LABELS: Record<string, string> = {
+  mcp: 'MCP 只读',
+  openapi: '开放 API',
+  both: 'MCP + 开放 API',
+};
+
 const MCP_TOOL_OPTIONS = ['orders_query', 'inventory_query', 'report_summary', 'exceptions_pending'];
+
+const OPENAPI_ENDPOINT_OPTIONS = [
+  'openapi:orders_list',
+  'openapi:orders_detail',
+  'openapi:inventory_list',
+  'openapi:reports_summary',
+  'openapi:exceptions_list',
+];
 
 function expiryCell(row: McpTokenRow) {
   if (!row.expiresAt) {
@@ -75,7 +95,7 @@ export default function McpTokensPage() {
   const [saving, setSaving] = useState(false);
   const [plaintext, setPlaintext] = useState('');
   const [revokingId, setRevokingId] = useState('');
-  const [form] = Form.useForm<{ name: string; expiresInDays: number }>();
+  const [form] = Form.useForm<{ name: string; purpose: string; expiresInDays: number }>();
 
   const [auditRows, setAuditRows] = useState<McpAuditLogRow[]>([]);
   const [auditTotal, setAuditTotal] = useState(0);
@@ -135,7 +155,7 @@ export default function McpTokensPage() {
     const v = await form.validateFields();
     setSaving(true);
     try {
-      const res = await createMcpToken(v.name.trim(), v.expiresInDays);
+      const res = await createMcpToken(v.name.trim(), v.expiresInDays, v.purpose);
       setCreateOpen(false);
       form.resetFields();
       setPlaintext(res.plaintext);
@@ -162,8 +182,8 @@ export default function McpTokensPage() {
 
   return (
     <TmPageContainer
-      title="MCP 只读接入"
-      subTitle="管理 MCP（Model Context Protocol）只读 API token：供 Claude 等 MCP 客户端查询订单、库存、经营摘要与异常待办；token 仅创建时展示一次，只支持只读查询"
+      title="只读 API 接入（MCP / 开放 API）"
+      subTitle="管理只读 API token：供 Claude 等 MCP 客户端与第三方系统（/api/open/v1/*）查询订单、库存、经营摘要与异常待办；token 仅创建时展示一次，只支持只读查询"
     >
       <Card>
         <Space style={{ marginBottom: 16 }} wrap>
@@ -173,7 +193,7 @@ export default function McpTokensPage() {
             </Button>
           </Tooltip>
           <Typography.Text type="secondary">
-            配置方法见 docs/mcp.md；token 一旦泄露请立即吊销
+            配置方法见 docs/mcp.md 与 docs/open-api.md；token 一旦泄露请立即吊销
           </Typography.Text>
         </Space>
         {loadError ? (
@@ -212,6 +232,15 @@ export default function McpTokensPage() {
               title: '权限',
               dataIndex: 'scope',
               render: (v: string) => <Tag color="blue">{v === 'readonly' ? '只读' : v}</Tag>,
+            },
+            {
+              title: '用途',
+              dataIndex: 'purpose',
+              render: (v: string) => (
+                <Tag color={v === 'openapi' ? 'purple' : v === 'both' ? 'geekblue' : 'cyan'}>
+                  {PURPOSE_LABELS[v] || v}
+                </Tag>
+              ),
             },
             {
               title: '状态',
@@ -258,14 +287,14 @@ export default function McpTokensPage() {
       </Card>
 
       <Modal
-        title="创建 MCP 只读 token"
+        title="创建只读 token"
         open={createOpen}
         confirmLoading={saving}
         onOk={() => void submit()}
         onCancel={() => setCreateOpen(false)}
         destroyOnHidden
       >
-        <Form form={form} layout="vertical" initialValues={{ expiresInDays: 0 }}>
+        <Form form={form} layout="vertical" initialValues={{ purpose: 'mcp', expiresInDays: 0 }}>
           <Form.Item
             name="name"
             label="名称"
@@ -273,6 +302,13 @@ export default function McpTokensPage() {
             extra="建议按用途命名，如 claude-desktop、mcp-inspector"
           >
             <Input maxLength={64} placeholder="如 claude-desktop" />
+          </Form.Item>
+          <Form.Item
+            name="purpose"
+            label="用途"
+            extra="MCP 只读供 MCP 客户端使用；开放 API 供第三方系统调用 /api/open/v1/* 只读接口；两者均为只读"
+          >
+            <Select options={PURPOSE_OPTIONS} />
           </Form.Item>
           <Form.Item
             name="expiresInDays"
@@ -308,18 +344,22 @@ export default function McpTokensPage() {
         </Typography.Paragraph>
       </Modal>
 
-      <Card title="工具调用审计日志" style={{ marginTop: 16 }}>
+      <Card title="MCP / 开放 API 调用审计日志" style={{ marginTop: 16 }}>
         <Space style={{ marginBottom: 16 }} wrap>
           <Select
             allowClear
-            placeholder="工具"
-            style={{ width: 200 }}
+            showSearch
+            placeholder="工具 / 开放 API 接口"
+            style={{ width: 220 }}
             value={auditTool}
             onChange={(v) => {
               setAuditPage(1);
               setAuditTool(v);
             }}
-            options={MCP_TOOL_OPTIONS.map((t) => ({ value: t, label: t }))}
+            options={[
+              { label: 'MCP 工具', options: MCP_TOOL_OPTIONS.map((t) => ({ value: t, label: t })) },
+              { label: '开放 API', options: OPENAPI_ENDPOINT_OPTIONS.map((t) => ({ value: t, label: t })) },
+            ]}
           />
           <Select
             allowClear
@@ -337,7 +377,7 @@ export default function McpTokensPage() {
           />
           <Button onClick={() => void loadAudits()}>刷新</Button>
           <Typography.Text type="secondary">
-            每次 MCP 工具调用记录一条；不记录查询参数与查询结果内容
+            每次 MCP 工具调用与开放 API 调用（openapi: 前缀）各记录一条；不记录查询参数与查询结果内容
           </Typography.Text>
         </Space>
         {auditError ? (

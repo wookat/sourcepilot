@@ -48,6 +48,13 @@ type Config struct {
 	// MCPRateBurst is the per-token burst allowance for MCP calls (default 10).
 	MCPRateBurst int
 
+	// OpenAPIEnabled gates the read-only Open API entry at /api/open/v1/* (default on).
+	OpenAPIEnabled bool
+	// OpenAPIRateRPS is the per-token sustained request rate for Open API calls (default 5).
+	OpenAPIRateRPS int
+	// OpenAPIRateBurst is the per-token burst allowance for Open API calls (default 10).
+	OpenAPIRateBurst int
+
 	// CollectorBaseURL is the Node collector HTTP base (e.g. http://127.0.0.1:3100).
 	CollectorBaseURL string
 	// CollectorTimeoutSeconds caps outbound HTTP calls to the collector (default 60).
@@ -257,6 +264,10 @@ func Load() (*Config, error) {
 		MCPEnabled:   envBool(os.Getenv("MCP_ENABLED"), true),
 		MCPRateRPS:   atoiOrDefault(os.Getenv("MCP_RATE_RPS"), 5),
 		MCPRateBurst: atoiOrDefault(os.Getenv("MCP_RATE_BURST"), 10),
+
+		OpenAPIEnabled:   envBool(os.Getenv("OPENAPI_ENABLED"), true),
+		OpenAPIRateRPS:   atoiOrDefault(os.Getenv("OPENAPI_RATE_RPS"), 5),
+		OpenAPIRateBurst: atoiOrDefault(os.Getenv("OPENAPI_RATE_BURST"), 10),
 
 		CollectorBaseURL:        strings.TrimRight(strings.TrimSpace(firstNonEmpty(os.Getenv("COLLECTOR_BASE_URL"), "http://127.0.0.1:3100")), "/"),
 		CollectorTimeoutSeconds: atoiOrDefault(os.Getenv("COLLECTOR_TIMEOUT_SECONDS"), 120),

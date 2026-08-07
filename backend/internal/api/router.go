@@ -50,6 +50,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/mcptoken"
 	"github.com/trademind-ai/trademind/backend/internal/modules/migrationimport"
 	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
+	"github.com/trademind-ai/trademind/backend/internal/modules/openapi"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
@@ -817,6 +818,19 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 			mcpDeps.Version = dep.Config.AppVersion
 		}
 		r.POST("/api/mcp", mcpserver.GinHandler(mcpDeps))
+	}
+	// Open API read-only entry: GET /api/open/v1/* authenticated by the same
+	// tenant token system (purpose openapi/both).
+	if dep.Config == nil || dep.Config.OpenAPIEnabled {
+		openDeps := &openapi.Deps{DB: dep.DB, Tokens: mcpTokenSvc, Exceptions: excSvc, Audits: mcpAuditSvc}
+		if dep.Redis != nil && dep.Redis.Client != nil {
+			openDeps.Redis = dep.Redis.Client
+		}
+		if dep.Config != nil {
+			openDeps.RateRPS = float64(dep.Config.OpenAPIRateRPS)
+			openDeps.RateBurst = dep.Config.OpenAPIRateBurst
+		}
+		openapi.Register(r, openDeps)
 	}
 
 	ordersync.Register(authed, orderSyncH)

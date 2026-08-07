@@ -9,6 +9,7 @@ const ACTIVE_TOKEN = {
   name: 'claude-desktop',
   maskedToken: 'sp_mcp_ro_1a2b…9f0e',
   scope: 'readonly',
+  purpose: 'mcp',
   revoked: false,
   createdAt: '2026-08-01 10:00:00',
   lastUsedAt: '2026-08-05 09:30:00',
@@ -19,6 +20,7 @@ const REVOKED_TOKEN = {
   name: 'mcp-inspector',
   maskedToken: 'sp_mcp_ro_3c4d…77aa',
   scope: 'readonly',
+  purpose: 'both',
   revoked: true,
   createdAt: '2026-07-20 08:00:00',
   revokedAt: '2026-07-30 12:00:00',
@@ -44,15 +46,17 @@ test.describe('@round144 MCP 只读接入 token 管理', () => {
   test('it should list masked tokens with scope and status', async ({ admin, page }) => {
     await routeTokenList(page);
     await admin.goto('/settings/mcp-tokens');
-    await expect(page.getByText('MCP 只读接入').first()).toBeVisible();
+    await expect(page.getByText('只读 API 接入（MCP / 开放 API）').first()).toBeVisible();
 
     const activeRow = page.locator('.ant-table-tbody tr', { hasText: 'claude-desktop' });
     await expect(activeRow.getByText('sp_mcp_ro_1a2b…9f0e')).toBeVisible();
-    await expect(activeRow.getByText('只读')).toBeVisible();
+    await expect(activeRow.getByText('只读', { exact: true })).toBeVisible();
+    await expect(activeRow.getByText('MCP 只读', { exact: true })).toBeVisible();
     await expect(activeRow.getByText('有效')).toBeVisible();
     await expect(activeRow.getByRole('button', { name: /吊\s*销/ })).toBeEnabled();
 
     const revokedRow = page.locator('.ant-table-tbody tr', { hasText: 'mcp-inspector' });
+    await expect(revokedRow.getByText('MCP + 开放 API')).toBeVisible();
     await expect(revokedRow.getByText('已吊销')).toBeVisible();
     await expect(revokedRow.getByRole('button', { name: /吊\s*销/ })).toHaveCount(0);
 
@@ -71,13 +75,13 @@ test.describe('@round144 MCP 只读接入 token 管理', () => {
     await admin.goto('/settings/mcp-tokens');
 
     await page.getByRole('button', { name: '创建只读 token' }).click();
-    const dialog = page.getByRole('dialog', { name: '创建 MCP 只读 token' });
+    const dialog = page.getByRole('dialog', { name: '创建只读 token' });
     await dialog.getByPlaceholder('如 claude-desktop').fill('claude-desktop');
     await dialog.getByRole('button', { name: /确\s*定/ }).click();
 
     await admin.writeGuard.expectRequestCount('create-mcp-token', 1);
     const [call] = admin.writeGuard.calls('create-mcp-token');
-    expect(call.postDataJSON).toEqual({ name: 'claude-desktop' });
+    expect(call.postDataJSON).toEqual({ name: 'claude-desktop', purpose: 'mcp' });
 
     const result = page.getByRole('dialog', { name: 'Token 创建成功' });
     await expect(result.getByText('明文 token 仅展示这一次')).toBeVisible();

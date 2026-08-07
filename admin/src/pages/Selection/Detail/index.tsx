@@ -2,6 +2,7 @@ import { PlatformTag, StatusTag, TmPageContainer, TmProTable as ProTable } from 
 import type { ProColumns } from '@ant-design/pro-components';
 import { Link, useParams } from '@umijs/renderer-react';
 import { Alert, Button, Descriptions, Image, Popconfirm, Space, Tag, Tooltip, Typography, message } from 'antd';
+import type { CheckboxProps } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { IMAGE_FALLBACK } from '@/constants/imageFallback';
 import { formatDateTime } from '@/utils/formatTime';
@@ -361,9 +362,8 @@ export default function SelectionTaskDetailPage() {
         rowSelection={{
           selectedRowKeys: selectedIds,
           onChange: (keys) => setSelectedIds(keys.map(String).slice(0, 5)),
-          getCheckboxProps: (row) => ({
-            'aria-label': `选择候选：${row.candidate.title}`,
-          }),
+          getCheckboxProps: (row) =>
+            ({ 'aria-label': `选择候选：${row.candidate.title}` }) as CheckboxProps,
         }}
         tableAlertRender={false}
       />

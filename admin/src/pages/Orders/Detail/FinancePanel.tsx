@@ -165,7 +165,7 @@ export default function FinancePanel({
     return <Alert type="error" showIcon message="财务信息加载失败" description={error} action={<Button size="small" onClick={load}>重试</Button>} />;
   }
   if (!data) {
-    return <EmptyState description="暂无财务信息" />;
+    return <EmptyState title="暂无财务信息" />;
   }
 
   const fin = data.finance;
@@ -273,7 +273,7 @@ export default function FinancePanel({
             dataSource={data.payments}
             pagination={false}
             scroll={{ x: 'max-content' }}
-            locale={{ emptyText: <EmptyState description="暂无回款记录" /> }}
+            locale={{ emptyText: <EmptyState title="暂无回款记录" /> }}
           />
         </Card>
       </Col>
@@ -290,7 +290,7 @@ export default function FinancePanel({
             dataSource={data.expenses}
             pagination={false}
             scroll={{ x: 'max-content' }}
-            locale={{ emptyText: <EmptyState description="暂无费用记录" /> }}
+            locale={{ emptyText: <EmptyState title="暂无费用记录" /> }}
           />
         </Card>
       </Col>

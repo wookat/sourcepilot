@@ -42,7 +42,7 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/auth/login` | 管理员登录，支持邮箱或手机号。 |
+| `POST` | `/api/v1/auth/login` | 管理员登录，支持邮箱或手机号。body 为 `{ "account": "邮箱或手机号", "password": "..." }`（字段名为 `account`，不是 `email`）。 |
 | `POST` | `/api/v1/auth/logout` | 退出登录，客户端丢弃 token。 |
 | `GET` | `/api/v1/auth/profile` | 当前管理员信息（含 `role` / `permissions` / `tenantId`，前端据此判定平台管理员可见性）。 |
 | `GET` | `/api/v1/auth/register-config` | 注册行为配置（公开）：`{emailVerifyRequired}`。`AUTH_REGISTER_SKIP_EMAIL_VERIFY=true` 且非 staging/production 时为 `false`，登录页据此隐藏验证码输入。 |
@@ -998,6 +998,22 @@ POST /api/mcp   # MCP Streamable HTTP；Authorization: Bearer sp_mcp_ro_...
 - 鉴权强制要求 `scope=readonly`（过期/吊销/未知 token 统一 401）；限流分三层：每 token（`MCP_RATE_RPS` / `MCP_RATE_BURST`）、每租户聚合（token 额度 2 倍）、每 IP 鉴权失败预算（1 req/s、突发 10，仅失败计费）。超限返回 `429` + envelope `code=42901`（`CodeTooManyRequests`），带 `Retry-After`。R146 起限流状态 Redis 可用时走 Redis（多副本共享额度），不可用时降级进程内，见 `docs/mcp.md`。
 - `MCP_ENABLED=false` 时入口不注册。
 - 客户端配置与工具说明见 `docs/mcp.md`。
+
+## 开放 API 只读入口（round152）
+
+对外只读 REST API（不走 JWT，用同一只读 token 体系鉴权，token 用途须为 `openapi`/`both`）：
+
+```text
+GET /api/open/v1/orders            # 订单列表（脱敏），query: status/paymentStatus/platform/keyword/startDate/endDate/page/pageSize
+GET /api/open/v1/orders/:orderNo   # 订单详情（含行项目）；跨租户订单号与不存在统一 404
+GET /api/open/v1/inventory         # SKU 库存，query: keyword/lowStockOnly/page/pageSize
+GET /api/open/v1/reports/summary   # 经营摘要（按币种已支付销售额，不做汇率折算），query: startDate/endDate
+GET /api/open/v1/exceptions        # 异常待办，query: exceptionType/severity/page/pageSize
+```
+
+- token 创建时可选用途（`POST /api/v1/mcp/tokens` body 新增可选 `purpose`：`mcp`（默认，存量 token 均为此值）/ `openapi` / `both`；列表项新增 `purpose` 字段）。用途不符与未知 token 统一 401。
+- 鉴权/过期/吊销/逐次审计/三层限流沿 MCP 口径（限流变量 `OPENAPI_RATE_RPS`/`OPENAPI_RATE_BURST`，桶与 MCP 独立）；响应为全站统一 envelope；输出脱敏（客户名仅首字符，无内部 UUID/联系方式/rawData）。
+- `OPENAPI_ENABLED=false` 时入口不注册。OpenAPI 3 规范：`docs/openapi/open-api.v1.json`；使用说明见 `docs/open-api.md`。
 
 ## 权限矩阵契约（round52）
 

@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-07 — **Round 152 线1：对外开放 REST API（只读起步，`GET /api/open/v1/*` + token 用途字段）**：详见附录 [`docs/progress/R152-line1-open-api.md`](progress/R152-line1-open-api.md)。
+
 **Stage update**: 2026-08-07 — **Round 151 线2：第七次竞品对标复评**：详见附录 [`docs/progress/R151-line2-competitive-benchmark-v7.md`](progress/R151-line2-competitive-benchmark-v7.md)；报告 [`COMPETITIVE_BENCHMARK_R151.md`](COMPETITIVE_BENCHMARK_R151.md)。
 
 **Stage update**: 2026-08-06 — **Round 148 线1：R144–R147 验收收口（MCP 页时间列 formatDateTime + 验收包增量 + Docker 实跑）**：详见附录 [`docs/progress/R148.md`](progress/R148.md)。
@@ -1890,6 +1892,18 @@ Final Production Acceptance Deferred to P10
 - **P2 权限矩阵 CI 漂移预警**：`project-tests.yml` PostgreSQL 集成 job 新增 `pnpm test:permmatrix` 步骤（APP_ENV=test + TEST_DATABASE_URL），消除套件在 CI 静默 skip。
 - **登记（本轮不改）**：operator 是否可管理 MCP token 收紧为 admin-only 属产品决策，待老板拍板。
 - 前端工具链依赖告警（P2-3/审计编号）不在本轮范围。
+
+### 变更记录（2026-08-07）第 155 轮线1：v25 P2×4 收口 + 合并期杂项（fullstack-engineer）
+
+- **v25 P2×4 逐项处置**：① `GET /api/health` 404 登记不改（全仓无该路径声明，规范健康路径 `/health`、`/healthz`、`/api/v1/health` 文档已正确）；② #307 审计卡轻刷新时序补完整验证——单元级确定性时序 2 用例（新行入库后刷新、迟到错误响应不覆盖）在 main 失败、叠加 #307 通过，随 #307 以 PR #314 合入，Docker 全栈实测复核通过；③ 登录 body 字段 `account` 口径收口进 `docs/api.md`；④ #311 承接 P2 复核仍存在，随 #312/#303 闭合，登记不重复实现。
+- **合并期预案**：#308 `mcptoken.Create` 增 `purpose` 参数与 #303/#311 测试旧签名调用的语义冲突——均未合并，登记提醒（合入时调用处补 `""`）。
+- 详见 `docs/progress/R155.md`。
+### 变更记录（2026-08-07）第 158 轮线2：验收包补 R153–R157 增量（fullstack-engineer）
+
+- **验收包增量**：`docs/acceptance/ACCEPTANCE_R123.md` 新增 §一/16「R153–R157 增量能力」六行（安全加固三项行为变更 #311 ⏳、入口级审计+分页 400 #312 ⏳、v25 P2 收口+生产配置面 #313/#315/#316 ✅、MCP 错误码 -32603 等 #317 ⏳、大屏折算+自定义指标 #318 ⏳、R157 集成预演+交叉 QA）；§一/15 合入状态收口（#303–#309 已全部合入，七个 ⏳ 转 ✅）；§三/§五 同步（§五/11 建议合并顺序 #312→#317→#318，#311 可随 #312 关闭）。
+- **演示脚本**：`docs/acceptance/DEMO_SCRIPT.md` 大屏折算/自定义指标演示点并入第 1b 步（约 1 分钟 → 约 1.5 分钟，压缩第 2 步），保持 ~30 分钟；常见坑与构建前置同步更新。
+- **Docker 全栈三角色实跑**（main 合入 v26 集成预演分支构建，录屏证据外置不入库）：新演示点与抽查动线全部符合，两处失实即修（「已折算：X」与未折算行互斥、卡片配置无「恢复默认」按钮），并登记进 demo SKILL 常见坑。
+- 详见 `docs/progress/R158-line2.md`。
 
 ### 变更记录（2026-08-07）第 156 轮线2：经营大屏汇率折算与自定义指标（fullstack-engineer）
 

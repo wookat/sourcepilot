@@ -1,4 +1,7 @@
 import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
+import type { ReplyTemplateGroupKey } from '@/utils/replyTemplateVars';
+
+export type { ReplyTemplateGroupKey } from '@/utils/replyTemplateVars';
 
 export type ConversationRow = {
   id: string;
@@ -360,8 +363,6 @@ export async function sendPlatformMessage(
 }
 
 // ---- 客服话术模板 ----
-
-export type ReplyTemplateGroupKey = 'presale' | 'aftersale' | 'logistics' | 'refund' | 'other';
 
 /** 模板语言表（与后端 customerchat.TemplateLanguages 保持一致，可扩展） */
 export const TEMPLATE_LANGUAGES: { key: string; label: string }[] = [
