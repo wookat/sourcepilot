@@ -118,7 +118,7 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		return nil, fmt.Errorf("clientMessageId is required")
 	}
 
-	convPtr, err := s.findScopedConversation(c, conversationID)
+	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
 	if err != nil {
 		return nil, err
 	}

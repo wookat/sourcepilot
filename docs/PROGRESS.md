@@ -1985,3 +1985,10 @@ Final Production Acceptance Deferred to P10
 - **P2 顺手修**：备份确认弹窗英文按钮、备份/恢复创建时间 raw ISO、大屏趋势 tooltip raw ISO、操作日志新动作英文 key（补 `dashboard` 资源 + 18 动作中文映射）。
 - **P2 遗留**：MCP 页文档入口不可点击（待产品定文档挂载位置）、v9 P2-3 财务 CSV 未折算占位口径待产品确认。
 - 报告归档 `docs/ux-review/UX_REVIEW_V10_REPORT.md`，详见 `docs/progress/R162-line2.md`。
+
+### 变更记录（2026-08-07）第 164 轮线2：客服/AI 工作流季度复查（qa-engineer）
+
+- **Docker 全栈实测客服/AI 全链路**（R142 消息规则/回溯、R152 多语言模板、AI 建议降级、变量填充、批量标记、人工发送闸门）：API 层 38 项 + 双租户隔离 16 项 + 三角色三视口 UI 走查全部通过，人工确认发送闸门（绝不自动外发）成立。
+- **P1 修复：view-only 店铺授权可写客服会话**——会话族写路径（编辑/删除会话、添加消息、mark-replied、AI 建议生成与编辑/采纳/丢弃/apply/reject、send-platform-message、创建绑定店铺会话）此前对店铺 `view` 授权放行；收口为 403/40303（与订单写路由、买家消息草稿一致），detail `canWrite=false`，新增 permmatrix 契约测试 `TestViewOnlyPersonaConversationWriteScope`。
+- **P2**：regenerate 缺变体口径文档漂移（已按实现修正 `docs/api.md`）；view-only 前端只读呈现、列表写入口展示、message-sync 对 view-only 放行口径等登记待下轮。
+- 详见 `docs/progress/R164-line2.md`。

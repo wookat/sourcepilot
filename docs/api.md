@@ -241,6 +241,7 @@
 ### 客服会话子资源 scope 口径（round70）
 
 - 会话全部子资源读写路径（`/customer/conversations/:id/messages` 读写、`/customer/conversations/:id/ai-suggestions` 读写、`mark-replied`、`ai/generate-reply`、`send-platform-message`，以及 `reply-suggestions/:id` 与 `ai-suggestions/:id` 的建议操作）先按父会话的 **tenant + 店铺 scope** 校验归属，与会话详情接口口径一致（同订单/采购/运营任务）。
+- **店铺 view-only 授权（round164）**：会话相关写路径（编辑/删除会话、创建绑定店铺的会话、添加消息、`mark-replied`、`ai/generate-reply`、建议编辑/采纳/丢弃/apply/reject、`send-platform-message`）对「可见但仅 `view` 授权」的店铺返回 **403 业务码 40303**（店铺无操作权限），与订单写路由及买家消息草稿写路径口径一致；会话详情 `canWrite` 同步返回 `false`。
 - 越权/跨租户一律 **404**（不泄露存在性），不再返回 200 空数据；正常授权路径行为与 DTO 不变。
 - 客服消息同步同口径：`POST /shops/:id/sync-customer-messages` 按 tenant+店铺 scope 校验店铺；`/customer/message-sync/tasks` 列表按租户过滤（带 `shopId` 时叠加店铺 scope），`tasks/:id` 与 `tasks/:id/retry` 越权 404。新建同步任务写入店铺所属 `tenant_id`。
 - 同类收口（父资源 tenant scope，越权 404）：`GET /products/:id/skus/:skuId/inventory-logs`、`GET /products/:id/publication-skus`、`GET /products/:id/ai/tasks`。
@@ -295,7 +296,7 @@ round70 复扫清单本轮全部收口，子资源先校验父资源 tenant（+�
 | `POST` | `/api/v1/customer/buyer-messages/drafts/:id/mark-sent` | 人工回执：标记已发送（幂等；记录操作人与时间）。 |
 | `POST` | `/api/v1/customer/buyer-messages/drafts/:id/ignore` | 忽略草稿（幂等；仅 `pending` 可忽略）。 |
 | `POST` | `/api/v1/customer/buyer-messages/drafts/batch-mark-sent` | 批量标记已发送。body：`ids`；仅更新当前租户 `pending` 行，返回 `{ updated, skipped }`。 |
-| `POST` | `/api/v1/customer/buyer-messages/drafts/:id/regenerate` | 按指定语言重新生成草稿内容（仅 `pending` 可操作，只改草稿不外发）。body：`language`；成功后 `langSource=manual`，该语言无变体时回退默认语言并标 `no_variant`。见 round152。 |
+| `POST` | `/api/v1/customer/buyer-messages/drafts/:id/regenerate` | 按指定语言重新生成草稿内容（仅 `pending` 可操作，只改草稿不外发）。body：`language`；成功后 `langSource=manual`。人工指定语言时该语言必须是模板默认语言或已维护变体，缺变体返回 400 提示先维护（`no_variant` 回退仅适用于自动生成的语言推断路径）。见 round152。 |
 
 ### 买家消息多语言模板（round152）
 

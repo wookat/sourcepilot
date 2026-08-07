@@ -243,3 +243,8 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - **view-only persona（防 #322 同类漂移）**：harness 新增第六个 persona `viewOnlyOperator`（tenant A、角色 operator，唯一店铺授权为 `ShopViewOnly` 的 `view` scope）。它是**可选 persona**（同 `platformAdmin`）：matrix.json 条目显式声明时才参与路由级探测；数据级覆盖由专用契约测试承担。
 - **新增契约测试** `view_only_persona_test.go` `TestViewOnlyPersonaStoreWriteScope`：对全部 `/orders/:id*` 与 `/order-items/:itemId*` 写路由（带路由完整性检查，新增此类路由未登记探针即失败）及买家消息草稿写路径（update/regenerate/mark-sent/ignore）断言 view-only → 403 且业务码 **40303**、零落库；纯计算 POST（`sku-candidates/batch`）与读路由保持可用（view 授权可见）。
 - **业务码统一（40301 → 40303）**：店铺级「可见但仅 view 授权」的 403 统一为 `40303 CodeStorePermissionDenied`（改动面：order 各写 handler、customerchat 草稿、finance 对账/费用）。取舍：`40303` 已是 R125 商品创建线与 `adminperm.DenyStorePermission` 的既有口径，且语义最精确（店铺数据权限）；`40301 CodeForbidden` 保留给全局/租户级 forbidden（readonly 账号写操作、跨租户 settings、生产闸门等），`40302` 保留给权限位拒绝。前端无按 40301/40303 分支的逻辑（`httpErrorCopy` 按 HTTP 403 文案），契约 fixtures 无引用，无前端改动。
+
+## round164 客服会话 view-only 写收口
+
+- **新增契约测试** `view_only_conversation_test.go` `TestViewOnlyPersonaConversationWriteScope`：客服会话族写路径（编辑/删除会话、创建绑定店铺会话、添加消息、`mark-replied`、`ai/generate-reply`、建议编辑/采纳/丢弃/apply/reject、`send-platform-message`）对 view-only 授权断言 403 + 40303、零落库；会话/消息读路径保持可用，会话详情 `canWrite=false`。
+- 实现口径：`customerchat` 写路径经 `findScopedConversationForWrite`/`findScopedSuggestionForWrite`（`adminperm.EnsureStoreOperable`），不可见店铺仍 404 不泄露存在性。
