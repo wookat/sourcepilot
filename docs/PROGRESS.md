@@ -1924,6 +1924,21 @@ Final Production Acceptance Deferred to P10
 - **Docker 全栈三角色实跑**（main 合入 v26 集成预演分支构建，录屏证据外置不入库）：新演示点与抽查动线全部符合，两处失实即修（「已折算：X」与未折算行互斥、卡片配置无「恢复默认」按钮），并登记进 demo SKILL 常见坑。
 - 详见 `docs/progress/R158-line2.md`。
 
+### 变更记录（2026-08-07）第 156 轮线2：经营大屏汇率折算与自定义指标（fullstack-engineer）
+
+- **多币种折算显式口径**：大屏今日销售额/毛利沿既有租户 `report_currency` 手工汇率折算本位币（复用 /reports/profit 口径），新增 `today.unconvertedRevenue`（无汇率币种原币金额显式列出、不计入合计）与 `today.convertedCurrencies`；前端销售额/毛利卡补折算口径角标 tooltip 与「未折算（不计入合计）」原币金额展示。
+- **租户级自定义大屏卡片**：新端点 `GET/PUT /api/v1/dashboard/screen/config`（卡片池 8 张：订单/销售额/毛利/告警 KPI + 待办/漏斗/趋势/告警列表；顺序+开关，默认保持现状；GET 四角色可读、PUT 需 `settings.manage`，readonly/operator 403；配置沿 tenant scope 存 settings `dashboard_screen.cards`，记操作日志）；`/dashboard/screen` 响应带 `cards`，禁用卡片跳过对应聚合；前端按配置分段渲染 + 配置弹窗（开关/排序）。
+- **配套**：demo seed 补今日多币种大屏样本 `DEMO-FX-USD-0001`（可折算）/`DEMO-FX-EUR-0001`（无汇率未折算），clean/verify 覆盖；权限矩阵登记两条新端点；契约 117→119；新增后端/前端单测与 `round156-dashboard-screen-config.spec.ts` E2E。
+- 详见 `docs/progress/R156-line2.md`。
+
+### 变更记录（2026-08-07）第 156 轮线1：R155 登记 P2 + 合并期杂项收口（fullstack-engineer）
+
+- **MCP 审计 fail-closed 错误码**：拒绝调用由普通 error（wire 上 JSON-RPC `code:0`，非规范值）改为 `-32603 internal error`（`jsonrpc.CodeInternalError`），补 code 断言回归测试；开放 API 侧同场景本就是 HTTP 500 + envelope `50000`，口径一致无改动。
+- **`--pre-upgrade-check` 备份目录**：维持默认 `/var/backups`（root 部署面向），非 root 下 mkdir 失败与目录不可写（新增 `-w` 检查）都启动即清晰报错并提示 `BACKUP_DIR=<可写目录>` 覆盖，不再误报「pg_dump 备份失败」。
+- **demo clean 覆盖面核实**：`seed:demo:full:clean` 只清 `DEMO-` 前缀 token，`e2e-refresh-verify` 等测试遗留不覆盖（实测确认）；不扩大删除面，SKILL 常见坑登记「测试收尾自行吊销」。
+- **合并期预案落地**：#308 purpose 签名冲突按 R155 §3 预案修复（叠加分支内调用处补 `""`）；permmatrix harness 补 `OpenAPIEnabled`（cherry-pick #313）。
+- 详见 `docs/progress/R156.md`。
+
 ### 变更记录（2026-08-07）第 159 轮线1：安全审计季度复跑（security-auditor）
 
 - **P1 修复**：仅 `view` 授权的店铺可被写入（同租户内店铺授权粒度越权写）——R149–R158 新增/改造的订单与买家消息草稿写路径只校验店铺可见性，未校验可操作性；按 R125 口径收口（view-only 403 / 不可见 404 / admin 与 operate·manage 不变 / 被拒零落库），`adminperm` 新增 `OperableStoreIDs`、`EnsureStoreOperable`、`ApplyStoreOperateScope`，覆盖草稿五路由与订单创建·更新迁店·删除·行项·发货单·打标·物流刷新·自动化重试·库存扣减回滚·SKU 匹配与 bind-sku·打单标记，附先失败后通过的回归测试。
