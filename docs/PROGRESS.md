@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-07 — **Round 151 线2：第七次竞品对标复评**：详见附录 [`docs/progress/R151-line2-competitive-benchmark-v7.md`](progress/R151-line2-competitive-benchmark-v7.md)；报告 [`COMPETITIVE_BENCHMARK_R151.md`](COMPETITIVE_BENCHMARK_R151.md)。
+
 **Stage update**: 2026-08-06 — **Round 148 线1：R144–R147 验收收口（MCP 页时间列 formatDateTime + 验收包增量 + Docker 实跑）**：详见附录 [`docs/progress/R148.md`](progress/R148.md)。
 
 **Stage update**: 2026-08-06 — **Round 143 线1**：详见附录 [`docs/progress/R143.md`](progress/R143.md)（自本轮起每轮进展写入 `docs/progress/R<轮次>.md` 附录，本文件只留一行索引，减少并行 PR 冲突）。
