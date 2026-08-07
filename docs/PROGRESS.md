@@ -1962,6 +1962,14 @@ Final Production Acceptance Deferred to P10
 - **P2-4 依赖告警**：13 条构建链告警逐项评估，0 条可不跨 major 净收敛（react-router minor 覆盖实测反增告警已回退），登记 `docs/DEPENDENCY_ADVISORIES_R160.md`。
 - 详见 `docs/progress/R160.md`。
 
+### 变更记录（2026-08-07）第 161 轮线1：竞品复评 v8（product-researcher + qa-engineer）
+
+- **最新 main（b2d20535）Docker 全栈实测复评 R151 16 项矩阵：零回退，矩阵升位为超越 4 / 达到 12 / 落后 0**——v7 建议 1（开放 API #308）与建议 2（消息多语言）已合入并实测坐实（开放 API 五端点端到端 + MCP 复测 + 多语言草稿/回退/400 白名单 + 安全边界抽验 + UI 走查录屏），第 12 项客服管理升位、新增第 20 增项「开放 API/可编程集成」评超越；v7 建议 3（#318）未合入不计入。
+- **竞品 2026 复查**（店小秘经营看板、马帮 TikTok 双赛道认证、AutoDS Claude MCP 写操作等）：无新结构性缺口；MCP 写白名单决策紧迫性上升。
+- **下一阶段建议（按杠杆）**：①合入积压收口（#322 P1 安全优先→#323→#318→#321）②MCP 写白名单设计稿（决策项）③维护期节奏（复评每 12 轮或触发式）。
+- **合并期更新（本 PR 合并 main 时点，260bf123）**：#318/#321/#322/#323 已全部合入 main（积压收口建议①闭合），R162 MCP 写白名单设计稿（#326，建议②）亦已归档；#318 相关项（第 11 项报表/财务）升位待下轮 Docker 实测复核。
+- 报告：`docs/COMPETITIVE_BENCHMARK_R161.md`；详见 `docs/progress/R161.md`。
+
 ### 变更记录（2026-08-07）第 161 轮线2：合并后收尾杂项 + E2E flaky 收口（fullstack-engineer）
 
 - **round142 768px E2E flaky 收口**：根因为单次 hover(客服 submenu)→click(客服中心) 竞态——弹层可在两步之间因菜单重渲染（dashboard 数据到达、断点 settle）关闭；改为整段 `toPass` 重试（单次 click 限时 2s），不放宽断言、不改生产代码。整文件 `--repeat-each 3` ×2、768px 用例 `--repeat-each 5`、CPU 加压 `--repeat-each 10`、`@smoke` 全绿。
