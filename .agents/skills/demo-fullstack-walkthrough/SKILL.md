@@ -7,6 +7,8 @@ description: TradeMind Docker 全栈 demo 环境手工走查要点：seed 账号
 
 ## 环境
 - `docker compose -f docker-compose.full.yml up -d`：Admin http://127.0.0.1:8000，后端 :8080（容器跑的是构建时的分支代码）。
+- 验证未构建进镜像的前端改动（如 PR 回归）：不必重建镜像，直接 `PORT=8001 pnpm --filter @trademind/admin dev` 起 dev server（Umi proxy 已指向 127.0.0.1:8080），浏览器走 http://127.0.0.1:8001。
+- `/ops/restores` 常为空态；要验证列渲染可创建一条恢复验证（会被安全门拒绝，属预期：目标库名需 `trademind_p6v_restore_` 前缀），拒绝记录仍会入列可用于检查时间/状态列。
 - 灌数据：`DB_HOST=127.0.0.1 pnpm seed:demo:full`；收尾 `seed:demo:full:clean` 后再 `seed:demo:full:verify`（verify 只在 clean 后有意义，期望输出 `zero DEMO- residual rows`）。
 - demo 账号：`demo_admin@trademind.local / DemoAdmin123!`、`demo_operator@trademind.local / DemoOperator123!`、`demo_readonly@trademind.local / DemoReadonly123!`（密码各不相同，见 scripts/seed-demo-permissions.ps1）。
 
@@ -31,3 +33,7 @@ description: TradeMind Docker 全栈 demo 环境手工走查要点：seed 账号
 - 登录 API 请求体字段为 `{"account","password"}`（不是 `email`），脚本化取 JWT 时注意。
 - 大屏卡片配置弹窗（R156 #318）没有「恢复默认」按钮，演示后需手动改回启用/顺序再保存。
 - 大屏销售额/毛利卡「已折算：X」与「未折算（不计入合计）…」两行互斥：存在未折算币种时只显未折算行；seed 多币种样本（EUR 无汇率）下看不到「已折算」行，属预期。
+- `/ops/backups`、`/ops/restores` 是平台级路由：租户管理员（demo_admin）会收 40302/「暂无访问权限」，属预期隔离；走查需用 bootstrap 平台管理员 `admin@example.com / admin123456`。
+- MCP 审计日志表是 `mcp_tool_call_logs`（不是 mcp_call_audits）；开放 API 可用端点为 `/api/open/v1/orders`、`/api/open/v1/inventory`（`/summary` 404）。填充审计卡时直接用 token 调这两个端点。
+- `/settings/report-currency` 的 unsaved 提示只是内联文案，可能没有路由级拦截（v10 走查发现为 P1）：验证时必须真的点侧栏离开再返回确认值是否丢失，不能只看提示出现。
+- 导出防重复验证法：快速双击导出按钮后检查 `~/Downloads` 文件数（应只有 1 个 CSV），比只看 toast 可靠。

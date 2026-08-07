@@ -1,6 +1,7 @@
 import { StatusTag, TmPageContainer } from '@/components/ui';
 import { formatRequestError, formatUserErrorMessage } from '@/constants/errorMessages';
 import { createRestore, fetchRestores, verifyRestore, type RestoreJob } from '@/services/opsP6';
+import { formatDateTime } from '@/utils/formatTime';
 import { ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { Alert, Button, Form, Input, Modal, Space, Switch, Table, Tooltip, Typography, message } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -76,7 +77,12 @@ export default function RestoresPage() {
                 ),
             },
             { title: '完整性', dataIndex: 'validationStatus', width: 120, render: (v) => (v ? <StatusTag status={String(v)} /> : '—') },
-            { title: '创建时间', dataIndex: 'createdAt', width: 180 },
+            {
+              title: '创建时间',
+              dataIndex: 'createdAt',
+              width: 180,
+              render: (v?: string) => formatDateTime(v),
+            },
             {
               title: '操作',
               width: 140,

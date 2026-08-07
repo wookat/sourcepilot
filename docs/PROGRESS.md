@@ -1979,8 +1979,18 @@ Final Production Acceptance Deferred to P10
 - **Docker 实测**：真实后端 + admin dev，768×900 登录→侧栏客服→客服中心直达，根节点无横向溢出；证据外置不入库。
 - 详见 `docs/progress/R161-line2.md`。
 
+### 变更记录（2026-08-07）第 162 轮线2：全站视觉/UX 复核 v10（user-experience-officer / ui-designer）
+
+- **走查**：距 v9 25 轮的全站复核。Docker 全栈 + `seed:demo:full` 三角色实测录屏；headless 硬指标矩阵 3 角色 × 5 精确视口（1920/1440/1024/768/375）× 29 路由全零（溢出/NaN/Invalid Date/console/pageerror/403·500 噪音）；v9「精确 375/1920 未达」覆盖限制收口；v9 遗留无回退；R137–R161 新面（备份 Ops、MCP token、大屏、开放 API 入口、多语言模板、币种设置、标签/自动化、财务对账）全走查。
+- **P1 修复**：`/settings/report-currency` dirty 时路由跳转静默丢弃修改 → 新增共享 `useUnsavedChangesGuard`（history.block + beforeunload）并接入。
+- **P2 顺手修**：备份确认弹窗英文按钮、备份/恢复创建时间 raw ISO、大屏趋势 tooltip raw ISO、操作日志新动作英文 key（补 `dashboard` 资源 + 18 动作中文映射）。
+- **P2 遗留**：MCP 页文档入口不可点击（待产品定文档挂载位置）、v9 P2-3 财务 CSV 未折算占位口径待产品确认。
+- 报告归档 `docs/ux-review/UX_REVIEW_V10_REPORT.md`，详见 `docs/progress/R162-line2.md`。
+
+
 ### 变更记录（2026-08-07）第 163 轮线2：验收包补 R158–R162 增量（fullstack-engineer）
 
-- **ACCEPTANCE_R123.md**：§一/16 合入状态收口（#312/#317/#318 已合入 main，四个 ⏳ 转 ✅）；新增 §一/17「R158–R162 增量能力」八行（#320/#321/#322/#323/#326 ✅，#327 ⏳ 待合并；#326 MCP 写白名单标「方案待决策」；合并期更新：#324/#325 已合入 main 转 ✅）；§三/§五 同步。
+- **ACCEPTANCE_R123.md**：§一/16 合入状态收口（#312/#317/#318 已合入 main，四个 ⏳ 转 ✅）；新增 §一/17「R158–R162 增量能力」八行（#320/#321/#322/#323/#326 ✅；#326 MCP 写白名单标「方案待决策」；合并期更新：#324/#325/#327 亦已先后合入 main，八行全部 ✅）；§三/§五 同步。
 - **DEMO_SCRIPT.md**：新增 R163 增补段（不新增独立步骤，30 分钟不变；#318 合入后第 1b 步无需叠加分支；币种未保存提示并入第 19 步后顺带演示；MCP 审计卡更名口径同步第 23 步）；清理 #308/#309/#318 陈旧 ⏳ 标注；Docker 全栈三角色按更新后脚本实跑留证（录屏外置不入库），失实处即修。
 - 详见 `docs/progress/R163-line2.md`。
+

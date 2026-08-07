@@ -9,6 +9,7 @@ import {
   verifyBackup,
   type BackupJob,
 } from '@/services/opsP6';
+import { formatDateTime } from '@/utils/formatTime';
 import { isReadonly } from '@/utils/permission';
 import { useModel } from '@umijs/max';
 import {
@@ -79,6 +80,8 @@ export default function BackupsPage() {
     Modal.confirm({
       title: '创建备份记录',
       content: '当前操作会通过后端安全门执行；未启用备份时仅生成待复核记录。',
+      okText: '创建',
+      cancelText: '取消',
       onOk: async () => {
         try {
           await createBackup({ reason: 'operator requested from admin', dryRun: false });
@@ -158,7 +161,12 @@ export default function BackupsPage() {
               render: (v) => (v ? <Tooltip title={String(v)}>{String(v)}</Tooltip> : '-'),
             },
             { title: '大小', dataIndex: 'artifactSize', width: 120, align: 'right' },
-            { title: '创建时间', dataIndex: 'createdAt', width: 180 },
+            {
+              title: '创建时间',
+              dataIndex: 'createdAt',
+              width: 180,
+              render: (v?: string) => formatDateTime(v),
+            },
             {
               title: '操作',
               width: 300,
