@@ -85,17 +85,21 @@ func (BuyerMessageRule) TableName() string { return "buyer_message_rules" }
 // 后台发送，系统只记录回执，绝不自动外发). One draft per (tenant, order, node).
 type BuyerMessageDraft struct {
 	model.Base
-	TenantID       int64          `gorm:"not null;default:0;index;uniqueIndex:idx_buyer_msg_drafts_tenant_order_node,priority:1" json:"tenantId"`
-	OrderID        uuid.UUID      `gorm:"type:char(36);not null;index;uniqueIndex:idx_buyer_msg_drafts_tenant_order_node,priority:2" json:"orderId"`
-	Node           string         `gorm:"size:32;not null;index;uniqueIndex:idx_buyer_msg_drafts_tenant_order_node,priority:3" json:"node"`
-	RuleID         uuid.UUID      `gorm:"type:char(36);index;not null" json:"ruleId"`
-	TemplateID     uuid.UUID      `gorm:"type:char(36);index;not null" json:"templateId"`
-	TemplateName   string         `gorm:"size:255" json:"templateName"`
-	Platform       string         `gorm:"size:64;index" json:"platform"`
-	ShopID         *uuid.UUID     `gorm:"type:char(36);index" json:"shopId,omitempty"`
-	OrderNo        string         `gorm:"size:128;index" json:"orderNo"`
-	CustomerName   string         `gorm:"size:255" json:"customerName"`
-	Content        string         `gorm:"type:text;not null" json:"content"`
+	TenantID     int64      `gorm:"not null;default:0;index;uniqueIndex:idx_buyer_msg_drafts_tenant_order_node,priority:1" json:"tenantId"`
+	OrderID      uuid.UUID  `gorm:"type:char(36);not null;index;uniqueIndex:idx_buyer_msg_drafts_tenant_order_node,priority:2" json:"orderId"`
+	Node         string     `gorm:"size:32;not null;index;uniqueIndex:idx_buyer_msg_drafts_tenant_order_node,priority:3" json:"node"`
+	RuleID       uuid.UUID  `gorm:"type:char(36);index;not null" json:"ruleId"`
+	TemplateID   uuid.UUID  `gorm:"type:char(36);index;not null" json:"templateId"`
+	TemplateName string     `gorm:"size:255" json:"templateName"`
+	Platform     string     `gorm:"size:64;index" json:"platform"`
+	ShopID       *uuid.UUID `gorm:"type:char(36);index" json:"shopId,omitempty"`
+	OrderNo      string     `gorm:"size:128;index" json:"orderNo"`
+	CustomerName string     `gorm:"size:255" json:"customerName"`
+	Content      string     `gorm:"type:text;not null" json:"content"`
+	// Language 是草稿内容所用模板语言；LangSource 记录目标语言来源
+	// （order_country / shop_language / platform / fallback / no_variant / manual）。
+	Language       string         `gorm:"size:16;index" json:"language"`
+	LangSource     string         `gorm:"size:32" json:"langSource"`
 	MissingVars    datatypes.JSON `gorm:"type:jsonb" json:"missingVars,omitempty"`
 	Status         string         `gorm:"size:32;index;not null" json:"status"`
 	ConversationID *uuid.UUID     `gorm:"type:char(36);index" json:"conversationId,omitempty"`

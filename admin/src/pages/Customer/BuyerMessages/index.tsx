@@ -14,6 +14,9 @@ import {
   queryBuyerMsgDrafts,
   queryBuyerMsgRules,
   queryReplyTemplates,
+  regenerateBuyerMsgDraft,
+  TEMPLATE_LANGUAGES,
+  templateLanguageLabel,
   updateBuyerMsgDraft,
   updateBuyerMsgRule,
   type BuyerMsgDraftRow,
@@ -59,6 +62,18 @@ const STATUS_TAG_COLORS: Record<string, string> = {
   ignored: 'default',
 };
 
+/** 目标语言来源标注（与后端 langSource 口径一致） */
+const LANG_SOURCE_LABELS: Record<string, string> = {
+  order_country: '按收货地推断',
+  shop_language: '按店铺语言配置',
+  platform: '按店铺平台推断',
+  fallback: '无法推断，已回退默认语言',
+  no_variant: '缺该语言变体，已回退默认语言',
+  manual: '人工切换',
+};
+
+const LANG_FALLBACK_SOURCES = ['fallback', 'no_variant'];
+
 function DraftsTab({ shops }: { shops: ShopListRow[] }) {
   const [rows, setRows] = useState<BuyerMsgDraftRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -79,6 +94,8 @@ function DraftsTab({ shops }: { shops: ShopListRow[] }) {
     open: false,
   });
   const [savingEdit, setSavingEdit] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenLang, setRegenLang] = useState('');
   const [editForm] = Form.useForm();
 
   const load = useCallback(
@@ -167,7 +184,25 @@ function DraftsTab({ shops }: { shops: ShopListRow[] }) {
 
   const openEdit = (row: BuyerMsgDraftRow) => {
     setEditModal({ open: true, row });
+    setRegenLang(row.language || 'zh-CN');
     editForm.setFieldsValue({ content: row.content });
+  };
+
+  const regenerate = async () => {
+    const row = editModal.row;
+    if (!row || !regenLang) return;
+    setRegenerating(true);
+    try {
+      const updated = await regenerateBuyerMsgDraft(row.id, regenLang);
+      editForm.setFieldsValue({ content: updated.content });
+      setEditModal({ open: true, row: updated });
+      message.success(`已按「${templateLanguageLabel(regenLang)}」重新生成草稿内容`);
+      await load();
+    } catch (e) {
+      message.error(extractErrorMessage(e, '重新生成失败'));
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   const submitEdit = async () => {
@@ -322,6 +357,25 @@ function DraftsTab({ shops }: { shops: ShopListRow[] }) {
             ),
           },
           {
+            title: '语言',
+            dataIndex: 'language',
+            width: 130,
+            render: (v: string, row) => (
+              <Space direction="vertical" size={0}>
+                <Tooltip title={LANG_SOURCE_LABELS[row.langSource] || ''}>
+                  <Tag color={LANG_FALLBACK_SOURCES.includes(row.langSource) ? 'orange' : 'blue'}>
+                    {templateLanguageLabel(v || 'zh-CN')}
+                  </Tag>
+                </Tooltip>
+                {LANG_FALLBACK_SOURCES.includes(row.langSource) ? (
+                  <Typography.Text type="warning" style={{ fontSize: 12 }}>
+                    {LANG_SOURCE_LABELS[row.langSource]}
+                  </Typography.Text>
+                ) : null}
+              </Space>
+            ),
+          },
+          {
             title: '状态',
             dataIndex: 'status',
             width: 100,
@@ -383,6 +437,29 @@ function DraftsTab({ shops }: { shops: ShopListRow[] }) {
         forceRender
       >
         <Form form={editForm} layout="vertical">
+          <Form.Item
+            label="语言变体"
+            extra="切换语言后点击「重新生成」，会用该语言的模板变体重建草稿内容（仅改草稿，不会向买家发送）"
+          >
+            <Space wrap>
+              <Select
+                style={{ width: 160 }}
+                value={regenLang || undefined}
+                onChange={(v) => setRegenLang(v)}
+                options={TEMPLATE_LANGUAGES.map((l) => ({ value: l.key, label: l.label }))}
+                placeholder="选择语言"
+              />
+              <Button loading={regenerating} disabled={!canWrite} onClick={() => void regenerate()}>
+                按所选语言重新生成
+              </Button>
+              {editModal.row?.langSource ? (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  当前：{templateLanguageLabel(editModal.row.language || 'zh-CN')}（
+                  {LANG_SOURCE_LABELS[editModal.row.langSource] || editModal.row.langSource}）
+                </Typography.Text>
+              ) : null}
+            </Space>
+          </Form.Item>
           <Form.Item
             name="content"
             label="消息内容"
