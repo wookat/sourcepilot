@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -18,6 +19,21 @@ import (
 // Handler serves shop + platform provider metadata routes.
 type Handler struct {
 	Svc *Service
+}
+
+// failShopStoreScope maps the store gate of shop writes: a view-only grant is
+// 403 with business code 40303, an invisible / cross-tenant shop stays 404.
+func failShopStoreScope(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, adminperm.ErrStoreNotOperable):
+		adminperm.DenyStorePermission(c)
+		return true
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		return true
+	default:
+		return false
+	}
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -209,6 +225,9 @@ func (h *Handler) Get(c *gin.Context) {
 	}
 	out, err := h.Svc.GetDetail(c, id)
 	if err != nil {
+		if failShopStoreScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
@@ -263,6 +282,9 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.Delete(c, id, adminUUID(c)); err != nil {
+		if failShopStoreScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
@@ -291,6 +313,9 @@ func (h *Handler) PutAuth(c *gin.Context) {
 	}
 	out, err := h.Svc.UpdateAuth(c, id, body, adminUUID(c))
 	if err != nil {
+		if failShopStoreScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
@@ -325,6 +350,9 @@ func (h *Handler) TestConnection(c *gin.Context) {
 }
 
 func failDouyin(c *gin.Context, err error) {
+	if failShopStoreScope(c, err) {
+		return
+	}
 	var ce *DouyinCategoryError
 	if errors.As(err, &ce) {
 		response.JSON(c, http.StatusBadRequest, response.CodeBadRequest, ce.Message, gin.H{"errorCode": ce.Code})
@@ -615,6 +643,9 @@ func (h *Handler) TikTokOAuthCallback(c *gin.Context) {
 	}
 	out, err := h.Svc.TikTokOAuthCallback(c, id, body, adminUUID(c))
 	if err != nil {
+		if failShopStoreScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -659,6 +690,9 @@ func (h *Handler) ShopeeOAuthCallback(c *gin.Context) {
 	}
 	out, err := h.Svc.ShopeeOAuthCallback(c, id, body, adminUUID(c))
 	if err != nil {
+		if failShopStoreScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -703,6 +737,9 @@ func (h *Handler) LazadaOAuthCallback(c *gin.Context) {
 	}
 	out, err := h.Svc.LazadaOAuthCallback(c, id, body, adminUUID(c))
 	if err != nil {
+		if failShopStoreScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -747,6 +784,9 @@ func (h *Handler) AmazonOAuthCallback(c *gin.Context) {
 	}
 	out, err := h.Svc.AmazonOAuthCallback(c, id, body, adminUUID(c))
 	if err != nil {
+		if failShopStoreScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

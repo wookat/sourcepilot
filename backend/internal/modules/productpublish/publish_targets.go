@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 )
@@ -137,6 +138,26 @@ type PublishTargetsCreateDraftsResponse struct {
 	FailedCount  int                       `json:"failedCount"`
 	SkippedCount int                       `json:"skippedCount"`
 	Targets      []PublishTargetTaskResult `json:"targets"`
+}
+
+// ensureTargetsOperable gates publishing on the target store: creating drafts
+// or tasks writes to the store (and reaches the platform), so a store the
+// caller may only view — or one outside the caller's grants — must be rejected
+// before any batch/task row is created.
+func (s *Service) ensureTargetsOperable(c *gin.Context, targets []PublishTargetRef) error {
+	for _, t := range targets {
+		if t.ShopID == nil || strings.TrimSpace(*t.ShopID) == "" {
+			continue
+		}
+		sid, err := uuid.Parse(strings.TrimSpace(*t.ShopID))
+		if err != nil {
+			return fmt.Errorf("invalid shopId: %s", strings.TrimSpace(*t.ShopID))
+		}
+		if err := adminperm.EnsureStoreOperable(c, s.DB, &sid); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func publishTargetKey(platform string, shopID *uuid.UUID) string {
@@ -552,6 +573,9 @@ func (s *Service) CreateDraftsForTargets(c *gin.Context, productID uuid.UUID, re
 	}
 	if len(targets) == 0 {
 		return nil, fmt.Errorf("targets required")
+	}
+	if err := s.ensureTargetsOperable(c, targets); err != nil {
+		return nil, err
 	}
 
 	checkRes, err := s.CheckPublishTargets(c, productID, PublishTargetsCheckRequest{Targets: targets})
