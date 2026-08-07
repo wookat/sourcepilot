@@ -2,6 +2,7 @@ package mcpserver_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/trademind-ai/trademind/backend/internal/modules/mcpaudit"
 	"github.com/trademind-ai/trademind/backend/internal/modules/mcpserver"
@@ -105,7 +107,7 @@ func TestAuditWriteFailureRejectsToolCall(t *testing.T) {
 	db := openTestDB(t)
 	seedOrders(t, db)
 	srv, tokens, _ := newAuditedServer(t, db)
-	res, err := tokens.Create(context.Background(), 1, "audit-outage", nil, nil)
+	res, err := tokens.Create(context.Background(), 1, "audit-outage", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +128,18 @@ func TestAuditWriteFailureRejectsToolCall(t *testing.T) {
 	})
 	if err == nil && (out == nil || !out.IsError) {
 		t.Fatal("tool call succeeded although the audit row could not be written")
+	}
+	// The rejection must reach the client as a spec-compliant JSON-RPC error:
+	// -32603 internal error, never code 0 (reserved / meaningless per JSON-RPC 2.0).
+	var rpcErr *jsonrpc.Error
+	if !errors.As(err, &rpcErr) {
+		t.Fatalf("expected a JSON-RPC error, got %T: %v", err, err)
+	}
+	if rpcErr.Code != jsonrpc.CodeInternalError {
+		t.Fatalf("audit fail-closed rejection must use code %d (internal error), got %d", jsonrpc.CodeInternalError, rpcErr.Code)
+	}
+	if !strings.Contains(rpcErr.Message, "audit log unavailable") {
+		t.Fatalf("unexpected error message %q", rpcErr.Message)
 	}
 }
 
