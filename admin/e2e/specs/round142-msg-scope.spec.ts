@@ -227,11 +227,15 @@ test.describe('@round142 768px 客服菜单侧栏直达', () => {
     const sider = page.locator('.ant-pro-sider').first();
     await expect(sider).toBeVisible();
 
-    // 侧栏客服菜单直达客服中心
+    // 侧栏客服菜单直达客服中心。
+    // hover 打开的 submenu 弹层可能因菜单重渲染（dashboard 数据到达、断点 settle）而关闭，
+    // 单次 hover→click 存在竞态；整段重试直到点击成功。
     const customerMenu = sider.locator('.ant-menu-submenu', { hasText: '客服' }).first();
     await expect(customerMenu).toBeVisible();
-    await customerMenu.hover();
-    await page.getByRole('menuitem', { name: '客服中心' }).click();
+    await expect(async () => {
+      await customerMenu.hover();
+      await page.getByRole('menuitem', { name: '客服中心' }).click({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page).toHaveURL(/\/customer\/hub/);
     await expectNoRootOverflow(page);
   });
