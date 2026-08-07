@@ -2024,3 +2024,10 @@ Final Production Acceptance Deferred to P10
 - **回归测试**：`permmatrix` 新增 `r165_store_write_scope_test.go`（6 用例，含授权账号不被过度收紧的正例）；backend `go test ./...`、`go vet`、`govulncheck`（0 可达）全绿，`pnpm audit --prod` 13 条构建链告警无增量。
 - 报告 `docs/SECURITY_AUDIT_R165.md`，详见 `docs/progress/R165-line2.md`。
 
+### 变更记录（2026-08-07）第 166 轮线1：全站大回归 v29——view-only 安全大批修复合入前集成验证（qa-engineer）
+
+- **集成叠加**：main + #330（含 #331）+ #332 + #329，冲突 13 文件已解；审单批量语义定案为整批 403/40303（#331 口径），#332 sweep 契约与 `docs/permission-matrix.md` 已对齐。
+- **门禁全绿**：permmatrix 30 探针 sweep + viewOnlyOperator 113 契约行 + r165 用例、backend 全量/integration、前端 358、契约、构建、全量 E2E 358 passed。
+- **Docker 全栈重建实测**：R57 主链路无过度收紧、view-only 六处修复面 403/40303、跨租户 404、双租户零残留、三角色三视口通过。
+- **P0/P1 零**；P2 2 项（view-only 同步重试无前端提示；#332 PR 描述批量语义待更新）。详见 `docs/progress/R166.md`。
+
