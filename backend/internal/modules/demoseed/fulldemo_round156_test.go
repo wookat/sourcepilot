@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/providers/fxrate"
 )
 
 // Round 156: today's multi-currency big-screen samples — a USD order that
@@ -17,6 +19,15 @@ func TestFullDemoSeedRound156ScreenFXOrders(t *testing.T) {
 
 	if _, err := s.Seed(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+
+	var rates settings.Setting
+	if err := db.First(&rates, "tenant_id = ? AND group_key = ? AND item_key = ?",
+		s.TenantID, fxrate.SettingsGroup, fxrate.KeyRates).Error; err != nil {
+		t.Fatalf("expected seeded fx rates on demo tenant %d: %v", s.TenantID, err)
+	}
+	if rates.ItemValue == "" || rates.ItemValue == "{}" {
+		t.Fatalf("seeded fx rates must not be empty, got %q", rates.ItemValue)
 	}
 
 	now := time.Now()
