@@ -1977,3 +1977,11 @@ Final Production Acceptance Deferred to P10
 - **R159/R160 合入面前端巡检**：错误提示中文化（httpErrorCopy 兜底 + view-only 403 后端中文 message）、canWrite 禁用态、40303 统一对前端无影响，未发现 P2 及以上问题，无需改动。
 - **Docker 实测**：真实后端 + admin dev，768×900 登录→侧栏客服→客服中心直达，根节点无横向溢出；证据外置不入库。
 - 详见 `docs/progress/R161-line2.md`。
+
+### 变更记录（2026-08-07）第 162 轮线2：全站视觉/UX 复核 v10（user-experience-officer / ui-designer）
+
+- **走查**：距 v9 25 轮的全站复核。Docker 全栈 + `seed:demo:full` 三角色实测录屏；headless 硬指标矩阵 3 角色 × 5 精确视口（1920/1440/1024/768/375）× 29 路由全零（溢出/NaN/Invalid Date/console/pageerror/403·500 噪音）；v9「精确 375/1920 未达」覆盖限制收口；v9 遗留无回退；R137–R161 新面（备份 Ops、MCP token、大屏、开放 API 入口、多语言模板、币种设置、标签/自动化、财务对账）全走查。
+- **P1 修复**：`/settings/report-currency` dirty 时路由跳转静默丢弃修改 → 新增共享 `useUnsavedChangesGuard`（history.block + beforeunload）并接入。
+- **P2 顺手修**：备份确认弹窗英文按钮、备份/恢复创建时间 raw ISO、大屏趋势 tooltip raw ISO、操作日志新动作英文 key（补 `dashboard` 资源 + 18 动作中文映射）。
+- **P2 遗留**：MCP 页文档入口不可点击（待产品定文档挂载位置）、v9 P2-3 财务 CSV 未折算占位口径待产品确认。
+- 报告归档 `docs/ux-review/UX_REVIEW_V10_REPORT.md`，详见 `docs/progress/R162-line2.md`。

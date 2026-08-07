@@ -407,6 +407,7 @@ function DashboardScreenBody({
               yField="value"
               colorField="type"
               height={260}
+              tooltip={{ title: (d: { hour: string }) => formatHourTick(d.hour) }}
               theme={dark ? 'classicDark' : 'classic'}
               axis={{
                 x: {
