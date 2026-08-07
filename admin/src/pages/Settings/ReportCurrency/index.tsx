@@ -1,8 +1,8 @@
 import { GlobalOutlined, MinusCircleOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
-import { Alert, Button, Col, Form, Input, Row, Select, Space, Typography, message } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import { Alert, Button, Col, Form, Input, Row, Select, Space, Tag, Typography, message } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   fetchReportCurrencySettings,
   saveReportCurrencySettings,
@@ -20,16 +20,30 @@ const BASE_CURRENCY_OPTIONS = ['CNY', 'USD', 'EUR', 'GBP', 'JPY', 'SGD', 'MYR', 
 
 type FormValues = { baseCurrency: string; rates: ReportCurrencyRate[] };
 
+const snapshotOf = (values: Partial<FormValues> | undefined) =>
+  JSON.stringify({
+    baseCurrency: values?.baseCurrency ?? '',
+    rates: (values?.rates ?? []).map((r) => ({ currency: r?.currency ?? '', rate: r?.rate ?? '' })),
+  });
+
 export default function ReportCurrencySettingsPage() {
   const [form] = Form.useForm<FormValues>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const watched = Form.useWatch([], form);
+  const dirty = useMemo(
+    () => savedSnapshot !== null && snapshotOf(watched) !== savedSnapshot,
+    [watched, savedSnapshot],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const dto = await fetchReportCurrencySettings();
-      form.setFieldsValue({ baseCurrency: dto.baseCurrency || 'CNY', rates: dto.rates ?? [] });
+      const values = { baseCurrency: dto.baseCurrency || 'CNY', rates: dto.rates ?? [] };
+      form.setFieldsValue(values);
+      setSavedSnapshot(snapshotOf(values));
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
     } finally {
@@ -77,7 +91,9 @@ export default function ReportCurrencySettingsPage() {
                   rate: r.rate.trim(),
                 })),
               });
-              form.setFieldsValue({ baseCurrency: dto.baseCurrency, rates: dto.rates ?? [] });
+              const values = { baseCurrency: dto.baseCurrency, rates: dto.rates ?? [] };
+              form.setFieldsValue(values);
+              setSavedSnapshot(snapshotOf(values));
               message.success('已保存');
             } catch (e: unknown) {
               message.error((e as Error)?.message || '保存失败');
@@ -166,9 +182,16 @@ export default function ReportCurrencySettingsPage() {
           </ProCard>
 
           <ProCard variant="outlined" className="tm-system-settings__footer">
-            <Button type="primary" htmlType="submit" loading={saving} disabled={loading} icon={<SaveOutlined />}>
-              保存配置
-            </Button>
+            <Space wrap className="tm-action-space">
+              <Button type="primary" htmlType="submit" loading={saving} disabled={loading} icon={<SaveOutlined />}>
+                保存配置
+              </Button>
+              {dirty ? (
+                <Tag color="warning" data-testid="report-currency-unsaved">
+                  有未保存的更改，保存后才会生效
+                </Tag>
+              ) : null}
+            </Space>
           </ProCard>
         </Form>
       </div>

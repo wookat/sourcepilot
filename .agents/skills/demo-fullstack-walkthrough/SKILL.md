@@ -28,3 +28,6 @@ description: TradeMind Docker 全栈 demo 环境手工走查要点：seed 账号
 - seed clean 只清理 `DEMO-` 前缀命名的 MCP/开放 API token（`mcp_api_tokens.name LIKE 'DEMO-%'`）；e2e 测试临时创建的其他命名 token（如 `e2e-refresh-verify`）clean/verify 都不覆盖，测试收尾需自行吊销或删除。
 - 响应式检查用 DevTools device toolbar；默认 auto-fit 缩放（29%）截图不可读，把 zoom 改成 100%。硬指标用 `document.documentElement.scrollWidth <= clientWidth` 判断根节点横向溢出。
 - 移动端（375）出现底部导航（首页/订单/采购/库存/我的），表格是横向内滚，不算根节点溢出。
+- 登录 API 请求体字段为 `{"account","password"}`（不是 `email`），脚本化取 JWT 时注意。
+- 大屏卡片配置弹窗（R156 #318）没有「恢复默认」按钮，演示后需手动改回启用/顺序再保存。
+- 大屏销售额/毛利卡「已折算：X」与「未折算（不计入合计）…」两行互斥：存在未折算币种时只显未折算行；seed 多币种样本（EUR 无汇率）下看不到「已折算」行，属预期。
