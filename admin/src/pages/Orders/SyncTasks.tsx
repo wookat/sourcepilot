@@ -10,6 +10,7 @@ import { PAGE_COPY } from '@/constants/copywriting';
 import { ORDER_SYNC_TASK_STATUS } from '@/constants/status';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { normalizeSource, parsePositiveInt, queryTimeRange } from '@/utils/urlState';
+import { extractErrorMessage } from '@/utils/httpErrorCopy';
 import {
   getOrderSyncTask,
   queryOrderSyncTasks,
@@ -233,9 +234,13 @@ export default function OrderSyncTasksPage() {
                     : '确认重试该同步任务？'
                 }
                 onConfirm={async () => {
-                  await retryOrderSyncTask(r.id);
-                  message.success('已提交重试');
-                  actionRef.current?.reload();
+                  try {
+                    await retryOrderSyncTask(r.id);
+                    message.success('已提交重试');
+                    actionRef.current?.reload();
+                  } catch (e) {
+                    message.error(extractErrorMessage(e, '重试失败'));
+                  }
                 }}
               >
                 <Button type="link" size="small" style={{ padding: 0 }}>
@@ -420,10 +425,14 @@ export default function OrderSyncTasksPage() {
                       <Popconfirm
                         title="仅重试失败页（不重复拉取已成功页）"
                         onConfirm={async () => {
-                          await retryOrderSyncTask(detail.id);
-                          message.success('已提交重试失败页');
-                          await openDetail(detail.id);
-                          actionRef.current?.reload();
+                          try {
+                            await retryOrderSyncTask(detail.id);
+                            message.success('已提交重试失败页');
+                            await openDetail(detail.id);
+                            actionRef.current?.reload();
+                          } catch (e) {
+                            message.error(extractErrorMessage(e, '重试失败'));
+                          }
                         }}
                       >
                         <Button type="primary" size="small" style={{ marginTop: 8 }}>

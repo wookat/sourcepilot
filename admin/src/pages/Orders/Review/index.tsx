@@ -9,6 +9,7 @@ import {
   type ReviewDecisionResult,
   type ReviewOrderRow,
 } from '@/services/orderReview';
+import { usePermission } from '@/hooks/usePermission';
 import { isReadonly } from '@/utils/permission';
 import { history, useModel } from '@umijs/max';
 import {
@@ -55,6 +56,7 @@ export default function OrderReviewWorkbenchPage() {
     initialState?: { currentUser?: API.CurrentUser };
   };
   const readonly = isReadonly(initialState?.currentUser?.role);
+  const { canOperateStore } = usePermission();
 
   const [rows, setRows] = useState<ReviewOrderRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -121,6 +123,9 @@ export default function OrderReviewWorkbenchPage() {
 
   const actionable = (r: ReviewOrderRow) =>
     r.reviewStatus === 'pending_review' || r.reviewStatus === 'held';
+  // 店铺仅 view 授权时预禁用行级决策按钮（后端 403/40303 仍为最终边界）；
+  // 无店铺归属的订单不预禁用。
+  const storeOperable = (r: ReviewOrderRow) => !r.shopId || canOperateStore(r.shopId);
 
   return (
     <TmPageContainer
@@ -192,7 +197,7 @@ export default function OrderReviewWorkbenchPage() {
           locale={{ emptyText: '暂无命中审单规则的订单' }}
           rowSelection={{
             selectedRowKeys: selected,
-            getCheckboxProps: (r) => ({ disabled: readonly || !actionable(r) }),
+            getCheckboxProps: (r) => ({ disabled: readonly || !actionable(r) || !storeOperable(r) }),
             onChange: (keys) => setSelected(keys as string[]),
           }}
           pagination={{
@@ -264,22 +269,26 @@ export default function OrderReviewWorkbenchPage() {
                     <Popconfirm
                       title={`放行订单「${r.orderNo}」？`}
                       okText="放行"
-                      disabled={readonly}
+                      disabled={readonly || !storeOperable(r)}
                       onConfirm={() => void decide('approve', [r.id])}
                     >
-                      <Button size="small" type="link" disabled={readonly}>
-                        放行
-                      </Button>
+                      <Tooltip title={!readonly && !storeOperable(r) ? '店铺无操作权限' : ''}>
+                        <Button size="small" type="link" disabled={readonly || !storeOperable(r)}>
+                          放行
+                        </Button>
+                      </Tooltip>
                     </Popconfirm>
-                    <Button
-                      size="small"
-                      type="link"
-                      danger
-                      disabled={readonly}
-                      onClick={() => confirmReject([r.id])}
-                    >
-                      拒绝
-                    </Button>
+                    <Tooltip title={!readonly && !storeOperable(r) ? '店铺无操作权限' : ''}>
+                      <Button
+                        size="small"
+                        type="link"
+                        danger
+                        disabled={readonly || !storeOperable(r)}
+                        onClick={() => confirmReject([r.id])}
+                      >
+                        拒绝
+                      </Button>
+                    </Tooltip>
                   </Space>
                 ) : (
                   <Typography.Text type="secondary">已处理</Typography.Text>

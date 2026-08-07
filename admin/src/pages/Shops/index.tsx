@@ -591,6 +591,8 @@ export default function ShopsPage() {
                 Modal.confirm({
                   title: '删除店铺？',
                   content: '删除后不可恢复，请确认是否继续。',
+                  okText: '删除',
+                  cancelText: '取消',
                   okType: 'danger',
                   onOk: async () => {
                     await deleteShop(r.id);

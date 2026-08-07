@@ -2023,6 +2023,31 @@ Final Production Acceptance Deferred to P10
 - **口径定调**：店铺同步属店铺业务写需 operate 授权（闭合 R164 线2 P2 第 4 项）；`PUT /settings` 数值型静默忽略经评估为非安全面（数值型返回 400，请求体 `tenantId` 为 advisory，写入一律落 JWT 租户）。
 - **回归测试**：`permmatrix` 新增 `r165_store_write_scope_test.go`（6 用例，含授权账号不被过度收紧的正例）；backend `go test ./...`、`go vet`、`govulncheck`（0 可达）全绿，`pnpm audit --prod` 13 条构建链告警无增量。
 - 报告 `docs/SECURITY_AUDIT_R165.md`，详见 `docs/progress/R165-line2.md`。
+### 变更记录（2026-08-07）第 166 轮线1：全站大回归 v29——view-only 安全大批修复合入前集成验证（qa-engineer）
+
+- **集成叠加**：main + #330（含 #331）+ #332 + #329，冲突 13 文件已解；审单批量语义定案为整批 403/40303（#331 口径），#332 sweep 契约与 `docs/permission-matrix.md` 已对齐。
+- **门禁全绿**：permmatrix 30 探针 sweep + viewOnlyOperator 113 契约行 + r165 用例、backend 全量/integration、前端 358、契约、构建、全量 E2E 358 passed。
+- **Docker 全栈重建实测**：R57 主链路无过度收紧、view-only 六处修复面 403/40303、跨租户 404、双租户零残留、三角色三视口通过。
+- **P0/P1 零**；P2 2 项（view-only 同步重试无前端提示；#332 PR 描述批量语义待更新）。详见 `docs/progress/R166.md`。
+
+### 变更记录（2026-08-07）第 166 轮线2：view-only 前端体验与后端权限一致性审计（qa-engineer / user-experience-officer）
+
+- **Docker 全栈三账号实测**（operator 含 view-only 店铺授权 / readonly / admin）R165 修复的六个 view-only 写操作面（审单决定、异常标记族、店铺删除、店铺授权/OAuth 写、店铺同步/重试、刊登目标店）：六面全部 PASS，无 P0/P1；403/40303 均有中文提示「店铺无操作权限」，无裸 JSON/英文原文/越权状态变化。
+- **P2 登记**：删除店铺确认弹窗按钮英文 `Cancel`/`OK`；审单按钮未按店铺 scope 预禁用（靠点击后提示兜底）。
+- 详见 `docs/progress/R166-line2.md`。
+
+### 变更记录（2026-08-07）第 167 轮线1：审单批量整批 403 定案对齐 + view-only 体验 P2×4 收口（fullstack-engineer）
+
+- **语义定案落地**：`/order-review/approve|reject` 批量含 view-only 店铺订单整批 403/40303（#331/v29 口径）；新增混批先红后绿回归 `TestR167ReviewBatchWholeBatchDenied`（operate+view 混批整批拒绝、零生效）；`docs/api.md`/`docs/permission-matrix.md`/R166-line2 报告与 #332 描述（评论区更正）全部对齐。
+- **P2×4 收口**：同步任务重试失败中文 toast、删除店铺弹窗按钮中文化、审单按钮按店铺 scope 预禁用（含 round167 E2E）、#332 批量语义描述更正。
+- **门禁**：前端 358 / 契约 17 / 构建 / ui-copy / backend 103 包 / integration+redis / 审单 E2E 11 全绿；Docker 双租户实测另附证据。详见 `docs/progress/R167.md`。
+
+### 变更记录（2026-08-07）第 166 轮线1：全站大回归 v29——view-only 安全大批修复合入前集成验证（qa-engineer）
+
+- **集成叠加**：main + #330（含 #331）+ #332 + #329，冲突 13 文件已解；审单批量语义定案为整批 403/40303（#331 口径），#332 sweep 契约与 `docs/permission-matrix.md` 已对齐。
+- **门禁全绿**：permmatrix 30 探针 sweep + viewOnlyOperator 113 契约行 + r165 用例、backend 全量/integration、前端 358、契约、构建、全量 E2E 358 passed。
+- **Docker 全栈重建实测**：R57 主链路无过度收紧、view-only 六处修复面 403/40303、跨租户 404、双租户零残留、三角色三视口通过。
+- **P0/P1 零**；P2 2 项（view-only 同步重试无前端提示；#332 PR 描述批量语义待更新）。详见 `docs/progress/R166.md`。
 
 ### 变更记录（2026-08-07）第 167 轮线2：竞品矩阵前哨确认 + 验收包 R163–R166 增量 + Docker 三角色（含 view-only persona）实跑（fullstack-engineer）
 
@@ -2045,3 +2070,10 @@ Final Production Acceptance Deferred to P10
 - **R148/R153/R159 零回退**：租户 disabled 双入口失效、限流分层、view-only 审单整批 403/40303；permmatrix/mcptoken/mcpserver/openapi/mcpaudit/idor/shopscope 套件全绿。
 - **P0/P1 零**；P2 4 项（MCP 分页钳制与开放 API 400 口径差异待文档化；Redis 降级期超时延迟放大；租户 0 上限路径无单测；权限矩阵套件测试库配置手工）。
 - 详见 `docs/progress/R169-line2.md`。
+
+### 变更记录（2026-08-07）第 168 轮线1：合并期杂项收口（fullstack-engineer）
+
+- **40303 文案统一**：全部店铺权限拒绝 message 收口为「店铺无操作权限」（`adminperm.DenyStorePermission`、`security.Deny` ErrShopAccessDenied 分支、`tasktenant.WrapError` 店铺 scope 分支、`product.ErrDraftShopNotOperable`）；前端 toast 走 envelope、tooltip/预禁用文案已一致。
+- **合并期巡检**：R165–R167 合入面 console 告警/裸枚举无问题；审单 E2E 复跑 ×3（3×15 passed）无 flaky。
+- **刊登 target 无 shopId 口径登记（不改行为，待老板决策）**：现状前置校验跳过空 shopId、执行期记 failed 行（`缺少店铺`）、整体 200；推荐倾向请求级 400。详见 `docs/progress/R168.md`。
+- **Docker 双租户实测**：跨租户 404 不泄露、view-only 写 403/40303 新文案实测生效。门禁全绿，详见 `docs/progress/R168.md`。

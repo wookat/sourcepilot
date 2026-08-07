@@ -341,7 +341,7 @@ var ErrDraftShopRequired = errors.New("请选择商品草稿的归属店铺（�
 
 // ErrDraftShopNotOperable rejects shops the principal can see but has no
 // operate/manage grant on.
-var ErrDraftShopNotOperable = errors.New("当前账号无权访问该店铺数据")
+var ErrDraftShopNotOperable = errors.New("店铺无操作权限")
 
 // Create inserts a manual draft. Store-scoped principals must bind the draft
 // to an authorized shop; all validation happens before any insert so a
