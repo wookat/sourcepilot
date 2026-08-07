@@ -1931,3 +1931,11 @@ Final Production Acceptance Deferred to P10
 - **demo clean 覆盖面核实**：`seed:demo:full:clean` 只清 `DEMO-` 前缀 token，`e2e-refresh-verify` 等测试遗留不覆盖（实测确认）；不扩大删除面，SKILL 常见坑登记「测试收尾自行吊销」。
 - **合并期预案落地**：#308 purpose 签名冲突按 R155 §3 预案修复（叠加分支内调用处补 `""`）；permmatrix harness 补 `OpenAPIEnabled`（cherry-pick #313）。
 - 详见 `docs/progress/R156.md`。
+
+### 变更记录（2026-08-07）第 161 轮线2：合并后收尾杂项 + E2E flaky 收口（fullstack-engineer）
+
+- **round142 768px E2E flaky 收口**：根因为单次 hover(客服 submenu)→click(客服中心) 竞态——弹层可在两步之间因菜单重渲染（dashboard 数据到达、断点 settle）关闭；改为整段 `toPass` 重试（单次 click 限时 2s），不放宽断言、不改生产代码。整文件 `--repeat-each 3` ×2、768px 用例 `--repeat-each 5`、CPU 加压 `--repeat-each 10`、`@smoke` 全绿。
+- **合并期红灯**：#323 与 main（#317/#320 批次）的 `docs/mcp.md`/`docs/PROGRESS.md` 冲突已代为解决并推送——mcp.md 保留 `-32603` fail-closed（tools/call 逐次审计）+ 401/429 入口级留痕 best effort 双口径；合并树 go test/契约全绿。#318/#321/#322 无冲突。
+- **R159/R160 合入面前端巡检**：错误提示中文化（httpErrorCopy 兜底 + view-only 403 后端中文 message）、canWrite 禁用态、40303 统一对前端无影响，未发现 P2 及以上问题，无需改动。
+- **Docker 实测**：真实后端 + admin dev，768×900 登录→侧栏客服→客服中心直达，根节点无横向溢出；证据外置不入库。
+- 详见 `docs/progress/R161-line2.md`。
