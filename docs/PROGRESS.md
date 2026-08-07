@@ -1892,3 +1892,9 @@ Final Production Acceptance Deferred to P10
 - **P2 权限矩阵 CI 漂移预警**：`project-tests.yml` PostgreSQL 集成 job 新增 `pnpm test:permmatrix` 步骤（APP_ENV=test + TEST_DATABASE_URL），消除套件在 CI 静默 skip。
 - **登记（本轮不改）**：operator 是否可管理 MCP token 收紧为 admin-only 属产品决策，待老板拍板。
 - 前端工具链依赖告警（P2-3/审计编号）不在本轮范围。
+
+### 变更记录（2026-08-07）第 155 轮线1：v25 P2×4 收口 + 合并期杂项（fullstack-engineer）
+
+- **v25 P2×4 逐项处置**：① `GET /api/health` 404 登记不改（全仓无该路径声明，规范健康路径 `/health`、`/healthz`、`/api/v1/health` 文档已正确）；② #307 审计卡轻刷新时序补完整验证——单元级确定性时序 2 用例（新行入库后刷新、迟到错误响应不覆盖）在 main 失败、叠加 #307 通过，随 #307 以 PR #314 合入，Docker 全栈实测复核通过；③ 登录 body 字段 `account` 口径收口进 `docs/api.md`；④ #311 承接 P2 复核仍存在，随 #312/#303 闭合，登记不重复实现。
+- **合并期预案**：#308 `mcptoken.Create` 增 `purpose` 参数与 #303/#311 测试旧签名调用的语义冲突——均未合并，登记提醒（合入时调用处补 `""`）。
+- 详见 `docs/progress/R155.md`。
