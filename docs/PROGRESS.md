@@ -2029,3 +2029,11 @@ Final Production Acceptance Deferred to P10
 - **验收包增量**：`ACCEPTANCE_R123.md` 新增 §一/18「R163–R166 增量能力」（view-only 权限体系收口合并状态如实标注：#328/#329/#330/#331 已合入，#332 OPEN 有冲突、#333 OPEN 依赖 #332；大回归 v29 报告在 `integration/r166-regression-v29` 分支，v28 报告不可检索登记为会话侧未归档）+ §三证据索引 + §五 R167 待办；`DEMO_SCRIPT.md` 新增第 21b 步 view-only 演示点（403 中文提示「店铺无操作权限」，30 分钟总长不变）。
 - **Docker 三角色（含 view-only persona）实跑**：12 项 UI 断言全部 PASS（含 UX v10 #327 补验：币种设置路由离开确认弹窗、备份页时间列/中文按钮），录屏留证外置不入库；clean + verify 零残留。`pnpm check:ui-copy --strict` 通过。
 - 详见 `docs/progress/R167-line2.md`。
+
+### 变更记录（2026-08-07）第 169 轮线2：MCP/开放 API token 治理季度复查（qa-engineer）
+
+- **Docker 全栈（main + 未合并 #335/#337 叠加）实测 token 面**：token 全生命周期（一次明文/SHA-256 落库/过期/吊销/purpose mcp|openapi|both 双向隔离/非法参数 400/40001/每租户上限 20 并发不越界）、限流 429（Redis 分层 token/租户/authfail 桶 + 停机降级进程内不 fail-open、`Retry-After` 在位）、逐次审计与 fail-closed（MCP -32603、开放 API 500/50000 且不返数据）、TRUSTED_PROXIES/XFF（默认空时伪造 XFF 不可绕过每 IP authfail 限流）全部通过。
+- **MCP 4 工具与开放 API 全端点**：双租户隔离（订单集合零交集、跨租户详情 404/40401）、readonly token 无管理面/写通道、R165 六处 view-only 修复面联动无泄漏无写通道、输出脱敏（客户名 `D**`、无密钥/内部 UUID）通过。
+- **R148/R153/R159 零回退**：租户 disabled 双入口失效、限流分层、view-only 审单整批 403/40303；permmatrix/mcptoken/mcpserver/openapi/mcpaudit/idor/shopscope 套件全绿。
+- **P0/P1 零**；P2 4 项（MCP 分页钳制与开放 API 400 口径差异待文档化；Redis 降级期超时延迟放大；租户 0 上限路径无单测；权限矩阵套件测试库配置手工）。
+- 详见 `docs/progress/R169-line2.md`。
