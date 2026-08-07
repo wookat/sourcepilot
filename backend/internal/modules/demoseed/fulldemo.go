@@ -964,6 +964,11 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 		return err
 	}
 
+	// ---- 大屏汇率折算演示：今日多币种订单样本（Round 156）----
+	if err := s.seedRound156ScreenFXOrders(tx, res, shops, products, skus); err != nil {
+		return err
+	}
+
 	// ---- 第二业务租户演示：独立租户 + admin 账号 + 少量业务数据（Round 128）----
 	if err := s.seedSecondTenant(tx, res); err != nil {
 		return err

@@ -6,16 +6,22 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/reports"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
 // Handler serves dashboard HTTP API. Reports (optional) attaches today's
 // sales / profit KPIs to the big-screen endpoint with the same #276 SQL
-// pushdown口径 as /reports/profit.
+// pushdown口径 as /reports/profit. Settings (optional) stores the tenant
+// big-screen card layout; OpLog (optional) audits layout updates.
 type Handler struct {
-	Svc     *Service
-	Reports *reports.Service
+	Svc      *Service
+	Reports  *reports.Service
+	Settings *settings.Service
+	OpLog    *operationlog.Service
 }
 
 func parseRFC3339Dashboard(s string) (*time.Time, error) {
@@ -91,12 +97,18 @@ func (h *Handler) Screen(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
-	out, err := h.Svc.GetScreen(c.Request.Context(), q, q.Scope)
+	cards := defaultScreenCards()
+	if tenantID, terr := adminperm.TenantIDFromGin(c); terr == nil {
+		cards = h.loadScreenCards(c.Request.Context(), tenantID)
+	}
+	enabled := enabledCardSet(cards)
+	out, err := h.Svc.GetScreen(c.Request.Context(), q, q.Scope, enabled)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
-	if h.Reports != nil {
+	out.Cards = cards
+	if h.Reports != nil && (enabled[CardKPIOrders] || enabled[CardKPISales] || enabled[CardKPIProfit]) {
 		today, rerr := reports.ResolveRange(1, "", "")
 		if rerr == nil {
 			if rep, perr := h.Reports.ProfitReport(c, reports.DimensionShop, today); perr == nil && rep != nil {
@@ -106,6 +118,14 @@ func (h *Handler) Screen(c *gin.Context) {
 				out.Today.UnconvertedCurrencies = rep.Summary.UnconvertedCurrencies
 				out.Today.GrossProfitBase = rep.Summary.GrossProfitBase
 				out.Today.MarginPercent = rep.Summary.MarginPercent
+				for _, m := range rep.Summary.Revenue {
+					if m.BaseAmount == nil {
+						out.Today.UnconvertedRevenue = append(out.Today.UnconvertedRevenue,
+							ScreenMoneyDTO{Currency: m.Currency, Amount: m.Amount})
+					} else if m.Currency != rep.BaseCurrency {
+						out.Today.ConvertedCurrencies = append(out.Today.ConvertedCurrencies, m.Currency)
+					}
+				}
 			}
 		}
 	}

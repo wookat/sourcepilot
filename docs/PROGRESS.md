@@ -1872,3 +1872,10 @@ Final Production Acceptance Deferred to P10
 - **零发现项**：跨租户数据泄露、MCP 写路径可达、token 明文入库/入日志/入响应、SQL/参数注入、平台租户接口越权、R139 修复项回退，均无。
 - **P2 清单**：MCP 审计写失败仅告警不阻断；大屏 today 销售/毛利口径忽略 shopId/platform 筛选；大屏非法 shopId 静默降级不报 400；MCP token 上限 count→insert 竞态及其回归测试缺失；前端工具链依赖告警 13 条（2 high，均为构建/开发期）。
 - 详见 `docs/SECURITY_AUDIT_R148.md`。
+
+### 变更记录（2026-08-07）第 156 轮线2：经营大屏汇率折算与自定义指标（fullstack-engineer）
+
+- **多币种折算显式口径**：大屏今日销售额/毛利沿既有租户 `report_currency` 手工汇率折算本位币（复用 /reports/profit 口径），新增 `today.unconvertedRevenue`（无汇率币种原币金额显式列出、不计入合计）与 `today.convertedCurrencies`；前端销售额/毛利卡补折算口径角标 tooltip 与「未折算（不计入合计）」原币金额展示。
+- **租户级自定义大屏卡片**：新端点 `GET/PUT /api/v1/dashboard/screen/config`（卡片池 8 张：订单/销售额/毛利/告警 KPI + 待办/漏斗/趋势/告警列表；顺序+开关，默认保持现状；GET 四角色可读、PUT 需 `settings.manage`，readonly/operator 403；配置沿 tenant scope 存 settings `dashboard_screen.cards`，记操作日志）；`/dashboard/screen` 响应带 `cards`，禁用卡片跳过对应聚合；前端按配置分段渲染 + 配置弹窗（开关/排序）。
+- **配套**：demo seed 补今日多币种大屏样本 `DEMO-FX-USD-0001`（可折算）/`DEMO-FX-EUR-0001`（无汇率未折算），clean/verify 覆盖；权限矩阵登记两条新端点；契约 116→118；新增后端/前端单测与 `round156-dashboard-screen-config.spec.ts` E2E。
+- 详见 `docs/progress/R156-line2.md`。

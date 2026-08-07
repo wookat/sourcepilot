@@ -1394,6 +1394,26 @@
   },
   {
     "method": "GET",
+    "path": "/api/v1/dashboard/screen/config",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "allow",
+      "readonly": "allow"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/dashboard/screen/config",
+    "personas": {
+      "admin": "allow",
+      "crossTenantAdmin": "allow",
+      "operator": "forbid",
+      "readonly": "forbid"
+    }
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/dashboard/product-operations",
     "personas": {
       "admin": "allow",

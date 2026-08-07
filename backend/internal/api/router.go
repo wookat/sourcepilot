@@ -921,7 +921,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		OrderExceptions: excSvc,
 		ConfigStatus:    configStatusSvc,
 	}
-	dashH := &operationdashboard.Handler{Svc: dashSvc, Reports: reportsSvc}
+	dashH := &operationdashboard.Handler{Svc: dashSvc, Reports: reportsSvc, Settings: settingsSvc, OpLog: opLogSvc}
 	operationdashboard.Register(authed, dashH)
 
 	aiOpsWorkbenchSvc := &aiopsworkbench.Service{
