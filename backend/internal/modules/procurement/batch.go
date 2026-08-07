@@ -101,6 +101,13 @@ func (s *Service) BatchMarkPlaced(ctx context.Context, body BatchMarkPlacedBody,
 			res.add(line)
 			continue
 		}
+		if operable, err := s.POOperable(ctx, id, sc); err != nil {
+			return nil, err
+		} else if !operable {
+			line.Message = "店铺无操作权限"
+			res.add(line)
+			continue
+		}
 		po, err := s.MarkPlaced(ctx, id, MarkPlacedBody{ExternalOrderID: ext}, operator)
 		if err != nil {
 			line.Message = batchErrMessage(err)
@@ -174,6 +181,13 @@ func (s *Service) BatchFillLogistics(ctx context.Context, body BatchLogisticsBod
 		po := pos[0]
 		line.PurchaseOrderID = po.ID.String()
 		line.SupplierName = po.SupplierName
+		if operable, err := s.POOperable(ctx, po.ID, sc); err != nil {
+			return nil, err
+		} else if !operable {
+			line.Message = "店铺无操作权限"
+			res.add(line)
+			continue
+		}
 		if po.Status == StatusPlaced {
 			// Operators usually paste tracking numbers after paying on 1688;
 			// auto mark-paid keeps the state machine intact for this flow.

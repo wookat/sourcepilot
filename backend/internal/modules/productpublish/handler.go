@@ -326,8 +326,7 @@ func (h *Handler) RetryTask(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -347,13 +346,22 @@ func (h *Handler) RecoverDouyinDraftTask(c *gin.Context) {
 		return
 	}
 	tid, _ := adminperm.TenantIDFromGin(c)
-	if _, err := h.Svc.GetDTO(c.Request.Context(), tid, id); err != nil {
+	pre, err := h.Svc.GetDTO(c.Request.Context(), tid, id)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
 		response.HandleError(c, err)
 		return
+	}
+	if sid := pre.ShopID; sid != uuid.Nil {
+		if err := adminperm.EnsureStoreOperable(c, h.Svc.DB, &sid); err != nil {
+			if !adminperm.FailStoreWriteScope(c, err) {
+				response.HandleError(c, err)
+			}
+			return
+		}
 	}
 	if err := h.Svc.RecoverDouyinDraftStale(c.Request.Context(), id); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -384,6 +392,9 @@ func (h *Handler) CreateDouyinDraft(c *gin.Context) {
 	}
 	out, err := h.Svc.CreateDouyinDraftTask(c, pid, body, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		var blocked *productcheck.BlockedError
 		if errors.As(err, &blocked) && blocked.Result != nil {
 			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
@@ -545,8 +556,7 @@ func (h *Handler) CancelTask(c *gin.Context) {
 	}
 	out, err := h.Svc.CancelTask(c, id, adminUUID(c))
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -698,6 +708,9 @@ func (h *Handler) RetryFailedBatch(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailedBatchTasks(c, id, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
@@ -724,6 +737,9 @@ func (h *Handler) CancelPendingBatch(c *gin.Context) {
 	}
 	out, err := h.Svc.CancelPendingBatchTasks(c, id, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return

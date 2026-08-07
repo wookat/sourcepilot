@@ -255,8 +255,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 	if _, err := h.Svc.Update(c, id, body, adminUUID(c)); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
+		if adminperm.FailStoreWriteScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -619,6 +618,9 @@ func (h *Handler) TikTokOAuthAuthorizeURL(c *gin.Context) {
 	redirect := strings.TrimSpace(c.Query("redirectUri"))
 	out, err := h.Svc.TikTokOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -666,6 +668,9 @@ func (h *Handler) ShopeeOAuthAuthorizeURL(c *gin.Context) {
 	redirect := strings.TrimSpace(c.Query("redirectUri"))
 	out, err := h.Svc.ShopeeOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -713,6 +718,9 @@ func (h *Handler) LazadaOAuthAuthorizeURL(c *gin.Context) {
 	redirect := strings.TrimSpace(c.Query("redirectUri"))
 	out, err := h.Svc.LazadaOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -760,6 +768,9 @@ func (h *Handler) AmazonOAuthAuthorizeURL(c *gin.Context) {
 	redirect := strings.TrimSpace(c.Query("redirectUri"))
 	out, err := h.Svc.AmazonOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
 	if err != nil {
+		if adminperm.FailStoreWriteScope(c, err) {
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

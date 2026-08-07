@@ -84,6 +84,27 @@ func (h *Handler) requestScope(c *gin.Context) (*int64, []uuid.UUID) {
 	return tenantID, allowed
 }
 
+// ensureSourceOperable rejects writes on exception sources whose store the
+// caller can only view: invisible stores keep 404, view-only stores get
+// 403/40303. It reports whether the request may proceed.
+func (h *Handler) ensureSourceOperable(c *gin.Context, sourceType, sourceID string) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		return true
+	}
+	shopID, err := h.Svc.SourceShopID(c.Request.Context(), sourceType, sourceID)
+	if err != nil {
+		failMarkError(c, err)
+		return false
+	}
+	if err := adminperm.EnsureStoreOperable(c, h.Svc.DB, shopID); err != nil {
+		if !adminperm.FailStoreWriteScope(c, err) {
+			response.HandleError(c, err)
+		}
+		return false
+	}
+	return true
+}
+
 // failMarkError localizes mark/unmark failures: gorm.ErrRecordNotFound becomes
 // a Chinese 404 envelope instead of leaking the raw English driver message.
 func failMarkError(c *gin.Context, err error) {
@@ -202,6 +223,9 @@ func (h *Handler) Handle(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
+	if !h.ensureSourceOperable(c, st, sid) {
+		return
+	}
 	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkHandled, body.Remark, adminUUID(c)); err != nil {
 		failMarkError(c, err)
 		return
@@ -236,6 +260,9 @@ func (h *Handler) Ignore(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
+	if !h.ensureSourceOperable(c, st, sid) {
+		return
+	}
 	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkIgnored, body.Remark, adminUUID(c)); err != nil {
 		failMarkError(c, err)
 		return
@@ -264,6 +291,9 @@ func (h *Handler) Unmark(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
+	if !h.ensureSourceOperable(c, st, sid) {
+		return
+	}
 	if err := h.Svc.DeleteMarks(c.Request.Context(), st, sid); err != nil {
 		failMarkError(c, err)
 		return
@@ -300,6 +330,9 @@ func (h *Handler) BindSKU(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
+	if !h.ensureSourceOperable(c, st, sid) {
+		return
+	}
 	out, err := h.Cmds.BindSKU(c.Request.Context(), st, sid, body, adminUUID(c))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
@@ -342,6 +375,9 @@ func (h *Handler) RetryDeduct(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
+	if !h.ensureSourceOperable(c, st, sid) {
+		return
+	}
 	sum, err := h.Cmds.RetryDeduct(c.Request.Context(), st, sid, body.SyncPlatforms, adminUUID(c))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
@@ -378,6 +414,9 @@ func (h *Handler) RetryInventorySync(c *gin.Context) {
 	tid, err := uuid.Parse(sid)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid sourceId")
+		return
+	}
+	if !h.ensureSourceOperable(c, st, sid) {
 		return
 	}
 	task, err := h.Cmds.RetryInventorySync(c, tid, adminUUID(c))

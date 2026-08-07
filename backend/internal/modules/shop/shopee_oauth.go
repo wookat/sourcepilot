@@ -33,7 +33,7 @@ type ShopeeOAuthCallbackBody struct {
 }
 
 func (s *Service) ShopeeOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redirectOverride string, adminID *uuid.UUID) (*ShopeeAuthorizeURLResult, error) {
-	if err := s.ensureShopScoped(c, shopID); err != nil {
+	if err := s.ensureShopOperable(c, shopID); err != nil {
 		return nil, err
 	}
 	_ = adminID

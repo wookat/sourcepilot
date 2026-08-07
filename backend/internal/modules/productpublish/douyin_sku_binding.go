@@ -102,6 +102,11 @@ func (s *Service) SyncDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID,
 	if err != nil {
 		return nil, err
 	}
+	if sid := pub.ShopID; sid != uuid.Nil {
+		if err := adminperm.EnsureStoreOperable(c, s.DB, &sid); err != nil {
+			return nil, err
+		}
+	}
 	if strings.TrimSpace(pub.ExternalProductID) == "" {
 		return nil, fmt.Errorf("%s: platform product id missing", platformdouyin.CodeDouyinProductNotBound)
 	}

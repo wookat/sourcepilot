@@ -182,7 +182,7 @@ func (s *Service) DouyinOAuthStart(c *gin.Context, shopID *uuid.UUID, adminID *u
 	}
 	ctx := c.Request.Context()
 	if shopID != nil && *shopID != uuid.Nil {
-		rowPtr, err := s.findScopedShop(c, *shopID)
+		rowPtr, err := s.findScopedShopForWrite(c, *shopID)
 		if err != nil {
 			return nil, err
 		}

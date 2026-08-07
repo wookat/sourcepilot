@@ -29,7 +29,7 @@ func (h *Handler) actor(c *gin.Context) (APIActor, error) {
 	if err != nil || principal == nil || principal.Disabled {
 		return APIActor{}, ErrAuthenticationRequired
 	}
-	return APIActor{TenantID: tenantID, ActorID: actorID, Role: principal.Role}, nil
+	return APIActor{TenantID: tenantID, ActorID: actorID, Role: principal.Role, AllowedShopIDs: principal.AllowedStoreIDs(), OperableShopIDs: principal.OperableStoreIDs()}, nil
 }
 
 func (h *Handler) requireActor(c *gin.Context) (APIActor, bool) {
