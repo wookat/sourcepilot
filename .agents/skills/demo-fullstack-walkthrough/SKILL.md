@@ -7,6 +7,8 @@ description: TradeMind Docker 全栈 demo 环境手工走查要点：seed 账号
 
 ## 环境
 - `docker compose -f docker-compose.full.yml up -d`：Admin http://127.0.0.1:8000，后端 :8080（容器跑的是构建时的分支代码）。
+- 验证未构建进镜像的前端改动（如 PR 回归）：不必重建镜像，直接 `PORT=8001 pnpm --filter @trademind/admin dev` 起 dev server（Umi proxy 已指向 127.0.0.1:8080），浏览器走 http://127.0.0.1:8001。
+- `/ops/restores` 常为空态；要验证列渲染可创建一条恢复验证（会被安全门拒绝，属预期：目标库名需 `trademind_p6v_restore_` 前缀），拒绝记录仍会入列可用于检查时间/状态列。
 - 灌数据：`DB_HOST=127.0.0.1 pnpm seed:demo:full`；收尾 `seed:demo:full:clean` 后再 `seed:demo:full:verify`（verify 只在 clean 后有意义，期望输出 `zero DEMO- residual rows`）。
 - demo 账号：`demo_admin@trademind.local / DemoAdmin123!`、`demo_operator@trademind.local / DemoOperator123!`、`demo_readonly@trademind.local / DemoReadonly123!`（密码各不相同，见 scripts/seed-demo-permissions.ps1）。
 
