@@ -255,6 +255,7 @@
     "test:backend": "cd backend && go test ./...",
     "test:backend:integration": "cd backend && go test ./internal/testing/integration ./internal/testing/redis",
     "test:db": "cd backend && go test ./internal/testing/integration",
+    "test:permmatrix": "cd backend && go test ./internal/securitytests/permmatrix",
     "test:redis": "cd backend && go test ./internal/testing/redis",
     "test:contracts": "vitest run --config vitest.contracts.config.ts",
     "architecture:check": "node scripts/architecture/check-boundaries.mjs",

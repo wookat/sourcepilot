@@ -5,6 +5,7 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -41,7 +42,8 @@ type Deps struct {
 	DB         *gorm.DB
 	Tokens     *mcptoken.Service
 	Exceptions *orderexception.Service
-	// Audits records one row per tool call (best effort; nil disables auditing).
+	// Audits records one row per tool call; a failed audit write rejects the
+	// call (fail closed). nil disables auditing.
 	Audits *mcpaudit.Service
 	// Redis, when set, backs the rate-limit buckets so the budget is shared
 	// across replicas; nil keeps the in-process buckets.
@@ -191,8 +193,11 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 }
 
 // auditMiddleware appends one audit row per tools/call: tenant, token, tool
-// name, outcome and duration. Arguments and results are never recorded. Writes
-// are best effort so a failing audit store cannot take the entry down.
+// name, outcome and duration. Arguments and results are never recorded. When
+// the audit row cannot be persisted the successful result is withheld and the
+// call fails, so no tool call ever completes without its audit row (audit
+// completeness is chosen over availability; tools are read-only, so a
+// rejected call is safely retryable).
 func auditMiddleware(audits *mcpaudit.Service, tok *mcptoken.Token) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
@@ -220,7 +225,10 @@ func auditMiddleware(audits *mcpaudit.Service, tok *mcptoken.Token) mcp.Middlewa
 				Status:      status,
 				DurationMs:  time.Since(start).Milliseconds(),
 			}); werr != nil {
-				slog.Warn("mcp_tool_audit_write_failed", "tool", toolName, "error", werr.Error())
+				slog.Error("mcp_tool_audit_write_failed", "tool", toolName, "error", werr.Error())
+				if err == nil {
+					return nil, errors.New("audit log unavailable, tool call rejected")
+				}
 			}
 			return res, err
 		}

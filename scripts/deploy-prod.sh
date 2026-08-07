@@ -5,6 +5,8 @@
 #   ./scripts/deploy-prod.sh --no-pull           # 跳过 git pull（回滚到指定 commit 后重建时使用）
 #   ./scripts/deploy-prod.sh --pre-upgrade-check # 仅执行升级前检查（全量备份 + 迁移预检），不部署
 #                                                # 备份目录默认 /var/backups，可用 BACKUP_DIR=... 覆盖
+# 额外挂载（如 BACKUP_S3_CA_BUNDLE 自签 CA）：写入 docker-compose.prod.override.yml（自动叠加）
+#   或 COMPOSE_OVERRIDE_FILES=a.yml:b.yml ./scripts/deploy-prod.sh
 # 前置：已 cp .env.prod.example .env 并填入必填项。详见 docs/production-deployment.md
 
 set -euo pipefail
@@ -14,6 +16,20 @@ cd "$REPO_ROOT"
 
 COMPOSE_FILE=docker-compose.prod.yml
 COMPOSE=(docker compose -f "$COMPOSE_FILE")
+# 额外 compose override（如挂载 BACKUP_S3_CA_BUNDLE 自签 CA）：
+# 存在 docker-compose.prod.override.yml 时自动叠加，保证重跑部署不丢挂载；
+# 也可用 COMPOSE_OVERRIDE_FILES 指定多个文件（冒号分隔）。
+OVERRIDE_FILES="${COMPOSE_OVERRIDE_FILES:-}"
+if [ -z "$OVERRIDE_FILES" ] && [ -f docker-compose.prod.override.yml ]; then
+  OVERRIDE_FILES=docker-compose.prod.override.yml
+fi
+if [ -n "$OVERRIDE_FILES" ]; then
+  IFS=':' read -r -a _override_arr <<< "$OVERRIDE_FILES"
+  for f in "${_override_arr[@]}"; do
+    [ -f "$f" ] || { printf '\033[1;31m[deploy][失败]\033[0m compose override 文件不存在: %s\n' "$f" >&2; exit 1; }
+    COMPOSE+=(-f "$f")
+  done
+fi
 HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-300}"
 NO_PULL=0
 PRE_UPGRADE_CHECK=0
@@ -86,7 +102,7 @@ else
 fi
 
 # ---------- 2. 校验 compose 配置 ----------
-log "校验 compose 配置"
+log "校验 compose 配置（compose 命令：${COMPOSE[*]}）"
 "${COMPOSE[@]}" config >/dev/null || fail "compose 配置校验失败"
 
 # ---------- 3. 构建并启动 ----------

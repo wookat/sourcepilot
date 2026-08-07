@@ -28,7 +28,7 @@ TradeMind 提供一个符合 MCP（Model Context Protocol）标准的只读 serv
 - 每个租户最多同时持有 20 个未吊销 token（超出时创建返回 400，需先吊销），因为每个 token 自带限流桶。
 - 三层限流：每 token（默认 5 req/s、突发 10）、每租户聚合（token 额度的 2 倍，防止多 token 叠加绕过）、每来源 IP 的鉴权失败预算（1 req/s、突发 10，仅失败请求计费，合法流量不受影响）。超限统一 `429`，envelope `code=42901`。
 - 限流状态存储：Redis 可用时（复用队列 `REDIS_URL`，无新依赖 / 新变量）三层限流桶统一走 Redis（Lua 令牌桶，key 前缀 `ratelimit:mcp_readonly*`），多副本部署共享同一份额度；Redis 不可用或调用失败时自动降级为进程内令牌桶（不会 fail-open），此时多副本下总额度会按副本数放大，需相应调低 `MCP_RATE_RPS` / `MCP_RATE_BURST`。
-- 工具调用逐次审计：每次 `tools/call` 落一条审计日志（租户、token（脱敏）、工具名、时间、成功/失败、耗时），**不记录查询参数与查询结果内容**；管理页「MCP 只读接入」可按工具/状态筛选查看（`GET /api/v1/mcp/audit-logs`）。审计写入为 best effort，审计库故障不影响工具调用本身。
+- 工具调用逐次审计：每次 `tools/call` 落一条审计日志（租户、token（脱敏）、工具名、时间、成功/失败、耗时），**不记录查询参数与查询结果内容**；管理页「MCP 只读接入」可按工具/状态筛选查看（`GET /api/v1/mcp/audit-logs`）。审计写入为 fail-closed：审计行写入失败时该次工具调用会被拒绝（错误信息 `audit log unavailable, tool call rejected`），保证没有任何调用绕过审计；工具均为只读、无副作用，被拒的调用可安全重试。后端同时记录 Error 级日志 `mcp_tool_audit_write_failed` 供告警链路发现审计库故障。
 - 入口级拒绝也留痕（R154）：未通过鉴权（401）与被限流（429）的请求写 `mcp:auth` 审计行（状态 `auth_failed` / `rate_limited`；未认证来源记在租户 0 下），按「工具+状态+来源」每分钟至多一条，防止攻击流量放大审计表；不记录任何 token 内容。
 - 输出经过脱敏：不含密钥、密码、内部 UUID，客户姓名只保留首字符。
 
@@ -82,3 +82,4 @@ npx @modelcontextprotocol/inspector
 | `429 rate limit exceeded`（`code=42901`） | 触发 token / 租户 / 鉴权失败任一限流；稍后重试或调大 `MCP_RATE_RPS` / `MCP_RATE_BURST`。连续使用无效 token 也会触发 |
 | `400 活跃 token 数量已达上限` | 该租户未吊销 token 已达 20 个，先到设置页吊销不再使用的 token |
 | `404`（入口不存在） | `MCP_ENABLED=false` 时入口不注册，确认环境变量后重启 backend |
+| `audit log unavailable, tool call rejected` | 审计库写入失败，工具调用被 fail-closed 拒绝；检查数据库可用性与后端 `mcp_tool_audit_write_failed` 日志，故障恢复后重试即可（工具只读、重试无副作用）；此期间管理页「MCP 只读接入」的审计列表也可能加载失败（页面会展示错误提示与重试按钮） |

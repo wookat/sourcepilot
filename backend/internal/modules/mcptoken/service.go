@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,6 +46,23 @@ var ErrTooManyTokens = errors.New("mcptoken: active token limit reached (revoke 
 // Service manages tenant-scoped MCP read-only API tokens.
 type Service struct {
 	DB *gorm.DB
+}
+
+// createLocks serializes Create per tenant within this process so the
+// count→insert cap check cannot race between concurrent requests. On
+// PostgreSQL a transaction-scoped advisory lock extends the same guarantee
+// across replicas.
+var createLocks sync.Map
+
+func lockTenantCreate(tenantID int64) func() {
+	actual, _ := createLocks.LoadOrStore(tenantID, &sync.Mutex{})
+	mu := actual.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
+func isPostgres(db *gorm.DB) bool {
+	return db != nil && db.Dialector != nil && db.Dialector.Name() == "postgres"
 }
 
 // HashToken returns the hex-encoded SHA-256 of a plaintext token.
@@ -95,14 +113,6 @@ func (s *Service) Create(ctx context.Context, tenantID int64, name string, purpo
 		}
 		expiresAt = &utc
 	}
-	var active int64
-	if err := tenantquery.ScopeTenant(s.DB.WithContext(ctx).Model(&Token{}), tenantID).
-		Where("revoked_at IS NULL").Count(&active).Error; err != nil {
-		return nil, fmt.Errorf("mcptoken: count: %w", err)
-	}
-	if active >= MaxActiveTokensPerTenant {
-		return nil, ErrTooManyTokens
-	}
 	buf := make([]byte, secretHexLen/2)
 	if _, err := rand.Read(buf); err != nil {
 		return nil, fmt.Errorf("mcptoken: rand: %w", err)
@@ -119,8 +129,32 @@ func (s *Service) Create(ctx context.Context, tenantID int64, name string, purpo
 		ExpiresAt: expiresAt,
 		CreatedBy: createdBy,
 	}
-	if err := s.DB.WithContext(ctx).Create(&row).Error; err != nil {
-		return nil, fmt.Errorf("mcptoken: create: %w", err)
+	unlock := lockTenantCreate(tenantID)
+	defer unlock()
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if isPostgres(tx) {
+			// Transaction-scoped advisory lock serializes the cap check across
+			// replicas; released automatically at commit/rollback.
+			if lerr := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?)::bigint)",
+				fmt.Sprintf("mcptoken_create:%d", tenantID)).Error; lerr != nil {
+				return fmt.Errorf("mcptoken: lock: %w", lerr)
+			}
+		}
+		var active int64
+		if cerr := tenantquery.ScopeTenant(tx.Model(&Token{}), tenantID).
+			Where("revoked_at IS NULL").Count(&active).Error; cerr != nil {
+			return fmt.Errorf("mcptoken: count: %w", cerr)
+		}
+		if active >= MaxActiveTokensPerTenant {
+			return ErrTooManyTokens
+		}
+		if cerr := tx.Create(&row).Error; cerr != nil {
+			return fmt.Errorf("mcptoken: create: %w", cerr)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return &CreateResult{Token: row, Plaintext: plain}, nil
 }
