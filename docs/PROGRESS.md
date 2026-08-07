@@ -1924,6 +1924,13 @@ Final Production Acceptance Deferred to P10
 - **Docker 全栈三角色实跑**（main 合入 v26 集成预演分支构建，录屏证据外置不入库）：新演示点与抽查动线全部符合，两处失实即修（「已折算：X」与未折算行互斥、卡片配置无「恢复默认」按钮），并登记进 demo SKILL 常见坑。
 - 详见 `docs/progress/R158-line2.md`。
 
+### 变更记录（2026-08-07）第 159 轮线2：生产升级演练季度复跑（devops-engineer）
+
+- **升级演练**：R149 时点基线（`7f5645c1`，双业务租户 2 万订单/存量 MCP token/存量话术模板等）→ 最新 main（`6a64eb39` 与演练中合入 #312 后的 `32a9aaea` 两个时点）全流程通过：R152 `mcp_api_tokens.purpose`/`customer_reply_template_variants`/drafts 语言列落地，业务指纹逐项 0 差异（仅 `order_automation_logs.shop_id` 回填为预期变化）；从零部署 165s、升级部署 464s/246s（<15 分钟目标）。
+- **升级后实测**：purpose 三口径（mcp/openapi/both 互斥与放行）、开放 API 限流/租户隔离/审计/分页 400、多语言模板变体、`OPENAPI_ENABLED=false` 404、`TRUSTED_PROXIES` 配置与留空两口径 XFF 实测均与文档一致；`--pre-upgrade-check` 备份+预检、备份→恢复→幂等重跑闭环通过。
+- **文档核对**：无 P0/P1；P2 三条登记（#317 -w 报错口径已于演练后合入、待下轮实测、#318 大屏折算/汇率 seed 演练时未合入、演练后已合入待下轮补验、恢复窗口回退增量数据口径）。证据外置不入库；演练记录已补 `docs/upgrade-guide.md` §五。
+- 详见 `docs/progress/R159-line2.md`。
+
 ### 变更记录（2026-08-07）第 156 轮线2：经营大屏汇率折算与自定义指标（fullstack-engineer）
 
 - **多币种折算显式口径**：大屏今日销售额/毛利沿既有租户 `report_currency` 手工汇率折算本位币（复用 /reports/profit 口径），新增 `today.unconvertedRevenue`（无汇率币种原币金额显式列出、不计入合计）与 `today.convertedCurrencies`；前端销售额/毛利卡补折算口径角标 tooltip 与「未折算（不计入合计）」原币金额展示。
