@@ -1888,3 +1888,11 @@ Final Production Acceptance Deferred to P10
 - **P1 修复**：① 被禁用/清退租户的 MCP / 开放 API token 仍可读数据（token 鉴权补租户状态校验）；② 伪造 `X-Forwarded-For` 绕过每 IP 鉴权失败预算（新增 `TRUSTED_PROXIES`，默认不信任任何代理）；③ 开放 API 审计 fail-open 与 MCP（#303）fail-closed 口径不一致（改为审计落库后才返回结果）。
 - **P2 清单**：both token 双入口双份额度；401/429 不写审计；分页非法参数静默归一化与日期 400 口径不一；operator 未授权店铺 regenerate 返回 404 与 readonly 403 口径不一；token 上限 count→insert 竞态（#303 已修未合）。
 - 详见 `docs/progress/R153.md`。
+
+### 变更记录（2026-08-07）第 154 轮线1：R153 安全审查 P2 批次收口（fullstack-engineer）
+
+- **修复**：① 401/429 入口级拒绝写审计行（`mcp:auth`/`openapi:auth`，状态 `auth_failed`/`rate_limited`，未认证来源记租户 0，按来源每分钟至多一条防审计表放大，管理页筛选同步）；② 开放 API `page`/`pageSize` 非法值从静默归一化改为 400（与日期口径一致）。
+- **登记不改**：both token 双入口额度合并需产品决策；operator 未授权店铺 regenerate 404 为店铺可见性口径（改 403 会泄露资源存在性）。
+- **跳过（#303 已覆盖未合入）**：token 上限 count→insert 竞态、MCP 审计 fail-closed，随 #303 合入闭合。
+- **文档收口**：#311 三个行为变更补入 `docs/mcp.md`、`docs/open-api.md`、`docs/upgrade-guide.md`（R152/R153/R154 版本要点行）。
+- 详见 `docs/progress/R154.md`。

@@ -51,7 +51,21 @@ const PURPOSE_LABELS: Record<string, string> = {
   both: 'MCP + 开放 API',
 };
 
-const MCP_TOOL_OPTIONS = ['orders_query', 'inventory_query', 'report_summary', 'exceptions_pending'];
+const MCP_TOOL_OPTIONS = [
+  'orders_query',
+  'inventory_query',
+  'report_summary',
+  'exceptions_pending',
+  'mcp:auth',
+  'openapi:auth',
+];
+
+const AUDIT_STATUS_TAGS: Record<string, { color: string; label: string }> = {
+  success: { color: 'green', label: '成功' },
+  error: { color: 'red', label: '失败' },
+  auth_failed: { color: 'orange', label: '鉴权失败' },
+  rate_limited: { color: 'gold', label: '已限流' },
+};
 
 function expiryCell(row: McpTokenRow) {
   if (!row.expiresAt) {
@@ -352,14 +366,14 @@ export default function McpTokensPage() {
               setAuditPage(1);
               setAuditStatus(v);
             }}
-            options={[
-              { value: 'success', label: '成功' },
-              { value: 'error', label: '失败' },
-            ]}
+            options={Object.entries(AUDIT_STATUS_TAGS).map(([value, v]) => ({
+              value,
+              label: v.label,
+            }))}
           />
           <Button onClick={() => void loadAudits()}>刷新</Button>
           <Typography.Text type="secondary">
-            每次 MCP 工具调用记录一条；不记录查询参数与查询结果内容
+            每次 MCP 工具调用记录一条；鉴权失败与限流事件按来源每分钟至多一条；不记录查询参数与查询结果内容
           </Typography.Text>
         </Space>
         {auditError ? (
@@ -417,8 +431,10 @@ export default function McpTokensPage() {
             {
               title: '结果',
               dataIndex: 'status',
-              render: (v: string) =>
-                v === 'success' ? <Tag color="green">成功</Tag> : <Tag color="red">失败</Tag>,
+              render: (v: string) => {
+                const tag = AUDIT_STATUS_TAGS[v] ?? AUDIT_STATUS_TAGS.error;
+                return <Tag color={tag.color}>{tag.label}</Tag>;
+              },
             },
             { title: '耗时(ms)', dataIndex: 'durationMs' },
           ]}
