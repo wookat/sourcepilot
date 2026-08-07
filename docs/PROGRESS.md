@@ -2036,3 +2036,9 @@ Final Production Acceptance Deferred to P10
 - **Docker 全栈三账号实测**（operator 含 view-only 店铺授权 / readonly / admin）R165 修复的六个 view-only 写操作面（审单决定、异常标记族、店铺删除、店铺授权/OAuth 写、店铺同步/重试、刊登目标店）：六面全部 PASS，无 P0/P1；403/40303 均有中文提示「店铺无操作权限」，无裸 JSON/英文原文/越权状态变化。
 - **P2 登记**：删除店铺确认弹窗按钮英文 `Cancel`/`OK`；审单按钮未按店铺 scope 预禁用（靠点击后提示兜底）。
 - 详见 `docs/progress/R166-line2.md`。
+
+### 变更记录（2026-08-07）第 167 轮线1：审单批量整批 403 定案对齐 + view-only 体验 P2×4 收口（fullstack-engineer）
+
+- **语义定案落地**：`/order-review/approve|reject` 批量含 view-only 店铺订单整批 403/40303（#331/v29 口径）；新增混批先红后绿回归 `TestR167ReviewBatchWholeBatchDenied`（operate+view 混批整批拒绝、零生效）；`docs/api.md`/`docs/permission-matrix.md`/R166-line2 报告与 #332 描述（评论区更正）全部对齐。
+- **P2×4 收口**：同步任务重试失败中文 toast、删除店铺弹窗按钮中文化、审单按钮按店铺 scope 预禁用（含 round167 E2E）、#332 批量语义描述更正。
+- **门禁**：前端 358 / 契约 17 / 构建 / ui-copy / backend 103 包 / integration+redis / 审单 E2E 11 全绿；Docker 双租户实测另附证据。详见 `docs/progress/R167.md`。
