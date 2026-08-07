@@ -225,6 +225,24 @@ func (a *profitAcc) finish(fees []FeeItem, cnyRate *big.Rat) (revBase, costCNY, 
 	return
 }
 
+// ProfitFilter optionally narrows the profit aggregation to one shop and/or
+// platform. It composes with the tenant / store scope (it can only narrow,
+// never widen it).
+type ProfitFilter struct {
+	ShopID   *uuid.UUID
+	Platform string
+}
+
+func (f ProfitFilter) apply(tx *gorm.DB) *gorm.DB {
+	if f.ShopID != nil {
+		tx = tx.Where("shop_id = ?", f.ShopID.String())
+	}
+	if pl := strings.TrimSpace(f.Platform); pl != "" {
+		tx = tx.Where("LOWER(platform) = ?", strings.ToLower(pl))
+	}
+	return tx
+}
+
 // ProfitReport aggregates paid orders in the range by the requested
 // dimension. Scope matches the order list: current tenant, soft-deleted
 // orders excluded, non-admin principals restricted to their granted shops.
@@ -232,13 +250,20 @@ func (a *profitAcc) finish(fees []FeeItem, cnyRate *big.Rat) (revBase, costCNY, 
 // conversion, reference-cost resolution and profit math stay in Go on the
 // exact group sums, so the numbers match per-row accumulation exactly.
 func (s *Service) ProfitReport(c *gin.Context, dimension string, r DateRange) (*ProfitReportDTO, error) {
-	return s.profitReport(c, dimension, r, profitMaxRows)
+	return s.profitReport(c, dimension, r, profitMaxRows, ProfitFilter{})
+}
+
+// ProfitReportFiltered is ProfitReport additionally narrowed by an explicit
+// shop / platform filter (the big-screen dashboard passes its own filters so
+// today's sales / profit follow the same filters as the other screen blocks).
+func (s *Service) ProfitReportFiltered(c *gin.Context, dimension string, r DateRange, f ProfitFilter) (*ProfitReportDTO, error) {
+	return s.profitReport(c, dimension, r, profitMaxRows, f)
 }
 
 // profitReport builds the profit report; maxRows > 0 truncates the rows to
 // that many (Truncated flags the cut), maxRows <= 0 keeps all rows (the CSV
 // export path).
-func (s *Service) profitReport(c *gin.Context, dimension string, r DateRange, maxRows int) (*ProfitReportDTO, error) {
+func (s *Service) profitReport(c *gin.Context, dimension string, r DateRange, maxRows int, f ProfitFilter) (*ProfitReportDTO, error) {
 	if dimension != DimensionOrder && dimension != DimensionProduct && dimension != DimensionShop {
 		return nil, fmt.Errorf("dimension 仅支持 order / product / shop")
 	}
@@ -254,7 +279,11 @@ func (s *Service) profitReport(c *gin.Context, dimension string, r DateRange, ma
 		if err != nil {
 			return nil, err
 		}
-		return adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
+		tx, err = adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id")
+		if err != nil {
+			return nil, err
+		}
+		return f.apply(tx), nil
 	}
 
 	table := s.fxTable(ctx, tenantID)
