@@ -1977,3 +1977,11 @@ Final Production Acceptance Deferred to P10
 - **R159/R160 合入面前端巡检**：错误提示中文化（httpErrorCopy 兜底 + view-only 403 后端中文 message）、canWrite 禁用态、40303 统一对前端无影响，未发现 P2 及以上问题，无需改动。
 - **Docker 实测**：真实后端 + admin dev，768×900 登录→侧栏客服→客服中心直达，根节点无横向溢出；证据外置不入库。
 - 详见 `docs/progress/R161-line2.md`。
+
+### 变更记录（2026-08-07）第 164 轮线1：生产部署演练季度复检（devops-engineer）
+
+- **从零部署**：production compose + Caddy 全新构建部署 236 秒（<15 分钟），六服务 healthy，HTTPS `/health-backend` 全绿；TRUSTED_PROXIES/OPENAPI_ENABLED 按 #316 口径实测（可信网段 XFF 落地、外部伪造 XFF 不落地、开关 401/404 切换）。
+- **R159 双租户存量升级**：`32a9aaea` 基线（2 万订单/4 万订单行/6 万库存流水/存量 token/多语言模板/view-only 授权）升级至 `a78e2fb0`——AutoMigrate 落地、8 类数值指纹 0 差异（唯一预期变化为 `order_automation_logs.shop_id` 回填）、迁移幂等；升级后 view-only 403+40303、readonly 40301、OpenAPI 分页 400、大屏折算（未配汇率不计入 + 配置后折算）与自定义卡片配置读写实测通过。
+- **--pre-upgrade-check（#317）**：备份+同租户重复订单号预检通过；目录不可写/不可创建均清晰报错提示 `BACKUP_DIR` 覆盖（R159 P2① 闭环坐实）。备份→`pg_restore --clean --if-exists` 恢复→指纹与升级前一致→重启幂等重跑闭环通过。
+- **文档核对**：env 示例/部署/升级/清单文档与实测一致，无 P0/P1 失实；P2 3 项登记（settings 直连 API 写数值型汇率被静默忽略；#327 币种设置离开确认未合入 main 待补验；恢复回退备份点后新增数据沿 R159 口径）。
+- 详见 `docs/progress/R164.md`。
