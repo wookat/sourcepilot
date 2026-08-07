@@ -258,7 +258,7 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 ## round165 view-only 店铺写入口全站扫尾
 
 - **统一口径**：带 shop_id 维度（含经订单/商品/采购单/发布记录/任务行间接关联）的写路径一律走可操作性 scope（`adminperm.EnsureStoreOperable` / `EnsureStoresOperable` / `ApplyStoreOperateScope`）：可见但仅 `view` 授权 → **403 业务码 40303**；不可见/跨租户 → **404** 不泄露存在性。可见性 scope（`AllowedStoreIDs`/`ApplyStoreScope`/`EnsureStoreVisible`）仅用于读。错误映射统一走 `adminperm.FailStoreWriteScope`。
-- **本轮收口面**：手动订单/客服消息同步及各类同步任务 retry（含任务中心委托 retry）、库存同步任务（创建/retry/批量）、inventory-sync P9 run、productpublish 全写族（任务/目标草稿/抖音建品/SKU 绑定/卡死恢复）、运营任务写族、订单异常 handle/ignore、采购单写族（经关联销售订单店铺）、审单 approve/reject 行级校验、店铺记录 Update/Delete、店铺凭证 `PUT /shops/:id/auth` 与 OAuth refresh/revoke/callback/sync-shop-info。
+- **本轮收口面**：手动订单/客服消息同步及各类同步任务 retry（含任务中心委托 retry）、库存同步任务（创建/retry/批量）、inventory-sync P9 run、productpublish 全写族（任务/目标草稿/抖音建品/SKU 绑定/卡死恢复）、运营任务写族、订单异常 handle/ignore、采购单写族（经关联销售订单店铺）、审单 approve/reject 整批前置校验、店铺记录 Update/Delete、店铺凭证 `PUT /shops/:id/auth` 与 OAuth refresh/revoke/callback/sync-shop-info。
 - **同步定性**：手动 sync-orders / sync-customer-messages 及 retry 定性为写操作（创建任务并 upsert 业务行），view-only 不再放行（R164 P2-4 定案）。
 - **批量 API 取舍（R166 集成定案）**：`/order-review/approve|reject` 采用线2 口径——批量前置 `ensureReviewBatchOperable` 整批拒绝（403 + 40303，避免部分生效）；行级 `EnsureStoreOperable` 保留为纵深防御（不可见店仍逐行「订单不存在」不泄露存在性）。OAuth authorize-url / 连接测试类只读路径保持可见性口径。
 - **新增契约测试** `view_only_sweep_test.go` `TestViewOnlyPersonaShopWriteSweep`：30 条写探针 403+40303、审单批量整批拒绝（R166/R167 定案，见下条）、不可见店铺 404、零落库（任务状态不变、无新建任务/运营任务/P9 run）、读路径保持可用。

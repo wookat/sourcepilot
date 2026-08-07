@@ -31,6 +31,7 @@ func TestViewOnlyPersonaShopWriteSweep(t *testing.T) {
 		require.NoError(t, h.DB.Exec("DELETE FROM customer_message_sync_tasks WHERE cursor = 'perm-matrix-r165'").Error)
 		require.NoError(t, h.DB.Exec("DELETE FROM inventory_sync_tasks WHERE batch_no = 'perm-matrix-r165'").Error)
 		require.NoError(t, h.DB.Exec("DELETE FROM product_publish_tasks WHERE target_key = 'perm-matrix-r165'").Error)
+		require.NoError(t, h.DB.Exec("DELETE FROM product_publish_batches WHERE idempotency_key = 'perm-matrix-r165'").Error)
 		require.NoError(t, h.DB.Exec("DELETE FROM operation_tasks WHERE source_reference = 'perm-matrix-r165'").Error)
 		require.NoError(t, h.DB.Exec("DELETE FROM purchase_order_items WHERE product_title = 'perm-matrix-r165'").Error)
 		require.NoError(t, h.DB.Exec("DELETE FROM purchase_orders WHERE external_order_id = 'perm-matrix-r165'").Error)
@@ -67,6 +68,23 @@ func TestViewOnlyPersonaShopWriteSweep(t *testing.T) {
 		Mode: "manual", TargetKey: "perm-matrix-r165",
 	}
 	require.NoError(t, h.DB.Create(ppt).Error)
+	ppb := &productpublish.ProductPublishBatch{
+		TenantID: tenantA, BatchType: "multi_product", Status: "failed",
+		IdempotencyKey: "perm-matrix-r165",
+	}
+	require.NoError(t, h.DB.Create(ppb).Error)
+	ppbFailed := &productpublish.ProductPublishTask{
+		TenantID: tenantA, ShopID: sid, ProductID: uuid.New(), TargetStoreID: sid,
+		BatchID: &ppb.ID, Platform: "manual", TaskType: "manual",
+		Status: productpublish.TaskFailed, Mode: "manual", TargetKey: "perm-matrix-r165",
+	}
+	require.NoError(t, h.DB.Create(ppbFailed).Error)
+	ppbPending := &productpublish.ProductPublishTask{
+		TenantID: tenantA, ShopID: sid, ProductID: uuid.New(), TargetStoreID: sid,
+		BatchID: &ppb.ID, Platform: "manual", TaskType: "manual",
+		Status: productpublish.TaskPending, Mode: "manual", TargetKey: "perm-matrix-r165",
+	}
+	require.NoError(t, h.DB.Create(ppbPending).Error)
 	opShop := sid
 	opt := &operationtask.OperationTask{
 		TenantID: tenantA, ShopID: &opShop,
@@ -112,6 +130,9 @@ func TestViewOnlyPersonaShopWriteSweep(t *testing.T) {
 		{http.MethodPost, "/api/v1/customer/message-sync/tasks/" + cst.ID.String() + "/retry", `{}`},
 		{http.MethodPost, "/api/v1/inventory-sync/tasks/" + ist.ID.String() + "/retry", `{}`},
 		{http.MethodPost, "/api/v1/product-publish/tasks/" + ppt.ID.String() + "/retry", `{}`},
+		// batch-level mutations reject when any sub-task sits on a view-only store
+		{http.MethodPost, "/api/v1/product-publish/batches/" + ppb.ID.String() + "/retry-failed", `{}`},
+		{http.MethodPost, "/api/v1/product-publish/batches/" + ppb.ID.String() + "/cancel-pending", `{}`},
 		// task-center delegated retries
 		{http.MethodPost, "/api/v1/task-center/failures/order_sync/" + ost.ID.String() + "/retry", `{}`},
 		{http.MethodPost, "/api/v1/task-center/failures/customer_message_sync/" + cst.ID.String() + "/retry", `{}`},
@@ -150,14 +171,14 @@ func TestViewOnlyPersonaShopWriteSweep(t *testing.T) {
 		requireCode40303(t, w, p.method+" "+p.path)
 	}
 
-	// Order review decisions gate the whole batch up-front (403/40303) so a
-	// view-only store row can never flip its review status.
+	// Order review decisions gate the whole batch up-front: any view-only
+	// store row rejects the batch with 403/40303 before anything is written.
 	for _, action := range []string{"approve", "reject"} {
 		w := h.doBody(t, http.MethodPost, "/api/v1/order-review/"+action,
 			tok, `{"orderIds":["`+ro.ID.String()+`"]}`)
 		require.Equalf(t, http.StatusForbidden, w.Code,
-			"order-review %s [viewOnlyOperator]: batch must be rejected up-front: %s", action, w.Body.String())
-		requireCode40303(t, w, "POST /api/v1/order-review/"+action)
+			"order-review %s must reject the view-only batch: %s", action, w.Body.String())
+		requireCode40303(t, w, "order-review "+action)
 	}
 
 	// The same resources stay 404 for a principal who cannot see the store.
@@ -186,6 +207,9 @@ func TestViewOnlyPersonaShopWriteSweep(t *testing.T) {
 	requireStatus(&customersync.CustomerMessageSyncTask{}, cst.ID, customersync.StatusFailed, "customer message sync task")
 	requireStatus(&inventory.InventorySyncTask{}, ist.ID, inventory.StatusFailed, "inventory sync task")
 	requireStatus(&productpublish.ProductPublishTask{}, ppt.ID, productpublish.TaskFailed, "product publish task")
+	requireStatus(&productpublish.ProductPublishTask{}, ppbFailed.ID, productpublish.TaskFailed, "publish batch failed sub-task")
+	requireStatus(&productpublish.ProductPublishTask{}, ppbPending.ID, productpublish.TaskPending, "publish batch pending sub-task")
+	requireStatus(&productpublish.ProductPublishBatch{}, ppb.ID, "failed", "publish batch")
 	requireStatus(&operationtask.OperationTask{}, opt.ID, operationtask.OperationTaskStatusSuggested, "operation task")
 	requireStatus(&procurement.PurchaseOrder{}, po.ID, "draft", "purchase order")
 	var reviewRow struct{ ReviewStatus string }
