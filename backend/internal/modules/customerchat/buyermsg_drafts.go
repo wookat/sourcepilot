@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
@@ -42,6 +43,8 @@ type BuyerMsgDraftRow struct {
 	ShopID         *uuid.UUID `json:"shopId,omitempty"`
 	ShopName       string     `json:"shopName,omitempty"`
 	Content        string     `json:"content"`
+	Language       string     `json:"language"`
+	LangSource     string     `json:"langSource"`
 	MissingVars    []string   `json:"missingVars"`
 	Status         string     `json:"status"`
 	ConversationID *uuid.UUID `json:"conversationId,omitempty"`
@@ -73,6 +76,8 @@ func (s *Service) buyerMsgDraftRow(d BuyerMessageDraft, shopNames map[uuid.UUID]
 		Platform:       d.Platform,
 		ShopID:         d.ShopID,
 		Content:        d.Content,
+		Language:       d.Language,
+		LangSource:     d.LangSource,
 		MissingVars:    jsonToStrings(d.MissingVars),
 		Status:         d.Status,
 		ConversationID: d.ConversationID,
@@ -224,6 +229,78 @@ func (s *Service) UpdateBuyerMsgDraft(c *gin.Context, id uuid.UUID, content stri
 	row.Content = content
 	row.MissingVars = missingJSON
 	s.writeBuyerMsgOpLog(c, adminID, "customer.buyer_message_draft.update", row.ID.String(), row.OrderNo)
+	out := s.buyerMsgDraftRow(*row, s.buyerMsgShopNamesForDraft(c, row))
+	return &out, nil
+}
+
+// RegenerateBuyerMsgDraft rebuilds one pending draft's content from the rule
+// template using the requested language variant（工作台人工切换语言）。只改
+// 草稿内容与语言标注，不发送任何平台消息。
+func (s *Service) RegenerateBuyerMsgDraft(c *gin.Context, id uuid.UUID, language string, adminID *uuid.UUID) (*BuyerMsgDraftRow, error) {
+	row, err := s.findTenantDraft(c, id)
+	if err != nil {
+		return nil, err
+	}
+	if row.Status != BuyerMsgDraftPending {
+		return nil, fmt.Errorf("仅待发送状态的草稿可切换语言重新生成")
+	}
+	lang := strings.TrimSpace(language)
+	if !IsValidTemplateLanguage(lang) {
+		return nil, fmt.Errorf("语言不合法：%s（可选值：%s）", lang, strings.Join(TemplateLanguages, "/"))
+	}
+	ctx := c.Request.Context()
+	var tpl CustomerReplyTemplate
+	if err := s.DB.WithContext(ctx).
+		Where("id = ? AND tenant_id = ?", row.TemplateID, row.TenantID).First(&tpl).Error; err != nil {
+		return nil, fmt.Errorf("草稿引用的话术模板已被删除，无法重新生成")
+	}
+	tplDefault := tpl.DefaultLanguage
+	if tplDefault == "" {
+		tplDefault = TemplateDefaultLanguage
+	}
+	tplContent := ""
+	if lang == tplDefault {
+		tplContent = tpl.Content
+	} else {
+		var variant CustomerReplyTemplateVariant
+		if err := s.DB.WithContext(ctx).
+			Where("tenant_id = ? AND template_id = ? AND language = ?", row.TenantID, tpl.ID, lang).
+			First(&variant).Error; err != nil {
+			return nil, fmt.Errorf("该模板没有语言变体：%s，请先在话术模板中维护", lang)
+		}
+		tplContent = variant.Content
+	}
+	var o order.Order
+	vars := map[string]string{}
+	if err := s.DB.WithContext(ctx).
+		Where("id = ? AND tenant_id = ?", row.OrderID, row.TenantID).First(&o).Error; err == nil {
+		octx := s.buyerMsgOrderContext(ctx, &o)
+		vars = map[string]string{
+			"买家昵称": o.CustomerName,
+			"订单号":  o.OrderNo,
+			"物流单号": octx.trackingNo,
+			"商品名":  octx.productTitle,
+			"店铺名":  octx.shopName,
+		}
+	}
+	content, missing := FillBuyerMsgTemplate(tplContent, vars)
+	var missingJSON datatypes.JSON
+	if len(missing) > 0 {
+		if b, err := json.Marshal(missing); err == nil {
+			missingJSON = datatypes.JSON(b)
+		}
+	}
+	if err := s.DB.WithContext(ctx).Model(row).Updates(map[string]any{
+		"content": content, "missing_vars": missingJSON,
+		"language": lang, "lang_source": BuyerMsgLangSourceManual,
+	}).Error; err != nil {
+		return nil, err
+	}
+	row.Content = content
+	row.MissingVars = missingJSON
+	row.Language = lang
+	row.LangSource = BuyerMsgLangSourceManual
+	s.writeBuyerMsgOpLog(c, adminID, "customer.buyer_message_draft.regenerate", row.ID.String(), row.OrderNo)
 	out := s.buyerMsgDraftRow(*row, s.buyerMsgShopNamesForDraft(c, row))
 	return &out, nil
 }

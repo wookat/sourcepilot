@@ -35,7 +35,7 @@
 - 后端单测：`screen_config_test.go`（默认布局、顺序与补卡、未知/重复 key 拒绝、JSON 解析回退、启用集合）；`go build/vet/fmt/test ./...` 全绿。
 - 前端单测：`screenCards.test.ts`（默认分段、禁用隐藏、自定义顺序分段、上移/下移）；`pnpm test:frontend` 354 全绿。
 - E2E：新增 `round156-dashboard-screen-config.spec.ts`（折算角标与未折算原币金额、禁用卡隐藏+顺序生效、配置弹窗保存 payload 断言（写请求拦截）、readonly 无入口无写请求、1920/1280/375 视口无溢出）；`round145-dashboard-screen.spec.ts` 同步新口径文案，17 用例全绿。
-- 契约：`api-contracts.json/test` 登记两条新端点（116→118）；`pnpm test:contracts` 绿。
+- 契约：`api-contracts.json/test` 登记两条新端点（117→119）；`pnpm test:contracts` 绿。
 - `pnpm check:ui-copy --strict`、`pnpm build:admin` 绿；架构基线无新增违规（现存 2 条 MEDIUM 为 main 上既有，非本轮引入）。
 
 ## 6. 边界与遗留

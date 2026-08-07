@@ -1,11 +1,13 @@
 package operationdashboard
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/reports"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
@@ -45,12 +47,18 @@ func (h *Handler) bindQuery(c *gin.Context) (Query, error) {
 	if err != nil {
 		return Query{}, errEndTime
 	}
+	shopID := strings.TrimSpace(c.Query("shopId"))
+	if shopID != "" {
+		if _, perr := uuid.Parse(shopID); perr != nil {
+			return Query{}, errShopID
+		}
+	}
 	sc := scopeFromContext(c, h.Svc.DB)
 	return Query{
 		Start:    startPtr,
 		End:      endPtr,
 		Platform: c.Query("platform"),
-		ShopID:   c.Query("shopId"),
+		ShopID:   shopID,
 		Source:   c.Query("source"),
 		Scope:    sc,
 	}, nil
@@ -59,6 +67,7 @@ func (h *Handler) bindQuery(c *gin.Context) (Query, error) {
 var (
 	errStartTime = &parseTimeErr{field: "start"}
 	errEndTime   = &parseTimeErr{field: "end"}
+	errShopID    = errors.New("invalid shopId (must be a UUID)")
 )
 
 type parseTimeErr struct{ field string }
@@ -111,7 +120,13 @@ func (h *Handler) Screen(c *gin.Context) {
 	if h.Reports != nil && (enabled[CardKPIOrders] || enabled[CardKPISales] || enabled[CardKPIProfit]) {
 		today, rerr := reports.ResolveRange(1, "", "")
 		if rerr == nil {
-			if rep, perr := h.Reports.ProfitReport(c, reports.DimensionShop, today); perr == nil && rep != nil {
+			filter := reports.ProfitFilter{Platform: strings.TrimSpace(q.Platform)}
+			if v := q.ShopID; v != "" {
+				if u, perr := uuid.Parse(v); perr == nil {
+					filter.ShopID = &u
+				}
+			}
+			if rep, perr := h.Reports.ProfitReportFiltered(c, reports.DimensionShop, today, filter); perr == nil && rep != nil {
 				out.Today.PaidOrderCount = rep.Summary.OrderCount
 				out.Today.SalesBase = rep.Summary.RevenueBase
 				out.Today.BaseCurrency = rep.BaseCurrency

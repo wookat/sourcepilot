@@ -79,6 +79,7 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/customer/buyer-messages/drafts',
         'POST /api/v1/customer/buyer-messages/generate',
         'PUT /api/v1/customer/buyer-messages/drafts/:id',
+        'POST /api/v1/customer/buyer-messages/drafts/:id/regenerate',
         'POST /api/v1/customer/buyer-messages/drafts/:id/mark-sent',
         'POST /api/v1/customer/buyer-messages/drafts/:id/ignore',
         'POST /api/v1/customer/buyer-messages/drafts/batch-mark-sent',
@@ -288,7 +289,7 @@ describe('TradeMind API contract registry', () => {
       (item) => routeKey(item) === 'POST /api/v1/customer/reply-templates/reorder',
     );
 
-    const upsertBody = ['groupKey', 'name', 'content', 'sortOrder', 'enabled'];
+    const upsertBody = ['groupKey', 'name', 'content', 'sortOrder', 'enabled', 'defaultLanguage', 'variants'];
     expect(list?.query).toEqual(['group', 'keyword', 'enabled']);
     expect(create?.requestBody).toEqual(upsertBody);
     expect(update?.requestBody).toEqual(upsertBody);
@@ -447,7 +448,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(118);
+    expect(contracts.endpoints).toHaveLength(119);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

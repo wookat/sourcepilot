@@ -60,6 +60,8 @@ chmod 600 .env
 
 数据库结构迁移由 backend 容器启动时自动执行，无需手工建表。
 
+> **客户端 IP 口径（TRUSTED_PROXIES）**：本 compose 的外部流量链路为 Caddy → admin(nginx) → backend。`TRUSTED_PROXIES` 留空（默认）时 backend 按 TCP peer（admin 容器 IP）计每 IP 限流与访问日志，所有外部客户端共享同一预算，且伪造 `X-Forwarded-For` 无效；需按真实客户端 IP 计时，把 caddy 与 admin 所在的 compose 网络网段填入 `TRUSTED_PROXIES`（Caddy 会丢弃不可信客户端自带的 `X-Forwarded-For`，伪造仍然无效）。详见 `.env.prod.example` 与 `docs/env.md`。
+
 ## 三、日常升级
 
 ```bash
@@ -68,6 +70,8 @@ cd trademind
 ```
 
 升级不会清空数据：PostgreSQL / Redis / 上传文件 / 证书均在命名数据卷中持久化。
+
+需要在 `docker-compose.prod.yml` 之外追加挂载或配置（如把 `BACKUP_S3_CA_BUNDLE` 自签 CA 证书挂进 backend 容器）时，**不要**手工 `docker compose -f a.yml -f b.yml up` 后再直接重跑部署脚本——把追加内容写进仓库根目录的 `docker-compose.prod.override.yml`（不入库，按机器维护），`deploy-prod.sh` 检测到该文件会自动叠加，重跑部署（含升级、回滚重建）不会丢挂载；也可用 `COMPOSE_OVERRIDE_FILES=a.yml:b.yml ./scripts/deploy-prod.sh` 显式指定多个 override 文件（冒号分隔，文件缺失时 fail-fast）。
 
 目标版本包含数据库迁移（发布说明标注「数据库」影响）时，先执行 `./scripts/deploy-prod.sh --pre-upgrade-check`（全量备份 + 迁移预检，不部署；备份目录默认 `/var/backups`，可用 `BACKUP_DIR=...` 覆盖），再按 [upgrade-guide.md](upgrade-guide.md) 升级。
 

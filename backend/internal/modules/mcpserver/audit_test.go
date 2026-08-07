@@ -99,6 +99,36 @@ func TestFailedToolCallAuditedAsError(t *testing.T) {
 	}
 }
 
+// A tool call whose audit row cannot be persisted must fail: no call may
+// complete without its audit row (fail closed on audit-store outage).
+func TestAuditWriteFailureRejectsToolCall(t *testing.T) {
+	db := openTestDB(t)
+	seedOrders(t, db)
+	srv, tokens, _ := newAuditedServer(t, db)
+	res, err := tokens.Create(context.Background(), 1, "audit-outage", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := connect(t, srv.URL, res.Plaintext)
+	if _, err := sess.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "orders_query",
+		Arguments: map[string]any{},
+	}); err != nil {
+		t.Fatalf("call with healthy audit store: %v", err)
+	}
+	// Simulate an audit-store outage.
+	if err := db.Exec("DROP TABLE mcp_tool_call_logs").Error; err != nil {
+		t.Fatal(err)
+	}
+	out, err := sess.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "orders_query",
+		Arguments: map[string]any{},
+	})
+	if err == nil && (out == nil || !out.IsError) {
+		t.Fatal("tool call succeeded although the audit row could not be written")
+	}
+}
+
 func TestExpiredTokenRejectedAtEntry(t *testing.T) {
 	db := openTestDB(t)
 	srv, tokens, _ := newAuditedServer(t, db)

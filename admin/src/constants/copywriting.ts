@@ -372,6 +372,13 @@ export const LIST_EMPTY_COPY = {
     title: '暂无操作日志',
     description: '关键配置变更与业务操作会记录在此，便于审计追溯。',
   },
+  automationLogs: {
+    title: '暂无执行日志',
+    description: '自动化订单规则触发后，执行留痕会在此展示；可先在「自动化订单规则」中启用规则。',
+    action: '前往自动化规则',
+    actionPath: '/settings/order-automation-rules',
+    permissionHint: PERM_HINT,
+  },
   orderSync: {
     title: '暂无同步任务',
     description: '完成店铺授权后，可以手动同步订单。',

@@ -13,6 +13,9 @@
 !.env.production.example
 !.env.*.example
 
+# 生产部署本机 compose override（deploy-prod.sh 自动叠加，按机器维护，不入库）
+docker-compose.prod.override.yml
+
 # Runtime data
 tools/k6/
 /data/uploads/*

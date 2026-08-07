@@ -1331,6 +1331,19 @@ func (s *FullDemoSeeder) Cleanup(ctx context.Context) (*FullDemoResult, error) {
 			return err
 		}
 
+		var demoTplIDs []uuid.UUID
+		if err := tx.Model(&customerchat.CustomerReplyTemplate{}).Unscoped().
+			Where("name LIKE ? OR content LIKE ?", like, like).Pluck("id", &demoTplIDs).Error; err != nil {
+			return err
+		}
+		if len(demoTplIDs) > 0 {
+			if err := del("customer_reply_template_variants", tx.Unscoped().Where("template_id IN ?", demoTplIDs).Delete(&customerchat.CustomerReplyTemplateVariant{})); err != nil {
+				return err
+			}
+		}
+		if err := del("customer_reply_template_variants", tx.Unscoped().Where("content LIKE ?", like).Delete(&customerchat.CustomerReplyTemplateVariant{})); err != nil {
+			return err
+		}
 		if err := del("customer_reply_templates", tx.Unscoped().Where("name LIKE ? OR content LIKE ?", like, like).Delete(&customerchat.CustomerReplyTemplate{})); err != nil {
 			return err
 		}
@@ -1586,6 +1599,10 @@ func (s *FullDemoSeeder) VerifyClean(ctx context.Context) (*FullDemoResult, erro
 		splitSoftDeleted("customer_reply_templates", func() *gorm.DB {
 			return tx.Model(&customerchat.CustomerReplyTemplate{}).Unscoped().
 				Where("name LIKE ? OR content LIKE ?", like, like)
+		}),
+		splitSoftDeleted("customer_reply_template_variants", func() *gorm.DB {
+			return tx.Model(&customerchat.CustomerReplyTemplateVariant{}).Unscoped().
+				Where("content LIKE ?", like)
 		}),
 		splitSoftDeleted("buyer_message_rules", func() *gorm.DB {
 			return tx.Model(&customerchat.BuyerMessageRule{}).Unscoped().
