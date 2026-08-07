@@ -41,6 +41,13 @@ type Config struct {
 	// UploadMaxMB limits multipart image uploads (default 10 MB).
 	UploadMaxMB int
 
+	// TrustedProxies lists the proxy IPs / CIDRs whose X-Forwarded-For header
+	// may set the client IP. Empty (default) trusts no proxy, so every IP-keyed
+	// budget (login, auth-failure, rate limiting, audit) sees the real peer
+	// address and cannot be rotated by spoofing the header. Deployments behind
+	// nginx / a load balancer must list it (e.g. "172.16.0.0/12").
+	TrustedProxies []string
+
 	// MCPEnabled gates the read-only MCP entry at POST /api/mcp (default on).
 	MCPEnabled bool
 	// MCPRateRPS is the per-token sustained request rate for MCP calls (default 5).
@@ -260,6 +267,8 @@ func Load() (*Config, error) {
 		BootstrapAdminTenantID: int64(atoiOrDefault(os.Getenv("ADMIN_BOOTSTRAP_TENANT_ID"), 0)),
 
 		UploadMaxMB: atoiOrDefault(os.Getenv("UPLOAD_MAX_MB"), 10),
+
+		TrustedProxies: splitCSV(os.Getenv("TRUSTED_PROXIES")),
 
 		MCPEnabled:   envBool(os.Getenv("MCP_ENABLED"), true),
 		MCPRateRPS:   atoiOrDefault(os.Getenv("MCP_RATE_RPS"), 5),
