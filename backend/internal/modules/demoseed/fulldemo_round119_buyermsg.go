@@ -56,6 +56,11 @@ func (s *FullDemoSeeder) seedRound119BuyerMessages(tx *gorm.DB, res *FullDemoRes
 		trackingNo string
 		draft      string // draft status
 		missing    bool
+		// R152 多语言样本：rawCountry 写入订单 RawData 供收货地语言推断演示；
+		// language/langSource 为草稿语言标注（空则回退 zh-CN + fallback）。
+		rawCountry string
+		language   string
+		langSource string
 	}
 	plans := []draftPlan{
 		{orderNo: "DEMO-BM-1001", status: order.StatusShipped, rule: &shippedRule, tpl: &logisticsTpl,
@@ -66,6 +71,14 @@ func (s *FullDemoSeeder) seedRound119BuyerMessages(tx *gorm.DB, res *FullDemoRes
 			trackingNo: "DEMO-TRK-BM-3", draft: customerchat.BuyerMsgDraftSent},
 		{orderNo: "DEMO-BM-1004", status: order.StatusRefunded, rule: &refundRule, tpl: &refundTpl,
 			draft: customerchat.BuyerMsgDraftIgnored},
+		// R152 正样本：收货地 US → 英语变体
+		{orderNo: "DEMO-BM-1005", status: order.StatusShipped, rule: &shippedRule, tpl: &logisticsTpl,
+			trackingNo: "DEMO-TRK-BM-5", draft: customerchat.BuyerMsgDraftPending,
+			rawCountry: "US", language: "en", langSource: customerchat.BuyerMsgLangSourceOrderCountry},
+		// R152 正样本：收货地 BR → 葡萄牙语变体
+		{orderNo: "DEMO-BM-1006", status: order.StatusShipped, rule: &shippedRule, tpl: &logisticsTpl,
+			trackingNo: "DEMO-TRK-BM-6", draft: customerchat.BuyerMsgDraftPending,
+			rawCountry: "BR", language: "pt", langSource: customerchat.BuyerMsgLangSourceOrderCountry},
 	}
 	for i, p := range plans {
 		created := now.Add(-time.Duration(i+1) * time.Hour)
@@ -78,6 +91,9 @@ func (s *FullDemoSeeder) seedRound119BuyerMessages(tx *gorm.DB, res *FullDemoRes
 		}
 		if p.status == order.StatusRefunded {
 			o.PaymentStatus = order.PaymentRefunded
+		}
+		if p.rawCountry != "" {
+			o.RawData = mustJSON(map[string]any{"receiver": map[string]any{"countryCode": p.rawCountry}})
 		}
 		if err := tx.Create(&o).Error; err != nil {
 			return fmt.Errorf("demoseed: buyer msg order %s: %w", p.orderNo, err)
@@ -106,12 +122,24 @@ func (s *FullDemoSeeder) seedRound119BuyerMessages(tx *gorm.DB, res *FullDemoRes
 			"买家昵称": o.CustomerName, "订单号": o.OrderNo, "物流单号": p.trackingNo,
 			"商品名": item.ProductTitle, "店铺名": demoShop.ShopName,
 		}
-		content, missing := customerchat.FillBuyerMsgTemplate(p.tpl.Content, vars)
+		tplContent := p.tpl.Content
+		language, langSource := "zh-CN", customerchat.BuyerMsgLangSourceFallback
+		if p.language != "" {
+			var variant customerchat.CustomerReplyTemplateVariant
+			if err := tx.Where("tenant_id = ? AND template_id = ? AND language = ?",
+				s.TenantID, p.tpl.ID, p.language).First(&variant).Error; err != nil {
+				return fmt.Errorf("demoseed: buyer msg variant %s/%s: %w", p.tpl.Name, p.language, err)
+			}
+			tplContent = variant.Content
+			language, langSource = p.language, p.langSource
+		}
+		content, missing := customerchat.FillBuyerMsgTemplate(tplContent, vars)
 		draft := customerchat.BuyerMessageDraft{
 			TenantID: s.TenantID, OrderID: o.ID, Node: p.rule.Node,
 			RuleID: p.rule.ID, TemplateID: p.tpl.ID, TemplateName: p.tpl.Name,
 			Platform: o.Platform, ShopID: o.ShopID, OrderNo: o.OrderNo,
 			CustomerName: o.CustomerName, Content: content,
+			Language: language, LangSource: langSource,
 			MissingVars: mustJSONStrings(missing...), Status: p.draft,
 		}
 		if p.draft == customerchat.BuyerMsgDraftSent {

@@ -239,6 +239,21 @@ func demoReplyTemplatePlans() []customerchat.CustomerReplyTemplate {
 	}
 }
 
+// demoReplyTemplateVariantPlans returns DEMO- 多语言变体样本（R152），按模板名
+// 挂到 demoReplyTemplatePlans 产出的模板下；默认语言内容仍在模板 Content 上。
+func demoReplyTemplateVariantPlans() map[string][]customerchat.TemplateVariantRow {
+	return map[string][]customerchat.TemplateVariantRow{
+		"DEMO-物流-查询进度": {
+			{Language: "en", Content: "DEMO- Hi {买家昵称}, your order {订单号} has been shipped. Tracking number: {物流单号}. You can check the latest status on the carrier's website."},
+			{Language: "es", Content: "DEMO- Hola {买家昵称}, tu pedido {订单号} ha sido enviado. Número de seguimiento: {物流单号}. Puedes consultar el estado en la web de la mensajería."},
+			{Language: "pt", Content: "DEMO- Olá {买家昵称}, seu pedido {订单号} foi enviado. Código de rastreio: {物流单号}. Acompanhe o status no site da transportadora."},
+		},
+		"DEMO-退款-流程说明": {
+			{Language: "en", Content: "DEMO- Hi {买家昵称}, we have received the refund request for order {订单号}. Once approved, the amount will be returned within 1-3 business days."},
+		},
+	}
+}
+
 // seedCustomerService inserts DEMO- customer conversations (message timeline +
 // AI reply suggestions) and customer message sync tasks (success + failed).
 // Conversations are stamped with the seeder tenant (never tenant 0).
@@ -300,6 +315,7 @@ func (s *FullDemoSeeder) seedCustomerService(tx *gorm.DB, res *FullDemoResult, n
 	}
 
 	// ---- customer reply templates（话术模板样本，覆盖全部分组 + 停用样例）----
+	variantPlans := demoReplyTemplateVariantPlans()
 	for _, tpl := range demoReplyTemplatePlans() {
 		row := tpl
 		row.TenantID = s.TenantID
@@ -307,6 +323,16 @@ func (s *FullDemoSeeder) seedCustomerService(tx *gorm.DB, res *FullDemoResult, n
 			return fmt.Errorf("demoseed: reply template: %w", err)
 		}
 		count("customer_reply_templates", 1)
+		for _, v := range variantPlans[row.Name] {
+			variant := customerchat.CustomerReplyTemplateVariant{
+				TenantID: s.TenantID, TemplateID: row.ID,
+				Language: v.Language, Content: v.Content,
+			}
+			if err := tx.Create(&variant).Error; err != nil {
+				return fmt.Errorf("demoseed: reply template variant %s/%s: %w", row.Name, v.Language, err)
+			}
+			count("customer_reply_template_variants", 1)
+		}
 	}
 
 	// ---- customer message sync tasks（成功 + 失败样本）----

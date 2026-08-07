@@ -363,6 +363,34 @@ export async function sendPlatformMessage(
 
 export type ReplyTemplateGroupKey = 'presale' | 'aftersale' | 'logistics' | 'refund' | 'other';
 
+/** 模板语言表（与后端 customerchat.TemplateLanguages 保持一致，可扩展） */
+export const TEMPLATE_LANGUAGES: { key: string; label: string }[] = [
+  { key: 'zh-CN', label: '中文（简体）' },
+  { key: 'en', label: '英语' },
+  { key: 'es', label: '西班牙语' },
+  { key: 'pt', label: '葡萄牙语' },
+  { key: 'fr', label: '法语' },
+  { key: 'de', label: '德语' },
+  { key: 'it', label: '意大利语' },
+  { key: 'ru', label: '俄语' },
+  { key: 'ja', label: '日语' },
+  { key: 'ko', label: '韩语' },
+  { key: 'th', label: '泰语' },
+  { key: 'vi', label: '越南语' },
+  { key: 'id', label: '印尼语' },
+  { key: 'ms', label: '马来语' },
+  { key: 'ar', label: '阿拉伯语' },
+];
+
+export function templateLanguageLabel(lang: string): string {
+  return TEMPLATE_LANGUAGES.find((l) => l.key === lang)?.label || lang;
+}
+
+export type ReplyTemplateVariant = {
+  language: string;
+  content: string;
+};
+
 export type ReplyTemplateRow = {
   id: string;
   groupKey: ReplyTemplateGroupKey;
@@ -370,6 +398,10 @@ export type ReplyTemplateRow = {
   content: string;
   sortOrder: number;
   enabled: boolean;
+  /** 默认语言（content 字段所用语言） */
+  defaultLanguage: string;
+  /** 其他语言变体（不含默认语言） */
+  variants: ReplyTemplateVariant[];
   createdAt: string;
   updatedAt: string;
 };
@@ -396,6 +428,9 @@ export type ReplyTemplateUpsertBody = {
   content?: string;
   sortOrder?: number;
   enabled?: boolean;
+  defaultLanguage?: string;
+  /** 非 undefined 时全量替换语言变体 */
+  variants?: ReplyTemplateVariant[];
 };
 
 export async function createReplyTemplate(body: ReplyTemplateUpsertBody): Promise<ReplyTemplateRow> {
@@ -516,6 +551,10 @@ export type BuyerMsgDraftRow = {
   shopId?: string;
   shopName?: string;
   content: string;
+  /** 草稿内容所用模板语言 */
+  language: string;
+  /** 目标语言来源：order_country / shop_language / platform / fallback / no_variant / manual */
+  langSource: string;
   missingVars: string[];
   status: BuyerMsgDraftStatus;
   conversationId?: string;
@@ -557,6 +596,11 @@ export async function generateBuyerMsgDrafts(): Promise<{ created: number }> {
 
 export async function updateBuyerMsgDraft(id: string, content: string): Promise<BuyerMsgDraftRow> {
   return putJSON(`/api/v1/customer/buyer-messages/drafts/${id}`, { content });
+}
+
+/** 按所选语言变体重新生成草稿内容（只改草稿，不发送任何平台消息） */
+export async function regenerateBuyerMsgDraft(id: string, language: string): Promise<BuyerMsgDraftRow> {
+  return postJSON(`/api/v1/customer/buyer-messages/drafts/${id}/regenerate`, { language });
 }
 
 export async function markBuyerMsgDraftSent(id: string): Promise<BuyerMsgDraftRow> {

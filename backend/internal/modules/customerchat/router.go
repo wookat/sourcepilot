@@ -40,6 +40,7 @@ func registerCustomerRoutes(c *gin.RouterGroup, h *Handler) {
 	c.GET("/buyer-messages/drafts", h.ListBuyerMsgDrafts)
 	c.POST("/buyer-messages/generate", h.GenerateBuyerMsgDrafts)
 	c.PUT("/buyer-messages/drafts/:id", h.UpdateBuyerMsgDraft)
+	c.POST("/buyer-messages/drafts/:id/regenerate", h.RegenerateBuyerMsgDraft)
 	c.POST("/buyer-messages/drafts/:id/mark-sent", h.MarkBuyerMsgDraftSent)
 	c.POST("/buyer-messages/drafts/:id/ignore", h.IgnoreBuyerMsgDraft)
 	c.POST("/buyer-messages/drafts/batch-mark-sent", h.BatchMarkBuyerMsgDraftsSent)

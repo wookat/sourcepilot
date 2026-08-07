@@ -96,6 +96,7 @@ func openFullDemoTestDB(t *testing.T) *gorm.DB {
 		&customerchat.CustomerReplySuggestion{},
 		&customerchat.CustomerFailureEvent{},
 		&customerchat.CustomerReplyTemplate{},
+		&customerchat.CustomerReplyTemplateVariant{},
 		&customerchat.BuyerMessageRule{},
 		&customerchat.BuyerMessageDraft{},
 		&customersync.CustomerMessageSyncTask{},

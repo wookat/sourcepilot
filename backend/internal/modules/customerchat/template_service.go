@@ -42,9 +42,34 @@ func (s *Service) ListTemplates(c *gin.Context, q TemplateListQuery) ([]Template
 	if err := db.Order("group_key ASC, sort_order ASC, created_at ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
+	variantsByTpl, err := s.templateVariantsByID(c, tid, rows)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]TemplateRow, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, toTemplateRow(r))
+		out = append(out, toTemplateRow(r, variantsByTpl[r.ID]))
+	}
+	return out, nil
+}
+
+func (s *Service) templateVariantsByID(c *gin.Context, tid int64, rows []CustomerReplyTemplate) (map[uuid.UUID][]CustomerReplyTemplateVariant, error) {
+	out := map[uuid.UUID][]CustomerReplyTemplateVariant{}
+	if len(rows) == 0 {
+		return out, nil
+	}
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+	}
+	var variants []CustomerReplyTemplateVariant
+	if err := s.DB.WithContext(c.Request.Context()).
+		Where("tenant_id = ? AND template_id IN ?", tid, ids).
+		Order("language ASC").Find(&variants).Error; err != nil {
+		return nil, err
+	}
+	for _, v := range variants {
+		out[v.TemplateID] = append(out[v.TemplateID], v)
 	}
 	return out, nil
 }
@@ -56,6 +81,10 @@ type TemplateUpsertBody struct {
 	Content   string `json:"content"`
 	SortOrder *int   `json:"sortOrder"`
 	Enabled   *bool  `json:"enabled"`
+	// DefaultLanguage 为 Content 的语言；缺省保持原值（新建时 zh-CN）。
+	DefaultLanguage string `json:"defaultLanguage"`
+	// Variants 非 nil 时全量替换该模板的语言变体（不含默认语言）。
+	Variants *[]TemplateVariantRow `json:"variants"`
 }
 
 func validateTemplateBody(groupKey, name, content string) error {
@@ -74,6 +103,54 @@ func validateTemplateBody(groupKey, name, content string) error {
 	return nil
 }
 
+// validateTemplateVariants normalizes / validates the variants payload；
+// defaultLanguage 不得重复出现在变体中，同一语言最多一条。
+func validateTemplateVariants(defaultLanguage string, variants []TemplateVariantRow) ([]TemplateVariantRow, error) {
+	out := make([]TemplateVariantRow, 0, len(variants))
+	seen := map[string]bool{}
+	for _, v := range variants {
+		lang := strings.TrimSpace(v.Language)
+		if !IsValidTemplateLanguage(lang) {
+			return nil, fmt.Errorf("语言不合法：%s（可选值：%s）", lang, strings.Join(TemplateLanguages, "/"))
+		}
+		if lang == defaultLanguage {
+			return nil, fmt.Errorf("语言变体不能与默认语言重复：%s", lang)
+		}
+		if seen[lang] {
+			return nil, fmt.Errorf("语言变体重复：%s", lang)
+		}
+		seen[lang] = true
+		content := strings.TrimSpace(v.Content)
+		if content == "" {
+			return nil, fmt.Errorf("语言变体（%s）内容不能为空", lang)
+		}
+		if len(content) > templateContentMaxLen {
+			return nil, fmt.Errorf("语言变体（%s）内容过长（最多 %d 字符）", lang, templateContentMaxLen)
+		}
+		out = append(out, TemplateVariantRow{Language: lang, Content: content})
+	}
+	return out, nil
+}
+
+// replaceTemplateVariants rewrites all variants of one template inside tx.
+func replaceTemplateVariants(tx *gorm.DB, tid int64, templateID uuid.UUID, variants []TemplateVariantRow) error {
+	if err := tx.Unscoped().
+		Where("tenant_id = ? AND template_id = ?", tid, templateID).
+		Delete(&CustomerReplyTemplateVariant{}).Error; err != nil {
+		return err
+	}
+	for _, v := range variants {
+		row := CustomerReplyTemplateVariant{
+			TenantID: tid, TemplateID: templateID,
+			Language: v.Language, Content: v.Content,
+		}
+		if err := tx.Create(&row).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CreateTemplate inserts one tenant-scoped template.
 func (s *Service) CreateTemplate(c *gin.Context, body TemplateUpsertBody, adminID *uuid.UUID) (*TemplateRow, error) {
 	tid, err := adminperm.TenantIDFromGin(c)
@@ -86,13 +163,28 @@ func (s *Service) CreateTemplate(c *gin.Context, body TemplateUpsertBody, adminI
 	if err := validateTemplateBody(groupKey, name, content); err != nil {
 		return nil, err
 	}
+	defaultLanguage := TemplateDefaultLanguage
+	if dl := strings.TrimSpace(body.DefaultLanguage); dl != "" {
+		if !IsValidTemplateLanguage(dl) {
+			return nil, fmt.Errorf("默认语言不合法：%s（可选值：%s）", dl, strings.Join(TemplateLanguages, "/"))
+		}
+		defaultLanguage = dl
+	}
+	var variants []TemplateVariantRow
+	if body.Variants != nil {
+		variants, err = validateTemplateVariants(defaultLanguage, *body.Variants)
+		if err != nil {
+			return nil, err
+		}
+	}
 	row := &CustomerReplyTemplate{
-		TenantID:  tid,
-		GroupKey:  groupKey,
-		Name:      name,
-		Content:   content,
-		Enabled:   true,
-		CreatedBy: adminID,
+		TenantID:        tid,
+		GroupKey:        groupKey,
+		Name:            name,
+		Content:         content,
+		Enabled:         true,
+		DefaultLanguage: defaultLanguage,
+		CreatedBy:       adminID,
 	}
 	if body.SortOrder != nil {
 		row.SortOrder = *body.SortOrder
@@ -106,11 +198,23 @@ func (s *Service) CreateTemplate(c *gin.Context, body TemplateUpsertBody, adminI
 	if body.Enabled != nil {
 		row.Enabled = *body.Enabled
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Create(row).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(row).Error; err != nil {
+			return err
+		}
+		if body.Variants != nil {
+			return replaceTemplateVariants(tx, tid, row.ID, variants)
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	s.writeTemplateOpLog(c, adminID, "customer.reply_template.create", row.ID.String(), row.Name)
-	out := toTemplateRow(*row)
+	vrows := make([]CustomerReplyTemplateVariant, 0, len(variants))
+	for _, v := range variants {
+		vrows = append(vrows, CustomerReplyTemplateVariant{TemplateID: row.ID, Language: v.Language, Content: v.Content})
+	}
+	out := toTemplateRow(*row, vrows)
 	return &out, nil
 }
 
@@ -144,23 +248,55 @@ func (s *Service) UpdateTemplate(c *gin.Context, id uuid.UUID, body TemplateUpse
 	if err := validateTemplateBody(groupKey, name, content); err != nil {
 		return nil, err
 	}
+	defaultLanguage := row.DefaultLanguage
+	if defaultLanguage == "" {
+		defaultLanguage = TemplateDefaultLanguage
+	}
+	if dl := strings.TrimSpace(body.DefaultLanguage); dl != "" {
+		if !IsValidTemplateLanguage(dl) {
+			return nil, fmt.Errorf("默认语言不合法：%s（可选值：%s）", dl, strings.Join(TemplateLanguages, "/"))
+		}
+		defaultLanguage = dl
+		updates["default_language"] = dl
+	}
+	var variants []TemplateVariantRow
+	if body.Variants != nil {
+		variants, err = validateTemplateVariants(defaultLanguage, *body.Variants)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if body.SortOrder != nil {
 		updates["sort_order"] = *body.SortOrder
 	}
 	if body.Enabled != nil {
 		updates["enabled"] = *body.Enabled
 	}
-	if len(updates) > 0 {
-		if err := s.DB.WithContext(c.Request.Context()).Model(&row).Updates(updates).Error; err != nil {
-			return nil, err
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if len(updates) > 0 {
+			if err := tx.Model(&row).Updates(updates).Error; err != nil {
+				return err
+			}
 		}
+		if body.Variants != nil {
+			return replaceTemplateVariants(tx, tid, row.ID, variants)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 	if err := s.DB.WithContext(c.Request.Context()).
 		Where("id = ? AND tenant_id = ?", id, tid).First(&row).Error; err != nil {
 		return nil, err
 	}
+	var vrows []CustomerReplyTemplateVariant
+	if err := s.DB.WithContext(c.Request.Context()).
+		Where("tenant_id = ? AND template_id = ?", tid, row.ID).
+		Order("language ASC").Find(&vrows).Error; err != nil {
+		return nil, err
+	}
 	s.writeTemplateOpLog(c, adminID, "customer.reply_template.update", row.ID.String(), row.Name)
-	out := toTemplateRow(row)
+	out := toTemplateRow(row, vrows)
 	return &out, nil
 }
 
@@ -175,7 +311,13 @@ func (s *Service) DeleteTemplate(c *gin.Context, id uuid.UUID, adminID *uuid.UUI
 		Where("id = ? AND tenant_id = ?", id, tid).First(&row).Error; err != nil {
 		return err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Delete(&row).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&row).Error; err != nil {
+			return err
+		}
+		return tx.Where("tenant_id = ? AND template_id = ?", tid, row.ID).
+			Delete(&CustomerReplyTemplateVariant{}).Error
+	}); err != nil {
 		return err
 	}
 	s.writeTemplateOpLog(c, adminID, "customer.reply_template.delete", row.ID.String(), row.Name)

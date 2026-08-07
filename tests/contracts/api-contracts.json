@@ -480,7 +480,9 @@
         "name",
         "content",
         "sortOrder",
-        "enabled"
+        "enabled",
+        "defaultLanguage",
+        "variants"
       ],
       "responseData": "ReplyTemplate"
     },
@@ -493,7 +495,9 @@
         "name",
         "content",
         "sortOrder",
-        "enabled"
+        "enabled",
+        "defaultLanguage",
+        "variants"
       ],
       "responseData": "ReplyTemplate"
     },
@@ -593,6 +597,15 @@
       "auth": true,
       "requestBody": [
         "content"
+      ],
+      "responseData": "BuyerMessageDraft"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/customer/buyer-messages/drafts/:id/regenerate",
+      "auth": true,
+      "requestBody": [
+        "language"
       ],
       "responseData": "BuyerMessageDraft"
     },
