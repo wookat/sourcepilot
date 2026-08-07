@@ -2000,6 +2000,15 @@ Final Production Acceptance Deferred to P10
 - **P2**：regenerate 缺变体口径文档漂移（已按实现修正 `docs/api.md`）；view-only 前端只读呈现、列表写入口展示、message-sync 对 view-only 放行口径等登记待下轮。
 - 详见 `docs/progress/R164-line2.md`。
 
+### 变更记录（2026-08-07）第 164 轮线1：生产部署演练季度复检（devops-engineer）
+
+- **从零部署**：production compose + Caddy 全新构建部署 236 秒（<15 分钟），六服务 healthy，HTTPS `/health-backend` 全绿；TRUSTED_PROXIES/OPENAPI_ENABLED 按 #316 口径实测（可信网段 XFF 落地、外部伪造 XFF 不落地、开关 401/404 切换）。
+- **R159 双租户存量升级**：`32a9aaea` 基线（2 万订单/4 万订单行/6 万库存流水/存量 token/多语言模板/view-only 授权）升级至 `a78e2fb0`——AutoMigrate 落地、8 类数值指纹 0 差异（唯一预期变化为 `order_automation_logs.shop_id` 回填）、迁移幂等；升级后 view-only 403+40303、readonly 40301、OpenAPI 分页 400、大屏折算（未配汇率不计入 + 配置后折算）与自定义卡片配置读写实测通过。
+- **--pre-upgrade-check（#317）**：备份+同租户重复订单号预检通过；目录不可写/不可创建均清晰报错提示 `BACKUP_DIR` 覆盖（R159 P2① 闭环坐实）。备份→`pg_restore --clean --if-exists` 恢复→指纹与升级前一致→重启幂等重跑闭环通过。
+- **文档核对**：env 示例/部署/升级/清单文档与实测一致，无 P0/P1 失实；P2 3 项登记（settings 直连 API 写数值型汇率被静默忽略；#327 币种设置离开确认未合入 main 待补验；恢复回退备份点后新增数据沿 R159 口径）。
+- **合并期更新（本 PR 合并 main 时点）**：#327（R162 线2 UX v10，含币种设置离开确认 `useUnsavedChangesGuard`）已合入 main，上述 P2② 由「未合入待补验」更新为「已合入，离开确认待下轮生产面补验」。
+- 详见 `docs/progress/R164.md`。
+
 ### 变更记录（2026-08-07）第 165 轮线1：view-only 店铺写入口全站扫尾（fullstack-engineer）
 
 - **全站排查**：#322/#330 两次同类越权漂移后，系统梳理全部带 shop_id 维度写接口，统一「可见性管读、可操作性管写」——手动订单/客服消息同步及 retry（含任务中心委托）、库存同步、inventory-sync P9、productpublish 全写族、运营任务、订单异常、采购单（经关联销售订单）、审单行级、店铺记录/凭证/OAuth 写路径全部收口为 view-only → 403/40303、不可见 → 404。
