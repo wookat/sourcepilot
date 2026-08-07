@@ -31,6 +31,8 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	if err != nil {
 		return nil, fmt.Errorf("invalid shopId")
 	}
+	// Publishing writes to the target store and reaches the platform: a store
+	// outside the caller's grants resolves 404 and a view-only store 403.
 	if err := adminperm.EnsureStoreOperable(c, s.DB, &sid); err != nil {
 		return nil, err
 	}

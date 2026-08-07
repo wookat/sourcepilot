@@ -1987,7 +1987,6 @@ Final Production Acceptance Deferred to P10
 - **P2 遗留**：MCP 页文档入口不可点击（待产品定文档挂载位置）、v9 P2-3 财务 CSV 未折算占位口径待产品确认。
 - 报告归档 `docs/ux-review/UX_REVIEW_V10_REPORT.md`，详见 `docs/progress/R162-line2.md`。
 
-
 ### 变更记录（2026-08-07）第 163 轮线2：验收包补 R158–R162 增量（fullstack-engineer）
 
 - **ACCEPTANCE_R123.md**：§一/16 合入状态收口（#312/#317/#318 已合入 main，四个 ⏳ 转 ✅）；新增 §一/17「R158–R162 增量能力」八行（#320/#321/#322/#323/#326 ✅；#326 MCP 写白名单标「方案待决策」；合并期更新：#324/#325/#327 亦已先后合入 main，八行全部 ✅）；§三/§五 同步。
@@ -2012,7 +2011,15 @@ Final Production Acceptance Deferred to P10
 
 ### 变更记录（2026-08-07）第 165 轮线1：view-only 店铺写入口全站扫尾（fullstack-engineer）
 
-- **全站排查**：#322/#330 两次同类越权漂移后，系统梳理全部带 shop_id 维度写接口，统一「可见性管读、可操作性管写」——手动订单/客服消息同步及 retry（含任务中心委托）、库存同步、inventory-sync P9、productpublish 全写族、运营任务、订单异常、采购单（经关联销售订单）、审单行级、店铺记录/凭证/OAuth 写路径全部收口为 view-only → 403/40303、不可见 → 404。
+- **全站排查**：#322/#330 两次同类越权漂移后，系统梳理全部带 shop_id 维度写接口，统一「可见性管读、可操作性管写」——手动订单/客服消息同步及 retry（含任务中心委托）、库存同步、inventory-sync P9、productpublish 全写族、运营任务、订单异常、采购单（经关联销售订单）、审单整批前置校验、店铺记录/凭证/OAuth 写路径全部收口为 view-only → 403/40303、不可见 → 404（与 R165 线2 #331 口径合流）。
 - **防漂移**：permmatrix 新增 `TestViewOnlyPersonaShopWriteSweep`（30 写探针 + 零落库 + 404 + 读可用）；matrix.json 补 `viewOnlyOperator` 契约行 113 条。
 - **R164 P2 收口**：前端 `operableStoreIds` 系列 helper，会话列表/详情写入口对 readonly/view-only 隐藏或禁用、写表单仅列可操作店铺；message-sync 口径定案为写操作（创建任务并 upsert 业务行）。
 - 详见 `docs/progress/R165.md`。
+
+### 变更记录（2026-08-07）第 165 轮线2：安全审计季度复跑（security-auditor）
+
+- **R159 零回退核实 + #322/#330 复验**：token purpose 隔离、跨租户、限流/XFF、审计 fail-closed、脱敏、生产闸门、大屏 scope 全部零回退；订单写面与客服会话写面（叠加未合并的 #330 分支）403/40303 口径成立。
+- **发现并修复 6 处 P1 view-only/跨租户越权**（Docker 双租户实测 + 先补失败测试再修）：订单审单决定、异常工作台标记族（另含跨租户可写）、店铺删除、店铺授权凭证写入与四平台 OAuth 写路径、店铺同步创建与重试、商品刊登目标店与抖店 SKU 绑定——根因均为写路径误用 `EnsureStoreVisible`/只读 scope 或漏店铺闸门，统一收口为 `EnsureStoreOperable`（403/40303，不可见/跨租户 404）。
+- **口径定调**：店铺同步属店铺业务写需 operate 授权（闭合 R164 线2 P2 第 4 项）；`PUT /settings` 数值型静默忽略经评估为非安全面（数值型返回 400，请求体 `tenantId` 为 advisory，写入一律落 JWT 租户）。
+- **回归测试**：`permmatrix` 新增 `r165_store_write_scope_test.go`（6 用例，含授权账号不被过度收紧的正例）；backend `go test ./...`、`go vet`、`govulncheck`（0 可达）全绿，`pnpm audit --prod` 13 条构建链告警无增量。
+- 报告 `docs/SECURITY_AUDIT_R165.md`，详见 `docs/progress/R165-line2.md`。

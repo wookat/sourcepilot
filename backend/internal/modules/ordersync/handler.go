@@ -24,6 +24,21 @@ type Handler struct {
 	Svc *Service
 }
 
+// failSyncStoreScope maps the store gate of sync writes: an invisible store
+// answers 404 and a view-only store 403 with business code 40303.
+func failSyncStoreScope(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, adminperm.ErrStoreNotOperable):
+		adminperm.DenyStorePermission(c)
+		return true
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		return true
+	default:
+		return false
+	}
+}
+
 func adminUUID(c *gin.Context) *uuid.UUID {
 	if v, ok := c.Get(ctxkey.AdminID); ok {
 		if s, ok := v.(string); ok {
@@ -72,12 +87,12 @@ func (h *Handler) SyncShopOrders(c *gin.Context) {
 	}
 	out, err := h.Svc.CreateShopSync(c, id, body, adminUUID(c))
 	if err != nil {
+		if failSyncStoreScope(c, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			response.Fail(c, 404, response.CodeNotFound, "not found")
-			return
-		case errors.Is(err, adminperm.ErrStoreNotOperable):
-			response.Fail(c, 403, response.CodeStorePermissionDenied, "店铺无操作权限")
 			return
 		case errors.Is(err, platformp.ErrManualOrderSyncUnsupported):
 			response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -149,6 +164,9 @@ func (h *Handler) GetTask(c *gin.Context) {
 	}
 	out, err := h.Svc.GetDTO(c, id)
 	if err != nil {
+		if failSyncStoreScope(c, err) {
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
@@ -172,7 +190,7 @@ func (h *Handler) RetryTask(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
-		if adminperm.FailStoreWriteScope(c, err) {
+		if failSyncStoreScope(c, err) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

@@ -150,16 +150,14 @@ func TestViewOnlyPersonaShopWriteSweep(t *testing.T) {
 		requireCode40303(t, w, p.method+" "+p.path)
 	}
 
-	// Order review decisions are batch APIs (200 envelope, per-row results):
-	// a view-only store row must fail without flipping the review status.
+	// Order review decisions gate the whole batch up-front: any view-only
+	// store row rejects the batch with 403/40303 before anything is written.
 	for _, action := range []string{"approve", "reject"} {
 		w := h.doBody(t, http.MethodPost, "/api/v1/order-review/"+action,
 			tok, `{"orderIds":["`+ro.ID.String()+`"]}`)
-		require.Equalf(t, http.StatusOK, w.Code, "order-review %s: batch envelope expected: %s", action, w.Body.String())
-		require.Containsf(t, w.Body.String(), `"failed":1`,
-			"order-review %s must reject the view-only row: %s", action, w.Body.String())
-		require.Containsf(t, w.Body.String(), "店铺无操作权限",
-			"order-review %s must surface the store-operate denial: %s", action, w.Body.String())
+		require.Equalf(t, http.StatusForbidden, w.Code,
+			"order-review %s must reject the view-only batch: %s", action, w.Body.String())
+		requireCode40303(t, w, "order-review "+action)
 	}
 
 	// The same resources stay 404 for a principal who cannot see the store.
