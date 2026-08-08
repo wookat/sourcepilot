@@ -60,6 +60,9 @@ jobs:
       - name: Build admin
         run: pnpm build:admin
 
+      - name: Check bundle budget
+        run: pnpm check:bundle-budget
+
   collector:
     name: collector build
     runs-on: ubuntu-latest
