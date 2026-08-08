@@ -793,7 +793,7 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 	}
 	reply := strings.TrimSpace(body.Reply)
 	if reply == "" {
-		return nil, fmt.Errorf("reply is required")
+		return nil, fmt.Errorf("回复内容不能为空")
 	}
 	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
 	if err != nil {
@@ -845,7 +845,7 @@ func (s *Service) UpdateSuggestion(c *gin.Context, id uuid.UUID, body UpdateSugg
 	}
 	text := strings.TrimSpace(body.EditedReply)
 	if text == "" {
-		return fmt.Errorf("editedReply is required")
+		return fmt.Errorf("editedReply 不能为空")
 	}
 	rowPtr, err := s.findScopedSuggestionForWrite(c, id)
 	if err != nil {
@@ -881,7 +881,7 @@ func (s *Service) AcceptSuggestion(c *gin.Context, id uuid.UUID, body AcceptSugg
 	}
 	final := strings.TrimSpace(body.FinalReply)
 	if final == "" {
-		return fmt.Errorf("finalReply is required")
+		return fmt.Errorf("finalReply 不能为空")
 	}
 	suPtr, err := s.findScopedSuggestionForWrite(c, id)
 	if err != nil {
