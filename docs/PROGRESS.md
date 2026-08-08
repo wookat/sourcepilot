@@ -2271,6 +2271,14 @@ Final Production Acceptance Deferred to P10
 - **依赖**：`govulncheck` 0 可达漏洞；`pnpm audit --prod` 16 项（全部 admin 构建链）。
 - **门禁**：Go 全量（含 Docker PostgreSQL 集成）+ RacePostgres ×3 + 前端/契约/采集/构建全绿。详见 `docs/SECURITY_AUDIT_R183.md`、`docs/progress/R183.md`。
 
+### 变更记录（2026-08-08）第 184 轮线1：R183 审计 P2×4 批次收口（fullstack-engineer）
+
+- **P2-1（代码收口）**：`GET /api/v1/mcp/audit-logs` 写动作审计行改为仅 `settings.manage` 持有者可见（与写 token 治理同轴），operator/readonly 仅见只读工具 / 开放 API 审计行，SQL 层过滤、mode 显式查询不可绕过、principal 解析失败 fail-closed；写白名单新导出 `mcpserver.WriteToolNames()` 与 `isWriteTool` 同源守护；admin UI 非管理员隐藏写审计列与调用模式筛选。先红后绿 `TestAuditListWriteRowsAdminOnly`（+ Docker PostgreSQL 双租户版），permmatrix 登记。
+- **P2-2（文档）**：非 PostgreSQL 部署写限额软保证在 `docs/mcp.md` 与 `docs/env.md` 明确登记（不改行为）。
+- **P2-3（评估登记）**：读工具审计后置时序无泄漏窗口（fail-closed 挡响应），维持现状，理由见 `docs/progress/R184.md`。
+- **P2-4（逐项登记）**：admin 构建链 16 项告警逐项评估于 `docs/DEPENDENCY_AUDIT_R184.md`，全部 umi 传递链、无生产暴露面，不跨 major 不动，等 umi 窗口统一。
+- **门禁**：Go 全量 + Docker PostgreSQL（audit 双租户 + RacePostgres ×3）+ 前端/契约/采集/构建全绿。详见 `docs/progress/R184.md`。
+
 ### 变更记录（2026-08-08）第 184 轮线2：生产升级演练季度复跑（devops-engineer + qa-engineer）
 
 - **口径**：#360–#368 经权威核实全部已合入 main（末次 #368 → `135f2c5e`），全程以 main 直接演练；老栈基线取 `ab0c9b36`（MCP 写系列合入前）。
@@ -2280,10 +2288,10 @@ Final Production Acceptance Deferred to P10
 - **备份恢复闭环**：`--pre-upgrade-check` 备份→`pg_restore --clean --if-exists` 恢复→标记行消失且指纹 0 差异→AutoMigrate 幂等重跑→deploy-prod 终态重跑 2.9s 全 healthy。
 - **P0/P1 无；P2 新增登记**：`docker-compose.prod.yml` 硬编码 `name: trademind-prod`，同机第二 checkout 直接部署会静默共用数据卷（需显式 `COMPOSE_PROJECT_NAME`，建议部署文档加警示）。详见 `docs/progress/R184-line2.md`。
 
-### 变更记录（2026-08-08）第 184 轮线1：R183 审计 P2×4 批次收口（fullstack-engineer）
+### 变更记录（2026-08-08）第 185 轮线1：R184 新 P2 收口 + 验收包补 R181–R184 增量（fullstack-engineer）
 
-- **P2-1（代码收口）**：`GET /api/v1/mcp/audit-logs` 写动作审计行改为仅 `settings.manage` 持有者可见（与写 token 治理同轴），operator/readonly 仅见只读工具 / 开放 API 审计行，SQL 层过滤、mode 显式查询不可绕过、principal 解析失败 fail-closed；写白名单新导出 `mcpserver.WriteToolNames()` 与 `isWriteTool` 同源守护；admin UI 非管理员隐藏写审计列与调用模式筛选。先红后绿 `TestAuditListWriteRowsAdminOnly`（+ Docker PostgreSQL 双租户版），permmatrix 登记。
-- **P2-2（文档）**：非 PostgreSQL 部署写限额软保证在 `docs/mcp.md` 与 `docs/env.md` 明确登记（不改行为）。
-- **P2-3（评估登记）**：读工具审计后置时序无泄漏窗口（fail-closed 挡响应），维持现状，理由见 `docs/progress/R184.md`。
-- **P2-4（逐项登记）**：admin 构建链 16 项告警逐项评估于 `docs/DEPENDENCY_AUDIT_R184.md`，全部 umi 传递链、无生产暴露面，不跨 major 不动，等 umi 窗口统一。
-- **门禁**：Go 全量 + Docker PostgreSQL（audit 双租户 + RacePostgres ×3）+ 前端/契约/采集/构建全绿。详见 `docs/progress/R184.md`。
+- **同机多栈警示（R184 新 P2 收口）**：`docs/production-deployment.md` 新增「同机多栈警示」段（compose 项目名硬编码 `name: trademind-prod`，同机第二 checkout 需显式 `COMPOSE_PROJECT_NAME`，含覆盖示例与自查命令）；`scripts/deploy-prod.sh` 前置检查加非破坏性冲突告警（检测同项目名容器来自其他目录时仅打印警示，不中断、不改既有行为）。
+- **验收包**：`ACCEPTANCE_R123.md` §一/21 收口（#357/#360/#361/#362/#364 已合入 main 转 ✅）+ 新增 §一/22 R181–R184 增量 8 行（W3 mark-paid #363、advisory lock 限额 #365、大回归 v34 #366、R183 审计与 #367 修复、竞品 v11 升位超越 5 #368、R184 P2 收口 #369 ⏳、升级演练 #370 ⏳、本轮），合并状态按权威 PR 状态如实标注；§三/§四/§五 同步。
+- **DEMO_SCRIPT**：第 23b 步并入 mark-paid 金额上限演示点（约 40 秒，总长 30 分钟不变）；修正「mark-paid 刻意留 W3」「需叠加 #361 构建」等过时口径（#360–#368 已合入 main）。
+- **实跑实测**：基于本轮分支全栈镜像三角色/view-only/双租户/MCP 写全链（含 mark-paid 四拒绝路径）/#369 审计权限/RacePostgres 三例共 24/25 项断言 PASS；唯一 FAIL 为 deploy-prod.sh 告警首版 `{{index .Labels "…"}}` 模板恒不触发，已即修为 `{{.Label "…"}}` 并复验可触发；证据外置不入库。
+- **基线**：开发时点 main 叠加 OPEN PR #369/#370；期间两者已合入 main（本 PR 已回并收敛）。详见 `docs/progress/R185.md`。
