@@ -34,11 +34,14 @@ type viewOnlyProbe struct {
 func requireCode40303(t *testing.T, w *httptest.ResponseRecorder, label string) {
 	t.Helper()
 	var body struct {
-		Code int `json:"code"`
+		Code    int    `json:"code"`
+		Message string `json:"message"`
 	}
 	require.NoErrorf(t, json.Unmarshal(w.Body.Bytes(), &body), "%s: %s", label, w.Body.String())
 	require.Equalf(t, response.CodeStorePermissionDenied, body.Code,
 		"%s: view-only 403 must use business code 40303, got %d: %s", label, body.Code, w.Body.String())
+	require.Equalf(t, "店铺无操作权限", body.Message,
+		"%s: 40303 message must use the unified copy, got: %s", label, w.Body.String())
 }
 
 // TestViewOnlyPersonaStoreWriteScope is the R160 view-only persona tier

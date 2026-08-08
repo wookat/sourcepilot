@@ -57,7 +57,7 @@ func (h *Handler) denyScope(c *gin.Context) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, adminperm.ErrStoreNotOperable):
-		response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "当前账号无该店铺的操作权限")
+		response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "店铺无操作权限")
 		return true
 	default:
 		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "记录不存在或已被删除")
