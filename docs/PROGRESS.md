@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-08 — **Round 173 线1：40303 文案全站回归（无新漏网）+ R172 P2 收口（handle/ignore 先 scope 后 body；R171 缺档闭环；迁移导入行级文本待产品确认）**：详见附录 [`docs/progress/R173.md`](progress/R173.md)。
+
 **Stage update**: 2026-08-08 — **Round 171 线1：全站大回归 v30（0 P0/P1；合并顺序：直接合并 #342；#245/#247/#248 冗余建议关闭）**：详见附录 [`docs/progress/R171.md`](progress/R171.md)。
 
 **Stage update**: 2026-08-07 — **Round 152 线1：对外开放 REST API（只读起步，`GET /api/open/v1/*` + token 用途字段）**：详见附录 [`docs/progress/R152-line1-open-api.md`](progress/R152-line1-open-api.md)。
@@ -2098,3 +2100,16 @@ Final Production Acceptance Deferred to P10
 - **#245/#247/#248 核查定案**：三个 2026-08-05 遗留 OPEN PR 的 head commit（`c283b475`/`ea1c9d21`/`cec578af`）均已是 main 祖先——#250（`fix/round117-audit-p2`）基于该 stacked 链（#244→#245→#247→#248）顶部创建并于当日合并（merge commit `b82277ae`），整栈随之进入 main；因 base 为中间分支未被 GitHub 自动关闭，属纯挂账。**全部建议直接关闭（不需合并/rebase）**，关闭依据已登记各 PR 评论区。#245 审单面此后还被 R165/R167 加严（`EnsureStoreOperable` + 整批 403/40303）。
 - **全仓 OPEN PR 盘点（共 4）**：#342（R170 线1，活跃，建议正常评审合并）+ 上述三个待关闭。#332–#340 均已合并，无其余挂账。
 - 实测：main 上 `go test ./internal/modules/order/...`（含 #245 带入的 `review_store_scope_test.go`）与 `go test ./internal/securitytests/permmatrix/...` 全绿。详见 `docs/progress/R171-line2.md`。
+
+### 变更记录（2026-08-08）第 172 轮线1：生产部署演练季度复检（devops-engineer）
+
+- **演练全绿**：从零 production+Caddy 部署 6m39s（<15min）；TRUSTED_PROXIES/OPENAPI_ENABLED 口径复验一致；R168 时代双租户基线（订单 2 万/流水 6 万等）升级到 main：AutoMigrate 无错、`order_automation_logs.shop_id` 回填 10000 行、数值指纹 0 差异；`--pre-upgrade-check`、备份→`pg_restore --clean --if-exists` 恢复→幂等重跑、MinIO(S3, 自签 CA) 上传与本地降级、`deploy-prod.sh` 重跑幂等全部通过。
+- **P1 收口**：round168「40303 文案统一」记载失实——`productpublish`/`finance`/`orderexception`/`migrationimport` 四处漏网仍返回「当前账号无该店铺的操作权限」，本轮统一为「店铺无操作权限」并在 `permmatrix.requireCode40303` 补 message 回归断言；`docs/permission-matrix.md` 增补 round172 节。
+- P2：迁移导入行级失败文本待产品确认；R171 演练文档缺档。详见 `docs/progress/R172.md`。
+
+### 变更记录（2026-08-08）第 173 轮线1：40303 文案全站回归 + R172 P2 收口（fullstack-engineer）
+
+- **任务1 回归通过**：main+#346 叠加基线上 grep + permmatrix 权限探针双口径复查 40303 文案，未发现新漏网（后端 envelope 全站统一「店铺无操作权限」，前端审单 Tooltip 一致）；唯一旧措辞残留为迁移导入行级失败文本（`commit_payments.go`，非 envelope，按指令仅登记）。
+- **P2③ 收口**：异常 handle/ignore 校验顺序统一为「先 scope 后 body」（`orderexception/handler.go`），空 body 时 view-only → 403+40303、不可见 → 404、可操作 → 400；补先红后绿回归测试 `TestExceptionMarkScopeBeforeBody`。
+- **P2② 闭环核实**：`docs/progress/R171.md` 已随 #344（MERGED）入库，缺档已闭环无需补档。
+- **P2① 登记**：迁移导入行级失败文本「当前账号无该店铺的操作权限」待产品确认是否统一，本轮不改行为。详见 `docs/progress/R173.md`。

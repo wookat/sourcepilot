@@ -57,7 +57,7 @@ func (h *Handler) denyScope(c *gin.Context) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, adminperm.ErrStoreNotOperable):
-		response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "当前账号无该店铺的操作权限")
+		response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "店铺无操作权限")
 		return true
 	default:
 		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "记录不存在或已被删除")
@@ -212,18 +212,18 @@ func (h *Handler) Handle(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
 		return
 	}
-	var body HandleBody
-	_ = c.ShouldBindJSON(&body)
-	if strings.TrimSpace(body.ExceptionType) == "" {
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "exceptionType required")
-		return
-	}
 	if h.denyScope(c) {
 		return
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
 	if !h.ensureSourceOperable(c, st, sid) {
+		return
+	}
+	var body HandleBody
+	_ = c.ShouldBindJSON(&body)
+	if strings.TrimSpace(body.ExceptionType) == "" {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "exceptionType required")
 		return
 	}
 	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkHandled, body.Remark, adminUUID(c)); err != nil {
@@ -249,18 +249,18 @@ func (h *Handler) Ignore(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
 		return
 	}
-	var body HandleBody
-	_ = c.ShouldBindJSON(&body)
-	if strings.TrimSpace(body.ExceptionType) == "" {
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "exceptionType required")
-		return
-	}
 	if h.denyScope(c) {
 		return
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
 	if !h.ensureSourceOperable(c, st, sid) {
+		return
+	}
+	var body HandleBody
+	_ = c.ShouldBindJSON(&body)
+	if strings.TrimSpace(body.ExceptionType) == "" {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "exceptionType required")
 		return
 	}
 	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkIgnored, body.Remark, adminUUID(c)); err != nil {
