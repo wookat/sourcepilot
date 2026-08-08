@@ -2090,3 +2090,9 @@ Final Production Acceptance Deferred to P10
 - **UX v10 P2-3 收口**：mcp-tokens 页文档入口改为站内自托管可点击链接（`/docs/mcp.md`、`/docs/open-api.md`；构建期 `scripts/sync-admin-docs.mjs` 从 `docs/` 复制，nginx 以纯文本内联展示，杜绝硬编码仓库地址），含前端单测。
 - **验收包增量**：`ACCEPTANCE_R123.md` §一/18 合入状态收口 + 新增 §一/19「R167–R169 增量能力」（#335/#336/#337/#338 已合入、#339/#340 OPEN 如实标注）+ §三 + §五；`DEMO_SCRIPT.md` 补 R170 口径（30 分钟总长不变）。
 - 详见 `docs/progress/R170.md`。
+
+### 变更记录（2026-08-08）第 171 轮线2：遗留 OPEN PR 核查与全仓盘点（fullstack-engineer）
+
+- **#245/#247/#248 核查定案**：三个 2026-08-05 遗留 OPEN PR 的 head commit（`c283b475`/`ea1c9d21`/`cec578af`）均已是 main 祖先——#250（`fix/round117-audit-p2`）基于该 stacked 链（#244→#245→#247→#248）顶部创建并于当日合并（merge commit `b82277ae`），整栈随之进入 main；因 base 为中间分支未被 GitHub 自动关闭，属纯挂账。**全部建议直接关闭（不需合并/rebase）**，关闭依据已登记各 PR 评论区。#245 审单面此后还被 R165/R167 加严（`EnsureStoreOperable` + 整批 403/40303）。
+- **全仓 OPEN PR 盘点（共 4）**：#342（R170 线1，活跃，建议正常评审合并）+ 上述三个待关闭。#332–#340 均已合并，无其余挂账。
+- 实测：main 上 `go test ./internal/modules/order/...`（含 #245 带入的 `review_store_scope_test.go`）与 `go test ./internal/securitytests/permmatrix/...` 全绿。详见 `docs/progress/R171-line2.md`。
