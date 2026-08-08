@@ -30,7 +30,7 @@ type Handler struct {
 func failPublishStoreScope(c *gin.Context, err error) bool {
 	switch {
 	case errors.Is(err, adminperm.ErrStoreNotOperable):
-		response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "当前账号无该店铺的操作权限")
+		response.Fail(c, http.StatusForbidden, response.CodeStorePermissionDenied, "店铺无操作权限")
 		return true
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "资源不存在")

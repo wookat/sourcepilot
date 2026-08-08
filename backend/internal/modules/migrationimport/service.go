@@ -157,7 +157,7 @@ func (s *Service) resolveShop(c *gin.Context, raw string) (*uuid.UUID, error) {
 	return &u, nil
 }
 
-var errShopNotOperable = errors.New("当前账号无该店铺的操作权限")
+var errShopNotOperable = errors.New("店铺无操作权限")
 
 var errCommitInFlight = errors.New("该批次正在导入中，请勿重复提交")
 

@@ -267,3 +267,9 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 ## round168 店铺权限拒绝文案统一
 
 - **统一文案**：所有 `40303 CodeStorePermissionDenied` 拒绝响应的 message 统一为「店铺无操作权限」。收口面：`adminperm.DenyStorePermission`（原「当前账号无权访问该店铺数据」）、`security.Deny` 的 `ErrShopAccessDenied` 分支与 `tasktenant.WrapError` 的店铺 scope 分支（原「当前账号无权访问此店铺」）、`product.ErrDraftShopNotOperable`（原「当前账号无权访问该店铺数据」）。前端 toast 走 envelope message、tooltip/预禁用文案已为同文案，全站一致。
+
+## round172 40303 文案收口补漏
+
+- R172 线1生产演练实测发现 round168 收口存在漏网：`productpublish.failPublishStoreScope`、`finance` handler、`orderexception.denyScope`、`migrationimport.errShopNotOperable` 四处仍返回「当前账号无该店铺的操作权限」。本轮全部改为统一文案「店铺无操作权限」。
+- `permmatrix.requireCode40303` 增加 message 断言（回归防漂移）：所有 40303 拒绝响应的 message 必须等于「店铺无操作权限」。
+- 迁移导入行级失败文案（`commit_payments` 行内 error 文本）为行级展示、非 40303 envelope，保持原文案不在本次收口范围。

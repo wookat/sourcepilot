@@ -2090,3 +2090,9 @@ Final Production Acceptance Deferred to P10
 - **UX v10 P2-3 收口**：mcp-tokens 页文档入口改为站内自托管可点击链接（`/docs/mcp.md`、`/docs/open-api.md`；构建期 `scripts/sync-admin-docs.mjs` 从 `docs/` 复制，nginx 以纯文本内联展示，杜绝硬编码仓库地址），含前端单测。
 - **验收包增量**：`ACCEPTANCE_R123.md` §一/18 合入状态收口 + 新增 §一/19「R167–R169 增量能力」（#335/#336/#337/#338 已合入、#339/#340 OPEN 如实标注）+ §三 + §五；`DEMO_SCRIPT.md` 补 R170 口径（30 分钟总长不变）。
 - 详见 `docs/progress/R170.md`。
+
+### 变更记录（2026-08-08）第 172 轮线1：生产部署演练季度复检（devops-engineer）
+
+- **演练全绿**：从零 production+Caddy 部署 6m39s（<15min）；TRUSTED_PROXIES/OPENAPI_ENABLED 口径复验一致；R168 时代双租户基线（订单 2 万/流水 6 万等）升级到 main：AutoMigrate 无错、`order_automation_logs.shop_id` 回填 10000 行、数值指纹 0 差异；`--pre-upgrade-check`、备份→`pg_restore --clean --if-exists` 恢复→幂等重跑、MinIO(S3, 自签 CA) 上传与本地降级、`deploy-prod.sh` 重跑幂等全部通过。
+- **P1 收口**：round168「40303 文案统一」记载失实——`productpublish`/`finance`/`orderexception`/`migrationimport` 四处漏网仍返回「当前账号无该店铺的操作权限」，本轮统一为「店铺无操作权限」并在 `permmatrix.requireCode40303` 补 message 回归断言；`docs/permission-matrix.md` 增补 round172 节。
+- P2：迁移导入行级失败文本待产品确认；R171 演练文档缺档。详见 `docs/progress/R172.md`。
