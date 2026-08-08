@@ -32,7 +32,10 @@ type WriteOpts struct {
 	ParamsSummary string
 	ResultSummary string
 	ConfirmHash   string
-	DurationMs    int64
+	// Amount is the money amount of an amount-bearing write tool call
+	// (procurement_mark_paid); zero for every other tool.
+	Amount     float64
+	DurationMs int64
 }
 
 // Write appends one audit row. Best effort: the caller treats a failed write
@@ -76,6 +79,7 @@ func (s *Service) WriteTx(db *gorm.DB, opts WriteOpts) error {
 		ParamsSummary: truncate(opts.ParamsSummary, 512),
 		ResultSummary: truncate(opts.ResultSummary, 512),
 		ConfirmHash:   truncate(opts.ConfirmHash, 64),
+		Amount:        opts.Amount,
 		DurationMs:    opts.DurationMs,
 	}
 	if err := db.Create(&row).Error; err != nil {
@@ -112,6 +116,23 @@ func (s *Service) CountExecutesByTenant(db *gorm.DB, tenantID int64, since time.
 			tenantID, ModeExecute, StatusSuccess, since).
 		Count(&n).Error
 	return n, err
+}
+
+// SumExecuteAmountByTenantTool sums the Amount column of successful
+// execute-mode rows of one tool for one tenant since a cutoff (tenant daily
+// amount ceiling for procurement_mark_paid). Errors must be treated as
+// ceiling exhausted by callers (fail closed).
+func (s *Service) SumExecuteAmountByTenantTool(db *gorm.DB, tenantID int64, tool string, since time.Time) (float64, error) {
+	if s == nil || db == nil {
+		return 0, fmt.Errorf("mcpaudit: no db")
+	}
+	var total float64
+	err := db.Model(&ToolCallLog{}).
+		Where("tenant_id = ? AND tool = ? AND mode = ? AND status = ? AND created_at >= ?",
+			tenantID, tool, ModeExecute, StatusSuccess, since).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&total).Error
+	return total, err
 }
 
 // throttleInterval bounds WriteThrottled to one row per key per interval, so

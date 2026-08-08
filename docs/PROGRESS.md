@@ -2174,3 +2174,9 @@ Final Production Acceptance Deferred to P10
 - **三动作接入 W1 框架**：`exceptions_mark`（handle/ignore/unmark，幂等、复用既有 handled/ignored 语义）、`procurement_mark_placed`（placing→placed，回填外部单号）、`procurement_fill_logistics`（paid→shipped + 物流行）；全部 dry-run 影响预览 + 一次性确认 token，业务变更与审计同事务，跨租户/不存在统一 404；`mark-paid` 留待 W3（金额上限 + 三前提）。
 - **后台治理 UI**：租户级 `mcp/write_enabled` 开关（admin-only、默认关、开启前风险确认）、写 token 创建/吊销管理（operator 不可见，后端列表过滤 + 吊销 404 同步收紧）、写审计列表补 `mode`/`paramsSummary`/`confirmHash` 展示。
 - **R179 线2 遗留**：`platform_shopee/partner_key` 纳入敏感注册表静态种子（消除 bootstrap 顺序依赖），补加密/脱敏回归。详见 `docs/progress/R180.md`、`docs/mcp.md`。
+
+
+### 变更记录（2026-08-08）第 181 轮线1：MCP 写白名单 W3 收尾 + 全写面安全交叉审查（security/fullstack-engineer）
+
+- **`procurement_mark_paid` 接入 W1 框架**：`placed→paid` 人工付款回填（不动真实资金），复用三层闸门 / dry-run→确认 token→执行 / fail-closed 审计限额 / 404 口径；brief 三前提 fail-closed——租户单笔+日累计金额上限（settings `mcp/mark_paid_single_limit`+`mark_paid_daily_limit`，缺失/0/负数/非数字=未配置不可用）、dry_run 回显金额币种上限与采购单全明细、金额（按分整数比较）/币种与采购单不符直接拒绝；日累计从成功 execute 审计行（新增 `amount` 列）求和并在 execute 事务内重校验（TOCTOU 封死）。
+- **W1+W2+W3 全写面渗透视角交叉审查**：18 个攻击面逐项核对，未发现 P0/P1；2 项 P2/建议级观察（并发限额竞态、审计 amount 列口径）。报告归档 `docs/SECURITY_AUDIT_R181_MCP_WRITE.md`；permmatrix / `docs/mcp.md` 同步。详见 `docs/progress/R181.md`。
