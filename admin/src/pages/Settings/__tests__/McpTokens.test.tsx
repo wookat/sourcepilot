@@ -250,4 +250,23 @@ describe('McpTokensPage MCP 写白名单管理（R180 W2）', () => {
     expect(await screen.findByText('88.50')).toBeInTheDocument();
     expect(screen.getByText('金额（仅支付登记）')).toBeInTheDocument();
   });
+
+  it('非管理员不展示写审计列与调用模式筛选（R184 最小暴露）', async () => {
+    vi.mocked(useModel).mockReturnValue({
+      initialState: { currentUser: { role: 'operator' } },
+    });
+    listMcpTokens.mockResolvedValue([]);
+    listMcpAuditLogs.mockResolvedValue({
+      total: 1,
+      items: [auditRow('log-r1', 'orders_query')],
+    });
+    render(<McpTokensPage />);
+
+    expect(await screen.findByText('orders_query')).toBeInTheDocument();
+    expect(screen.queryByText('模式')).toBeNull();
+    expect(screen.queryByText('参数摘要')).toBeNull();
+    expect(screen.queryByText('确认哈希')).toBeNull();
+    expect(screen.queryByText('金额（仅支付登记）')).toBeNull();
+    expect(screen.queryByText('调用模式')).toBeNull();
+  });
 });

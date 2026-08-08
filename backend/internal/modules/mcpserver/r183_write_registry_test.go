@@ -17,6 +17,18 @@ func TestIsWriteToolCoversWholeWhitelist(t *testing.T) {
 			t.Errorf("isWriteTool(%q) = false, want true", name)
 		}
 	}
+	// The exported list (audit read API least-exposure filter) must agree
+	// with isWriteTool, so a new write action cannot be registered in one
+	// place only.
+	names := WriteToolNames()
+	if len(names) != 6 {
+		t.Errorf("WriteToolNames() has %d entries, want 6", len(names))
+	}
+	for _, name := range names {
+		if !isWriteTool(name) {
+			t.Errorf("WriteToolNames entry %q not recognised by isWriteTool", name)
+		}
+	}
 	if isWriteTool("orders_list") {
 		t.Error("isWriteTool must not claim read tools")
 	}

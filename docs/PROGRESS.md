@@ -2270,3 +2270,11 @@ Final Production Acceptance Deferred to P10
 - **未发现其他 P0/P1**：写面 18 项攻击项、settings 敏感 key 注册表/惰性收编 6 项、R176/R181 已修项零回退。
 - **依赖**：`govulncheck` 0 可达漏洞；`pnpm audit --prod` 16 项（全部 admin 构建链）。
 - **门禁**：Go 全量（含 Docker PostgreSQL 集成）+ RacePostgres ×3 + 前端/契约/采集/构建全绿。详见 `docs/SECURITY_AUDIT_R183.md`、`docs/progress/R183.md`。
+
+### 变更记录（2026-08-08）第 184 轮线1：R183 审计 P2×4 批次收口（fullstack-engineer）
+
+- **P2-1（代码收口）**：`GET /api/v1/mcp/audit-logs` 写动作审计行改为仅 `settings.manage` 持有者可见（与写 token 治理同轴），operator/readonly 仅见只读工具 / 开放 API 审计行，SQL 层过滤、mode 显式查询不可绕过、principal 解析失败 fail-closed；写白名单新导出 `mcpserver.WriteToolNames()` 与 `isWriteTool` 同源守护；admin UI 非管理员隐藏写审计列与调用模式筛选。先红后绿 `TestAuditListWriteRowsAdminOnly`（+ Docker PostgreSQL 双租户版），permmatrix 登记。
+- **P2-2（文档）**：非 PostgreSQL 部署写限额软保证在 `docs/mcp.md` 与 `docs/env.md` 明确登记（不改行为）。
+- **P2-3（评估登记）**：读工具审计后置时序无泄漏窗口（fail-closed 挡响应），维持现状，理由见 `docs/progress/R184.md`。
+- **P2-4（逐项登记）**：admin 构建链 16 项告警逐项评估于 `docs/DEPENDENCY_AUDIT_R184.md`，全部 umi 传递链、无生产暴露面，不跨 major 不动，等 umi 窗口统一。
+- **门禁**：Go 全量 + Docker PostgreSQL（audit 双租户 + RacePostgres ×3）+ 前端/契约/采集/构建全绿。详见 `docs/progress/R184.md`。
