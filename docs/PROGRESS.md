@@ -2187,3 +2187,10 @@ Final Production Acceptance Deferred to P10
 - **门禁**：Go 全量 103 包 ok、securitytests/permmatrix 113/113、check:dev、ui-copy strict、test:frontend 368、contracts 17、build:admin/collector、collector 18、全量 E2E 359 passed/3 skipped 全绿。
 - **Docker 全栈实测**：R57 主链路、W1 写链路全链（环境/租户/scope 三层闸门逐层拒绝→dry_run→一次性确认 token→execute→重放 alreadyExecuted→审计落库）、settings 加密/脱敏/存量明文惰性收编、modal 防重（双击仅 1 次 POST）、view-only 40303/readonly 40301/不可见店铺 404/跨租户 404、双租户隔离与零残留（clean+verify）全部通过。
 - **P0/P1 无；P2 全部为继承项**（mcp-tokens 文档口径、finance-report CSV 折算列、pnpm audit 构建链告警、R179 W2 UI 缺口）。详见 `docs/progress/R180-line2.md`。
+
+### 变更记录（2026-08-08）第 182 轮线2：全站大回归 v34（qa-engineer）
+
+- **集成**：权威核实 #346–#359 均已 merged，OPEN 仅 #360–#364；基于最新 main 按 ancestry 叠加 **#360 → #361 → #363 → #362 → #364**（仅 `docs/PROGRESS.md` 文书性冲突，无代码冲突），该顺序即合并顺序终版。
+- **门禁**：Go 全量 103 包 ok、securitytests/permmatrix 113/113、check:dev、ui-copy strict、test:frontend 372、contracts 17、collector 18、build:admin/collector/go build、全量 E2E 364 passed / 3 skipped 全绿。
+- **Docker 全栈实测（48 项场景矩阵全 PASS）**：R57 主链路、MCP 写全链五动作（W1 打标/去标、W2 异常标记/mark-placed/物流回填、W3 mark-paid 三前提四路径：未配置拒绝/金额币种不符拒绝/成功+重放幂等/超单笔与超日累计拒绝）、三层闸门逐层、确认 token 重放拒绝、审计落库（含 amount 列）、治理 UI 三角色（admin 可见写白名单卡片，operator/readonly 不可见）、settings 注册表加密/惰性收编、view-only 40303/readonly 40301/跨租户 404、双租户零残留（clean+verify）。
+- **P0/P1 无；P2 清单**：沿袭安全审计两项（并发限额竞态、audit amount 展示口径）+ MCP 限流 429 空体建议 + clean 保留 demo_* 账号（既有设计）。详见 `docs/progress/R182-line2.md`。
