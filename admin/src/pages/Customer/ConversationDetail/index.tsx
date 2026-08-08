@@ -426,8 +426,8 @@ export default function CustomerConversationDetailPage() {
       <TmPageContainer title="AI 客服工作台" onBack={() => window.history.back()}>
         <Result
           status={forbidden ? '403' : notFound ? '404' : 'error'}
-          title={forbidden ? '无权访问该会话' : notFound ? '会话不存在或已被删除' : '会话加载失败'}
-          subTitle={forbidden ? '该会话不属于当前账号可访问的租户，请确认账号或联系管理员。' : notFound ? '会话可能已被删除，或链接有误。' : loadError.message}
+          title={forbidden ? '无权访问该会话' : notFound ? '会话不存在或不在可见范围' : '会话加载失败'}
+          subTitle={forbidden ? '该会话不属于当前账号可访问的租户，请确认账号或联系管理员。' : notFound ? '会话可能已被删除、链接有误，或不在当前账号可见的店铺范围内。' : loadError.message}
           extra={
             <Space>
               <Button type="primary" onClick={() => history.push('/customer/conversations')}>

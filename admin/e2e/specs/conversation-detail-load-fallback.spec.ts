@@ -47,8 +47,18 @@ test.describe('@regression 客服会话详情加载兜底', () => {
     admin.consoleGuard.allowForTest(/status of 404/);
     await mockConversationFailure(page, 404, '资源不存在');
     await admin.goto(`/customer/conversations/${CONV_ID}`);
-    await expect(page.getByText('会话不存在或已被删除')).toBeVisible();
+    await expect(page.getByText('会话不存在或不在可见范围')).toBeVisible();
+    await expect(page.getByText('会话可能已被删除、链接有误，或不在当前账号可见的店铺范围内。')).toBeVisible();
     await expect(page.getByRole('button', { name: '返回会话列表' })).toBeVisible();
+  });
+
+  test('operator 越 store-scope（404 遮蔽）与真实 404 展示同一文案，不泄露存在性', async ({ admin, page }) => {
+    admin.consoleGuard.allowForTest(/status of 404/);
+    await mockConversationFailure(page, 404, '记录不存在或已被删除');
+    await admin.goto(`/customer/conversations/${CONV_ID}`);
+    await expect(page.getByText('会话不存在或不在可见范围')).toBeVisible();
+    await expect(page.getByText('会话可能已被删除、链接有误，或不在当前账号可见的店铺范围内。')).toBeVisible();
+    await expect(page.getByText('已被删除，或链接有误')).toHaveCount(0);
   });
 
   test('服务异常（500）显示加载失败并提供重试', async ({ admin, page }) => {
