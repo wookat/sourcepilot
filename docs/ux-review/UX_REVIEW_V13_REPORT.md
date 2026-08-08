@@ -2,7 +2,7 @@
 
 - 复核日期：2026-08-08
 - 复核角色：ux-designer + qa-engineer（Docker 全栈 demo 环境实测，录屏/截图留档不入库）
-- 基线：`origin/main`（R184 时点，#368 已合入）+ 本地按序叠加未合并 PR（经 `git_view_pr` 确认均 OPEN、mergeable）：#369（R184 P2 安全收口，`devin/1786198103-r184-p2-closeout`）、#370（R184 line2 升级演练，`devin/1786199793-r184-line2-upgrade-drill`）；仅 `docs/PROGRESS.md` 文档冲突，已保留双方条目解决
+- 基线：复核时点 `origin/main`（#368 合入后 `135f2c5e`）+ 本地按序叠加当时未合并 PR（经 `git_view_pr` 确认均 OPEN、mergeable）：#369（R184 P2 安全收口）、#370（R184 line2 升级演练）；仅 `docs/PROGRESS.md` 文档冲突。复核完成后 #369/#370 已合入 main（`f9695c86`），本报告随 PR 基于合入后的 main 提交，叠加内容与合入结果一致
 - 环境：`docker compose -f docker-compose.full.yml up -d --build` + `DB_HOST=127.0.0.1 pnpm seed:demo:full`，Admin dev server 8001
 - 视口：五档精确视口 1920×1080 / 1440×900 / 1024×768 / 768×900 / 375×812（headless Playwright `viewport` 精确设定）
 - 角色：demo_admin / demo_operator / demo_readonly 三角色 + 临时 view-only persona（operator 角色 + 仅 view scope 店铺授权，走查后清理不入库）+ bootstrap 平台管理员（tenant0）
