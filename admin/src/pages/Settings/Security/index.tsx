@@ -137,6 +137,11 @@ const ROTATION_STATUS_LABEL: Record<string, { text: string; color: string }> = {
   verified: { text: '已验证', color: 'success' },
 };
 
+const AUTH_SESSION_MODE_LABEL: Record<string, string> = {
+  legacy_local_storage: '本地存储兼容模式（仅开发）',
+  secure_session: '安全会话模式',
+};
+
 function truthyStored(v: string | undefined): boolean {
   const s = String(v ?? '')
     .trim()
@@ -146,8 +151,8 @@ function truthyStored(v: string | undefined): boolean {
 
 function configStatusTag(status: string) {
   const s = (status || '').toLowerCase();
-  if (s === 'ready' || s === 'not_ready' || s === 'ready_with_warning') {
-    return <StatusTag status={s} />;
+  if (s === 'ready' || s === 'not_ready' || s === 'ready_with_warning' || s === 'manual_required') {
+    return <StatusTag status={s} color={s === 'manual_required' ? 'warning' : undefined} />;
   }
   if (s.includes('已配置') || s.includes('运行中')) {
     return <Tag color="success">{status}</Tag>;
@@ -495,7 +500,15 @@ export default function SecuritySettingsPage() {
           <ProCard variant="outlined" title="运行概览" style={{ marginTop: 16 }} loading={centerLoading}>
             <Row gutter={[16, 16]}>
               <Col xs={12} sm={8} md={6}>
-                <Statistic title="认证模式" value={overview.authSessionMode || '—'} />
+                <Statistic
+                  title="认证模式"
+                  value={
+                    (overview.authSessionMode && AUTH_SESSION_MODE_LABEL[overview.authSessionMode]) ||
+                    overview.authSessionMode ||
+                    '—'
+                  }
+                  valueStyle={{ fontSize: 20 }}
+                />
               </Col>
               <Col xs={12} sm={8} md={6}>
                 <Statistic title="活跃会话" value={overview.activeSessionCount} suffix="个" />

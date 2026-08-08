@@ -18,6 +18,7 @@ import {
   Card,
   Form,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Select,
@@ -169,6 +170,11 @@ export default function McpTokensPage() {
   const [writeCreateOpen, setWriteCreateOpen] = useState(false);
   const [writeSaving, setWriteSaving] = useState(false);
   const [writeForm] = Form.useForm<{ name: string; expiresInDays: number }>();
+  const [limitsForm] = Form.useForm<{
+    singleLimit?: number;
+    dailyLimit?: number;
+  }>();
+  const [limitsSaving, setLimitsSaving] = useState(false);
 
   const loadWriteGate = useCallback(async () => {
     if (!isAdmin) return;
@@ -179,12 +185,25 @@ export default function McpTokensPage() {
         (i) => i.groupKey === "mcp" && i.itemKey === "write_enabled",
       );
       setWriteEnabled((row?.itemValue || "").trim().toLowerCase() === "true");
+      const readLimit = (key: string): number | undefined => {
+        const v = Number(
+          (
+            items.find((i) => i.groupKey === "mcp" && i.itemKey === key)
+              ?.itemValue || ""
+          ).trim(),
+        );
+        return Number.isFinite(v) && v > 0 ? v : undefined;
+      };
+      limitsForm.setFieldsValue({
+        singleLimit: readLimit("mark_paid_single_limit"),
+        dailyLimit: readLimit("mark_paid_daily_limit"),
+      });
     } catch (e) {
       message.error((e as Error).message || "加载 MCP 写开关失败");
     } finally {
       setWriteGateLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, limitsForm]);
 
   useEffect(() => {
     void loadWriteGate();
@@ -212,6 +231,34 @@ export default function McpTokensPage() {
       setWriteGateSaving(false);
     }
   }, []);
+
+  const saveMarkPaidLimits = async () => {
+    const v = await limitsForm.validateFields();
+    setLimitsSaving(true);
+    try {
+      await saveSettingsItems([
+        {
+          groupKey: "mcp",
+          itemKey: "mark_paid_single_limit",
+          itemValue: String(v.singleLimit),
+          isEncrypted: false,
+          remark: "MCP mark-paid 单笔金额上限",
+        },
+        {
+          groupKey: "mcp",
+          itemKey: "mark_paid_daily_limit",
+          itemValue: String(v.dailyLimit),
+          isEncrypted: false,
+          remark: "MCP mark-paid 日累计金额上限",
+        },
+      ]);
+      message.success("已保存 mark-paid 金额限额");
+    } catch (e) {
+      message.error((e as Error).message || "保存失败");
+    } finally {
+      setLimitsSaving(false);
+    }
+  };
 
   const onToggleWriteGate = (next: boolean) => {
     if (!next) {
@@ -481,6 +528,37 @@ export default function McpTokensPage() {
               创建写 token
             </Button>
           </Space>
+          <Form
+            form={limitsForm}
+            layout="inline"
+            style={{ marginBottom: 16, rowGap: 8 }}
+            onFinish={() => void saveMarkPaidLimits()}
+          >
+            <Tooltip title="支付登记（procurement_mark_paid）专用限额：两项均为正数时该写动作才可用，未配置时服务端拒绝（默认关闭）">
+              <Typography.Text style={{ lineHeight: "32px" }}>
+                mark-paid 金额限额：
+              </Typography.Text>
+            </Tooltip>
+            <Form.Item
+              label="单笔上限"
+              name="singleLimit"
+              rules={[{ required: true, message: "请输入单笔上限" }]}
+            >
+              <InputNumber min={0.01} precision={2} placeholder="如 500" />
+            </Form.Item>
+            <Form.Item
+              label="日累计上限"
+              name="dailyLimit"
+              rules={[{ required: true, message: "请输入日累计上限" }]}
+            >
+              <InputNumber min={0.01} precision={2} placeholder="如 2000" />
+            </Form.Item>
+            <Form.Item>
+              <Button htmlType="submit" loading={limitsSaving}>
+                保存限额
+              </Button>
+            </Form.Item>
+          </Form>
           <Table<McpTokenRow>
             rowKey="id"
             size="middle"
