@@ -84,7 +84,7 @@ func (h *Handler) Progress(c *gin.Context) {
 	}
 	fileHash := strings.TrimSpace(c.Query("fileHash"))
 	if fileHash == "" {
-		response.Fail(c, 400, response.CodeBadRequest, "fileHash is required")
+		response.Fail(c, 400, response.CodeBadRequest, "文件指纹（fileHash）不能为空")
 		return
 	}
 	tid, err := adminperm.TenantIDFromGin(c)

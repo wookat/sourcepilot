@@ -69,7 +69,12 @@ export default function DisasterRecoveryPage() {
         open={open}
         onCancel={() => setOpen(false)}
         onOk={async () => {
-          const values = await form.validateFields();
+          let values;
+          try {
+            values = await form.validateFields();
+          } catch {
+            return;
+          }
           try {
             await createDRDrill(values);
             message.success('演练记录已保存');

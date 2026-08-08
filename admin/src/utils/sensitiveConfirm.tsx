@@ -9,6 +9,8 @@ export type SensitiveConfirmOptions = {
   reversible?: boolean;
   failureHint?: string;
   onOk: () => void | Promise<void>;
+  /** Custom failure toast text; defaults to the error message. */
+  errorText?: (e: unknown) => string;
 };
 
 /** Standard sensitive-operation confirm dialog (F5 audit UX). */
@@ -29,12 +31,16 @@ export function confirmSensitiveAction(opts: SensitiveConfirmOptions) {
     content: <div style={{ whiteSpace: 'pre-wrap' }}>{lines.join('\n')}</div>,
     okText: '确认执行',
     cancelText: '取消',
-    onOk: async () => {
-      try {
-        await opts.onOk();
-      } catch (e) {
-        message.error((e as Error)?.message || '操作失败');
-      }
+    // onOk 不返回 Promise，由回调手动 close：成功才关闭，失败 toast 且
+    // 弹窗保持打开、不向外抛拒绝（避免 dev 环境 unhandledrejection 触发
+    // react-error-overlay 盖住 toast）。
+    onOk: (close: () => void) => {
+      Promise.resolve()
+        .then(() => opts.onOk())
+        .then(() => close())
+        .catch((e) => {
+          message.error(opts.errorText ? opts.errorText(e) : (e as Error)?.message || '操作失败');
+        });
     },
   };
   Modal.confirm(modalOpts);

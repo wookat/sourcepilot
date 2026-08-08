@@ -178,10 +178,17 @@ export default function CustomerConversationDetailPage() {
     if (!id) return;
     Modal.confirm({
       title: '取消关联订单？',
-      onOk: async () => {
-        await updateConversation(id, { orderId: '' });
-        message.success('已取消关联');
-        loadAll();
+      // onOk 不返回 Promise，由回调手动 close：失败保持弹窗打开且不向外抛拒绝。
+      onOk: (close: () => void) => {
+        updateConversation(id, { orderId: '' })
+          .then(() => {
+            message.success('已取消关联');
+            loadAll();
+            close();
+          })
+          .catch((e: unknown) => {
+            message.error(extractErrorMessage(e, '取消关联失败'));
+          });
       },
     });
   };
@@ -213,10 +220,16 @@ export default function CustomerConversationDetailPage() {
     if (!id) return;
     Modal.confirm({
       title: '取消关联店铺？',
-      onOk: async () => {
-        await updateConversation(id, { shopId: '' });
-        message.success('已取消关联');
-        loadAll();
+      onOk: (close: () => void) => {
+        updateConversation(id, { shopId: '' })
+          .then(() => {
+            message.success('已取消关联');
+            loadAll();
+            close();
+          })
+          .catch((e: unknown) => {
+            message.error(extractErrorMessage(e, '取消关联失败'));
+          });
       },
     });
   };
@@ -376,19 +389,18 @@ export default function CustomerConversationDetailPage() {
       message.warning('请填写要发送到平台的回复内容');
       return;
     }
-    confirmCustomerReplySend(canSendToPlatform, async () => {
-      try {
+    confirmCustomerReplySend(
+      canSendToPlatform,
+      async () => {
         await sendPlatformMessage(id, {
           reply: finalReply,
           suggestionId: suggestionId || undefined,
         });
         message.success('已发送到平台');
         loadAll();
-      } catch (e: unknown) {
-        message.error(extractErrorMessage(e, '发送失败'));
-        throw e;
-      }
-    });
+      },
+      (e) => extractErrorMessage(e, '发送失败'),
+    );
   };
 
   const onDiscard = async () => {

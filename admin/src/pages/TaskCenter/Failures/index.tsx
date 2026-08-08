@@ -3,6 +3,7 @@ import { DateTimeText, PlatformTag, TmPageContainer, TechnicalDetails, TaskJsonB
 import { history, useLocation } from '@umijs/max';
 import { confirmFailureTaskRetry } from '@/constants/sensitiveActions';
 import { formatDateTime } from '@/utils/formatTime';
+import { modalOk } from '@/utils/modalOk';
 import {
   Badge,
   Button,
@@ -590,15 +591,11 @@ export default function TaskCenterFailuresPage() {
   async function doGenerateAlert(row: UnifiedTaskDTO) {
     Modal.confirm({
       title: '为该失败任务手动生成站内告警（可覆盖告警状态）',
-      onOk: async () => {
-        try {
-          await generateTaskFailureAlert(row.taskType, row.id);
-          message.success('已生成/刷新告警');
-          actionRef.current?.reload?.();
-        } catch (e) {
-          message.error((e as Error).message);
-        }
-      },
+      onOk: modalOk(async () => {
+        await generateTaskFailureAlert(row.taskType, row.id);
+        message.success('已生成/刷新告警');
+        actionRef.current?.reload?.();
+      }),
     });
   }
 
@@ -639,19 +636,15 @@ export default function TaskCenterFailuresPage() {
           }}
         />
       ),
-      onOk: async () => {
-        try {
-          if (kind === 'ignore') {
-            await ignoreTaskFailure(row.taskType, row.id, txt);
-          } else {
-            await handleTaskFailure(row.taskType, row.id, txt);
-          }
-          message.success('已保存标记');
-          actionRef.current?.reload?.();
-        } catch (e) {
-          message.error((e as Error).message);
+      onOk: modalOk(async () => {
+        if (kind === 'ignore') {
+          await ignoreTaskFailure(row.taskType, row.id, txt);
+        } else {
+          await handleTaskFailure(row.taskType, row.id, txt);
         }
-      },
+        message.success('已保存标记');
+        actionRef.current?.reload?.();
+      }),
     });
   }
 
@@ -759,17 +752,13 @@ export default function TaskCenterFailuresPage() {
                       onClick={() =>
                         Modal.confirm({
                           title: `批量忽略 ${batchRows.length} 条任务？`,
-                          onOk: async () => {
-                            try {
-                              const res = await batchIgnoreTaskFailures(
-                                batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
-                              );
-                              message.info(`忽略成功 ${res.successCount}，失败 ${res.failedCount}`);
-                              actionRef.current?.reload?.();
-                            } catch (e) {
-                              message.error((e as Error).message);
-                            }
-                          },
+                          onOk: modalOk(async () => {
+                            const res = await batchIgnoreTaskFailures(
+                              batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
+                            );
+                            message.info(`忽略成功 ${res.successCount}，失败 ${res.failedCount}`);
+                            actionRef.current?.reload?.();
+                          }),
                         })
                       }
                     >
@@ -780,17 +769,13 @@ export default function TaskCenterFailuresPage() {
                       onClick={() =>
                         Modal.confirm({
                           title: `批量标记已处理（${batchRows.length} 条）？`,
-                          onOk: async () => {
-                            try {
-                              const res = await batchHandleTaskFailures(
-                                batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
-                              );
-                              message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
-                              actionRef.current?.reload?.();
-                            } catch (e) {
-                              message.error((e as Error).message);
-                            }
-                          },
+                          onOk: modalOk(async () => {
+                            const res = await batchHandleTaskFailures(
+                              batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
+                            );
+                            message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
+                            actionRef.current?.reload?.();
+                          }),
                         })
                       }
                     >
@@ -1138,7 +1123,7 @@ export default function TaskCenterFailuresPage() {
                       title: '尝试从抖店回查恢复草稿？',
                       content: '将通过 product.detail 确认平台侧是否已创建草稿，不会盲目重复提交 product.addV2。',
                       okText: '尝试恢复',
-                      onOk: async () => {
+                      onOk: modalOk(async () => {
                         setRecovering(true);
                         try {
                           await recoverDouyinDraftTask(detail.id);
@@ -1146,12 +1131,10 @@ export default function TaskCenterFailuresPage() {
                           actionRef.current?.reload?.();
                           const refreshed = await getTaskFailureDetail(detail.taskType, detail.id);
                           setDetail(refreshed);
-                        } catch (e) {
-                          message.error((e as Error).message);
                         } finally {
                           setRecovering(false);
                         }
-                      },
+                      }),
                     });
                   }}
                 >
@@ -1162,14 +1145,9 @@ export default function TaskCenterFailuresPage() {
                 <Button
                   onClick={() => {
                     confirmFailureTaskRetry(1, async () => {
-                      try {
-                        await retryTaskFailure(detail.taskType, detail.id);
-                        message.success('已提交重试');
-                        actionRef.current?.reload?.();
-                      } catch (e) {
-                        message.error((e as Error).message);
-                        throw e;
-                      }
+                      await retryTaskFailure(detail.taskType, detail.id);
+                      message.success('已提交重试');
+                      actionRef.current?.reload?.();
                     });
                   }}
                 >
@@ -1190,17 +1168,13 @@ export default function TaskCenterFailuresPage() {
                   onClick={() => {
                     Modal.confirm({
                       title: '生成站内告警记录',
-                      onOk: async () => {
-                        try {
-                          await generateTaskFailureAlert(detail.taskType, detail.id);
-                          message.success('已生成/刷新告警');
-                          actionRef.current?.reload?.();
-                          const refreshed = await getTaskFailureDetail(detail.taskType, detail.id);
-                          setDetail(refreshed);
-                        } catch (e) {
-                          message.error((e as Error).message);
-                        }
-                      },
+                      onOk: modalOk(async () => {
+                        await generateTaskFailureAlert(detail.taskType, detail.id);
+                        message.success('已生成/刷新告警');
+                        actionRef.current?.reload?.();
+                        const refreshed = await getTaskFailureDetail(detail.taskType, detail.id);
+                        setDetail(refreshed);
+                      }),
                     });
                   }}
                 >

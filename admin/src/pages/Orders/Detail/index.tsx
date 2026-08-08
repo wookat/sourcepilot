@@ -1197,7 +1197,12 @@ export default function OrderDetailPage() {
         onCancel={() => setItemModal({ open: false })}
         forceRender
         onOk={async () => {
-          const v = await itemForm.validateFields();
+          let v;
+          try {
+            v = await itemForm.validateFields();
+          } catch {
+            return;
+          }
           if (!detail) return;
           try {
             if (itemModal.row) {
@@ -1251,7 +1256,12 @@ export default function OrderDetailPage() {
         onCancel={() => setShipModal({ open: false })}
         forceRender
         onOk={async () => {
-          const v = await shipForm.validateFields();
+          let v;
+          try {
+            v = await shipForm.validateFields();
+          } catch {
+            return;
+          }
           if (!detail) return;
           try {
             const matched = matchCarrier(carriers, v.carrier as string);
