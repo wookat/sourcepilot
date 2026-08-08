@@ -281,7 +281,21 @@ R181–R184 为 MCP 写 W3 收口、并发限额硬保证、安全审计季度�
 | 竞品对标复评 v11（店小秘/马帮/AutoDS）：**超越 5 / 达到 11 / 落后 0**——「AI 对话式写操作」由落后转超越（W1–W3 写全链 + 三层闸门/确认 token/审计/限额治理深度独有），main 口径随 #360–#365 合入坐实；Docker 全栈关键能力抽验零回退 | R183 线2 / #368（纯文档） | `docs/COMPETITIVE_BENCHMARK_R183.md`；`docs/progress/R183-line2.md` | ✅ #368 已合并 |
 | R184 P2 批次收口：`GET /api/v1/mcp/audit-logs` 写动作审计行仅 `settings.manage` 可见（后端 SQL 层过滤权威、fail-closed，`mcpserver.WriteToolNames()` 同源守护；admin UI 非管理员隐藏写审计列与调用模式筛选）+ 非 PostgreSQL 限额软保证文档登记 + 读工具审计时序评估登记 + 构建链 16 项依赖告警逐项登记 | R184 线1 / #369 | `TestAuditListWriteRowsAdminOnly`（+ Docker PostgreSQL 双租户版）；`docs/DEPENDENCY_AUDIT_R184.md`；`docs/progress/R184.md` | ✅ #369 已合并 |
 | 生产升级演练季度复跑（R184）：从零部署 + R178 同构双租户 2 万订单存量升级指纹 0 差异 + MCP 写全链 25 项升级后实测 + 并发/权限矩阵 + 备份恢复幂等重跑闭环；新 P2 登记：`docker-compose.prod.yml` 硬编码 `name: trademind-prod` 同机多栈静默共卷（本轮 R185 已收口：部署文档警示 + deploy-prod.sh 非破坏性冲突告警） | R184 线2 / #370（纯文档） | `docs/progress/R184-line2.md`；演练证据外置不入库 | ✅ #370 已合并 |
-| 验收包补 R181–R184 增量 + DEMO_SCRIPT 并入 mark-paid 金额上限演示点 + 同机多栈 `COMPOSE_PROJECT_NAME` 警示（R184 新 P2 收口）+ 三角色/view-only 实跑核对 | R185 线1 / 本轮 | `docs/progress/R185.md`；`docs/production-deployment.md`「同机多栈警示」；DEMO_SCRIPT 实跑验证记录 2026-08-08（R185 线1）条目 | ⏳ 本轮 PR 待合并 |
+| 验收包补 R181–R184 增量 + DEMO_SCRIPT 并入 mark-paid 金额上限演示点 + 同机多栈 `COMPOSE_PROJECT_NAME` 警示（R184 新 P2 收口）+ 三角色/view-only 实跑核对 | R185 线1 / #371 | `docs/progress/R185.md`；`docs/production-deployment.md`「同机多栈警示」；DEMO_SCRIPT 实跑验证记录 2026-08-08（R185 线1）条目 | ✅ #371 已合并（R188 收口） |
+
+### 23. R185–R187 增量能力（R188 增补）
+
+R185–R187 为 UX v13 收口、大回归 v35、404 遮蔽口径统一与性能审计季度复跑期。合并状态如实标注（R188 线2 时点，权威 PR 状态核实）：**#371/#372/#373/#374/#375 已合入 main；#376 仍 OPEN（mergeable），本轮已本地叠加验证**。
+
+| 能力点 | 实现轮次 / PR | 验证证据 | 状态 |
+| --- | --- | --- | --- |
+| **审计权限收紧渗透抽验（#369 面）**：operator/readonly 在 `GET /api/v1/mcp/audit-logs` 全维度探针（直接指名写工具 `tool=`、`mode=dry_run|execute`、编码/注入型取值、深分页 + pageSize 放大、`/api/v1/mcp/tokens` 旁路面、跨租户）均 0 写审计行；过滤在 SQL 层且以 `settings.manage` 而非角色名判定 | R184 线1 / #369（本轮 R188 线2 抽验） | `docs/progress/R188-line2.md` §2；Docker 全栈三角色 + tenant2 探针（证据外置不入库） | ✅ #369 已合并，R188 抽验无旁路 |
+| **mark-paid 限额 UI 表单（admin-only）**：写白名单卡片内 admin 专属单笔/日累计上限表单；后端权威——operator 403/40305、readonly 403/40301，非 admin 尝试后存储值零篡改；负值/零/`abc`/`NaN`/`1e999`/空白/超两位小数一律使消费侧 fail-closed 拒付 | R185 线2 / #372（本轮 R188 线2 抽验） | `docs/ux-review/UX_REVIEW_V13_REPORT.md`；`docs/progress/R188-line2.md` §3；新登记 P2-1（限额值缺服务端值域校验，`1e20` 可使单笔上限失效，受 `amount ≤ 1e10` 兜底） | ✅ #372 已合并，R188 抽验通过（附 P2-1） |
+| **客服/AI 工作流季度复查（全 PASS 无 P0/P1）+ SKILL 经验沉淀** | R186 线2 / #373（纯文档） | `docs/progress/R186-line2.md` | ✅ #373 已合并 |
+| **全站大回归 v35**（#371→#372 叠加）：门禁全绿 + Docker 矩阵 60/60 PASS，P0/P1=0 | R186 线1 / #374（纯文档） | `docs/progress/R186.md` | ✅ #374 已合并 |
+| **404 遮蔽（越权不泄露存在性）**：operator 越 store-scope 会话详情 404 口径统一 + 前端文案诚实覆盖两种情形；R188 差分探针复核——真实存在但越权 vs 从不存在，在 6 条路由 × 2 角色 × 25 次采样下状态码/响应体（归一化 traceId 后逐字节相同）/响应头一致，时序 p50 差 ≤0.5ms 无可分辨信号；畸形 UUID 统一 400/40001 | R187 线1 / #375（本轮 R188 线2 抽验） | `docs/progress/R187.md`；`docs/progress/R188-line2.md` §4；E2E `conversation-detail-load-fallback` | ✅ #375 已合并，R188 差分探针无泄露 |
+| **性能与加载体验审计季度复跑**：双租户 2 万订单量级核心列表 p50 <40ms、报表/对账优于 R130 基线、MCP 写链端到端 p50 18ms、11 万行审计深分页 p50 ≤20ms、首包 gzip 320.6kB；P2×4 登记 | R187 线2 / #376（纯文档） | `docs/progress/R187-line2.md` | ⏳ #376 OPEN（mergeable），R188 本地叠加验证 |
+| **安全审计季度复跑前哨（R184–R187 合入面渗透抽验）**：P1×1 先红后绿即修——写工具「管道前拒绝」审计盲区（非法参数/无 `write:ops` token 探测写白名单完全不落审计），入口层与 `mcpwrite` 管道以 context signal 协同补审计且 fail-closed；#371 deploy-prod 告警无新攻击面（即修容器标签 ANSI/CR 终端注入）；#367 R183 修复面零回退；Docker 双租户实测；P2×3 登记 | R188 线2 / 本轮 | `docs/progress/R188-line2.md`；`r188_write_audit_gap_test.go`（先红后绿）；探针证据外置不入库 | ⏳ 本轮 PR 待合并 |
 
 ## 二、外部凭证依赖项清单（按杠杆排序，含降级路径）
 
