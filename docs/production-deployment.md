@@ -60,6 +60,15 @@ chmod 600 .env
 
 数据库结构迁移由 backend 容器启动时自动执行，无需手工建表。
 
+> **同机多栈警示（必须显式 `COMPOSE_PROJECT_NAME`）**：`docker-compose.prod.yml` 顶层硬编码 `name: trademind-prod`，Compose 的容器、网络与**数据卷**都按该项目名命名。在同一台服务器上从第二个 checkout 目录再部署一套（如演练栈、灰度栈、第二实例）时，若不覆盖项目名，两套栈会**静默共用同一批容器与数据卷**（数据库互相覆盖，R184 升级演练已实测踩坑）。同机部署第二套栈时必须显式指定不同项目名，且此后该栈的**所有** compose 命令（up/down/logs/exec/备份等）都带同一项目名：
+>
+> ```bash
+> COMPOSE_PROJECT_NAME=trademind-drill ./scripts/deploy-prod.sh
+> COMPOSE_PROJECT_NAME=trademind-drill docker compose -f docker-compose.prod.yml ps
+> ```
+>
+> 部署前可用 `docker volume ls | grep trademind` 与 `docker ps --filter label=com.docker.compose.project=trademind-prod` 确认是否已有同名栈。`deploy-prod.sh` 会在检测到同项目名容器来自**其他目录**时输出警示（不中断部署）。
+
 > **客户端 IP 口径（TRUSTED_PROXIES）**：本 compose 的外部流量链路为 Caddy → admin(nginx) → backend。`TRUSTED_PROXIES` 留空（默认）时 backend 按 TCP peer（admin 容器 IP）计每 IP 限流与访问日志，所有外部客户端共享同一预算，且伪造 `X-Forwarded-For` 无效；需按真实客户端 IP 计时，把 caddy 与 admin 所在的 compose 网络网段填入 `TRUSTED_PROXIES`（Caddy 会丢弃不可信客户端自带的 `X-Forwarded-For`，伪造仍然无效）。详见 `.env.prod.example` 与 `docs/env.md`。
 
 ## 三、日常升级

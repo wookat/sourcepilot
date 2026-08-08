@@ -65,6 +65,18 @@ if grep -qE '^APP_MASTER_KEY=a{64}$' .env; then
   fail "APP_MASTER_KEY 仍是示例值，请用 openssl rand -hex 32 生成"
 fi
 
+# 同机多栈冲突提示（仅告警，不中断）：compose 项目名硬编码 name: trademind-prod，
+# 若本机已有同项目名容器且来自其他目录，继续部署会静默共用容器/网络/数据卷。
+PROJECT_NAME="${COMPOSE_PROJECT_NAME:-trademind-prod}"
+existing_dir="$(docker ps -a --filter "label=com.docker.compose.project=${PROJECT_NAME}" \
+  --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u | head -n1 || true)"
+if [ -n "$existing_dir" ] && [ "$existing_dir" != "$REPO_ROOT" ]; then
+  printf '\n\033[1;33m[deploy][警示]\033[0m 本机已存在 compose 项目 %s 的容器（目录 %s，当前 %s）。\n' \
+    "$PROJECT_NAME" "$existing_dir" "$REPO_ROOT"
+  printf '  继续部署会与该栈共用容器/网络/数据卷（数据库可能互相覆盖）。同机多栈请显式设置不同的 COMPOSE_PROJECT_NAME，\n'
+  printf '  详见 docs/production-deployment.md「同机多栈警示」。\n'
+fi
+
 # ---------- 0.5 升级前检查（--pre-upgrade-check：仅备份 + 预检，不部署）----------
 if [ "$PRE_UPGRADE_CHECK" -eq 1 ]; then
   log "升级前检查：全量备份 + 迁移预检（对当前运行中的旧版本执行）"
