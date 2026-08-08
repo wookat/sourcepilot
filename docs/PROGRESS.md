@@ -2083,3 +2083,9 @@ Final Production Acceptance Deferred to P10
 - **硬指标矩阵全绿**：5 persona（admin/operator/readonly/临时 view-only/平台管理员）× 5 精确视口（1920/1440/1024/768/375）× 74 路由 = 1850 组合 headless 全扫，console error / pageerror / 根节点横向溢出 / NaN·Invalid Date·undefined 直出 / 403·500 噪音均为 0。
 - **v10 遗留项回归无回退**（币种未保存离开确认、备份/恢复中文按钮与时间格式、大屏 tooltip、操作日志中文化）；R163–R168 新面（view-only 审单预禁用/整批 403/中文 toast/删除店铺中文弹窗/40303 文案统一）全部通过；移动端与视觉现代感达标。
 - **本轮无新 P1/P2**；遗留维持 v10 P2-3（mcp-tokens 文档链接）与 v9 P2-3（CSV 未折算列）待产品确认。基线为 main + 叠加 #335/#337。详见 `docs/ux-review/UX_REVIEW_V11_REPORT.md`、`docs/progress/R169.md`。
+
+### 变更记录（2026-08-08）第 171 轮线2：遗留 OPEN PR 核查与全仓盘点（fullstack-engineer）
+
+- **#245/#247/#248 核查定案**：三个 2026-08-05 遗留 OPEN PR 的 head commit（`c283b475`/`ea1c9d21`/`cec578af`）均已是 main 祖先——#250（`fix/round117-audit-p2`）基于该 stacked 链（#244→#245→#247→#248）顶部创建并于当日合并（merge commit `b82277ae`），整栈随之进入 main；因 base 为中间分支未被 GitHub 自动关闭，属纯挂账。**全部建议直接关闭（不需合并/rebase）**，关闭依据已登记各 PR 评论区。#245 审单面此后还被 R165/R167 加严（`EnsureStoreOperable` + 整批 403/40303）。
+- **全仓 OPEN PR 盘点（共 4）**：#342（R170 线1，活跃，建议正常评审合并）+ 上述三个待关闭。#332–#340 均已合并，无其余挂账。
+- 实测：main 上 `go test ./internal/modules/order/...`（含 #245 带入的 `review_store_scope_test.go`）与 `go test ./internal/securitytests/permmatrix/...` 全绿。详见 `docs/progress/R171-line2.md`。
