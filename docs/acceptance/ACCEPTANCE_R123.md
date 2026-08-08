@@ -1,6 +1,6 @@
-# R123 预验收对照表（R91–R122 功能轮验收包，R128 增补 R124–R127，R132 增补 R128–R131，R136 增补 R132–R135，R141 增补 R136–R140，R148 增补 R144–R147，R153 增补 R148–R152，R158 增补 R153–R157，R163 增补 R158–R162，R167 增补 R163–R166，R170 增补 R167–R169，R175 增补 R170–R174）
+# R123 预验收对照表（R91–R122 功能轮验收包，R128 增补 R124–R127，R132 增补 R128–R131，R136 增补 R132–R135，R141 增补 R136–R140，R148 增补 R144–R147，R153 增补 R148–R152，R158 增补 R153–R157，R163 增补 R158–R162，R167 增补 R163–R166，R170 增补 R167–R169，R175 增补 R170–R174，R181 增补 R176–R180）
 
-- 轮次：R123 线1（technical-writer / product-manager）；R128 线2 增量更新（§一·补、§四、§五）；R132 线1 增量更新（§一/10 合入状态收口、§一/11、§五）；R136 线1 增量更新（§一/12、§四、§五）；R141 线1 增量更新（§一/12 合入状态收口、§一/13、§五）；R148 线1 增量更新（§一/14、§三、§五）；R153 线2 增量更新（§一/15、§三、§五）；R158 线2 增量更新（§一/15 合入状态收口、§一/16、§三、§五）；R163 线2 增量更新（§一/16 合入状态收口、§一/17、§三、§五）；R167 线2 增量更新（§一/18、§三、§五）；R170 线1 增量更新（§一/18 合入状态收口、§一/19、§三、§五）；R175 线2 增量更新（§一/19 合入状态收口、§一/20、§三、§五）
+- 轮次：R123 线1（technical-writer / product-manager）；R128 线2 增量更新（§一·补、§四、§五）；R132 线1 增量更新（§一/10 合入状态收口、§一/11、§五）；R136 线1 增量更新（§一/12、§四、§五）；R141 线1 增量更新（§一/12 合入状态收口、§一/13、§五）；R148 线1 增量更新（§一/14、§三、§五）；R153 线2 增量更新（§一/15、§三、§五）；R158 线2 增量更新（§一/15 合入状态收口、§一/16、§三、§五）；R163 线2 增量更新（§一/16 合入状态收口、§一/17、§三、§五）；R167 线2 增量更新（§一/18、§三、§五）；R170 线1 增量更新（§一/18 合入状态收口、§一/19、§三、§五）；R175 线2 增量更新（§一/19 合入状态收口、§一/20、§三、§五）；R181 线2 增量更新（§一/20 合入状态收口、§一/21、§三、§五）
 - 日期：2026-08-07
 - 基线：main `02b6b086`（#260 已合并）；演示脚本实跑也基于该基线。**#261（R122 线1 性能收口 v2，perf/round122）已于本轮验收包提交后合入 main（合并提交 `60e09b19`）**，性能收口条目已随之收口。
 - 口径：按 CHARTER §7 验收制整理——可运行成果（Docker 全栈）+ 演示（[DEMO_SCRIPT.md](DEMO_SCRIPT.md)）+ 需求（业务闭环）逐条对照 + 竞品对比结论（§四）。
@@ -232,7 +232,7 @@ R163–R166 为安全修复与回归密集期（view-only 权限体系收口 + �
 
 ### 20. R170–R174 增量能力（R175 增补）
 
-R170–R174 为收口与季度复查密集期（P2 批次收口、大回归 v30/v31、生产演练复检、MCP 写白名单决策材料）。合并状态如实标注（R175 线2 时点，权威 PR 状态）：#341/#342/#343/#344/#345/#346/#347 已合入 main；**#348（R173 线2 客服复查报告）/#349（R174 线1 P2×4 收口）/#350（R174 线2 大回归 v31 报告）仍为 OPEN**（三者均 mergeable 无冲突；v31 结论建议直接合并 #348）。#245/#247/#248 为 2026-08-05 遗留挂账 PR，内容已 100% 在 main（经 #250 整栈带入，R171 线2 核实），建议直接关闭。
+R170–R174 为收口与季度复查密集期（P2 批次收口、大回归 v30/v31、生产演练复检、MCP 写白名单决策材料）。合并状态如实标注（R175 线2 时点，权威 PR 状态）：#341/#342/#343/#344/#345/#346/#347 已合入 main；~~**#348（R173 线2 客服复查报告）/#349（R174 线1 P2×4 收口）/#350（R174 线2 大回归 v31 报告）仍为 OPEN**（三者均 mergeable 无冲突；v31 结论建议直接合并 #348）~~——R181 线2 时点 #348/#349/#350 已全部合入 main，本节原 ⏳ 条目已收口。#245/#247/#248 为 2026-08-05 遗留挂账 PR，内容已 100% 在 main（经 #250 整栈带入，R171 线2 核实），建议直接关闭。
 
 | 能力点 | 实现轮次 / PR | 验证证据 | 状态 |
 | --- | --- | --- | --- |
@@ -246,7 +246,25 @@ R170–R174 为收口与季度复查密集期（P2 批次收口、大回归 v30/
 | 客服/AI 工作流季度复查：API 全链路约 50 项断言、#330 view-only 会话族 14 写探针零回退、双租户 404 隔离、#346 修复面实弹通过、三角色三视口 UI 走查 12/12；无 P0/P1，产出 P2×4 清单 | R173 线2 / #348（纯文档） | `docs/progress/R173-line2.md`（随 #348） | ⏳ #348 OPEN（mergeable，v31 建议直接合并） |
 | R173 线2 P2×4 收口：客服发送链路英文报错中文化、迁移导入先 scope 后 body（先红后绿回归测试）、seed delivered_at 未来时间戳修正、异常工作台 modal rethrow 修复（dev overlay） | R174 线1 / #349 | `docs/progress/R174.md`（随 #349）；`permmatrix/r174_migrationimport_scope_order_test.go` | ⏳ #349 OPEN（mergeable） |
 | 全站大回归 v31：全套门禁全绿（go test 103 包、permmatrix 107、E2E 359 passed）、Docker 全栈 35/35 断言、#347 修复面实弹、0 P0/P1；开放 PR 权威状态核实与合并顺序结论 | R174 线2 / #350（纯文档） | `docs/progress/R174-line2.md`（随 #350） | ⏳ #350 OPEN（mergeable） |
-| 验收包补 R170–R174 增量 + DEMO_SCRIPT 口径并入 + Docker 三角色实跑核对 | R175 线2 / 本轮（纯文档） | `docs/progress/R175-line2.md`；DEMO_SCRIPT 实跑记录 2026-08-08（R175 线2）条目 | ⏳ 本轮 PR 待合并 |
+| 验收包补 R170–R174 增量 + DEMO_SCRIPT 口径并入 + Docker 三角色实跑核对 | R175 线2 / #351（纯文档） | `docs/progress/R175-line2.md`；DEMO_SCRIPT 实跑记录 2026-08-08（R175 线2）条目 | ✅ #351 已合并 |
+
+### 21. R176–R180 增量能力（R181 增补）
+
+§一/20 合入状态收口（R181 线2 时点）：**#348/#349/#350/#351 已全部合入 main**，原 ⏳ 条目已收口。R176–R180 新增交付合并状态如实标注（R181 线2 时点，权威 PR 状态）：#352/#353/#354/#355/#356/#358/#359 已合入 main；**#357（竞品 v10）/#360（MCP 写 W1）/#361（MCP 写 W2）/#362（大回归 v33 报告）仍为 OPEN**（均 mergeable 无冲突）。v33 合并顺序结论按剩余 OPEN 面折算：**#360 → #361（含 #360 全部提交，或直接合 #361 覆盖）→ #357 → #362**。
+
+| 能力点 | 实现轮次 / PR | 验证证据 | 状态 |
+| --- | --- | --- | --- |
+| R176 安全审计季度复跑 P1×2 修复：P1-1 迁移导入目标店铺租户闭合（`adminperm.ApplyTenantScope`，跨租户 shop_id 由 validate/commit 放行 → 404 语义拒绝）；P1-2 settings 加密粘性（`isEncrypted` 缺省不再把已加密项降级明文回写）；另收口客服会话/异常绑定 SKU 两处先 scope 后 body | R176 线1 / #353 | `docs/SECURITY_AUDIT_R176.md`；`docs/progress/R176.md`；先红后绿回归测试 | ✅ #353 已合并 |
+| 全站视觉/UX 复核 v12：5 persona × 5 视口 × 98 路由 = 2450 组合硬指标全零（pageerror/根溢出/NaN·Invalid Date·undefined/redirect-login/403·500 噪声）；P2×1 即修（客服会话详情 375 视口 Descriptions 响应式 span）；新面走查 12/12 | R176 线2 / #354 | `docs/ux-review/UX_REVIEW_V12_REPORT.md`；`docs/progress/R176-line2.md` | ✅ #354 已合并 |
+| settings 敏感 key 服务端注册表：`IsSensitiveKey`/`RegisterSensitiveKeys`（大小写不敏感），注册源为集成 schema + 平台 Provider 敏感字段；注册表内新写入强制加密（客户端传 `isEncrypted:false` 也不放行明文），无 `APP_MASTER_KEY` 时 fail-closed 拒写；注册表外 key 兼容不变 | R177 线1 / #355 | `docs/progress/R177.md`；`settings/sensitive_registry.go` 单测 | ✅ #355 已合并 |
+| 全站大回归 v32 + modal 防重复提交 P1 修复（确认弹窗提交中禁双击，双击仅 1 次 POST） | R177 线2 / #356 | `docs/progress/R177-line2.md`（103 Go 包、securitytests 111/111、前端 368、契约 17、Docker 全栈实测） | ✅ #356 已合并 |
+| 生产部署/升级演练季度复跑（Caddy HTTPS 生产栈）：从零部署、幂等重部署、TRUSTED_PROXIES/OPENAPI_ENABLED 口径、存储/备份→恢复、升级指纹比对；登记 P2（存量明文敏感项读路径可见，至 R179 线2 收口） | R178 线1 / #358（纯文档） | `docs/progress/R178.md`；演练证据外置不入库 | ✅ #358 已合并 |
+| 竞品对标复评 v10（店小秘/马帮/AutoDS）：矩阵维持超越 4 / 达到 12 / 落后 0，维护期实测零回退；竞品「对话式写」量产 vs 我方 D1–D4 待勾选差距提醒（AutoDS Claude MCP 写操作常态化） | R178 线2 / #357（纯文档） | `docs/COMPETITIVE_BENCHMARK_R178.md`；`docs/progress/R178-line2.md` | ⏳ #357 OPEN（mergeable） |
+| 存量明文敏感项惰性收编（R178 P2 收口）：注册表内存量明文读路径脱敏 + 首次读取乐观并发惰性加密回写（`WHERE is_encrypted=false AND item_value=读到的明文`）；无加密器仅脱敏不回写；注册表外明文兼容不变 | R179 线2 / #359 | `docs/progress/R179-line2.md`；Docker 双租户存量明文实测（脱敏读/密文落库/二次读稳定） | ✅ #359 已合并 |
+| MCP 写白名单 W1 基建：独立 `write:ops` scope（空/未知 scope fail-closed）、三层闸门默认全关（`MCP_WRITE_ENABLED` → 租户 `mcp/write_enabled` → token scope）、dry-run→一次性确认 token（TTL 5 分钟，库存 SHA-256，四元绑定原子消费）→execute、fail-closed 审计同事务 + 限额（30 次/时/token、200 次/天/租户）、写 token admin-only 创建 + 强制过期（默认 30/最长 90 天）；首个动作 `orders_add_tag`/`orders_remove_tag`（幂等、跨租户 404 语义）；无外发工具面断言 | R179 线1 / #360 | PR #360 门禁记录；`docs/mcp.md` 写白名单章节；本轮 R181 线2 Docker 叠加实跑（DEMO_SCRIPT 实跑验证记录 R181 条目） | ⏳ #360 OPEN（mergeable） |
+| MCP 写白名单 W2：三动作接入（`exceptions_mark` handle/ignore/unmark、`procurement_mark_placed`、`procurement_fill_logistics`，全走 W1 dry-run→确认→执行管道、业务变更与审计同事务）+ 后台治理 UI（`/settings/mcp-tokens` admin 专属写白名单卡片：租户开关风险确认、写 token 创建/吊销、审计表 mode/paramsSummary/confirmHash 三列）+ 非 admin 列表不见写 token/吊销 404 + Shopee `partner_key` 敏感注册 | R180 线1 / #361（含 #360 全部提交） | PR #361 门禁记录；本轮 R181 线2 Docker 叠加实跑（DEMO_SCRIPT 实跑验证记录 R181 条目） | ⏳ #361 OPEN（mergeable） |
+| 全站大回归 v33（#348–#360 叠加集成验证）：门禁全绿（103 Go 包、securitytests 113/113、E2E 359 passed）、Docker 全栈实测 W1 写链路全链、合并顺序终版结论；0 P0/P1 | R180 线2 / #362（纯文档） | `docs/progress/R180-line2.md`（随 #362） | ⏳ #362 OPEN（mergeable） |
+| 验收包补 R176–R180 增量 + DEMO_SCRIPT 并入 MCP 写演示点 + Docker 三角色+view-only 实跑核对 | R181 线2 / 本轮（纯文档） | `docs/progress/R181-line2.md`；DEMO_SCRIPT 实跑验证记录 2026-08-08（R181 线2）条目 | ⏳ 本轮 PR 待合并 |
 
 ## 二、外部凭证依赖项清单（按杠杆排序，含降级路径）
 
@@ -276,9 +294,12 @@ R170–R174 为收口与季度复查密集期（P2 批次收口、大回归 v30/
 - R163–R166 合入面：客服会话收口与复查 `docs/progress/R164-line2.md`（#330）；演练复检 `docs/progress/R164.md`（#329）；安全审计 `docs/SECURITY_AUDIT_R165.md`（#331）；大回归 v29 报告 `docs/progress/R166.md`（`integration/r166-regression-v29` 分支，随 #332 合入路径归档）；R166 线2 审计 `docs/progress/R166-line2.md`（随 #333）；R167 线2 竞品矩阵前哨抽验 `docs/progress/R167-line2.md`；R167 线2 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-07（R167 线2）条目。
 - R167–R169 合入面：审单批量整批 403 定案 `docs/progress/R167.md`（#335）；文案统一与合并期巡检 `docs/progress/R168.md`（#337）；升级演练复跑 `docs/progress/R168-line2.md`（#338）；UX v11 `docs/ux-review/UX_REVIEW_V11_REPORT.md`（#340）；token 治理复查 `docs/progress/R169-line2.md`（#339）；R170 线1 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-08（R170 线1）条目。
 - R170–R174 合入面：竞品复评 v9 `docs/COMPETITIVE_BENCHMARK_R170.md`（#341）；挂账清理核查 `docs/progress/R171-line2.md`（#343）；大回归 v30 `docs/progress/R171.md`（#344）；MCP 写白名单决策一页纸 `docs/design/MCP_WRITE_WHITELIST_DECISION_BRIEF.md`（#345）；生产演练复检 + 40303 漏网收口 `docs/progress/R172.md`/`docs/progress/R172-line2.md`（#346/#345）；40303 全站回归 `docs/progress/R173.md`（#347）；客服复查 `docs/progress/R173-line2.md`（随 #348）；P2×4 收口 `docs/progress/R174.md`（随 #349）；大回归 v31 `docs/progress/R174-line2.md`（随 #350）；R175 线2 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-08（R175 线2）条目。
+- R176–R180 合入面：安全审计 `docs/SECURITY_AUDIT_R176.md`（#353）；UX v12 `docs/ux-review/UX_REVIEW_V12_REPORT.md`（#354）；敏感 key 注册表 `docs/progress/R177.md`（#355）；大回归 v32 `docs/progress/R177-line2.md`（#356）；生产演练复跑 `docs/progress/R178.md`（#358）；竞品复评 v10 `docs/COMPETITIVE_BENCHMARK_R178.md`（随 #357）；惰性收编 `docs/progress/R179-line2.md`（#359）；MCP 写 W1/W2 `docs/mcp.md` 写白名单章节（随 #360/#361）；大回归 v33 `docs/progress/R180-line2.md`（随 #362）；R181 线2 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-08（R181 线2）条目。
 - R158–R162 合入面：安全审计 `docs/SECURITY_AUDIT_R159.md`（P1 view-only 越权修复 #322 + P2 收口 #323）；升级演练 `docs/progress/R159-line2.md`（#321，证据外置）；竞品复评 v8 `docs/COMPETITIVE_BENCHMARK_R161.md`（随 #324）；UX v10 `docs/ux-review/UX_REVIEW_V10_REPORT.md`（随 #327）；R163 线2 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-07（R163 线2）条目。
 
 ## 四、竞品对照结论（R125 复评 v4 为准，全文见 [../COMPETITIVE_BENCHMARK_R125.md](../COMPETITIVE_BENCHMARK_R125.md)；R118 版见 [../COMPETITIVE_BENCHMARK_R118.md](../COMPETITIVE_BENCHMARK_R118.md)）
+
+**R181 增补（R178 复评 v10，随 #357，⏳ OPEN）**：16 项矩阵 Docker 全栈实测复评维持 **超越 4 / 达到 12 / 落后 0**（vs 店小秘/马帮/AutoDS），维护期已合入收口零回退；竞品 2026 H2 复查无新结构性缺口，但「对话式写」差距持续扩大（AutoDS Claude MCP 写操作常态化）——我方 MCP 写白名单 W1/W2 已随 #360/#361 交付（⏳ 待合并），合入后该差距收敛。全文见 [../COMPETITIVE_BENCHMARK_R178.md](../COMPETITIVE_BENCHMARK_R178.md)（随 #357）。
 
 **R136 增补（R134 复评 v5，#280）**：16 项矩阵 Docker 全栈实测复评维持 **超越 3 / 达到 13 / 落后 0**（vs 店小秘/马帮，补充 AutoDS，含竞品 2026 年近期更新调研），8 轮维护期实测零回退，第 6 项订单管理坐实为超越；未发现新的结构性产品缺口，新差距均为凭证依赖或可选增量。结论：维护期可收束，建议「等凭证为主 + 小步差异化」双轨，预验收包可按沙箱口径正式提交。全文见 [../COMPETITIVE_BENCHMARK_R134.md](../COMPETITIVE_BENCHMARK_R134.md)。
 
@@ -305,4 +326,5 @@ R170–R174 为收口与季度复查密集期（P2 批次收口、大回归 v30/
 11. ~~R167 时点待办：#332/#333 待合入~~——R170 时点 #332/#333/#334 已全部合入 main（§一/18 原 ⏳ 条目已收口）。MCP 写白名单（#326 方案）、operator 管 MCP token 收紧、前端工具链跨 major 升级仍待老板决策。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
 12. ~~R170 时点待办：#339/#340 待合并~~——R175 时点 #339/#340 已合入 main（§一/19 原 ⏳ 条目已收口）。以下口径保留：permmatrix 套件仍依赖 `TEST_DATABASE_URL` + `APP_ENV=test` 手工配置——保留为**有意设计**（安全测试库绝不 fallback 到开发库，未配置即显式 skip 并提示 `docs/permission-matrix.md`），不做默认连接；UX v9 P2-3（finance-report CSV 未折算列口径）仍待产品确认。
 13. R175 时点待办：#348（客服复查报告）/#349（R174 P2×4 收口）/#350（大回归 v31 报告）为 OPEN 待合并（均 mergeable 无冲突，v31 结论建议直接合并 #348；#349 含代码，v31 之后提交，建议按 #348→#350→#349 或任意无冲突顺序合入）；#245/#247/#248 挂账 PR 内容已 100% 在 main（R171 线2 核实并已在 PR 评论区登记依据），建议直接关闭。MCP 写白名单 D1–D4 决策一页纸（#345，`docs/design/MCP_WRITE_WHITELIST_DECISION_BRIEF.md` §决策页）待老板勾选；operator 管 MCP token 收紧、前端工具链跨 major 升级仍待老板决策。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
-14. ~~R158 时点待办~~——R163 时点 #312/#317/#318 已按建议顺序全部合入 main（§一/16 四个 ⏳ 条目已全部转 ✅；#311 内容随 #312 合入，其 PR 可直接关闭），以下为 R158 时点存档口径：§一/16 中 #311/#312/#317/#318 为 ⏳ 待合并。#312（fix/round154-audit-p2）已携带 #311 三项行为变更内容、#317（fix/round156-misc）已携带 #312 内容，建议合并顺序 #312 → #317 → #318（各 PR 与 main 的 PROGRESS/契约计数冲突可按 union 解决，集成预演 `integration/r157-regression-v26` 已验证可解，合并后契约受保护端点 124）；#311 的 base 为已合入 main 的 feat/round152-open-api 且有冲突，其内容随 #312 合入后可直接关闭。both 双入口额度语义、operator 管 MCP token 是否收紧 admin-only、前端工具链跨 major 升级决策事项沿 §五/10 存档口径不变。
+14. ~~R175 时点待办已收口（R181 线2）~~：#348/#349/#350 已合入 main（§一/20 原 ⏳ 条目已收口）。R181 时点待办：#357（竞品 v10）/#360（MCP 写 W1）/#361（MCP 写 W2，含 #360）/#362（大回归 v33 报告）为 OPEN 待合并（均 mergeable 无冲突），建议顺序 #360 → #361 → #357 → #362（或直接合 #361 覆盖 #360）；#245/#247/#248 挂账 PR 仍建议直接关闭。MCP 写白名单 D1–D4 已按定案实现至 W2，`mark-paid` 刻意留 W3（租户金额上限 + 三前提）；operator 管 MCP token 收紧、前端工具链跨 major 升级仍待老板决策。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
+15. ~~R158 时点待办~~——R163 时点 #312/#317/#318 已按建议顺序全部合入 main（§一/16 四个 ⏳ 条目已全部转 ✅；#311 内容随 #312 合入，其 PR 可直接关闭），以下为 R158 时点存档口径：§一/16 中 #311/#312/#317/#318 为 ⏳ 待合并。#312（fix/round154-audit-p2）已携带 #311 三项行为变更内容、#317（fix/round156-misc）已携带 #312 内容，建议合并顺序 #312 → #317 → #318（各 PR 与 main 的 PROGRESS/契约计数冲突可按 union 解决，集成预演 `integration/r157-regression-v26` 已验证可解，合并后契约受保护端点 124）；#311 的 base 为已合入 main 的 feat/round152-open-api 且有冲突，其内容随 #312 合入后可直接关闭。both 双入口额度语义、operator 管 MCP token 是否收紧 admin-only、前端工具链跨 major 升级决策事项沿 §五/10 存档口径不变。
