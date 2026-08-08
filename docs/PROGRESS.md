@@ -2095,6 +2095,11 @@ Final Production Acceptance Deferred to P10
 - **验收包增量**：`ACCEPTANCE_R123.md` §一/18 合入状态收口 + 新增 §一/19「R167–R169 增量能力」（#335/#336/#337/#338 已合入、#339/#340 OPEN 如实标注）+ §三 + §五；`DEMO_SCRIPT.md` 补 R170 口径（30 分钟总长不变）。
 - 详见 `docs/progress/R170.md`。
 
+### 变更记录（2026-08-08）第 173 轮线2：客服/AI 工作流季度复查（qa-engineer）
+
+- **全链路实测通过、#330 零回退、无 P0/P1**：Docker 全栈（main + #346 叠加）实测客服线约 50 项 API 断言（AI 建议降级 400 可读提示无伪成功、模板变量填充/多语言变体/语言切换重生成、消息节点规则仅新事件+回溯预估幂等、批量标记、人工发送闸门零自动外发）；view-only 会话族 14 条写探针全部 403/40303 统一「店铺无操作权限」零落库；越权 detail 404、readonly 只读、AI key 脱敏、双租户隔离零残留；#346 修复面四模块（orderexception/finance/productpublish/migrationimport）40303 文案统一实弹通过。
+- UI 三角色三视口走查 12/12 组合无根级横向溢出、console 零 error；R164 P2-2/P2-3（view-only 详情无只读 Alert、readonly 列表写入口残留）实测已不复现。P2×3 登记（send-platform-message 英文报错、migrationimport 参数校验先于 scope、seed delivered_at 未来时间戳）。详见 `docs/progress/R173-line2.md`。
+
 ### 变更记录（2026-08-08）第 171 轮线2：遗留 OPEN PR 核查与全仓盘点（fullstack-engineer）
 
 - **#245/#247/#248 核查定案**：三个 2026-08-05 遗留 OPEN PR 的 head commit（`c283b475`/`ea1c9d21`/`cec578af`）均已是 main 祖先——#250（`fix/round117-audit-p2`）基于该 stacked 链（#244→#245→#247→#248）顶部创建并于当日合并（merge commit `b82277ae`），整栈随之进入 main；因 base 为中间分支未被 GitHub 自动关闭，属纯挂账。**全部建议直接关闭（不需合并/rebase）**，关闭依据已登记各 PR 评论区。#245 审单面此后还被 R165/R167 加严（`EnsureStoreOperable` + 整批 403/40303）。
