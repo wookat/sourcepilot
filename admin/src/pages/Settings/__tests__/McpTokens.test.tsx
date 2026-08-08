@@ -251,6 +251,47 @@ describe('McpTokensPage MCP 写白名单管理（R180 W2）', () => {
     expect(screen.getByText('金额（仅支付登记）')).toBeInTheDocument();
   });
 
+  it('管理员可配置 mark-paid 金额限额：回显租户设置并保存两个限额键（R185 v13）', async () => {
+    vi.mocked(useModel).mockReturnValue({
+      initialState: { currentUser: { role: 'admin' } },
+    });
+    listMcpTokens.mockResolvedValue([]);
+    fetchSettingsList.mockResolvedValue({
+      items: [
+        { groupKey: 'mcp', itemKey: 'mark_paid_single_limit', itemValue: '500' },
+        { groupKey: 'mcp', itemKey: 'mark_paid_daily_limit', itemValue: '2000' },
+      ],
+    });
+    saveSettingsItems.mockResolvedValue({ items: [] });
+    const user = userEvent.setup();
+    render(<McpTokensPage />);
+
+    const writeCard = (await screen.findByText('MCP 写白名单（write:ops，仅管理员）')).closest(
+      '.ant-card',
+    ) as HTMLElement;
+    // 已配置的限额需要回显
+    const single = await within(writeCard).findByLabelText('单笔上限');
+    const daily = within(writeCard).getByLabelText('日累计上限');
+    expect(single).toHaveValue('500.00');
+    expect(daily).toHaveValue('2000.00');
+
+    await user.clear(single);
+    await user.type(single, '800');
+    await user.click(within(writeCard).getByRole('button', { name: '保存限额' }));
+    expect(saveSettingsItems).toHaveBeenCalledWith([
+      expect.objectContaining({
+        groupKey: 'mcp',
+        itemKey: 'mark_paid_single_limit',
+        itemValue: '800',
+      }),
+      expect.objectContaining({
+        groupKey: 'mcp',
+        itemKey: 'mark_paid_daily_limit',
+        itemValue: '2000',
+      }),
+    ]);
+  });
+
   it('非管理员不展示写审计列与调用模式筛选（R184 最小暴露）', async () => {
     vi.mocked(useModel).mockReturnValue({
       initialState: { currentUser: { role: 'operator' } },

@@ -2295,3 +2295,11 @@ Final Production Acceptance Deferred to P10
 - **DEMO_SCRIPT**：第 23b 步并入 mark-paid 金额上限演示点（约 40 秒，总长 30 分钟不变）；修正「mark-paid 刻意留 W3」「需叠加 #361 构建」等过时口径（#360–#368 已合入 main）。
 - **实跑实测**：基于本轮分支全栈镜像三角色/view-only/双租户/MCP 写全链（含 mark-paid 四拒绝路径）/#369 审计权限/RacePostgres 三例共 24/25 项断言 PASS；唯一 FAIL 为 deploy-prod.sh 告警首版 `{{index .Labels "…"}}` 模板恒不触发，已即修为 `{{.Label "…"}}` 并复验可触发；证据外置不入库。
 - **基线**：开发时点 main 叠加 OPEN PR #369/#370；期间两者已合入 main（本 PR 已回并收敛）。详见 `docs/progress/R185.md`。
+
+### 变更记录（2026-08-08）第 185 轮线2：全站视觉/UX 复核 v13（ux-designer + qa-engineer）
+
+- **口径**：权威核实 #369/#370 均 OPEN、mergeable，自 main（#368 → `135f2c5e`）本地叠加后走查（仅 `docs/PROGRESS.md` 文书性冲突）。
+- **硬指标**：5 persona × 5 视口 × 102 路由 headless 全扫，console error / pageerror / 根节点溢出 / NaN / redirect-login 全零，v12 基线无回退；v10 P2-3（mcp-tokens 文档入口）确认已闭环。
+- **MCP 治理新面**：写开关风险确认、写 token admin-only、审计 mode/金额列/筛选、R184 收紧后 operator/readonly 最小暴露视图、settings 敏感 key 脱敏回显全部通过（三角色实走）。
+- **P1 无；P2 即修 6 项**：mark-paid 限额 UI 配置入口缺失（写白名单卡片新增 admin-only 限额表单，先红后绿补回归）+ observability / workers monitor / sku-matches / config-status & security / reports-profit 五处裸枚举中文化。接受为技术标识：采集源 key、告警规则 ID、Prompt code、重加密审计表/字段名。
+- **门禁**：ui-copy strict、test:frontend 375、contracts 17、build:admin 全绿；未改后端 Go 代码。详见 `docs/ux-review/UX_REVIEW_V13_REPORT.md`、`docs/progress/R185-line2.md`。

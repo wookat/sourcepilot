@@ -12,16 +12,26 @@ import { ReloadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Col, Descriptions, Row, Space, Spin, Table, Tag, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
-function severityColor(sev: string) {
-  switch (sev) {
-    case 'critical':
-      return 'red';
-    case 'warning':
-      return 'orange';
-    default:
-      return 'blue';
-  }
-}
+const SEVERITY_META: Record<string, { color: string; label: string }> = {
+  critical: { color: 'red', label: '严重' },
+  warning: { color: 'orange', label: '警告' },
+  info: { color: 'blue', label: '提示' },
+};
+
+const ALERT_STATUS_META: Record<string, { color: string; label: string }> = {
+  firing: { color: 'red', label: '告警中' },
+  acknowledged: { color: 'blue', label: '已确认' },
+  silenced: { color: 'default', label: '已静默' },
+  resolved: { color: 'green', label: '已恢复' },
+};
+
+const ALERT_MODULE_LABEL: Record<string, string> = {
+  http: 'HTTP 服务',
+  security: '安全',
+  queue: '队列',
+  worker: '后台任务',
+  db: '数据库',
+};
 
 function otlpStatusMeta(status?: string) {
   switch (status) {
@@ -142,10 +152,26 @@ export default function ObservabilityCenterPage() {
                   title: '级别',
                   dataIndex: 'severity',
                   width: 100,
-                  render: (v: string) => <Tag color={severityColor(v)}>{v}</Tag>,
+                  render: (v: string) => {
+                    const meta = SEVERITY_META[v];
+                    return <Tag color={meta?.color ?? 'blue'}>{meta?.label ?? v}</Tag>;
+                  },
                 },
-                { title: '状态', dataIndex: 'status', width: 120 },
-                { title: '模块', dataIndex: 'module', width: 120 },
+                {
+                  title: '状态',
+                  dataIndex: 'status',
+                  width: 120,
+                  render: (v: string) => {
+                    const meta = ALERT_STATUS_META[v];
+                    return <Tag color={meta?.color ?? 'default'}>{meta?.label ?? v}</Tag>;
+                  },
+                },
+                {
+                  title: '模块',
+                  dataIndex: 'module',
+                  width: 120,
+                  render: (v: string) => ALERT_MODULE_LABEL[v] ?? v,
+                },
                 { title: '摘要', dataIndex: 'summary' },
                 { title: '次数', dataIndex: 'occurrenceCount', width: 80 },
                 {
