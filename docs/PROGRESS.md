@@ -2271,6 +2271,15 @@ Final Production Acceptance Deferred to P10
 - **依赖**：`govulncheck` 0 可达漏洞；`pnpm audit --prod` 16 项（全部 admin 构建链）。
 - **门禁**：Go 全量（含 Docker PostgreSQL 集成）+ RacePostgres ×3 + 前端/契约/采集/构建全绿。详见 `docs/SECURITY_AUDIT_R183.md`、`docs/progress/R183.md`。
 
+### 变更记录（2026-08-08）第 184 轮线2：生产升级演练季度复跑（devops-engineer + qa-engineer）
+
+- **口径**：#360–#368 经权威核实全部已合入 main（末次 #368 → `135f2c5e`），全程以 main 直接演练；老栈基线取 `ab0c9b36`（MCP 写系列合入前）。
+- **从零部署**：production compose + Caddy 冷构建 3m52s、重跑 2.8s，六服务 healthy、HTTPS 健康检查与 bootstrap 登录通过。
+- **存量升级**：R178 同构双租户基线（20k 订单/40k 行/60k 库存流水/19,982 自动化日志/4k SKU/3,990 回款/5 存量 token/加密 settings/跨租户 DUP 样本）升级 18.9s；AutoMigrate 落地 `mcp_write_confirmations` 新表与审计 5 新列；**业务表数值指纹 0 差异**，仅 shop_id 回填与 report_currency 默认项两处确定性变更（逐行复核 0 不一致）。
+- **升级后实测**：MCP 写全链 25 项矩阵全过（三层闸门、dry_run→确认 token→execute→重放幂等→参数漂移拒绝、W3 三前提四路径、审计带 amount、#367 无回退）；并发实测同 token 6 并发恰 1 次生效、8 并发配额严格唯一递减、小时配额 30 打满拒绝；治理 UI 三角色截图一致；view-only 40303/未授权 404/readonly 40301/跨租户 404 矩阵全过。
+- **备份恢复闭环**：`--pre-upgrade-check` 备份→`pg_restore --clean --if-exists` 恢复→标记行消失且指纹 0 差异→AutoMigrate 幂等重跑→deploy-prod 终态重跑 2.9s 全 healthy。
+- **P0/P1 无；P2 新增登记**：`docker-compose.prod.yml` 硬编码 `name: trademind-prod`，同机第二 checkout 直接部署会静默共用数据卷（需显式 `COMPOSE_PROJECT_NAME`，建议部署文档加警示）。详见 `docs/progress/R184-line2.md`。
+
 ### 变更记录（2026-08-08）第 184 轮线1：R183 审计 P2×4 批次收口（fullstack-engineer）
 
 - **P2-1（代码收口）**：`GET /api/v1/mcp/audit-logs` 写动作审计行改为仅 `settings.manage` 持有者可见（与写 token 治理同轴），operator/readonly 仅见只读工具 / 开放 API 审计行，SQL 层过滤、mode 显式查询不可绕过、principal 解析失败 fail-closed；写白名单新导出 `mcpserver.WriteToolNames()` 与 `isWriteTool` 同源守护；admin UI 非管理员隐藏写审计列与调用模式筛选。先红后绿 `TestAuditListWriteRowsAdminOnly`（+ Docker PostgreSQL 双租户版），permmatrix 登记。
