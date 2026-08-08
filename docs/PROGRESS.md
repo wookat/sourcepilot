@@ -2287,4 +2287,3 @@ Final Production Acceptance Deferred to P10
 - **P2-3（评估登记）**：读工具审计后置时序无泄漏窗口（fail-closed 挡响应），维持现状，理由见 `docs/progress/R184.md`。
 - **P2-4（逐项登记）**：admin 构建链 16 项告警逐项评估于 `docs/DEPENDENCY_AUDIT_R184.md`，全部 umi 传递链、无生产暴露面，不跨 major 不动，等 umi 窗口统一。
 - **门禁**：Go 全量 + Docker PostgreSQL（audit 双租户 + RacePostgres ×3）+ 前端/契约/采集/构建全绿。详见 `docs/progress/R184.md`。
->>>>>>> origin/main
