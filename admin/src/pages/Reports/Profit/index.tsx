@@ -20,6 +20,7 @@ import { Link, useSearchParams } from '@umijs/max';
 import { mergeQueryState } from '@/utils/urlState';
 import { EmptyState, TmPageContainer } from '@/components/ui';
 import { chartTokens, formatAmount, tabularNumsStyle } from '@/constants/chartTokens';
+import { platformLabel } from '@/constants/userFriendly';
 import {
   downloadProfitReportCsv,
   fetchProfitReport,
@@ -116,7 +117,7 @@ export default function ProfitReport() {
           <Tooltip title={v}>
             <span>
               {v}
-              {r.platform ? <Typography.Text type="secondary">（{r.platform}）</Typography.Text> : null}
+              {r.platform ? <Typography.Text type="secondary">（{platformLabel(r.platform)}）</Typography.Text> : null}
             </span>
           </Tooltip>
         ),

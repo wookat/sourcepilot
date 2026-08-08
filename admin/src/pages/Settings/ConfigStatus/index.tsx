@@ -5,13 +5,16 @@ import { TmPageContainer } from '@/components/ui';
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import StoragePublicUrlBanner from '@/components/platform/StoragePublicUrlBanner';
 import PermissionGuard from '@/components/PermissionGuard';
-import { PAGE_COPY } from '@/constants/copywriting';
+import { commonStatusLabel, PAGE_COPY } from '@/constants/copywriting';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { fetchConfigStatusOverview, type ConfigStatusItem } from '@/services/configStatus';
 import { PERMISSIONS } from '@/utils/permission';
 
 function statusColor(status: string) {
-  if (status.includes('已配置') || status.includes('运行中')) return 'success';
+  if (status === 'ready') return 'success';
+  if (status === 'not_ready') return 'error';
+  if (status === 'ready_with_warning' || status === 'manual_required') return 'warning';
+  if (status.includes('已配置') || status.includes('运行中') || status.includes('就绪')) return 'success';
   if (status.includes('异常') || status.includes('配置异常')) return 'error';
   if (status.includes('关闭') || status.includes('未配置')) return 'default';
   if (status.includes('降级')) return 'warning';
@@ -19,13 +22,18 @@ function statusColor(status: string) {
   return 'processing';
 }
 
+/** 后端可能返回英文枚举（ready / manual_required 等）或中文文案，统一转中文展示 */
+function statusText(value: string) {
+  return /^[a-z][a-z0-9_]*$/.test(value) ? commonStatusLabel(value) : value;
+}
+
 function StatusCard({ item }: { item: ConfigStatusItem }) {
   return (
-    <Card size="small" title={item.title} extra={<Tag color={statusColor(item.status)}>{item.status}</Tag>}>
+    <Card size="small" title={item.title} extra={<Tag color={statusColor(item.status)}>{statusText(item.status)}</Tag>}>
       {item.summary ? <Typography.Paragraph type="secondary">{item.summary}</Typography.Paragraph> : null}
       {item.impactScope ? (
         <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-          影响范围：{item.impactScope}
+          影响范围：{statusText(item.impactScope)}
         </Typography.Text>
       ) : null}
       {item.nextAction ? (

@@ -7,6 +7,14 @@ import { queryOrderSkuMatches, type OrderSkuMatchListRow } from '@/services/orde
 import { formatDateTime } from '@/utils/formatTime';
 import { queryShops } from '@/services/shops';
 
+const MATCH_TYPE_LABEL: Record<string, string> = {
+  publication_sku_external_id: '刊登规格外部 ID',
+  publication_sku_code: '刊登规格编码',
+  local_sku_code: '本地规格编码',
+  manual: '人工绑定',
+  none: '未匹配',
+};
+
 export default function OrderSkuMatchesPage() {
   const [searchParams] = useSearchParams();
   const presetOrderId = searchParams.get('orderId')?.trim() ?? '';
@@ -92,11 +100,11 @@ export default function OrderSkuMatchesPage() {
       width: 110,
       valueType: 'select',
       valueEnum: {
-        matched: { text: 'matched' },
-        unmatched: { text: 'unmatched' },
-        ambiguous: { text: 'ambiguous' },
-        manual_bound: { text: 'manual_bound' },
-        skipped: { text: 'skipped' },
+        matched: { text: '已匹配' },
+        unmatched: { text: '未匹配' },
+        ambiguous: { text: '需要人工确认' },
+        manual_bound: { text: '人工绑定' },
+        skipped: { text: '已跳过' },
       },
     },
     {
@@ -104,6 +112,7 @@ export default function OrderSkuMatchesPage() {
       dataIndex: 'matchType',
       width: 150,
       ellipsis: true,
+      render: (_, row) => MATCH_TYPE_LABEL[row.matchType ?? ''] ?? row.matchType ?? '—',
     },
     {
       title: '置信度',

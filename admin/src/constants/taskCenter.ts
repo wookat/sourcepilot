@@ -140,6 +140,9 @@ export const TASK_CENTER_TASK_TYPE_LABEL: Record<string, string> = {
   ai_text: 'AI 批量文案',
   ai_image: 'AI 批量图片',
   douyin_platform: '抖店平台告警',
+  task_alert_scan: '任务告警扫描',
+  security_secret_reencrypt: '密钥重加密',
+  file_security_scan: '文件安全扫描',
 };
 
 export function isTaskCenterFailureTaskType(taskType?: string | null): boolean {

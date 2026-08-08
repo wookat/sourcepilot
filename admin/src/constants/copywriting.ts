@@ -491,6 +491,8 @@ export const COMMON_STATUS_LABEL: Record<string, string> = {
   matched: '已匹配',
   completed: '已完成',
   manual_review: '待人工复核',
+  manual_required: '需人工验证',
+  blocked_by_contract_verification: '待平台契约确认',
   verified: '已校验',
   deferred: '暂缓',
   not_ready: '未就绪',
