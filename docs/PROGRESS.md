@@ -2,6 +2,8 @@
 
 **Stage update**: 2026-08-08 — **Round 187 线2：性能与加载体验审计季度复跑（全 PASS，无 P0/P1：双租户 2 万订单量级核心列表 p50 <40ms、报表/对账优于 R130 修后基线 21–60%、异常页与 R122 修后持平；MCP 读分页 p50 ≤16ms、写链 dry-run→execute 端到端 p50 18ms、11 万行审计深分页 ≤20ms；开放 API 限流开销可忽略（429 拒绝 p50 1ms）；首包 gzip 320.6kB 较 R79 +5.8% 懒加载无回退；P2×4 登记：异常聚合线性扫描、审计表缺 (tenant_id, created_at) 复合索引、写配额计数口径、首包预算护栏）**：详见附录 [`docs/progress/R187-line2.md`](progress/R187-line2.md)。
 
+**Stage update**: 2026-08-08 — **Round 187 线1：R186 线2 P2 收口（operator 越 store-scope 会话详情 404 口径统一：文案改为「会话不存在或不在可见范围」，与真实 404 同构不泄露存在性，先红后绿）+ #371–#374 权威核实（#371/#372/#373 已合入，#374 OPEN 已叠加）+ 合入面巡检无新缺陷 + Docker 双租户实测**：详见附录 [`docs/progress/R187.md`](progress/R187.md)。
+
 **Stage update**: 2026-08-08 — **Round 186 线2：客服/AI 工作流季度复查（全 PASS，无 P0/P1；红线无违背：MCP 读/写工具对消息线零触点、人工确认发送闸门完好；readonly 40301 / view-only 40303 零副作用；R173 P2×3 与 #330 全部闭环；双租户隔离 + 三角色三视口通过；新增 P2×1 登记）**：详见附录 [`docs/progress/R186-line2.md`](progress/R186-line2.md)。
 
 **Stage update**: 2026-08-08 — **Round 177 线1：R176 审计 P2① 收口（settings 敏感 key 服务端注册表：强制加密落库 + 脱敏回显，不信任客户端 isEncrypted；新建项路径含内）**：详见附录 [`docs/progress/R177.md`](progress/R177.md)。
@@ -2307,3 +2309,17 @@ Final Production Acceptance Deferred to P10
 - **MCP 治理新面**：写开关风险确认、写 token admin-only、审计 mode/金额列/筛选、R184 收紧后 operator/readonly 最小暴露视图、settings 敏感 key 脱敏回显全部通过（三角色实走）。
 - **P1 无；P2 即修 6 项**：mark-paid 限额 UI 配置入口缺失（写白名单卡片新增 admin-only 限额表单，先红后绿补回归）+ observability / workers monitor / sku-matches / config-status & security / reports-profit 五处裸枚举中文化。接受为技术标识：采集源 key、告警规则 ID、Prompt code、重加密审计表/字段名。
 - **门禁**：ui-copy strict、test:frontend 375、contracts 17、build:admin 全绿；未改后端 Go 代码。详见 `docs/ux-review/UX_REVIEW_V13_REPORT.md`、`docs/progress/R185-line2.md`。
+
+### 变更记录（2026-08-08）第 186 轮线1：全站大回归 v35（qa-engineer）
+
+- **口径**：权威核实 #371/#372 均 OPEN、mergeable，自 main（#369/#370 合并后 `f9695c86`）按 #371→#372 顺序本地叠加后全量回归（仅 `docs/PROGRESS.md` 文书性冲突）。
+- **门禁全绿**：backend go test 104 包 / securitytests+permmatrix / ui-copy strict / frontend 375 / contracts 17 / collector 18 / build×2 / E2E 364 passed 0 failed。
+- **Docker 全栈矩阵 60/60 PASS**：主链路（采集→草稿→订单付款自动化→采购 generate→placed→(MCP)paid→shipped→入库→发货运单）、MCP 写五类动作 dry_run→确认 token→execute→重放幂等→参数漂移拒绝、mark-paid 三前提四拒绝路径、三层闸门独立生效、R184 审计权限收紧三角色可见性、view-only 40303/未授权 404/readonly 40301、双租户隔离与租户闸门、#372 新限额 UI 表单与后端 settings 联动实测、seed clean 后 zero DEMO- residual。
+- **P0/P1 = 0，P2 无新增**；合并顺序结论 #371→#372→R186 集成 PR。详见 `docs/progress/R186.md`。
+
+### 变更记录（2026-08-08）第 187 轮线1：R186 线2 P2 收口 + 合入面巡检（fullstack-engineer）
+
+- **P2 收口**：operator 越 store-scope 会话详情 404 口径统一——保持全站「越权按 404 语义、不泄露存在性」约定（后端 404/40401 遮蔽契约不变，实测越权与真实缺失响应体同构），前端 404 文案改为诚实覆盖两种情形：「会话不存在或不在可见范围」+「会话可能已被删除、链接有误，或不在当前账号可见的店铺范围内。」先红后绿更新并新增 E2E 回归（conversation-detail-load-fallback 5/5）。
+- **权威核实**：#371/#372/#373 已合入 main；#374（R186 大回归 v35 报告，纯文档）OPEN、mergeable，本轮已叠加，合并顺序 #374 → R187 PR。
+- **合入面巡检**：R185–R186 touched 前端文件无 console/debug 残留；ui-copy strict 通过；docs 引用抽查一致；无新缺陷。
+- **门禁与实测**：go test 104 包全绿、前端全套门禁与构建通过、E2E 受影响 spec + smoke 全绿；Docker 双租户实测（越权 404 契约探针、UI 新文案三场景、第二租户隔离、收尾 zero DEMO- residual）。详见 `docs/progress/R187.md`。
