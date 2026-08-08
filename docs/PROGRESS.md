@@ -2063,6 +2063,14 @@ Final Production Acceptance Deferred to P10
 - **备份恢复**：`--pre-upgrade-check`（非 root BACKUP_DIR 覆盖口径）+ 备份→`pg_restore --clean --if-exists` 恢复→迁移幂等重跑指纹 0 差异。
 - **文档核对**：未发现 P0/P1 失实；P2×3 登记（六面文案表述差异、参数校验先于 scope 判定、#332/#335 文档冲突需人工收口）。详见 `docs/progress/R168-line2.md`。
 
+### 变更记录（2026-08-07）第 169 轮线2：MCP/开放 API token 治理季度复查（qa-engineer）
+
+- **Docker 全栈（main + 未合并 #335/#337 叠加）实测 token 面**：token 全生命周期（一次明文/SHA-256 落库/过期/吊销/purpose mcp|openapi|both 双向隔离/非法参数 400/40001/每租户上限 20 并发不越界）、限流 429（Redis 分层 token/租户/authfail 桶 + 停机降级进程内不 fail-open、`Retry-After` 在位）、逐次审计与 fail-closed（MCP -32603、开放 API 500/50000 且不返数据）、TRUSTED_PROXIES/XFF（默认空时伪造 XFF 不可绕过每 IP authfail 限流）全部通过。
+- **MCP 4 工具与开放 API 全端点**：双租户隔离（订单集合零交集、跨租户详情 404/40401）、readonly token 无管理面/写通道、R165 六处 view-only 修复面联动无泄漏无写通道、输出脱敏（客户名 `D**`、无密钥/内部 UUID）通过。
+- **R148/R153/R159 零回退**：租户 disabled 双入口失效、限流分层、view-only 审单整批 403/40303；permmatrix/mcptoken/mcpserver/openapi/mcpaudit/idor/shopscope 套件全绿。
+- **P0/P1 零**；P2 4 项（MCP 分页钳制与开放 API 400 口径差异待文档化；Redis 降级期超时延迟放大；租户 0 上限路径无单测；权限矩阵套件测试库配置手工）。
+- 详见 `docs/progress/R169-line2.md`。
+
 ### 变更记录（2026-08-07）第 168 轮线1：合并期杂项收口（fullstack-engineer）
 
 - **40303 文案统一**：全部店铺权限拒绝 message 收口为「店铺无操作权限」（`adminperm.DenyStorePermission`、`security.Deny` ErrShopAccessDenied 分支、`tasktenant.WrapError` 店铺 scope 分支、`product.ErrDraftShopNotOperable`）；前端 toast 走 envelope、tooltip/预禁用文案已一致。
