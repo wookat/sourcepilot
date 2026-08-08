@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-08 — **Round 187 线2：性能与加载体验审计季度复跑（全 PASS，无 P0/P1：双租户 2 万订单量级核心列表 p50 <40ms、报表/对账优于 R130 修后基线 21–60%、异常页与 R122 修后持平；MCP 读分页 p50 ≤16ms、写链 dry-run→execute 端到端 p50 18ms、11 万行审计深分页 ≤20ms；开放 API 限流开销可忽略（429 拒绝 p50 1ms）；首包 gzip 320.6kB 较 R79 +5.8% 懒加载无回退；P2×4 登记：异常聚合线性扫描、审计表缺 (tenant_id, created_at) 复合索引、写配额计数口径、首包预算护栏）**：详见附录 [`docs/progress/R187-line2.md`](progress/R187-line2.md)。
+
 **Stage update**: 2026-08-08 — **Round 187 线1：R186 线2 P2 收口（operator 越 store-scope 会话详情 404 口径统一：文案改为「会话不存在或不在可见范围」，与真实 404 同构不泄露存在性，先红后绿）+ #371–#374 权威核实（#371/#372/#373 已合入，#374 OPEN 已叠加）+ 合入面巡检无新缺陷 + Docker 双租户实测**：详见附录 [`docs/progress/R187.md`](progress/R187.md)。
 
 **Stage update**: 2026-08-08 — **Round 186 线2：客服/AI 工作流季度复查（全 PASS，无 P0/P1；红线无违背：MCP 读/写工具对消息线零触点、人工确认发送闸门完好；readonly 40301 / view-only 40303 零副作用；R173 P2×3 与 #330 全部闭环；双租户隔离 + 三角色三视口通过；新增 P2×1 登记）**：详见附录 [`docs/progress/R186-line2.md`](progress/R186-line2.md)。
