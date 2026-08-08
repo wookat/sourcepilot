@@ -586,7 +586,12 @@ export default function ProductSourcesPage() {
         destroyOnHidden
         onCancel={() => setBindOpen(false)}
         onOk={async () => {
-          const values = await bindForm.validateFields();
+          let values;
+          try {
+            values = await bindForm.validateFields();
+          } catch {
+            return;
+          }
           if (!productId) return;
           try {
             await bindProductSource(productId, values);

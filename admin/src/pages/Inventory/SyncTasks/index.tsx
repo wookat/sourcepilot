@@ -334,17 +334,16 @@ export default function InventorySyncTasksPage() {
                 message.warning(`单次最多选择 ${BATCH_RETRY_LIMIT} 条失败任务`);
                 return;
               }
-              confirmFailureTaskRetry(failedSelectedIds.length, async () => {
-                try {
+              confirmFailureTaskRetry(
+                failedSelectedIds.length,
+                async () => {
                   const batch = await retryInventorySyncTasksBatch(failedSelectedIds);
                   message.success(`已创建批次 ${batch.batchNo}`);
                   setFailedSelectedIds([]);
                   actionRef.current?.reload();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '批量重试失败');
-                  throw e;
-                }
-              });
+                },
+                (e) => (e as Error)?.message || '批量重试失败',
+              );
             }}
           >
             批量重试失败（≤{BATCH_RETRY_LIMIT}）

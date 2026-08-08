@@ -386,10 +386,17 @@ export default function SecuritySettingsPage() {
               Modal.confirm({
                 title: '撤销此会话',
                 content: '该设备将被强制退出登录。',
-                onOk: async () => {
-                  await revokeAuthSession(row.id);
-                  message.success('会话已撤销');
-                  await loadSessions();
+                // onOk 不返回 Promise，由回调手动 close：失败保持弹窗打开且不向外抛拒绝。
+                onOk: (close: () => void) => {
+                  revokeAuthSession(row.id)
+                    .then(async () => {
+                      message.success('会话已撤销');
+                      await loadSessions();
+                      close();
+                    })
+                    .catch((e: unknown) => {
+                      message.error((e as Error)?.message || '撤销失败');
+                    });
                 },
               });
             }}
@@ -529,10 +536,16 @@ export default function SecuritySettingsPage() {
                   Modal.confirm({
                     title: '撤销其他会话',
                     content: '除当前浏览器外，其他已登录设备将被强制退出。',
-                    onOk: async () => {
-                      const res = await revokeOtherAuthSessions();
-                      message.success(`已撤销 ${res.revoked} 个会话`);
-                      await loadSessions();
+                    onOk: (close: () => void) => {
+                      revokeOtherAuthSessions()
+                        .then(async (res) => {
+                          message.success(`已撤销 ${res.revoked} 个会话`);
+                          await loadSessions();
+                          close();
+                        })
+                        .catch((e: unknown) => {
+                          message.error((e as Error)?.message || '撤销失败');
+                        });
                     },
                   });
                 }}
@@ -546,10 +559,16 @@ export default function SecuritySettingsPage() {
                     title: '全部登出',
                     content: '包括当前会话在内的所有设备将被强制退出，需重新登录。',
                     okType: 'danger',
-                    onOk: async () => {
-                      await logoutAllSessions();
-                      message.success('已全部登出');
-                      history.push('/user/login');
+                    onOk: (close: () => void) => {
+                      logoutAllSessions()
+                        .then(() => {
+                          message.success('已全部登出');
+                          close();
+                          history.push('/user/login');
+                        })
+                        .catch((e: unknown) => {
+                          message.error((e as Error)?.message || '登出失败');
+                        });
                     },
                   });
                 }}

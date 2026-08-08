@@ -1,3 +1,4 @@
+import { modalOk } from '@/utils/modalOk';
 import type { CSSProperties, Key, ReactNode } from 'react';
 import { IMAGE_FALLBACK } from '@/constants/imageFallback';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
@@ -2775,15 +2776,14 @@ export default function ProductDraftDetailPage() {
                         : '软删除，列表不可见',
                     okText: '删除',
                     okButtonProps: { danger: true },
-                    onOk: async () => {
-                      try {
+                    onOk: modalOk(
+                      async () => {
                         await deleteProduct(id);
                         message.success('已删除');
                         window.location.href = '/product/drafts';
-                      } catch (e: unknown) {
-                        message.error((e as Error)?.message || '删除失败');
-                      }
-                    },
+                      },
+                      (e) => (e as Error)?.message || '删除失败',
+                    ),
                   });
                 }}
               >
@@ -4058,52 +4058,49 @@ export default function ProductDraftDetailPage() {
                       setSkuBatchMatched(null);
                     }}
                     okText="应用"
+                    // onOk 不返回 Promise：外层受控弹窗由 state 关闭，内层确认弹窗
+                    // 由回调手动 close，失败保持弹窗打开且不向外抛拒绝。
                     onOk={() => {
-                      return skuBatchStockForm
+                      skuBatchStockForm
                         .validateFields()
                         .then((v) => {
                           if (v.safetyStock > v.warningStock) {
                             message.error('安全线不能大于预警线');
-                            return Promise.reject(new Error('validation'));
+                            return;
                           }
                           if (skuBatchScope === 'selected' && skuBatchSelKeys.length === 0) {
                             message.error('请勾选规格，或改用「本商品全部规格」');
-                            return Promise.reject(new Error('validation'));
+                            return;
                           }
-                          return new Promise<void>((resolve, reject) => {
-                            Modal.confirm({
-                              title: '确认仅修改预警线？',
-                              content:
-                                '不修改实际库存，不同步平台，不写入库存流水。将影响的规格数：' +
-                                String(skuBatchMatched ?? '—'),
-                              okText: '确认',
-                              onOk: async () => {
-                                try {
-                                  await batchUpdateStockSettings({
-                                    ...buildSkuStockPayload(),
-                                    warningStock: v.warningStock,
-                                    safetyStock: v.safetyStock,
-                                    confirm: true,
-                                    confirmLarge: (skuBatchMatched ?? 0) > SKU_BATCH_STOCK_MAX_HINT,
-                                  });
+                          Modal.confirm({
+                            title: '确认仅修改预警线？',
+                            content:
+                              '不修改实际库存，不同步平台，不写入库存流水。将影响的规格数：' +
+                              String(skuBatchMatched ?? '—'),
+                            okText: '确认',
+                            onOk: (close: () => void) => {
+                              batchUpdateStockSettings({
+                                ...buildSkuStockPayload(),
+                                warningStock: v.warningStock,
+                                safetyStock: v.safetyStock,
+                                confirm: true,
+                                confirmLarge: (skuBatchMatched ?? 0) > SKU_BATCH_STOCK_MAX_HINT,
+                              })
+                                .then(async () => {
                                   message.success('已批量更新预警线');
                                   setSkuBatchStockOpen(false);
                                   setSkuBatchMatched(null);
                                   setSkuBatchSelKeys([]);
                                   await reloadDetail();
-                                  resolve();
-                                } catch (e) {
+                                  close();
+                                })
+                                .catch((e: unknown) => {
                                   message.error((e as Error)?.message || '失败');
-                                  reject(e);
-                                }
-                              },
-                            });
+                                });
+                            },
                           });
                         })
-                        .catch((e: unknown) => {
-                          if ((e as Error)?.message === 'validation') return;
-                          throw e;
-                        });
+                        .catch(() => {});
                     }}
                   >
                     <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
@@ -4196,24 +4193,20 @@ export default function ProductDraftDetailPage() {
                           `选中的 ${pubSkuSelectedKeys.length} 条刊登规格`,
                           true,
                           async () => {
-                            try {
-                              const batch = await createInventorySyncBatch({
-                                source: 'product_detail',
-                                productId: id,
-                                publicationSkuIds: pubSkuSelectedKeys,
-                                onlyPublished: true,
-                              });
-                              message.success(
-                                `批次 ${batch.batchNo} 已创建；新建任务 ${batch.totalCount - batch.skippedCount}，跳过 ${batch.skippedCount}`,
-                              );
-                              setPubSkuSelectedKeys([]);
-                              await reloadPublicationSkus();
-                              window.location.href = `/inventory/sync-tasks?batchId=${encodeURIComponent(batch.id)}`;
-                            } catch (e: unknown) {
-                              message.error(formatInventorySyncTaskCreateError(e));
-                              throw e;
-                            }
+                            const batch = await createInventorySyncBatch({
+                              source: 'product_detail',
+                              productId: id,
+                              publicationSkuIds: pubSkuSelectedKeys,
+                              onlyPublished: true,
+                            });
+                            message.success(
+                              `批次 ${batch.batchNo} 已创建；新建任务 ${batch.totalCount - batch.skippedCount}，跳过 ${batch.skippedCount}`,
+                            );
+                            setPubSkuSelectedKeys([]);
+                            await reloadPublicationSkus();
+                            window.location.href = `/inventory/sync-tasks?batchId=${encodeURIComponent(batch.id)}`;
                           },
+                          formatInventorySyncTaskCreateError,
                         );
                       }}
                     >
@@ -6428,35 +6421,39 @@ export default function ProductDraftDetailPage() {
           setSyncRow(null);
           syncForm.resetFields();
         }}
+        // onOk 不返回 Promise：外层受控弹窗由 state 关闭，失败保持敏感确认弹窗
+        // 打开且不向外抛拒绝。
         onOk={() => {
-          if (!syncRow) return Promise.reject();
-          return syncForm.validateFields().then((v) => {
-            const stock = Number(v.stock);
-            const targetLabel = `${syncRow.platform ? platformDisplayName(syncRow.platform) : '平台'} / ${syncRow.shopName ?? syncRow.shopId ?? '—'}`;
-            const externalCall = inventorySyncRunnable(syncRow.inventorySyncCapability);
-            return new Promise<void>((resolve, reject) => {
-              confirmInventorySync(targetLabel, externalCall, async () => {
-                setSyncSubmitting(true);
-                try {
-                  await syncPublicationSkuInventory(syncRow.publicationSkuId, {
-                    stock,
-                    options: {},
-                  });
-                  message.success('库存同步任务已创建');
-                  setSyncOpen(false);
-                  setSyncRow(null);
-                  syncForm.resetFields();
-                  await reloadPublicationSkus();
-                  resolve();
-                } catch (e: unknown) {
-                  message.error(formatInventorySyncTaskCreateError(e));
-                  reject(e);
-                } finally {
-                  setSyncSubmitting(false);
-                }
-              });
-            });
-          });
+          if (!syncRow) return;
+          syncForm
+            .validateFields()
+            .then((v) => {
+              const stock = Number(v.stock);
+              const targetLabel = `${syncRow.platform ? platformDisplayName(syncRow.platform) : '平台'} / ${syncRow.shopName ?? syncRow.shopId ?? '—'}`;
+              const externalCall = inventorySyncRunnable(syncRow.inventorySyncCapability);
+              confirmInventorySync(
+                targetLabel,
+                externalCall,
+                async () => {
+                  setSyncSubmitting(true);
+                  try {
+                    await syncPublicationSkuInventory(syncRow.publicationSkuId, {
+                      stock,
+                      options: {},
+                    });
+                    message.success('库存同步任务已创建');
+                    setSyncOpen(false);
+                    setSyncRow(null);
+                    syncForm.resetFields();
+                    await reloadPublicationSkus();
+                  } finally {
+                    setSyncSubmitting(false);
+                  }
+                },
+                formatInventorySyncTaskCreateError,
+              );
+            })
+            .catch(() => {});
         }}
       >
         <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
@@ -6491,7 +6488,12 @@ export default function ProductDraftDetailPage() {
         }}
         onOk={async () => {
           if (!stockSettingsTarget) return;
-          const v = await stockSettingsForm.validateFields();
+          let v: { warningStock: number; safetyStock: number };
+          try {
+            v = await stockSettingsForm.validateFields();
+          } catch {
+            return;
+          }
           if (v.safetyStock > v.warningStock) {
             message.error('安全线不能大于预警线');
             return;

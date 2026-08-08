@@ -1,3 +1,4 @@
+import { modalOk } from '@/utils/modalOk';
 import { TmPageContainer } from '@/components/ui';
 import { formatRequestError } from '@/constants/errorMessages';
 import {
@@ -37,16 +38,17 @@ export default function ReleasesPage() {
     Modal.confirm({
       title: '执行发布',
       content: `即将执行发布 ${row.releaseId}（版本 ${row.version}），状态将流转为已完成。确认继续？`,
-      onOk: async () => {
-        try {
-          await executeRelease(row.releaseId);
-          message.success('发布已执行');
-        } catch (e: unknown) {
-          message.error(formatRequestError(e, '执行发布失败'));
-        } finally {
-          await load();
-        }
-      },
+      onOk: modalOk(
+        async () => {
+          try {
+            await executeRelease(row.releaseId);
+            message.success('发布已执行');
+          } finally {
+            await load();
+          }
+        },
+        (e) => formatRequestError(e, '执行发布失败'),
+      ),
     });
   };
 
@@ -56,16 +58,17 @@ export default function ReleasesPage() {
       okText: '确认回滚',
       okButtonProps: { danger: true },
       content: `即将回滚发布 ${row.releaseId}（版本 ${row.version}）。仅回滚应用层，不恢复数据库。确认继续？`,
-      onOk: async () => {
-        try {
-          await rollbackRelease(row.releaseId, 'operator rollback');
-          message.success('回滚已执行');
-        } catch (e: unknown) {
-          message.error(formatRequestError(e, '回滚失败'));
-        } finally {
-          await load();
-        }
-      },
+      onOk: modalOk(
+        async () => {
+          try {
+            await rollbackRelease(row.releaseId, 'operator rollback');
+            message.success('回滚已执行');
+          } finally {
+            await load();
+          }
+        },
+        (e) => formatRequestError(e, '回滚失败'),
+      ),
     });
   };
 
@@ -123,7 +126,12 @@ export default function ReleasesPage() {
         open={open}
         onCancel={() => setOpen(false)}
         onOk={async () => {
-          const values = await form.validateFields();
+          let values;
+          try {
+            values = await form.validateFields();
+          } catch {
+            return;
+          }
           try {
             await createRelease(values);
             message.success('发布记录已创建');
