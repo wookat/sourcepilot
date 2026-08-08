@@ -5,6 +5,7 @@
 - 前九次评估：R90、R108、R118、R125、R134、R143、R151、R161（超4/达12/落0）、R170（超4/达12/落0，报告见 `docs/COMPETITIVE_BENCHMARK_R170.md`，#341）
 - 本次口径：**最新 main（3fd5a35a，合入面至 #347/R173 线1）Docker 全栈实测**（`docker-compose.full.yml` 全栈 5 容器 healthy + `pnpm seed:demo:full`，API 层逐项抽验 + 权限探针 + 开放 API/MCP 协议级端到端实测 + settings 加密/脱敏实测），竞品侧官网公开资料 2026-08-08 时点复查（dianxiaomi.com、mabangerp.com、autods.com）。
 - 合入面说明（诚实口径）：**R173 线2 至 R177 的产出全部在 OPEN PR 上，未合入 main**——#348（R173 线2 报告）、#349/#352（R174/R175 modal onOk/rethrow 收口）、#350/#351（R174/R175 回归与实跑记录）、#353（R176 迁移导入租户闭合+settings 加密粘性+回复面 scope-first）、#354（UX v12）、#355（R177 settings 敏感 key 服务端注册表）、#356（R177 modal 防重复提交 P1 修复+回归 v32）。**本轮矩阵结论全部基于纯 main，不叠加任何未合入代码；上述 PR 中的增强（加密粘性/敏感 key 注册表/modal 收口）按「已实现未合入」标注，不计入本轮能力位次。**
+- 时点后记（合入 main 时补注）：本报告实测与位次判定基于评估时点的 main（3fd5a35a）；评估完成后同日 #348–#356 已按序合入 main（并出现 R178 线1/R179 线2 后续合入），其中的增强（modal 收口、加密粘性、敏感 key 注册表等）将在下次复评按新 main 口径计入，本报告正文不回溯改写。
 - 背景：距 R170 复评 8 轮（R171–R177），期间为**收口/安全维护期**（40303 文案统一收口、异常 handle/ignore 先 scope 后 body、modal 失败保持弹窗、settings 加密粘性、敏感 key 注册表），无大功能新增；MCP 写白名单 D1–D4 决策材料终版已归档（#345，`docs/design/MCP_WRITE_WHITELIST_DECISION_BRIEF.md`），**仍待老板勾选**。本次回答三个问题：①维护期修复在 main 上是否零回退？②竞品 AI/MCP/自动化面是否出现新结构性缺口？③MCP 写白名单实现窗口如何把握？实测证据（curl 记录/响应样本）作会话附件，不入库。
 
 ## 一、结论（一句话）
