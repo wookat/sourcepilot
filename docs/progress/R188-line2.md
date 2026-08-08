@@ -87,8 +87,13 @@
 1. **mark-paid 限额值缺服务端范围校验**：`PUT /api/v1/settings` 对 `mcp/mark_paid_single_limit`、`mcp/mark_paid_daily_limit` 只做原样存储，UI 的 `min=0.01`/两位小数约束不在 API 侧对应；存入 `1e20` 会使单笔上限失效（仍受 `amount ≤ 1e10` 兜底）。建议在 settings 敏感/受控 key 注册表上挂值域校验，写入即拒。
 2. **审计可见性只有「写行/读行」一档**：`hideWrite` 由 `settings.manage` 单一权限决定，非 admin 无法被授予"只看本 token 调用"之类的中间视图；租户内多运营协作场景下要么全看要么全不看。建议后续按 token 归属或独立 `audit.read` 权限细化。
 3. **deploy 类脚本的外部字符串输出未统一净化**：本轮只修了 `deploy-prod.sh` 的容器标签一处；`scripts/` 下其他把 `docker`/`git` 输出直接 `printf` 到终端的位置未逐一审。建议下一轮全量复跑时统一收口为一个 `sanitize()` 帮助函数。
+4. **大屏卡片配置弹窗在全屏态不可见**（三角色实跑发现）：`/dashboard/screen` 进入浏览器全屏后点齿轮，配置弹窗挂载在 `body` 上被全屏元素遮蔽，需退出全屏才看得到。属演示体验缺陷（非安全面），本轮仅在 DEMO_SCRIPT 注明前置，建议后续把弹窗 `getContainer` 指向全屏容器。
 
 R187 线2 登记的 4 项性能 P2（大屏聚合线性扫描、`mcp_tool_call_logs` 缺 `(tenant_id, created_at)` 复合索引、seedperf 前缀清理、首包预算护栏）本轮未纳入范围，仍挂账。
+
+## 【8. 三角色 DEMO_SCRIPT 实跑（~30 分钟）】
+
+Docker 全栈实跑 admin / operator / readonly + 临时 view-only 账号 + tenant2，逐条对照脚本（录屏与截图外置不入库），结果与失实点见 `docs/acceptance/DEMO_SCRIPT.md`「实跑验证记录」2026-08-08（R188 线2）条目。要点：本轮 P1 修复在 UI 侧坐实——四类拒绝路径各在审计卡片落 1 行 `error`（含 `rejected before write pipeline`），而成功链路仍严格各 1 行无重复；#372 限额表单 admin-only 与 #369 审计收敛在三角色下全部成立。脚本失实 3 项（全屏内弹窗不可见、23b 表格仍写 curl、临时账号 UUID 坑）已即修，并把可复用踩坑沉淀为 `.agents/skills/mcp-write-acceptance/SKILL.md`。
 
 ## 【下一步】
 
