@@ -16,13 +16,21 @@ import (
 // write; message sending and external-platform actions are permanently
 // excluded from MCP (绝不自动外发).
 const (
-	ToolOrdersAddTag    = "orders_add_tag"
-	ToolOrdersRemoveTag = "orders_remove_tag"
+	ToolOrdersAddTag             = "orders_add_tag"
+	ToolOrdersRemoveTag          = "orders_remove_tag"
+	ToolExceptionsMark           = "exceptions_mark"
+	ToolProcurementMarkPlaced    = "procurement_mark_placed"
+	ToolProcurementFillLogistics = "procurement_fill_logistics"
 )
 
 // isWriteTool reports whether a tool audits inside the write pipeline.
 func isWriteTool(name string) bool {
-	return name == ToolOrdersAddTag || name == ToolOrdersRemoveTag
+	switch name {
+	case ToolOrdersAddTag, ToolOrdersRemoveTag,
+		ToolExceptionsMark, ToolProcurementMarkPlaced, ToolProcurementFillLogistics:
+		return true
+	}
+	return false
 }
 
 // OrderTagWriteIn is the input of orders_add_tag / orders_remove_tag: one
@@ -61,6 +69,7 @@ type OrderTagWriteResult struct {
 // token. Only called when the env gate is open and the token carries
 // write:ops; the tenant gate and quotas are enforced per call.
 func registerWriteTools(srv *mcp.Server, d *Deps, tok *mcptoken.Token) {
+	registerWriteToolsR180(srv, d, tok)
 	if d.Orders == nil {
 		return
 	}

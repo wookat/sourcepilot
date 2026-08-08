@@ -1360,6 +1360,12 @@ func (s *Service) SourceShopID(ctx context.Context, sourceType, sourceID string)
 }
 
 func (s *Service) resolveOrderPointers(ctx context.Context, sourceType, sourceID string) (*uuid.UUID, *uuid.UUID, error) {
+	return s.resolveOrderPointersDB(ctx, s.DB, sourceType, sourceID)
+}
+
+// resolveOrderPointersDB is resolveOrderPointers against an explicit
+// *gorm.DB (the MCP write pipeline passes its own transaction).
+func (s *Service) resolveOrderPointersDB(ctx context.Context, db *gorm.DB, sourceType, sourceID string) (*uuid.UUID, *uuid.UUID, error) {
 	sid, err := uuid.Parse(strings.TrimSpace(sourceID))
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid sourceId")
@@ -1368,14 +1374,14 @@ func (s *Service) resolveOrderPointers(ctx context.Context, sourceType, sourceID
 	switch st {
 	case SourceOrderItemSKUMatch:
 		var m order.OrderItemSKUMatch
-		if err := s.DB.WithContext(ctx).First(&m, "id = ?", sid).Error; err != nil {
+		if err := db.WithContext(ctx).First(&m, "id = ?", sid).Error; err != nil {
 			return nil, nil, err
 		}
 		oiid := m.OrderItemID
 		return &m.OrderID, &oiid, nil
 	case SourceOrderItem:
 		var oi order.OrderItem
-		if err := s.DB.WithContext(ctx).First(&oi, "id = ?", sid).Error; err != nil {
+		if err := db.WithContext(ctx).First(&oi, "id = ?", sid).Error; err != nil {
 			return nil, nil, err
 		}
 		oid := oi.OrderID
@@ -1383,14 +1389,14 @@ func (s *Service) resolveOrderPointers(ctx context.Context, sourceType, sourceID
 		return &oid, &iid, nil
 	case SourceOrderInventoryEffect:
 		var e inventory.OrderInventoryEffect
-		if err := s.DB.WithContext(ctx).First(&e, "id = ?", sid).Error; err != nil {
+		if err := db.WithContext(ctx).First(&e, "id = ?", sid).Error; err != nil {
 			return nil, nil, err
 		}
 		oiid := e.OrderItemID
 		return &e.OrderID, &oiid, nil
 	case SourceOrder:
 		var o order.Order
-		if err := s.DB.WithContext(ctx).Select("id").First(&o, "id = ?", sid).Error; err != nil {
+		if err := db.WithContext(ctx).Select("id").First(&o, "id = ?", sid).Error; err != nil {
 			return nil, nil, err
 		}
 		oid := o.ID

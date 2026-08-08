@@ -85,8 +85,14 @@ func (h *Handler) List(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
+	// write:ops tokens are admin-governed: they never appear to operator /
+	// readonly accounts (fail closed when the principal cannot be resolved).
+	admin := h.callerIsAdmin(c)
 	items := make([]tokenView, 0, len(rows))
 	for _, r := range rows {
+		if !admin && r.HasScope(ScopeWriteOps) {
+			continue
+		}
 		items = append(items, toView(r))
 	}
 	response.OK(c, gin.H{"items": items})
@@ -109,6 +115,13 @@ type CreateBody struct {
 	Purpose       string   `json:"purpose,omitempty"`
 	Scopes        []string `json:"scopes,omitempty"`
 	ExpiresInDays int      `json:"expiresInDays,omitempty"`
+}
+
+// callerIsAdmin resolves the caller's role; any resolution failure counts as
+// non-admin (fail closed).
+func (h *Handler) callerIsAdmin(c *gin.Context) bool {
+	p, err := adminperm.LoadPrincipal(c, h.Svc.DB)
+	return err == nil && p.IsAdmin()
 }
 
 func scopesInclude(scopes []string, want string) bool {
@@ -205,6 +218,16 @@ func (h *Handler) Revoke(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid id")
 		return
 	}
+	// D4 (R180): write:ops tokens are admin-governed — operator / readonly
+	// accounts can neither see nor revoke them (404 keeps them invisible).
+	if !h.callerIsAdmin(c) {
+		var existing Token
+		if ferr := h.Svc.DB.WithContext(c.Request.Context()).
+			First(&existing, "id = ? AND tenant_id = ?", id, tid).Error; ferr == nil && existing.HasScope(ScopeWriteOps) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "token not found")
+			return
+		}
+	}
 	row, err := h.Svc.Revoke(c.Request.Context(), tid, id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -214,7 +237,11 @@ func (h *Handler) Revoke(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
-	h.log(c, "mcp_token_revoke", row.ID.String(), "吊销 MCP 只读 token："+row.Name)
+	kind := "MCP 只读"
+	if row.HasScope(ScopeWriteOps) {
+		kind = "MCP 写（write:ops）"
+	}
+	h.log(c, "mcp_token_revoke", row.ID.String(), "吊销 "+kind+" token："+row.Name)
 	response.OK(c, gin.H{"token": toView(*row)})
 }
 

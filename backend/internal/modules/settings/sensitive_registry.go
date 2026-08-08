@@ -31,6 +31,10 @@ func init() {
 	}
 	// Legacy keys not covered by the integration schema.
 	RegisterSensitiveKeys("email", "smtp_password")
+	// Platform credentials are also registered at bootstrap from the platform
+	// app-config schemas; the Shopee partner key is seeded statically too so
+	// the guarantee holds regardless of provider bootstrap ordering (R179 线2).
+	RegisterSensitiveKeys("platform_shopee", "partner_key")
 }
 
 // RegisterSensitiveKeys marks (groupKey, itemKey) pairs as sensitive.
