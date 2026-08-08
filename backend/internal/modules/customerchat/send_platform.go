@@ -110,12 +110,12 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 	}
 	reply := strings.TrimSpace(body.Reply)
 	if reply == "" {
-		return nil, fmt.Errorf("reply is required")
+		return nil, fmt.Errorf("回复内容不能为空")
 	}
 
 	clientMsgID := strings.TrimSpace(body.ClientMessageID)
 	if clientMsgID == "" {
-		return nil, fmt.Errorf("clientMessageId is required")
+		return nil, fmt.Errorf("clientMessageId 不能为空")
 	}
 
 	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
@@ -127,7 +127,7 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		return nil, fmt.Errorf("conversation has no shop")
 	}
 	if conv.ExternalConversationID == nil || strings.TrimSpace(*conv.ExternalConversationID) == "" {
-		return nil, fmt.Errorf("conversation has no platform external id")
+		return nil, fmt.Errorf("会话缺少平台外部会话 ID，暂不支持平台发送")
 	}
 
 	owner := idempotency.OwnerFromRequest(c.GetString("requestId"), "customer-send")

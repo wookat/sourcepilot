@@ -656,7 +656,10 @@ export default function OrderExceptionsPage() {
                       }}
                     />
                   ),
-                  onOk: async () => {
+                  // onOk 接收 close 参数时由回调自行控制关闭：失败保持弹窗
+                  // 打开且不向外抛拒绝（避免 dev 环境 unhandledrejection 触发
+                  // react-error-overlay 盖住 toast）。
+                  onOk: async (close: () => void) => {
                     try {
                       await postOrderExceptionHandle(r.sourceType, r.sourceId, {
                         exceptionType: r.exceptionType,
@@ -664,9 +667,9 @@ export default function OrderExceptionsPage() {
                       });
                       message.success('已标记');
                       reload();
+                      close();
                     } catch (e) {
                       message.error(extractApiErrorMessage(e, '标记已处理失败'));
-                      throw e;
                     }
                   },
                 });
@@ -682,16 +685,16 @@ export default function OrderExceptionsPage() {
                   okText: '确定',
                   cancelText: '取消',
                   title: '忽略该异常（工作台视图）',
-                  onOk: async () => {
+                  onOk: async (close: () => void) => {
                     try {
                       await postOrderExceptionIgnore(r.sourceType, r.sourceId, {
                         exceptionType: r.exceptionType,
                       });
                       message.success('已忽略');
                       reload();
+                      close();
                     } catch (e) {
                       message.error(extractApiErrorMessage(e, '忽略失败'));
-                      throw e;
                     }
                   },
                 });
@@ -710,7 +713,6 @@ export default function OrderExceptionsPage() {
                   reload();
                 } catch (e) {
                   message.error(extractApiErrorMessage(e, '取消标记失败'));
-                  throw e;
                 }
               }}
             >

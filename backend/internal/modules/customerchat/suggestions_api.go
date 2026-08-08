@@ -121,7 +121,7 @@ type ApplySuggestionBody struct {
 func (s *Service) ApplySuggestion(c *gin.Context, id uuid.UUID, body ApplySuggestionBody, adminID *uuid.UUID) error {
 	final := strings.TrimSpace(body.FinalReply)
 	if final == "" {
-		return fmt.Errorf("finalReply is required")
+		return fmt.Errorf("finalReply 不能为空")
 	}
 	return s.UpdateSuggestion(c, id, UpdateSuggestionBody{EditedReply: final}, adminID)
 }

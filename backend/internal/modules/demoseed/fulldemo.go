@@ -627,7 +627,7 @@ func (s *FullDemoSeeder) seedAll(tx *gorm.DB, res *FullDemoResult) error {
 			o.ShippedAt = &shippedAt
 		}
 		if plan.status == order.StatusDelivered {
-			deliveredAt := orderedAt.Add(48 * time.Hour)
+			deliveredAt := orderedAt.Add(24 * time.Hour)
 			o.DeliveredAt = &deliveredAt
 		}
 		if err := tx.Create(&o).Error; err != nil {
