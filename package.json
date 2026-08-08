@@ -24,6 +24,7 @@
   "scripts": {
     "dev": "tsx scripts/dev-all.ts",
     "check:ui-copy": "node scripts/check-ui-copy.mjs",
+    "check:bundle-budget": "node scripts/check-bundle-budget.mjs",
     "check:dev": "tsx scripts/check-dev-env.ts",
     "demo:auto-acceptance": "powershell -ExecutionPolicy Bypass -File scripts/demo-auto-acceptance.ps1",
     "seed:demo-data": "powershell -ExecutionPolicy Bypass -File scripts/seed-demo-data.ps1",

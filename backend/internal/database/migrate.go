@@ -341,6 +341,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateRound122PerfIndexes(db); err != nil {
 		return err
 	}
+	if err := migrateRound188McpAuditIndex(db); err != nil {
+		return err
+	}
 	if err := backfillAutomationLogShopIDs(db); err != nil {
 		return err
 	}
