@@ -56,7 +56,7 @@ func TestExceptionMarkScopeBeforeBody(t *testing.T) {
 		w = h.doBody(t, http.MethodPost,
 			"/api/v1/orders/exceptions/order_sync_task/"+granted.ID.String()+"/"+action, operatorTok, `{}`)
 		require.Equalf(t, http.StatusBadRequest, w.Code,
-			"POST %s [operator, operable store, empty body]: expected 400 exceptionType required, got %d: %s",
+			"POST %s [operator, operable store, empty body]: expected 400 exceptionType 不能为空, got %d: %s",
 			action, w.Code, w.Body.String())
 	}
 }

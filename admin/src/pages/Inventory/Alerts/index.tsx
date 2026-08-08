@@ -539,18 +539,19 @@ export default function InventoryAlertsPage() {
                         onClick={() => {
                           const stock = r.stock;
                           const targetLabel = `[${platformLabel(p.platform)}] ${p.shopName || p.shopId}`;
-                          confirmInventorySync(targetLabel, runnable, async () => {
-                            try {
+                          confirmInventorySync(
+                            targetLabel,
+                            runnable,
+                            async () => {
                               await syncPublicationSkuInventory(p.publicationSkuId, {
                                 stock,
                                 fromInventoryAlert: true,
                               });
                               message.success('已创建同步任务');
                               actionRef.current?.reload();
-                            } catch (e: unknown) {
-                              message.error((e as Error)?.message || '失败');
-                            }
-                          });
+                            },
+                            (e) => (e as Error)?.message || '失败',
+                          );
                         }}
                       >
                         同步库存
@@ -619,10 +620,14 @@ export default function InventoryAlertsPage() {
         onCancel={() => setBulkOpen(false)}
         okText="创建批次"
         confirmLoading={bulkSubmitting}
+        // onOk 不返回 Promise：外层受控弹窗由 state 关闭，失败保持敏感确认弹窗
+        // 打开且不向外抛拒绝。
         onOk={() => {
-          if (selectedSkuIds.length === 0) return Promise.reject();
-          return new Promise<void>((resolve, reject) => {
-            confirmInventorySync(`选中的 ${selectedSkuIds.length} 个规格`, true, async () => {
+          if (selectedSkuIds.length === 0) return;
+          confirmInventorySync(
+            `选中的 ${selectedSkuIds.length} 个规格`,
+            true,
+            async () => {
               const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
               const platformRaw = typeof fv.platform === 'string' ? fv.platform.trim().toLowerCase() : '';
               const shopRaw = typeof fv.shopId === 'string' ? fv.shopId.trim() : '';
@@ -651,15 +656,12 @@ export default function InventoryAlertsPage() {
                 setSelectedSkuIds([]);
                 actionRef.current?.reload();
                 history.push(`/inventory/sync-tasks?batchId=${encodeURIComponent(batch.id)}`);
-                resolve();
-              } catch (e: unknown) {
-                message.error((e as Error)?.message || '创建失败');
-                reject(e);
               } finally {
                 setBulkSubmitting(false);
               }
-            });
-          });
+            },
+            (e) => (e as Error)?.message || '创建失败',
+          );
         }}
       >
         <Typography.Paragraph>
@@ -680,30 +682,30 @@ export default function InventoryAlertsPage() {
         onCancel={() => setAdjustOpen(false)}
         okButtonProps={{ loading: adjustSubmitting }}
         onOk={() => {
-          if (!active) return Promise.reject();
-          return adjustForm.validateFields().then((v) =>
-            new Promise<void>((resolve, reject) => {
-              confirmInventoryManualAdjust(async () => {
-                setAdjustSubmitting(true);
-                try {
-                  await adjustSkuStock(active.productId, active.productSkuId, {
-                    stock: v.stock,
-                    reason: 'manual_adjust',
-                    remark: 'from_inventory_alerts',
-                  });
-                  message.success('已更新');
-                  setAdjustOpen(false);
-                  actionRef.current?.reload();
-                  resolve();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
-                  reject(e);
-                } finally {
-                  setAdjustSubmitting(false);
-                }
-              });
-            }),
-          );
+          if (!active) return;
+          adjustForm
+            .validateFields()
+            .then((v) => {
+              confirmInventoryManualAdjust(
+                async () => {
+                  setAdjustSubmitting(true);
+                  try {
+                    await adjustSkuStock(active.productId, active.productSkuId, {
+                      stock: v.stock,
+                      reason: 'manual_adjust',
+                      remark: 'from_inventory_alerts',
+                    });
+                    message.success('已更新');
+                    setAdjustOpen(false);
+                    actionRef.current?.reload();
+                  } finally {
+                    setAdjustSubmitting(false);
+                  }
+                },
+                (e) => (e as Error)?.message || '失败',
+              );
+            })
+            .catch(() => {});
         }}
       >
         <Form form={adjustForm} layout="vertical">
@@ -720,7 +722,12 @@ export default function InventoryAlertsPage() {
         okButtonProps={{ loading: settingsSubmitting }}
         onOk={async () => {
           if (!active) return;
-          const v = await settingsForm.validateFields();
+          let v: { warningStock: number; safetyStock: number };
+          try {
+            v = await settingsForm.validateFields();
+          } catch {
+            return;
+          }
           if (v.safetyStock > v.warningStock) {
             message.error('安全线不能大于预警线');
             return;
@@ -760,75 +767,73 @@ export default function InventoryAlertsPage() {
         }}
         okText="应用"
         confirmLoading={batchStockSubmitting}
+        // onOk 不返回 Promise：外层受控弹窗由 state 关闭，内层确认弹窗
+        // 由回调手动 close，失败保持弹窗打开且不向外抛拒绝。
         onOk={() => {
-          return batchStockForm
+          batchStockForm
             .validateFields()
             .then((v) => {
               if (v.safetyStock > v.warningStock) {
                 message.error('安全线不能大于预警线');
-                return Promise.reject(new Error('validation'));
+                return;
               }
               if (batchStockScope === 'selected' && selectedSkuIds.length === 0) {
                 message.error('请先勾选规格，或改用「当前筛选结果」');
-                return Promise.reject(new Error('validation'));
+                return;
               }
               const payload = buildStockBatchPayload();
               const needAll = alertsStockBatchNeedsConfirmAll(payload);
-              return new Promise<void>((resolve, reject) => {
-                Modal.confirm({
-                  title: '确认仅修改预警线？',
-                  width: 520,
-                  content: (
-                    <div>
-                      <Typography.Paragraph>
-                        将修改 <Typography.Text strong>{batchMatched ?? '—'}</Typography.Text>{' '}
-                        个规格的预警线 / 安全线；不修改本地实际库存，不写入库存流水，不创建平台同步任务。
+              Modal.confirm({
+                title: '确认仅修改预警线？',
+                width: 520,
+                content: (
+                  <div>
+                    <Typography.Paragraph>
+                      将修改 <Typography.Text strong>{batchMatched ?? '—'}</Typography.Text>{' '}
+                      个规格的预警线 / 安全线；不修改本地实际库存，不写入库存流水，不创建平台同步任务。
+                    </Typography.Paragraph>
+                    {needAll ? (
+                      <Typography.Paragraph type="warning">
+                        当前为「含正常规格的全表筛选」，将按全表确认提交。
                       </Typography.Paragraph>
-                      {needAll ? (
-                        <Typography.Paragraph type="warning">
-                          当前为「含正常规格的全表筛选」，将按全表确认提交。
-                        </Typography.Paragraph>
-                      ) : null}
-                      {(batchMatched ?? 0) > BATCH_STOCK_DEFAULT_MAX ? (
-                        <Typography.Paragraph type="warning">
-                          匹配数超过默认单次上限 {BATCH_STOCK_DEFAULT_MAX}，将附加大批量确认。
-                        </Typography.Paragraph>
-                      ) : null}
-                    </div>
-                  ),
-                  okText: '确认应用',
-                  onOk: async () => {
-                    setBatchStockSubmitting(true);
-                    try {
-                      const raw = buildStockBatchPayload();
-                      await batchUpdateStockSettings({
-                        ...raw,
-                        warningStock: v.warningStock,
-                        safetyStock: v.safetyStock,
-                        confirm: true,
-                        confirmLarge: (batchMatched ?? 0) > BATCH_STOCK_DEFAULT_MAX,
-                        confirmAll: needAll,
-                      });
+                    ) : null}
+                    {(batchMatched ?? 0) > BATCH_STOCK_DEFAULT_MAX ? (
+                      <Typography.Paragraph type="warning">
+                        匹配数超过默认单次上限 {BATCH_STOCK_DEFAULT_MAX}，将附加大批量确认。
+                      </Typography.Paragraph>
+                    ) : null}
+                  </div>
+                ),
+                okText: '确认应用',
+                onOk: (close: () => void) => {
+                  setBatchStockSubmitting(true);
+                  const raw = buildStockBatchPayload();
+                  batchUpdateStockSettings({
+                    ...raw,
+                    warningStock: v.warningStock,
+                    safetyStock: v.safetyStock,
+                    confirm: true,
+                    confirmLarge: (batchMatched ?? 0) > BATCH_STOCK_DEFAULT_MAX,
+                    confirmAll: needAll,
+                  })
+                    .then(() => {
                       message.success('已批量更新预警线');
                       setBatchStockOpen(false);
                       setBatchMatched(null);
                       setSelectedSkuIds([]);
                       actionRef.current?.reload();
-                      resolve();
-                    } catch (e) {
+                      close();
+                    })
+                    .catch((e: unknown) => {
                       message.error((e as Error)?.message || '失败');
-                      reject(e);
-                    } finally {
+                    })
+                    .finally(() => {
                       setBatchStockSubmitting(false);
-                    }
-                  },
-                });
+                    });
+                },
               });
             })
-            .catch((e: unknown) => {
-              if ((e as Error)?.message === 'validation') return;
-              throw e;
-            });
+            .catch(() => {});
         }}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>

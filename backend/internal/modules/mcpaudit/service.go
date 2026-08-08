@@ -19,15 +19,20 @@ type Service struct {
 	lastWrite map[string]time.Time
 }
 
-// WriteOpts describes one tool call to audit.
+// WriteOpts describes one tool call to audit. Mode / ParamsSummary /
+// ResultSummary / ConfirmHash are only set for whitelisted write tools.
 type WriteOpts struct {
-	TenantID    int64
-	TokenID     uuid.UUID
-	TokenName   string
-	TokenMasked string
-	Tool        string
-	Status      string
-	DurationMs  int64
+	TenantID      int64
+	TokenID       uuid.UUID
+	TokenName     string
+	TokenMasked   string
+	Tool          string
+	Status        string
+	Mode          string
+	ParamsSummary string
+	ResultSummary string
+	ConfirmHash   string
+	DurationMs    int64
 }
 
 // Write appends one audit row. Best effort: the caller treats a failed write
@@ -37,25 +42,76 @@ func (s *Service) Write(ctx context.Context, opts WriteOpts) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("mcpaudit: no db")
 	}
+	return s.WriteTx(s.DB.WithContext(ctx), opts)
+}
+
+// WriteTx appends one audit row on the given handle, which may be a
+// transaction. The MCP write path runs the business mutation and its audit
+// row in one transaction so a failed audit write rolls the mutation back
+// (fail-closed with no orphan writes).
+func (s *Service) WriteTx(db *gorm.DB, opts WriteOpts) error {
+	if s == nil || db == nil {
+		return fmt.Errorf("mcpaudit: no db")
+	}
 	status := strings.TrimSpace(opts.Status)
 	switch status {
 	case StatusSuccess, StatusError, StatusAuthFailed, StatusRateLimited:
 	default:
 		status = StatusError
 	}
-	row := ToolCallLog{
-		TenantID:    opts.TenantID,
-		TokenID:     opts.TokenID,
-		TokenName:   truncate(opts.TokenName, 128),
-		TokenMasked: truncate(opts.TokenMasked, 40),
-		Tool:        truncate(strings.TrimSpace(opts.Tool), 64),
-		Status:      status,
-		DurationMs:  opts.DurationMs,
+	mode := strings.TrimSpace(opts.Mode)
+	switch mode {
+	case "", ModeDryRun, ModeExecute:
+	default:
+		mode = ""
 	}
-	if err := s.DB.WithContext(ctx).Create(&row).Error; err != nil {
+	row := ToolCallLog{
+		TenantID:      opts.TenantID,
+		TokenID:       opts.TokenID,
+		TokenName:     truncate(opts.TokenName, 128),
+		TokenMasked:   truncate(opts.TokenMasked, 40),
+		Tool:          truncate(strings.TrimSpace(opts.Tool), 64),
+		Status:        status,
+		Mode:          mode,
+		ParamsSummary: truncate(opts.ParamsSummary, 512),
+		ResultSummary: truncate(opts.ResultSummary, 512),
+		ConfirmHash:   truncate(opts.ConfirmHash, 64),
+		DurationMs:    opts.DurationMs,
+	}
+	if err := db.Create(&row).Error; err != nil {
 		return fmt.Errorf("mcpaudit: write: %w", err)
 	}
 	return nil
+}
+
+// CountExecutesByToken counts successful execute-mode rows for one token
+// since a cutoff (per-token hourly write quota). Errors must be treated as
+// quota exhausted by callers (fail closed).
+func (s *Service) CountExecutesByToken(db *gorm.DB, tokenID uuid.UUID, since time.Time) (int64, error) {
+	if s == nil || db == nil {
+		return 0, fmt.Errorf("mcpaudit: no db")
+	}
+	var n int64
+	err := db.Model(&ToolCallLog{}).
+		Where("token_id = ? AND mode = ? AND status = ? AND created_at >= ?",
+			tokenID, ModeExecute, StatusSuccess, since).
+		Count(&n).Error
+	return n, err
+}
+
+// CountExecutesByTenant counts successful execute-mode rows for one tenant
+// since a cutoff (tenant daily write quota). Errors must be treated as quota
+// exhausted by callers (fail closed).
+func (s *Service) CountExecutesByTenant(db *gorm.DB, tenantID int64, since time.Time) (int64, error) {
+	if s == nil || db == nil {
+		return 0, fmt.Errorf("mcpaudit: no db")
+	}
+	var n int64
+	err := db.Model(&ToolCallLog{}).
+		Where("tenant_id = ? AND mode = ? AND status = ? AND created_at >= ?",
+			tenantID, ModeExecute, StatusSuccess, since).
+		Count(&n).Error
+	return n, err
 }
 
 // throttleInterval bounds WriteThrottled to one row per key per interval, so

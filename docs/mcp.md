@@ -1,6 +1,6 @@
-# MCP 只读入口
+# MCP 入口（只读 + 受控写白名单）
 
-TradeMind 提供一个符合 MCP（Model Context Protocol）标准的只读 server 入口，让 Claude 等 MCP 客户端可以直接查询订单、库存、经营摘要与异常待办。入口只暴露查询工具，**不包含任何写操作**。
+TradeMind 提供一个符合 MCP（Model Context Protocol）标准的 server 入口，让 Claude 等 MCP 客户端可以直接查询订单、库存、经营摘要与异常待办。默认只暴露查询工具；R179 起新增一个**默认全关**的受控写白名单（首个动作：订单打标），须三层闸门同时打开并通过 dry-run→确认 token→执行流程才可写，见下方「[写白名单（write:ops）](#写白名单writeops)」。**消息发送 / 任何外部平台动作永远不在 MCP 面上（绝不自动外发红线）。**
 
 > 说明：这是 TradeMind 自建的 MCP server，属于本系统的对外查询入口；它不代表任何第三方电商平台的 API 已经接通。
 
@@ -8,8 +8,8 @@ TradeMind 提供一个符合 MCP（Model Context Protocol）标准的只读 serv
 
 - 端点：`POST /api/mcp`（与主 API 同域，如 `http://localhost:8080/api/mcp`）
 - 传输：MCP Streamable HTTP（stateless、JSON response），实现基于官方 Go SDK `github.com/modelcontextprotocol/go-sdk`
-- 鉴权：`Authorization: Bearer <sp_mcp_ro_...>`，token 为租户级只读 API token
-- 开关与限流：`MCP_ENABLED`、`MCP_RATE_RPS`、`MCP_RATE_BURST`（见 `docs/env.md`）
+- 鉴权：`Authorization: Bearer <sp_mcp_ro_...>`，token 为租户级 API token（默认 `readonly` scope；写白名单需 `write:ops` scope）
+- 开关与限流：`MCP_ENABLED`、`MCP_RATE_RPS`、`MCP_RATE_BURST`、`MCP_WRITE_ENABLED`（见 `docs/env.md`）
 
 ## 获取只读 token
 
@@ -21,7 +21,7 @@ TradeMind 提供一个符合 MCP（Model Context Protocol）标准的只读 serv
 安全性质：
 
 - token 与创建它的租户绑定，所有工具查询强制该租户范围；涉及店铺的数据只会返回该租户名下店铺的数据。
-- token 只有 `readonly` scope，不能调用任何写接口；鉴权时强制校验 scope，非 `readonly` 的 token 行一律按无效处理。
+- scope 为独立权限轴（R179）：`readonly` 授予查询工具，`write:ops` 只授予写白名单工具，两者互不放宽。存量 / 默认 token 均为 `readonly`，看不到也调不到任何写工具；`write:ops` token 不含 `readonly` 时看不到查询工具，也永远不能访问开放 API（`/api/open/v1/*` 仅认 `readonly`）。scope 列为空 / 未知值的 token 行一律按无效处理（fail-closed）。
 - 租户被禁用 / 清退后，其名下所有 token 立即失效（鉴权时校验租户状态，返回 401，与未知 token 不可区分），无需逐个吊销。
 - 每来源 IP 的鉴权失败预算按客户端 IP 计费：默认取 TCP peer 地址；仅当 `TRUSTED_PROXIES` 列出当前代理时才采信 `X-Forwarded-For`（见 [`docs/env.md`](env.md)）。部署在 nginx / LB 之后需正确配置，否则所有请求按代理 IP 共享同一预算。
 - token 可选设置有效期（创建时 `expiresInDays`，1-730 天；默认不过期保持兼容）：到期后鉴权即拒绝（401）；管理页展示过期状态与即将过期（≤7 天）提示。也可随时显式吊销（吊销即时生效）。请按用途拆分 token，不再使用时及时吊销。
@@ -31,6 +31,49 @@ TradeMind 提供一个符合 MCP（Model Context Protocol）标准的只读 serv
 - 工具调用逐次审计：每次 `tools/call` 落一条审计日志（租户、token（脱敏）、工具名、时间、成功/失败、耗时），**不记录查询参数与查询结果内容**；管理页「MCP 只读接入」可按工具/状态筛选查看（`GET /api/v1/mcp/audit-logs`）。审计写入为 fail-closed：审计行写入失败时该次工具调用会被拒绝（JSON-RPC error code `-32603` internal error，错误信息 `audit log unavailable, tool call rejected`），保证没有任何调用绕过审计；工具均为只读、无副作用，被拒的调用可安全重试。后端同时记录 Error 级日志 `mcp_tool_audit_write_failed` 供告警链路发现审计库故障。
 - 入口级拒绝也留痕（R154）：未通过鉴权（401）与被限流（429）的请求写 `mcp:auth` 审计行（状态 `auth_failed` / `rate_limited`；未认证来源记在租户 0 下），按「工具+状态+来源」每分钟至多一条，防止攻击流量放大审计表；不记录任何 token 内容。该写入为 best effort，不阻断 401/429 响应本身（与开放 API 入口同口径）；fail-closed 只作用于 `tools/call` 的逐次审计。
 - 输出经过脱敏：不含密钥、密码、内部 UUID，客户姓名只保留首字符。
+
+## 写白名单（write:ops）
+
+R179 起 MCP 提供极小的受控写面。设计口径：D1 P0 最小动作集、D2 独立 `write:ops` scope、D3 三层闸门默认全关 + 强制 dry-run→确认 token→执行、D4 fail-closed 审计 + 限额。
+
+### 三层闸门（默认全关，逐层独立 403）
+
+| 层 | 开关 | 默认 | 生效方式 |
+| --- | --- | --- | --- |
+| 全局 | 环境变量 `MCP_WRITE_ENABLED` | `false` | 关闭时写工具完全不注册（列表里都看不到） |
+| 租户 | 设置项 `mcp` 组 `write_enabled=true`（仅管理员可改设置） | 关 | 关闭 / 读取失败时每次写调用被拒（fail-closed） |
+| token | token scope 含 `write:ops` | 无 | 无该 scope 的 token 看不到写工具 |
+
+### write:ops token 治理（管理员专属）
+
+- 仅 `admin` 角色可创建带 `write:ops` 的 token（operator / readonly 返回 403）；scope 只能在创建时授予，**没有任何升级已有 token 的入口**。
+- 写 token **必须过期**：默认 30 天，最长 90 天，不支持不过期。
+- 吊销、租户禁用、到期语义与只读 token 完全一致。
+
+### dry-run → 确认 token → 执行
+
+每个写工具入参必须带 `mode`：
+
+1. `mode=dry_run`：校验目标存在性 / 租户归属 / 限额，返回结构化影响预览（`preview`）、人话摘要（`summary`）和一次性 `confirmationToken`（TTL 5 分钟）。
+2. `mode=execute` + `confirmationToken`：确认 token 与「租户 + 调用 token + 工具名 + 参数哈希」四元绑定，原子消费（单次有效）。缺失 / 过期 / 已使用 / 换调用者 / 参数漂移一律拒绝，需重新 dry_run。执行成功后重放同一确认 token 返回 `alreadyExecuted=true` 且**不会重复变更**。
+
+数据库中只保存确认 token 的 SHA-256；明文只在 dry_run 响应中出现一次，不进审计。
+
+### fail-closed 审计与限额
+
+- 每次写调用（dry_run 与 execute 各一行）写入审计：租户、token（脱敏）、工具、mode、白名单化参数摘要（订单号 / 标签名等业务键，绝不含密钥或自由文本）、结果摘要、确认哈希、耗时。execute 的业务变更与审计行在**同一事务**提交：审计写不进去则整个执行回滚（`audit log unavailable, tool call rejected`）。
+- 限额（按成功 execute 审计行计数，计数失败即拒绝）：每 token 30 次/小时、每租户 200 次/天；超限拒绝 dry_run 与 execute。
+- 跨租户目标（订单号 / 标签名不属于本租户）统一返回「不存在」，与真正不存在不可区分（404 语义，无存在性探测）。
+- 每次调用单目标对象（一个订单 + 一个标签），无批量入口。
+
+### 写工具列表（P0 首批）
+
+| 工具 | 说明 |
+| --- | --- |
+| `orders_add_tag` | 为一个订单添加一个**已存在**的租户标签（幂等：已有该标签时为无操作，`applied=0`） |
+| `orders_remove_tag` | 移除一个订单上的一个标签（幂等：本就没有时为无操作，`removed=0`） |
+
+后续 P0 动作（异常标记、mark-placed、物流回填、带三前提的 mark-paid）按同一框架在后续轮次接入。
 
 ## 只读工具列表
 

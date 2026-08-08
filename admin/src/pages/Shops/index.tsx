@@ -594,10 +594,17 @@ export default function ShopsPage() {
                   okText: '删除',
                   cancelText: '取消',
                   okType: 'danger',
-                  onOk: async () => {
-                    await deleteShop(r.id);
-                    message.success('已删除');
-                    actionRef.current?.reload();
+                  // onOk 不返回 Promise，由回调手动 close：失败保持弹窗打开且不向外抛拒绝。
+                  onOk: (close: () => void) => {
+                    deleteShop(r.id)
+                      .then(() => {
+                        message.success('已删除');
+                        actionRef.current?.reload();
+                        close();
+                      })
+                      .catch((e: unknown) => {
+                        message.error((e as Error)?.message || '删除失败');
+                      });
                   },
                 });
               },

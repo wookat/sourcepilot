@@ -656,18 +656,22 @@ export default function OrderExceptionsPage() {
                       }}
                     />
                   ),
-                  onOk: async () => {
-                    try {
-                      await postOrderExceptionHandle(r.sourceType, r.sourceId, {
-                        exceptionType: r.exceptionType,
-                        remark: remark.trim(),
+                  // onOk 不返回 Promise，由回调自行 close：失败保持弹窗打开且
+                  // 不向外抛拒绝（避免 dev 环境 unhandledrejection 触发
+                  // react-error-overlay 盖住 toast）。
+                  onOk: (close: () => void) => {
+                    postOrderExceptionHandle(r.sourceType, r.sourceId, {
+                      exceptionType: r.exceptionType,
+                      remark: remark.trim(),
+                    })
+                      .then(() => {
+                        message.success('已标记');
+                        reload();
+                        close();
+                      })
+                      .catch((e) => {
+                        message.error(extractApiErrorMessage(e, '标记已处理失败'));
                       });
-                      message.success('已标记');
-                      reload();
-                    } catch (e) {
-                      message.error(extractApiErrorMessage(e, '标记已处理失败'));
-                      throw e;
-                    }
                   },
                 });
               }}
@@ -682,17 +686,18 @@ export default function OrderExceptionsPage() {
                   okText: '确定',
                   cancelText: '取消',
                   title: '忽略该异常（工作台视图）',
-                  onOk: async () => {
-                    try {
-                      await postOrderExceptionIgnore(r.sourceType, r.sourceId, {
-                        exceptionType: r.exceptionType,
+                  onOk: (close: () => void) => {
+                    postOrderExceptionIgnore(r.sourceType, r.sourceId, {
+                      exceptionType: r.exceptionType,
+                    })
+                      .then(() => {
+                        message.success('已忽略');
+                        reload();
+                        close();
+                      })
+                      .catch((e) => {
+                        message.error(extractApiErrorMessage(e, '忽略失败'));
                       });
-                      message.success('已忽略');
-                      reload();
-                    } catch (e) {
-                      message.error(extractApiErrorMessage(e, '忽略失败'));
-                      throw e;
-                    }
                   },
                 });
               }}
@@ -710,7 +715,6 @@ export default function OrderExceptionsPage() {
                   reload();
                 } catch (e) {
                   message.error(extractApiErrorMessage(e, '取消标记失败'));
-                  throw e;
                 }
               }}
             >

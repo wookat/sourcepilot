@@ -442,6 +442,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	platformamazon.BindShops(shopSvc.AmazonShopsBridge())
 	platformamazon.RegisterProvider()
 	platformgoofish.RegisterProvider()
+	registerPlatformSensitiveSettingsKeys()
 	shopH := &shop.Handler{Svc: shopSvc}
 
 	storagePublicSvc := &storagepublic.Service{Settings: settingsSvc, OpLog: opLogSvc}
@@ -808,7 +809,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	mcpAuditSvc := &mcpaudit.Service{DB: dep.DB}
 	mcpaudit.Register(authed, &mcpaudit.Handler{Svc: mcpAuditSvc})
 	if dep.Config == nil || dep.Config.MCPEnabled {
-		mcpDeps := &mcpserver.Deps{DB: dep.DB, Tokens: mcpTokenSvc, Exceptions: excSvc, Audits: mcpAuditSvc}
+		mcpDeps := &mcpserver.Deps{DB: dep.DB, Tokens: mcpTokenSvc, Exceptions: excSvc, Audits: mcpAuditSvc, Orders: orderSvc, Settings: settingsSvc}
 		if dep.Redis != nil && dep.Redis.Client != nil {
 			mcpDeps.Redis = dep.Redis.Client
 		}
@@ -816,6 +817,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 			mcpDeps.RateRPS = float64(dep.Config.MCPRateRPS)
 			mcpDeps.RateBurst = dep.Config.MCPRateBurst
 			mcpDeps.Version = dep.Config.AppVersion
+			mcpDeps.WriteEnabled = dep.Config.MCPWriteEnabled
 		}
 		r.POST("/api/mcp", mcpserver.GinHandler(mcpDeps))
 	}
