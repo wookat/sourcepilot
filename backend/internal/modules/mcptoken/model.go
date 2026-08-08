@@ -1,16 +1,82 @@
 package mcptoken
 
 import (
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 )
 
-// ScopeReadonly is the only scope tokens can carry today: both the MCP entry
-// and the Open API entry are strictly read-only and tokens never authorize
-// writes.
-const ScopeReadonly = "readonly"
+// Scopes are the privilege axis of a token. Scope is stored as a
+// comma-joined set (e.g. "readonly" or "readonly,write:ops"); membership is
+// checked per entry / per tool. write:ops never implies read.
+const (
+	// ScopeReadonly authorizes the read-only query tools (MCP) and the Open
+	// API entry. Pre-existing tokens all carry exactly this scope.
+	ScopeReadonly = "readonly"
+	// ScopeWriteOps authorizes the whitelisted MCP write tools (W1 订单打标
+	// 起步). Only grantable at creation time, admin-only, forced expiry.
+	ScopeWriteOps = "write:ops"
+)
+
+// knownScopes lists every scope value the system understands. Unknown
+// members are ignored at authentication time (they grant nothing) and are
+// rejected at creation time.
+var knownScopes = map[string]bool{ScopeReadonly: true, ScopeWriteOps: true}
+
+// ParseScopes splits a stored scope column into its known members. Unknown
+// members grant nothing; an empty result means the token authorizes no entry
+// (fail closed).
+func ParseScopes(raw string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		p := strings.TrimSpace(part)
+		if p == "" || !knownScopes[p] || seen[p] {
+			continue
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	return out
+}
+
+// NormalizeScopes validates a requested scope set for token creation:
+// unknown members are rejected (fail closed at grant time), duplicates
+// collapse, and an empty set defaults to readonly. The result is the
+// canonical stored form (sorted, comma-joined).
+func NormalizeScopes(in []string) (string, error) {
+	if len(in) == 0 {
+		return ScopeReadonly, nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, raw := range in {
+		p := strings.TrimSpace(raw)
+		if p == "" {
+			continue
+		}
+		if !knownScopes[p] {
+			return "", fmt.Errorf("%w: %s", ErrInvalidScope, p)
+		}
+		if !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return ScopeReadonly, nil
+	}
+	sort.Strings(out)
+	return strings.Join(out, ","), nil
+}
+
+// ErrInvalidScope indicates an unknown scope member in a creation request.
+var ErrInvalidScope = errors.New("mcptoken: invalid scope (want readonly / write:ops)")
 
 // Purposes bind a token to one or both read-only entries. Scope stays the
 // single privilege axis (readonly); purpose is a surface selector so a token
@@ -65,6 +131,20 @@ func (t Token) Masked() string {
 // Expired reports whether the token has an expiry in the past.
 func (t Token) Expired(now time.Time) bool {
 	return t.ExpiresAt != nil && !t.ExpiresAt.After(now)
+}
+
+// Scopes returns the token's known scope members. An empty or unparseable
+// scope column yields an empty set, which authorizes nothing.
+func (t Token) Scopes() []string { return ParseScopes(t.Scope) }
+
+// HasScope reports whether the token carries one scope member.
+func (t Token) HasScope(scope string) bool {
+	for _, s := range t.Scopes() {
+		if s == scope {
+			return true
+		}
+	}
+	return false
 }
 
 // AllowsMCP reports whether the token may call the MCP entry. An empty

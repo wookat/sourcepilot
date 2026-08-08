@@ -2154,3 +2154,10 @@ Final Production Acceptance Deferred to P10
 - **门禁**：Go 全量 103 包 ok、securitytests（permmatrix/idor/shopscope）111/111、check:dev、ui-copy strict、test:frontend 368、contracts 17、build:admin/collector、全量 E2E（修复后全绿）。
 - **Docker 全栈实测**：backend 镜像重建后 R57 主链路（自动生成采购单/打标/分仓/发货规则）、#353 两处修复面（跨租户 shopId 导入 404 + 零残留、settings 加密粘性）、modal 失败路径中文 toast 保持弹窗、migrationimport 中文文案、view-only 40303/readonly 40301/跨租户 404、MCP purpose 隔离与开放 API、双租户零残留全部通过。
 - **P1 即修**：#352 modal onOk 改「手动 close」后丢失 antd async pending 防重，双击敏感确认产生 2 次写请求；`modalOk`/`confirmSensitiveAction` 增加 in-flight 守卫 + 3 条单测，E2E 复绿。详见 `docs/progress/R177-line2.md`。
+
+### 变更记录（2026-08-08）第 179 轮线1：MCP 写白名单 W1 基建（fullstack-engineer）
+
+- **write:ops scope**：独立权限轴（readonly 不放宽、开放 API 面不放宽）；未知/空 scope fail-closed；写 token 仅 admin 可创建、强制过期（默认 30 天/最长 90 天）、scope 只在创建时授予。
+- **三层闸门默认全关**：全局 `MCP_WRITE_ENABLED`（默认 false，关时写工具不注册）→ 租户 settings `mcp/write_enabled`（默认关，读取失败即关）→ token scope；逐层独立 403。
+- **dry-run→确认 token→执行**：确认 token 一次性、TTL 5 分钟、绑定租户+调用 token+工具+参数哈希，原子消费；执行成功后重放 `alreadyExecuted` 不重复变更；execute 的业务变更与审计行同事务，审计失败整体回滚；限额每 token 30 次/时、每租户 200 次/天（计数失败即拒绝）。
+- **首个动作**：`orders_add_tag`/`orders_remove_tag`（幂等、单目标、跨租户 404）；消息线零 MCP 写触点（工具面断言）。详见 `docs/progress/R179.md`、`docs/mcp.md`。

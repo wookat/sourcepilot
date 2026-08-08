@@ -54,6 +54,10 @@ type Config struct {
 	MCPRateRPS int
 	// MCPRateBurst is the per-token burst allowance for MCP calls (default 10).
 	MCPRateBurst int
+	// MCPWriteEnabled is the deployment-level gate for the whitelisted MCP
+	// write tools (default off). Even when on, each tenant must opt in via
+	// settings mcp/write_enabled and the token must carry write:ops.
+	MCPWriteEnabled bool
 
 	// OpenAPIEnabled gates the read-only Open API entry at /api/open/v1/* (default on).
 	OpenAPIEnabled bool
@@ -270,9 +274,10 @@ func Load() (*Config, error) {
 
 		TrustedProxies: splitCSV(os.Getenv("TRUSTED_PROXIES")),
 
-		MCPEnabled:   envBool(os.Getenv("MCP_ENABLED"), true),
-		MCPRateRPS:   atoiOrDefault(os.Getenv("MCP_RATE_RPS"), 5),
-		MCPRateBurst: atoiOrDefault(os.Getenv("MCP_RATE_BURST"), 10),
+		MCPEnabled:      envBool(os.Getenv("MCP_ENABLED"), true),
+		MCPRateRPS:      atoiOrDefault(os.Getenv("MCP_RATE_RPS"), 5),
+		MCPRateBurst:    atoiOrDefault(os.Getenv("MCP_RATE_BURST"), 10),
+		MCPWriteEnabled: envBool(os.Getenv("MCP_WRITE_ENABLED"), false),
 
 		OpenAPIEnabled:   envBool(os.Getenv("OPENAPI_ENABLED"), true),
 		OpenAPIRateRPS:   atoiOrDefault(os.Getenv("OPENAPI_RATE_RPS"), 5),

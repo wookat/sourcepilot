@@ -101,11 +101,23 @@ func normPurpose(p string) string {
 }
 
 // CreateBody names a new token; ExpiresInDays is optional (0 = never
-// expires); Purpose is optional (mcp/openapi/both, default mcp).
+// expires for readonly, default 30 days for write:ops); Purpose is optional
+// (mcp/openapi/both, default mcp). Scopes is optional (default readonly);
+// write:ops is admin-only and only grantable at creation time.
 type CreateBody struct {
-	Name          string `json:"name"`
-	Purpose       string `json:"purpose,omitempty"`
-	ExpiresInDays int    `json:"expiresInDays,omitempty"`
+	Name          string   `json:"name"`
+	Purpose       string   `json:"purpose,omitempty"`
+	Scopes        []string `json:"scopes,omitempty"`
+	ExpiresInDays int      `json:"expiresInDays,omitempty"`
+}
+
+func scopesInclude(scopes []string, want string) bool {
+	for _, s := range scopes {
+		if strings.TrimSpace(s) == want {
+			return true
+		}
+	}
+	return false
 }
 
 // maxExpiresInDays bounds the optional token lifetime (2 years).
@@ -132,6 +144,22 @@ func (h *Handler) Create(c *gin.Context) {
 			"有效期天数非法：可选 0（不过期）或 1-730 天")
 		return
 	}
+	wantsWrite := scopesInclude(body.Scopes, ScopeWriteOps)
+	if wantsWrite {
+		// D4: only admin may govern write tokens — operator/readonly get 403
+		// even though they can still create plain readonly tokens.
+		p, perr := adminperm.LoadPrincipal(c, h.Svc.DB)
+		if perr != nil || !p.IsAdmin() {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden,
+				"仅管理员可创建带 write:ops 作用域的 token")
+			return
+		}
+		if body.ExpiresInDays > WriteTokenMaxExpiryDays {
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest,
+				"write:ops token 有效期非法：可选 0（默认 30 天）或 1-90 天，不支持不过期")
+			return
+		}
+	}
 	if p := strings.TrimSpace(body.Purpose); p != "" && !ValidPurpose(p) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest,
 			"token 用途非法：可选 mcp（MCP 只读）/ openapi（开放 API）/ both（两者）")
@@ -142,7 +170,7 @@ func (h *Handler) Create(c *gin.Context) {
 		t := time.Now().UTC().Add(time.Duration(body.ExpiresInDays) * 24 * time.Hour)
 		expiresAt = &t
 	}
-	res, err := h.Svc.Create(c.Request.Context(), tid, body.Name, body.Purpose, expiresAt, adminUUID(c))
+	res, err := h.Svc.CreateScoped(c.Request.Context(), tid, body.Name, body.Purpose, body.Scopes, expiresAt, adminUUID(c))
 	if err != nil {
 		if errors.Is(err, ErrTooManyTokens) {
 			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest,
@@ -153,7 +181,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 	h.log(c, "mcp_token_create", res.Token.ID.String(),
-		"创建只读 token（用途 "+normPurpose(res.Token.Purpose)+"）："+res.Token.Name)
+		"创建 token（作用域 "+res.Token.Scope+"，用途 "+normPurpose(res.Token.Purpose)+"）："+res.Token.Name)
 	response.OK(c, gin.H{
 		"token": toView(res.Token),
 		// plaintext is shown once; clients must store it themselves.
