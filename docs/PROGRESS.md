@@ -2077,3 +2077,9 @@ Final Production Acceptance Deferred to P10
 - **合并期巡检**：R165–R167 合入面 console 告警/裸枚举无问题；审单 E2E 复跑 ×3（3×15 passed）无 flaky。
 - **刊登 target 无 shopId 口径登记（不改行为，待老板决策）**：现状前置校验跳过空 shopId、执行期记 failed 行（`缺少店铺`）、整体 200；推荐倾向请求级 400。详见 `docs/progress/R168.md`。
 - **Docker 双租户实测**：跨租户 404 不泄露、view-only 写 403/40303 新文案实测生效。门禁全绿，详见 `docs/progress/R168.md`。
+
+### 变更记录（2026-08-08）第 169 轮线1：全站视觉/UX 复核 v11（user-experience-officer）
+
+- **硬指标矩阵全绿**：5 persona（admin/operator/readonly/临时 view-only/平台管理员）× 5 精确视口（1920/1440/1024/768/375）× 74 路由 = 1850 组合 headless 全扫，console error / pageerror / 根节点横向溢出 / NaN·Invalid Date·undefined 直出 / 403·500 噪音均为 0。
+- **v10 遗留项回归无回退**（币种未保存离开确认、备份/恢复中文按钮与时间格式、大屏 tooltip、操作日志中文化）；R163–R168 新面（view-only 审单预禁用/整批 403/中文 toast/删除店铺中文弹窗/40303 文案统一）全部通过；移动端与视觉现代感达标。
+- **本轮无新 P1/P2**；遗留维持 v10 P2-3（mcp-tokens 文档链接）与 v9 P2-3（CSV 未折算列）待产品确认。基线为 main + 叠加 #335/#337。详见 `docs/ux-review/UX_REVIEW_V11_REPORT.md`、`docs/progress/R169.md`。
