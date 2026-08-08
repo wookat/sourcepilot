@@ -8,7 +8,10 @@ import (
 // The sensitive key registry is the server-side declarative list of settings
 // items (AI keys, platform credentials, storage secrets, webhook secrets…)
 // that must be encrypted at rest and masked on read, regardless of the
-// client-supplied isEncrypted flag. It is seeded from the static integration
+// client-supplied isEncrypted flag. Writes always encrypt registry-listed
+// keys; legacy rows persisted in plaintext by older versions are masked on
+// read and lazily re-encrypted when an encrypter is configured (see
+// Service.adoptLegacyPlaintext). It is seeded from the static integration
 // schema (IntegrationConfigDefinitions) plus legacy keys; platform app/publish
 // config schemas add their sensitive fields at bootstrap via
 // RegisterSensitiveKeys. Items outside the registry keep the client-declared
