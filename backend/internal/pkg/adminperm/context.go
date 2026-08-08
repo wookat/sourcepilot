@@ -55,7 +55,12 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 			c.Set(ctxPrincipalKey, p)
 			return p, nil
 		}
-		return nil, err
+		// The principal could not be resolved: return a principal that
+		// authorizes nothing alongside the error, never nil. Callers that
+		// propagate the error keep answering 500; callers that only use the
+		// principal (store scopes) then narrow to "no store" instead of
+		// widening to "every store". Not cached, so a retry re-resolves.
+		return &Principal{UserID: uid, Role: RoleReadonly, Disabled: true}, err
 	}
 	cacheKey := permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, "")
 	if cached, ok := getCachedPrincipal(cacheKey); ok {

@@ -2335,3 +2335,12 @@ Final Production Acceptance Deferred to P10
 - **#367/R183 零回退**：白名单守护与 exactly-once 审计测试全 PASS，Docker 实测一次 dry_run→execute 仅 2 行。
 - **P2 新登记 3 项**：限额值缺服务端值域校验（`1e20` 可使单笔上限失效）、审计可见性仅「写/读」一档无中间视图、deploy 类脚本外部字符串输出未统一净化。
 - **门禁**：go fmt/vet/gofmt + `go test ./...` 全包（含 securitytests/permmatrix/Postgres 并发用例）、check:dev、ui-copy strict、frontend 375、contracts 17、collector 18、build×2 全绿。详见 `docs/progress/R188-line2.md`。
+
+### 变更记录（2026-08-08）第 189 轮线2：安全审计季度全量复跑（距 R183 六轮，security-engineer）
+
+- **口径**：#374/#375 已合入 main，#376/#377/#378 仍 OPEN 且 mergeable，审计分支自 origin/main 按 #376→#377→#378 叠加（仅 `docs/PROGRESS.md` 文书性冲突）；证据本地执行并作附件不入库，Actions CI 不作依据。
+- **P1×2 先红后绿即修（同源：`nil` = 无限制 / 空集 = 无授权 的契约被两侧破坏）**：① 任务中心与运营大屏在非 admin 且店铺授权集为空时跳过店铺过滤 / 落回租户级查询，零授权账号（`readonly` 默认如此）可读本租户全部店铺的失败任务与库存预警；② `adminperm.LoadPrincipal` 在数据库错误上返回 nil principal，忽略 error 的调用点降级为无限制（`inventory` 的 `operableShopIDs` 为写侧、`reports` 采购报表按 admin 口径统计全租户）。修为空集一律零结果 + `LoadPrincipal` 返回拒绝一切 principal 并传播 error；新增 HTTP 层 `r189_empty_store_scope_test.go`、六包 fail-closed 用例与 `internal/testing/faildb` 助手，Docker 重建镜像红绿实测（修复前 readonly 读到 2 店、修复后 0 行）。
+- **零回退复验**：MCP 写全链 W1–W3（三层闸门、确认 token 四元绑定与重放/参数漂移、advisory lock + 事务内额度、审计恰一次 fail-closed、#378 管道前拒绝补写无重复行且无新盲区）、四 persona × 写接口探针与跨租户 404 / 40303 / 40301、审计页写行 admin-only、settings 敏感 key 与惰性加密、token purpose 双向隔离/过期/限流 XFF、开放 API 仅 5 个 GET 全部保持（permmatrix + idor + shopscope 192 例全绿 0 skip）。
+- **R187/R188 性能面结论**：`summary_sql.go` 全参数化、租户与店铺谓词齐备、空集 fail-closed、`NOT EXISTS` 无跨租户读取，`migrate_round188.go` 固定标识符且幂等——未引入注入 / 越权 / 租户闭合缺口。
+- **依赖与密钥**：`govulncheck` 0 可达漏洞（模块级 `GO-2026-5932` 不可达且无修复版本）；`pnpm audit --prod` 16 项全为 `@umijs/max` 传递链；密钥仅密文落库、token 仅存 SHA-256、日志与审计不落明文。
+- **P2 新登记/承接 6 项**：拒绝路径审计写失败仅落日志、summary 缺租户强约束、openpgp 模块级挂账、前端构建链 advisory、游标指纹按空集计算、R188 三项未修 P2。详见 `docs/SECURITY_AUDIT_R189.md`、`docs/progress/R189-line2.md`。

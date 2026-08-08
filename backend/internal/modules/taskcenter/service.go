@@ -166,7 +166,12 @@ func passesUnifiedFilters(d UnifiedTaskDTO, p ListFailureParams) bool {
 	if p.ShopID != "" && !strings.EqualFold(strings.TrimSpace(p.ShopID), strings.TrimSpace(d.ShopID)) {
 		return false
 	}
-	if len(p.AllowedShopIDs) > 0 {
+	// A nil allowed set means "every store" (admin); a non-nil but empty set
+	// means the caller holds no store grant and must see nothing.
+	if p.AllowedShopIDs != nil {
+		if len(p.AllowedShopIDs) == 0 {
+			return false
+		}
 		shopRaw := strings.TrimSpace(d.ShopID)
 		if shopRaw == "" {
 			return false

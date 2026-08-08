@@ -105,7 +105,7 @@ func (h *Handler) ListFailures(c *gin.Context) {
 		if tid, err := adminperm.TenantIDFromGin(c); err == nil {
 			p.TenantID = tid
 		}
-		if pr, err := adminperm.LoadPrincipal(c, h.Svc.DB); err == nil && pr != nil && !pr.IsAdmin() {
+		if pr, _ := adminperm.LoadPrincipal(c, h.Svc.DB); pr != nil && !pr.IsAdmin() {
 			p.AllowedShopIDs = pr.AllowedStoreIDs()
 		}
 	}

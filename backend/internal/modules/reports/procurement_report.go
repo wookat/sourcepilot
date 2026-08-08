@@ -267,11 +267,16 @@ func (s *Service) deliveredTimes(ctx context.Context, pos []procurement.Purchase
 }
 
 // allowedShopIDs returns nil for unrestricted principals (admin), otherwise
-// the granted shop IDs (empty slice = none visible).
+// the granted shop IDs (empty slice = none visible). A principal that cannot
+// be resolved authorizes no store, so the error is propagated instead of
+// answering with the unrestricted (nil) scope.
 func allowedShopIDs(c *gin.Context, s *Service) ([]uuid.UUID, error) {
 	p, err := adminperm.LoadPrincipal(c, s.DB)
-	if err != nil || p == nil {
-		return nil, nil
+	if err != nil {
+		return nil, err
+	}
+	if p == nil {
+		return []uuid.UUID{}, nil
 	}
 	return p.AllowedStoreIDs(), nil
 }

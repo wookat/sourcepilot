@@ -139,7 +139,10 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	_ = s.suggestionPendingScope(ctx, q).Count(&sum.AiReplySuggestionPendingCount).Error
 
 	// Inventory alert totals via existing policy-aware listing (count-only)
-	if shopPtr == nil && !q.Scope.IsAdmin && len(q.Scope.AllowedShopIDs) > 0 {
+	// Non-admin without an explicit shop filter: count per allowed store. An
+	// empty allowed set authorizes no store, so the totals stay zero instead of
+	// falling through to the tenant-wide count.
+	if shopPtr == nil && !q.Scope.IsAdmin {
 		for _, sid := range q.Scope.AllowedShopIDs {
 			id := sid
 			invQ := inventory.AlertsListQuery{

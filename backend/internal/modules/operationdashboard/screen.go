@@ -296,9 +296,10 @@ func (s *Service) screenInventoryAlerts(ctx context.Context, q Query, alertType,
 		AlertType: alertType,
 		Page:      1, PageSize: screenAlertsLimit / 2,
 	}
-	if !q.Scope.IsAdmin && invQ.ShopID == nil && len(q.Scope.AllowedShopIDs) > 0 {
+	if !q.Scope.IsAdmin && invQ.ShopID == nil {
 		// Non-admin without explicit shop filter: query the first allowed shop
 		// per call is wrong; list per allowed shop and merge (bounded count).
+		// An empty allowed set yields no rows rather than a tenant-wide list.
 		var merged []ScreenAlertDTO
 		for i := range q.Scope.AllowedShopIDs {
 			sq := invQ
