@@ -13,6 +13,11 @@ import (
 // Handler serves the tenant-scoped MCP tool-call audit log.
 type Handler struct {
 	Svc *Service
+	// WriteTools is the whitelisted write tool name list. Rows of these
+	// tools (and any row with a write mode) are least-exposure: only
+	// accounts holding settings.manage — the same axis that governs write
+	// tokens — may see them.
+	WriteTools []string
 }
 
 // logView is the API shape of one audit row.
@@ -47,14 +52,22 @@ func (h *Handler) List(c *gin.Context) {
 		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant scope required")
 		return
 	}
+	// Write-action rows are admin-visible only; a principal resolution
+	// failure counts as non-admin (fail closed).
+	hideWrite := true
+	if p, perr := adminperm.LoadPrincipal(c, h.Svc.DB); perr == nil && p.Can(adminperm.PermSettingsManage) {
+		hideWrite = false
+	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
 	res, err := h.Svc.List(c.Request.Context(), tid, ListFilter{
-		Tool:     strings.TrimSpace(c.Query("tool")),
-		Status:   strings.TrimSpace(c.Query("status")),
-		Mode:     strings.TrimSpace(c.Query("mode")),
-		Page:     page,
-		PageSize: pageSize,
+		Tool:           strings.TrimSpace(c.Query("tool")),
+		Status:         strings.TrimSpace(c.Query("status")),
+		Mode:           strings.TrimSpace(c.Query("mode")),
+		HideWriteRows:  hideWrite,
+		WriteToolNames: h.WriteTools,
+		Page:           page,
+		PageSize:       pageSize,
 	})
 	if err != nil {
 		response.HandleError(c, err)

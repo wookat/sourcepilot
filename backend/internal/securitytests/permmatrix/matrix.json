@@ -6471,7 +6471,8 @@
       "crossTenantAdmin": "allow",
       "operator": "allow",
       "readonly": "allow"
-    }
+    },
+    "note": "R184: endpoint stays 200 for all roles but write-action rows (mode dry_run/execute or tool in the write whitelist) are least-exposure — only settings.manage holders (admin, same axis as write-token governance) see them; operator/readonly get read-tool rows only (mcpaudit handler_r184_test.go TestAuditListWriteRowsAdminOnly)"
   },
   {
     "method": "POST",

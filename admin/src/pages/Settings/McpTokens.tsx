@@ -1,4 +1,4 @@
-import { TmPageContainer } from '@/components/ui';
+import { TmPageContainer } from "@/components/ui";
 import {
   createMcpToken,
   createMcpWriteToken,
@@ -7,11 +7,11 @@ import {
   revokeMcpToken,
   type McpAuditLogRow,
   type McpTokenRow,
-} from '@/services/mcpTokens';
-import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
-import { formatDateTime } from '@/utils/formatTime';
-import { isReadonly, normalizeRole, ROLES } from '@/utils/permission';
-import { useModel } from '@umijs/max';
+} from "@/services/mcpTokens";
+import { fetchSettingsList, saveSettingsItems } from "@/services/settings";
+import { formatDateTime } from "@/utils/formatTime";
+import { isReadonly, normalizeRole, ROLES } from "@/utils/permission";
+import { useModel } from "@umijs/max";
 import {
   Alert,
   Button,
@@ -28,82 +28,82 @@ import {
   Tooltip,
   Typography,
   message,
-} from 'antd';
-import { useCallback, useEffect, useRef, useState } from 'react';
+} from "antd";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const EXPIRY_OPTIONS = [
-  { value: 0, label: '不过期' },
-  { value: 7, label: '7 天' },
-  { value: 30, label: '30 天' },
-  { value: 90, label: '90 天' },
-  { value: 180, label: '180 天' },
-  { value: 365, label: '365 天' },
+  { value: 0, label: "不过期" },
+  { value: 7, label: "7 天" },
+  { value: 30, label: "30 天" },
+  { value: 90, label: "90 天" },
+  { value: 180, label: "180 天" },
+  { value: 365, label: "365 天" },
 ];
 
 const EXPIRING_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
 const PURPOSE_OPTIONS = [
-  { value: 'mcp', label: 'MCP 只读' },
-  { value: 'openapi', label: '开放 API' },
-  { value: 'both', label: 'MCP + 开放 API' },
+  { value: "mcp", label: "MCP 只读" },
+  { value: "openapi", label: "开放 API" },
+  { value: "both", label: "MCP + 开放 API" },
 ];
 
 const PURPOSE_LABELS: Record<string, string> = {
-  mcp: 'MCP 只读',
-  openapi: '开放 API',
-  both: 'MCP + 开放 API',
+  mcp: "MCP 只读",
+  openapi: "开放 API",
+  both: "MCP + 开放 API",
 };
 
 const MCP_TOOL_OPTIONS = [
-  'orders_query',
-  'inventory_query',
-  'report_summary',
-  'exceptions_pending',
-  'mcp:auth',
-  'openapi:auth',
+  "orders_query",
+  "inventory_query",
+  "report_summary",
+  "exceptions_pending",
+  "mcp:auth",
+  "openapi:auth",
 ];
 
 const MCP_WRITE_TOOL_OPTIONS = [
-  'orders_add_tag',
-  'orders_remove_tag',
-  'exceptions_mark',
-  'procurement_mark_placed',
-  'procurement_fill_logistics',
-  'procurement_mark_paid',
+  "orders_add_tag",
+  "orders_remove_tag",
+  "exceptions_mark",
+  "procurement_mark_placed",
+  "procurement_fill_logistics",
+  "procurement_mark_paid",
 ];
 
 const WRITE_EXPIRY_OPTIONS = [
-  { value: 0, label: '默认（30 天）' },
-  { value: 7, label: '7 天' },
-  { value: 30, label: '30 天' },
-  { value: 90, label: '90 天' },
+  { value: 0, label: "默认（30 天）" },
+  { value: 7, label: "7 天" },
+  { value: 30, label: "30 天" },
+  { value: 90, label: "90 天" },
 ];
 
 const WRITE_MODE_TAGS: Record<string, { color: string; label: string }> = {
-  dry_run: { color: 'blue', label: 'dry_run 预览' },
-  execute: { color: 'volcano', label: 'execute 执行' },
+  dry_run: { color: "blue", label: "dry_run 预览" },
+  execute: { color: "volcano", label: "execute 执行" },
 };
 
 function isWriteScope(scope: string): boolean {
   return scope
-    .split(',')
+    .split(",")
     .map((s) => s.trim())
-    .includes('write:ops');
+    .includes("write:ops");
 }
 
 const AUDIT_STATUS_TAGS: Record<string, { color: string; label: string }> = {
-  success: { color: 'green', label: '成功' },
-  error: { color: 'red', label: '失败' },
-  auth_failed: { color: 'orange', label: '鉴权失败' },
-  rate_limited: { color: 'gold', label: '已限流' },
+  success: { color: "green", label: "成功" },
+  error: { color: "red", label: "失败" },
+  auth_failed: { color: "orange", label: "鉴权失败" },
+  rate_limited: { color: "gold", label: "已限流" },
 };
 
 const OPENAPI_ENDPOINT_OPTIONS = [
-  'openapi:orders_list',
-  'openapi:orders_detail',
-  'openapi:inventory_list',
-  'openapi:reports_summary',
-  'openapi:exceptions_list',
+  "openapi:orders_list",
+  "openapi:orders_detail",
+  "openapi:inventory_list",
+  "openapi:reports_summary",
+  "openapi:exceptions_list",
 ];
 
 function expiryCell(row: McpTokenRow) {
@@ -114,11 +114,14 @@ function expiryCell(row: McpTokenRow) {
     return (
       <Space size={4}>
         <Tag color="red">已过期</Tag>
-        <Typography.Text type="secondary">{formatDateTime(row.expiresAt)}</Typography.Text>
+        <Typography.Text type="secondary">
+          {formatDateTime(row.expiresAt)}
+        </Typography.Text>
       </Space>
     );
   }
-  const soon = new Date(row.expiresAt).getTime() - Date.now() <= EXPIRING_SOON_MS;
+  const soon =
+    new Date(row.expiresAt).getTime() - Date.now() <= EXPIRING_SOON_MS;
   return (
     <Space size={4}>
       {soon ? <Tag color="orange">即将过期</Tag> : null}
@@ -128,25 +131,30 @@ function expiryCell(row: McpTokenRow) {
 }
 
 export default function McpTokensPage() {
-  const { initialState } = useModel('@@initialState') as {
+  const { initialState } = useModel("@@initialState") as {
     initialState?: { currentUser?: API.CurrentUser };
   };
   const readonly = isReadonly(initialState?.currentUser?.role);
-  const isAdmin = normalizeRole(initialState?.currentUser?.role) === ROLES.ADMIN;
+  const isAdmin =
+    normalizeRole(initialState?.currentUser?.role) === ROLES.ADMIN;
 
   const [rows, setRows] = useState<McpTokenRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const [loadError, setLoadError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [plaintext, setPlaintext] = useState('');
-  const [revokingId, setRevokingId] = useState('');
-  const [form] = Form.useForm<{ name: string; purpose: string; expiresInDays: number }>();
+  const [plaintext, setPlaintext] = useState("");
+  const [revokingId, setRevokingId] = useState("");
+  const [form] = Form.useForm<{
+    name: string;
+    purpose: string;
+    expiresInDays: number;
+  }>();
 
   const [auditRows, setAuditRows] = useState<McpAuditLogRow[]>([]);
   const [auditTotal, setAuditTotal] = useState(0);
   const [auditLoading, setAuditLoading] = useState(true);
-  const [auditError, setAuditError] = useState('');
+  const [auditError, setAuditError] = useState("");
   const [auditPage, setAuditPage] = useState(1);
   const [auditPageSize, setAuditPageSize] = useState(20);
   const [auditTool, setAuditTool] = useState<string>();
@@ -167,10 +175,12 @@ export default function McpTokensPage() {
     setWriteGateLoading(true);
     try {
       const { items } = await fetchSettingsList();
-      const row = items.find((i) => i.groupKey === 'mcp' && i.itemKey === 'write_enabled');
-      setWriteEnabled((row?.itemValue || '').trim().toLowerCase() === 'true');
+      const row = items.find(
+        (i) => i.groupKey === "mcp" && i.itemKey === "write_enabled",
+      );
+      setWriteEnabled((row?.itemValue || "").trim().toLowerCase() === "true");
     } catch (e) {
-      message.error((e as Error).message || '加载 MCP 写开关失败');
+      message.error((e as Error).message || "加载 MCP 写开关失败");
     } finally {
       setWriteGateLoading(false);
     }
@@ -180,29 +190,28 @@ export default function McpTokensPage() {
     void loadWriteGate();
   }, [loadWriteGate]);
 
-  const saveWriteGate = useCallback(
-    async (next: boolean) => {
-      setWriteGateSaving(true);
-      try {
-        await saveSettingsItems([
-          {
-            groupKey: 'mcp',
-            itemKey: 'write_enabled',
-            itemValue: next ? 'true' : 'false',
-            isEncrypted: false,
-            remark: 'MCP 写白名单租户开关',
-          },
-        ]);
-        setWriteEnabled(next);
-        message.success(next ? '已开启本租户 MCP 写白名单' : '已关闭本租户 MCP 写白名单');
-      } catch (e) {
-        message.error((e as Error).message || '保存失败');
-      } finally {
-        setWriteGateSaving(false);
-      }
-    },
-    [],
-  );
+  const saveWriteGate = useCallback(async (next: boolean) => {
+    setWriteGateSaving(true);
+    try {
+      await saveSettingsItems([
+        {
+          groupKey: "mcp",
+          itemKey: "write_enabled",
+          itemValue: next ? "true" : "false",
+          isEncrypted: false,
+          remark: "MCP 写白名单租户开关",
+        },
+      ]);
+      setWriteEnabled(next);
+      message.success(
+        next ? "已开启本租户 MCP 写白名单" : "已关闭本租户 MCP 写白名单",
+      );
+    } catch (e) {
+      message.error((e as Error).message || "保存失败");
+    } finally {
+      setWriteGateSaving(false);
+    }
+  }, []);
 
   const onToggleWriteGate = (next: boolean) => {
     if (!next) {
@@ -222,7 +231,7 @@ export default function McpTokensPage() {
       setPlaintext(res.plaintext);
       await load();
     } catch (e) {
-      message.error((e as Error).message || '创建失败');
+      message.error((e as Error).message || "创建失败");
     } finally {
       setWriteSaving(false);
     }
@@ -230,11 +239,11 @@ export default function McpTokensPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setLoadError('');
+    setLoadError("");
     try {
       setRows(await listMcpTokens());
     } catch (e) {
-      setLoadError((e as Error).message || '加载 MCP token 失败');
+      setLoadError((e as Error).message || "加载 MCP token 失败");
     } finally {
       setLoading(false);
     }
@@ -249,7 +258,7 @@ export default function McpTokensPage() {
   const loadAudits = useCallback(async () => {
     const seq = ++auditSeqRef.current;
     setAuditLoading(true);
-    setAuditError('');
+    setAuditError("");
     try {
       const res = await listMcpAuditLogs({
         page: auditPage,
@@ -263,7 +272,7 @@ export default function McpTokensPage() {
       setAuditTotal(res.total || 0);
     } catch (e) {
       if (seq !== auditSeqRef.current) return;
-      setAuditError((e as Error).message || '加载审计日志失败');
+      setAuditError((e as Error).message || "加载审计日志失败");
     } finally {
       if (seq === auditSeqRef.current) setAuditLoading(false);
     }
@@ -277,13 +286,17 @@ export default function McpTokensPage() {
     const v = await form.validateFields();
     setSaving(true);
     try {
-      const res = await createMcpToken(v.name.trim(), v.expiresInDays, v.purpose);
+      const res = await createMcpToken(
+        v.name.trim(),
+        v.expiresInDays,
+        v.purpose,
+      );
       setCreateOpen(false);
       form.resetFields();
       setPlaintext(res.plaintext);
       await load();
     } catch (e) {
-      message.error((e as Error).message || '创建失败');
+      message.error((e as Error).message || "创建失败");
     } finally {
       setSaving(false);
     }
@@ -296,9 +309,9 @@ export default function McpTokensPage() {
       message.success(`已吊销 ${row.name}`);
       await load();
     } catch (e) {
-      message.error((e as Error).message || '吊销失败');
+      message.error((e as Error).message || "吊销失败");
     } finally {
-      setRevokingId('');
+      setRevokingId("");
     }
   };
 
@@ -309,18 +322,26 @@ export default function McpTokensPage() {
     >
       <Card>
         <Space style={{ marginBottom: 16 }} wrap>
-          <Tooltip title={readonly ? '只读账号不可创建 token' : ''}>
-            <Button type="primary" disabled={readonly} onClick={() => setCreateOpen(true)}>
+          <Tooltip title={readonly ? "只读账号不可创建 token" : ""}>
+            <Button
+              type="primary"
+              disabled={readonly}
+              onClick={() => setCreateOpen(true)}
+            >
               创建只读 token
             </Button>
           </Tooltip>
           <Typography.Text type="secondary">
-            配置方法见{' '}
+            配置方法见{" "}
             <a href="/docs/mcp.md" target="_blank" rel="noopener noreferrer">
               docs/mcp.md
-            </a>{' '}
-            与{' '}
-            <a href="/docs/open-api.md" target="_blank" rel="noopener noreferrer">
+            </a>{" "}
+            与{" "}
+            <a
+              href="/docs/open-api.md"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               docs/open-api.md
             </a>
             ；token 一旦泄露请立即吊销
@@ -346,35 +367,45 @@ export default function McpTokensPage() {
           loading={loading}
           dataSource={rows.filter((r) => !isWriteScope(r.scope))}
           pagination={false}
-          scroll={{ x: 'max-content' }}
+          scroll={{ x: "max-content" }}
           columns={[
-            { title: '名称', dataIndex: 'name' },
+            { title: "名称", dataIndex: "name" },
             {
-              title: '访问令牌（脱敏）',
-              dataIndex: 'maskedToken',
+              title: "访问令牌（脱敏）",
+              dataIndex: "maskedToken",
               render: (v: string) => (
-                <Typography.Text code style={{ whiteSpace: 'nowrap' }}>
+                <Typography.Text code style={{ whiteSpace: "nowrap" }}>
                   {v}
                 </Typography.Text>
               ),
             },
             {
-              title: '权限',
-              dataIndex: 'scope',
-              render: (v: string) => <Tag color="blue">{v === 'readonly' ? '只读' : v}</Tag>,
+              title: "权限",
+              dataIndex: "scope",
+              render: (v: string) => (
+                <Tag color="blue">{v === "readonly" ? "只读" : v}</Tag>
+              ),
             },
             {
-              title: '用途',
-              dataIndex: 'purpose',
+              title: "用途",
+              dataIndex: "purpose",
               render: (v: string) => (
-                <Tag color={v === 'openapi' ? 'purple' : v === 'both' ? 'geekblue' : 'cyan'}>
+                <Tag
+                  color={
+                    v === "openapi"
+                      ? "purple"
+                      : v === "both"
+                        ? "geekblue"
+                        : "cyan"
+                  }
+                >
                   {PURPOSE_LABELS[v] || v}
                 </Tag>
               ),
             },
             {
-              title: '状态',
-              dataIndex: 'revoked',
+              title: "状态",
+              dataIndex: "revoked",
               render: (revoked: boolean, row: McpTokenRow) => {
                 if (revoked) return <Tag color="red">已吊销</Tag>;
                 if (row.expired) return <Tag color="red">已过期</Tag>;
@@ -382,23 +413,23 @@ export default function McpTokensPage() {
               },
             },
             {
-              title: '过期时间',
-              dataIndex: 'expiresAt',
+              title: "过期时间",
+              dataIndex: "expiresAt",
               render: (_: unknown, row: McpTokenRow) => expiryCell(row),
             },
             {
-              title: '创建时间',
-              dataIndex: 'createdAt',
+              title: "创建时间",
+              dataIndex: "createdAt",
               render: (v?: string) => formatDateTime(v),
             },
             {
-              title: '最近使用',
-              dataIndex: 'lastUsedAt',
+              title: "最近使用",
+              dataIndex: "lastUsedAt",
               render: (v?: string) => formatDateTime(v),
             },
             {
-              title: '操作',
-              key: 'actions',
+              title: "操作",
+              key: "actions",
               render: (_: unknown, row: McpTokenRow) =>
                 row.revoked ? null : (
                   <Popconfirm
@@ -406,7 +437,12 @@ export default function McpTokensPage() {
                     onConfirm={() => void revoke(row)}
                     disabled={readonly}
                   >
-                    <Button danger size="small" disabled={readonly} loading={revokingId === row.id}>
+                    <Button
+                      danger
+                      size="small"
+                      disabled={readonly}
+                      loading={revokingId === row.id}
+                    >
                       吊销
                     </Button>
                   </Popconfirm>
@@ -417,7 +453,10 @@ export default function McpTokensPage() {
       </Card>
 
       {isAdmin ? (
-        <Card title="MCP 写白名单（write:ops，仅管理员）" style={{ marginTop: 16 }}>
+        <Card
+          title="MCP 写白名单（write:ops，仅管理员）"
+          style={{ marginTop: 16 }}
+        >
           <Alert
             type="warning"
             showIcon
@@ -434,7 +473,11 @@ export default function McpTokensPage() {
               unCheckedChildren="已关闭"
               onChange={onToggleWriteGate}
             />
-            <Button type="primary" danger onClick={() => setWriteCreateOpen(true)}>
+            <Button
+              type="primary"
+              danger
+              onClick={() => setWriteCreateOpen(true)}
+            >
               创建写 token
             </Button>
           </Space>
@@ -444,27 +487,27 @@ export default function McpTokensPage() {
             loading={loading}
             dataSource={rows.filter((r) => isWriteScope(r.scope))}
             pagination={false}
-            scroll={{ x: 'max-content' }}
-            locale={{ emptyText: '暂无写 token' }}
+            scroll={{ x: "max-content" }}
+            locale={{ emptyText: "暂无写 token" }}
             columns={[
-              { title: '名称', dataIndex: 'name' },
+              { title: "名称", dataIndex: "name" },
               {
-                title: '访问令牌（脱敏）',
-                dataIndex: 'maskedToken',
+                title: "访问令牌（脱敏）",
+                dataIndex: "maskedToken",
                 render: (v: string) => (
-                  <Typography.Text code style={{ whiteSpace: 'nowrap' }}>
+                  <Typography.Text code style={{ whiteSpace: "nowrap" }}>
                     {v}
                   </Typography.Text>
                 ),
               },
               {
-                title: '权限',
-                dataIndex: 'scope',
+                title: "权限",
+                dataIndex: "scope",
                 render: (v: string) => <Tag color="volcano">{v}</Tag>,
               },
               {
-                title: '状态',
-                dataIndex: 'revoked',
+                title: "状态",
+                dataIndex: "revoked",
                 render: (revoked: boolean, row: McpTokenRow) => {
                   if (revoked) return <Tag color="red">已吊销</Tag>;
                   if (row.expired) return <Tag color="red">已过期</Tag>;
@@ -472,30 +515,34 @@ export default function McpTokensPage() {
                 },
               },
               {
-                title: '过期时间',
-                dataIndex: 'expiresAt',
+                title: "过期时间",
+                dataIndex: "expiresAt",
                 render: (_: unknown, row: McpTokenRow) => expiryCell(row),
               },
               {
-                title: '创建时间',
-                dataIndex: 'createdAt',
+                title: "创建时间",
+                dataIndex: "createdAt",
                 render: (v?: string) => formatDateTime(v),
               },
               {
-                title: '最近使用',
-                dataIndex: 'lastUsedAt',
+                title: "最近使用",
+                dataIndex: "lastUsedAt",
                 render: (v?: string) => formatDateTime(v),
               },
               {
-                title: '操作',
-                key: 'actions',
+                title: "操作",
+                key: "actions",
                 render: (_: unknown, row: McpTokenRow) =>
                   row.revoked ? null : (
                     <Popconfirm
                       title={`确认吊销写 token ${row.name}？吊销后立即失效且不可恢复`}
                       onConfirm={() => void revoke(row)}
                     >
-                      <Button danger size="small" loading={revokingId === row.id}>
+                      <Button
+                        danger
+                        size="small"
+                        loading={revokingId === row.id}
+                      >
                         吊销
                       </Button>
                     </Popconfirm>
@@ -514,11 +561,15 @@ export default function McpTokensPage() {
         onCancel={() => setCreateOpen(false)}
         destroyOnHidden
       >
-        <Form form={form} layout="vertical" initialValues={{ purpose: 'mcp', expiresInDays: 0 }}>
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ purpose: "mcp", expiresInDays: 0 }}
+        >
           <Form.Item
             name="name"
             label="名称"
-            rules={[{ required: true, message: '请输入名称' }]}
+            rules={[{ required: true, message: "请输入名称" }]}
             extra="建议按用途命名，如 claude-desktop、mcp-inspector"
           >
             <Input maxLength={64} placeholder="如 claude-desktop" />
@@ -553,7 +604,8 @@ export default function McpTokensPage() {
         }}
         onCancel={() => setWriteGateConfirmOpen(false)}
       >
-        开启后，持有 write:ops 写 token 的 MCP 客户端可对本租户执行白名单写操作（订单打标、异常标记、采购单
+        开启后，持有 write:ops 写 token 的 MCP
+        客户端可对本租户执行白名单写操作（订单打标、异常标记、采购单
         mark-placed、运单号回填）。每次写均需 dry_run 预览 + 一次性确认
         token，并受限额与审计约束；但仍存在被滥用风险，请确保写 token
         妥善保管。另需服务端开启全局环境闸门 MCP_WRITE_ENABLED 才会生效。
@@ -576,11 +628,15 @@ export default function McpTokensPage() {
           message="写 token 可对本租户执行白名单写操作"
           description="请仅为受控的 MCP 客户端创建，并设置尽量短的有效期；泄露请立即吊销。"
         />
-        <Form form={writeForm} layout="vertical" initialValues={{ expiresInDays: 0 }}>
+        <Form
+          form={writeForm}
+          layout="vertical"
+          initialValues={{ expiresInDays: 0 }}
+        >
           <Form.Item
             name="name"
             label="名称"
-            rules={[{ required: true, message: '请输入名称' }]}
+            rules={[{ required: true, message: "请输入名称" }]}
             extra="建议按用途命名，如 claude-write、ops-agent"
           >
             <Input maxLength={64} placeholder="如 claude-write" />
@@ -599,10 +655,10 @@ export default function McpTokensPage() {
         title="Token 创建成功"
         open={!!plaintext}
         destroyOnHidden
-        onOk={() => setPlaintext('')}
-        onCancel={() => setPlaintext('')}
+        onOk={() => setPlaintext("")}
+        onCancel={() => setPlaintext("")}
         footer={
-          <Button type="primary" onClick={() => setPlaintext('')}>
+          <Button type="primary" onClick={() => setPlaintext("")}>
             我已保存
           </Button>
         }
@@ -632,12 +688,28 @@ export default function McpTokensPage() {
               setAuditTool(v);
             }}
             options={[
-              { label: 'MCP 工具', options: MCP_TOOL_OPTIONS.map((t) => ({ value: t, label: t })) },
               {
-                label: 'MCP 写工具',
-                options: MCP_WRITE_TOOL_OPTIONS.map((t) => ({ value: t, label: t })),
+                label: "MCP 工具",
+                options: MCP_TOOL_OPTIONS.map((t) => ({ value: t, label: t })),
               },
-              { label: '开放 API', options: OPENAPI_ENDPOINT_OPTIONS.map((t) => ({ value: t, label: t })) },
+              ...(isAdmin
+                ? [
+                    {
+                      label: "MCP 写工具",
+                      options: MCP_WRITE_TOOL_OPTIONS.map((t) => ({
+                        value: t,
+                        label: t,
+                      })),
+                    },
+                  ]
+                : []),
+              {
+                label: "开放 API",
+                options: OPENAPI_ENDPOINT_OPTIONS.map((t) => ({
+                  value: t,
+                  label: t,
+                })),
+              },
             ]}
           />
           <Select
@@ -654,23 +726,26 @@ export default function McpTokensPage() {
               label: v.label,
             }))}
           />
-          <Select
-            allowClear
-            placeholder="调用模式"
-            style={{ width: 160 }}
-            value={auditMode}
-            onChange={(v) => {
-              setAuditPage(1);
-              setAuditMode(v);
-            }}
-            options={Object.entries(WRITE_MODE_TAGS).map(([value, v]) => ({
-              value,
-              label: v.label,
-            }))}
-          />
+          {isAdmin ? (
+            <Select
+              allowClear
+              placeholder="调用模式"
+              style={{ width: 160 }}
+              value={auditMode}
+              onChange={(v) => {
+                setAuditPage(1);
+                setAuditMode(v);
+              }}
+              options={Object.entries(WRITE_MODE_TAGS).map(([value, v]) => ({
+                value,
+                label: v.label,
+              }))}
+            />
+          ) : null}
           <Button onClick={() => void loadAudits()}>刷新</Button>
           <Typography.Text type="secondary">
-            每次 MCP 工具调用与开放 API 调用（openapi: 前缀）各记录一条；鉴权失败与限流事件按来源每分钟至多一条；不记录查询参数与查询结果内容
+            每次 MCP 工具调用与开放 API 调用（openapi:
+            前缀）各记录一条；鉴权失败与限流事件按来源每分钟至多一条；不记录查询参数与查询结果内容
           </Typography.Text>
         </Space>
         {auditError ? (
@@ -704,13 +779,13 @@ export default function McpTokensPage() {
           }}
           columns={[
             {
-              title: '时间',
-              dataIndex: 'createdAt',
+              title: "时间",
+              dataIndex: "createdAt",
               render: (v?: string) => formatDateTime(v),
             },
             {
-              title: '访问令牌',
-              dataIndex: 'tokenName',
+              title: "访问令牌",
+              dataIndex: "tokenName",
               render: (_: unknown, row: McpAuditLogRow) => (
                 <Space size={4}>
                   <span>{row.tokenName}</span>
@@ -721,66 +796,81 @@ export default function McpTokensPage() {
               ),
             },
             {
-              title: '工具',
-              dataIndex: 'tool',
-              render: (v: string) => <Typography.Text code>{v}</Typography.Text>,
+              title: "工具",
+              dataIndex: "tool",
+              render: (v: string) => (
+                <Typography.Text code>{v}</Typography.Text>
+              ),
             },
             {
-              title: '结果',
-              dataIndex: 'status',
+              title: "结果",
+              dataIndex: "status",
               render: (v: string) => {
                 const tag = AUDIT_STATUS_TAGS[v] ?? AUDIT_STATUS_TAGS.error;
                 return <Tag color={tag.color}>{tag.label}</Tag>;
               },
             },
-            {
-              title: '模式',
-              dataIndex: 'mode',
-              render: (v?: string) => {
-                if (!v) return <Typography.Text type="secondary">—</Typography.Text>;
-                const tag = WRITE_MODE_TAGS[v];
-                return tag ? <Tag color={tag.color}>{tag.label}</Tag> : <Tag>{v}</Tag>;
-              },
-            },
-            {
-              title: '参数摘要',
-              dataIndex: 'paramsSummary',
-              render: (v?: string) =>
-                v ? (
-                  <Typography.Text code style={{ whiteSpace: 'nowrap' }}>
-                    {v}
-                  </Typography.Text>
-                ) : (
-                  <Typography.Text type="secondary">—</Typography.Text>
-                ),
-            },
-            {
-              title: '确认哈希',
-              dataIndex: 'confirmHash',
-              render: (v?: string) =>
-                v ? (
-                  <Tooltip title={v}>
-                    <Typography.Text code>{v.slice(0, 12)}…</Typography.Text>
-                  </Tooltip>
-                ) : (
-                  <Typography.Text type="secondary">—</Typography.Text>
-                ),
-            },
-            {
-              title: (
-                <Tooltip title="仅金额型写动作（procurement_mark_paid）有金额，其余动作不涉及金额">
-                  <span>金额（仅支付登记）</span>
-                </Tooltip>
-              ),
-              dataIndex: 'amount',
-              render: (v?: number) =>
-                v ? (
-                  <Typography.Text>{v.toFixed(2)}</Typography.Text>
-                ) : (
-                  <Typography.Text type="secondary">—</Typography.Text>
-                ),
-            },
-            { title: '耗时(ms)', dataIndex: 'durationMs' },
+            ...(isAdmin
+              ? [
+                  {
+                    title: "模式",
+                    dataIndex: "mode",
+                    render: (v?: string) => {
+                      if (!v)
+                        return (
+                          <Typography.Text type="secondary">—</Typography.Text>
+                        );
+                      const tag = WRITE_MODE_TAGS[v];
+                      return tag ? (
+                        <Tag color={tag.color}>{tag.label}</Tag>
+                      ) : (
+                        <Tag>{v}</Tag>
+                      );
+                    },
+                  },
+                  {
+                    title: "参数摘要",
+                    dataIndex: "paramsSummary",
+                    render: (v?: string) =>
+                      v ? (
+                        <Typography.Text code style={{ whiteSpace: "nowrap" }}>
+                          {v}
+                        </Typography.Text>
+                      ) : (
+                        <Typography.Text type="secondary">—</Typography.Text>
+                      ),
+                  },
+                  {
+                    title: "确认哈希",
+                    dataIndex: "confirmHash",
+                    render: (v?: string) =>
+                      v ? (
+                        <Tooltip title={v}>
+                          <Typography.Text code>
+                            {v.slice(0, 12)}…
+                          </Typography.Text>
+                        </Tooltip>
+                      ) : (
+                        <Typography.Text type="secondary">—</Typography.Text>
+                      ),
+                  },
+                  {
+                    title: (
+                      <Tooltip title="仅金额型写动作（procurement_mark_paid）有金额，其余动作不涉及金额">
+                        <span>金额（仅支付登记）</span>
+                      </Tooltip>
+                    ),
+                    dataIndex: "amount",
+                    render: (v?: number) =>
+                      v ? (
+                        <Typography.Text>{v.toFixed(2)}</Typography.Text>
+                      ) : (
+                        <Typography.Text type="secondary">—</Typography.Text>
+                      ),
+                  },
+                ]
+              : []),
+            { title: "耗时(ms)", dataIndex: "durationMs" },
           ]}
         />
       </Card>

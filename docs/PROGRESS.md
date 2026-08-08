@@ -2279,3 +2279,12 @@ Final Production Acceptance Deferred to P10
 - **升级后实测**：MCP 写全链 25 项矩阵全过（三层闸门、dry_run→确认 token→execute→重放幂等→参数漂移拒绝、W3 三前提四路径、审计带 amount、#367 无回退）；并发实测同 token 6 并发恰 1 次生效、8 并发配额严格唯一递减、小时配额 30 打满拒绝；治理 UI 三角色截图一致；view-only 40303/未授权 404/readonly 40301/跨租户 404 矩阵全过。
 - **备份恢复闭环**：`--pre-upgrade-check` 备份→`pg_restore --clean --if-exists` 恢复→标记行消失且指纹 0 差异→AutoMigrate 幂等重跑→deploy-prod 终态重跑 2.9s 全 healthy。
 - **P0/P1 无；P2 新增登记**：`docker-compose.prod.yml` 硬编码 `name: trademind-prod`，同机第二 checkout 直接部署会静默共用数据卷（需显式 `COMPOSE_PROJECT_NAME`，建议部署文档加警示）。详见 `docs/progress/R184-line2.md`。
+
+### 变更记录（2026-08-08）第 184 轮线1：R183 审计 P2×4 批次收口（fullstack-engineer）
+
+- **P2-1（代码收口）**：`GET /api/v1/mcp/audit-logs` 写动作审计行改为仅 `settings.manage` 持有者可见（与写 token 治理同轴），operator/readonly 仅见只读工具 / 开放 API 审计行，SQL 层过滤、mode 显式查询不可绕过、principal 解析失败 fail-closed；写白名单新导出 `mcpserver.WriteToolNames()` 与 `isWriteTool` 同源守护；admin UI 非管理员隐藏写审计列与调用模式筛选。先红后绿 `TestAuditListWriteRowsAdminOnly`（+ Docker PostgreSQL 双租户版），permmatrix 登记。
+- **P2-2（文档）**：非 PostgreSQL 部署写限额软保证在 `docs/mcp.md` 与 `docs/env.md` 明确登记（不改行为）。
+- **P2-3（评估登记）**：读工具审计后置时序无泄漏窗口（fail-closed 挡响应），维持现状，理由见 `docs/progress/R184.md`。
+- **P2-4（逐项登记）**：admin 构建链 16 项告警逐项评估于 `docs/DEPENDENCY_AUDIT_R184.md`，全部 umi 传递链、无生产暴露面，不跨 major 不动，等 umi 窗口统一。
+- **门禁**：Go 全量 + Docker PostgreSQL（audit 双租户 + RacePostgres ×3）+ 前端/契约/采集/构建全绿。详见 `docs/progress/R184.md`。
+>>>>>>> origin/main
