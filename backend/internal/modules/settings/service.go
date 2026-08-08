@@ -43,7 +43,19 @@ func (s *Service) List(ctx context.Context, tenantID int64) ([]Setting, error) {
 	out := make([]Setting, len(rows))
 	for i := range rows {
 		out[i] = rows[i]
-		if !out[i].IsEncrypted || strings.TrimSpace(out[i].ItemValue) == "" {
+		if strings.TrimSpace(out[i].ItemValue) == "" {
+			continue
+		}
+		if !out[i].IsEncrypted {
+			if !IsSensitiveKey(out[i].GroupKey, out[i].ItemKey) {
+				continue
+			}
+			// Legacy plaintext sensitive row (stored before the registry
+			// forced encryption): mask on read and adopt it encrypted at
+			// rest when an encrypter is available.
+			s.adoptLegacyPlaintext(ctx, rows[i])
+			out[i].IsEncrypted = true
+			out[i].ItemValue = encrypt.MaskSecret(out[i].ItemValue)
 			continue
 		}
 		plain, err := s.decryptStored(out[i].ItemValue)
@@ -54,6 +66,23 @@ func (s *Service) List(ctx context.Context, tenantID int64) ([]Setting, error) {
 		out[i].ItemValue = encrypt.MaskSecret(string(plain))
 	}
 	return out, nil
+}
+
+// adoptLegacyPlaintext encrypts a registry-listed sensitive row that is still
+// plaintext at rest. Best-effort: the read path never fails because of it.
+// The update is guarded on the observed plaintext so a concurrent PUT (which
+// encrypts on write) is never overwritten.
+func (s *Service) adoptLegacyPlaintext(ctx context.Context, row Setting) {
+	if s.Encrypter == nil {
+		return
+	}
+	enc, err := s.Encrypter.Encrypt([]byte(row.ItemValue))
+	if err != nil {
+		return
+	}
+	_ = s.DB.WithContext(ctx).Model(&Setting{}).
+		Where("id = ? AND is_encrypted = ? AND item_value = ?", row.ID, false, row.ItemValue).
+		Updates(map[string]any{"item_value": enc, "is_encrypted": true}).Error
 }
 
 func (s *Service) decryptStored(stored string) ([]byte, error) {
