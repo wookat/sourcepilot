@@ -2,6 +2,7 @@ import { type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { history } from '@umijs/max';
 import { formatDateTime } from '@/utils/formatTime';
+import { modalOk } from '@/utils/modalOk';
 import { Button, Drawer, message, Modal, Table, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -238,15 +239,11 @@ export default function TaskCenterAlertsPage() {
                   title: `向以下通道触发一次手动通知？`,
                   content: `${chans.join(', ')}。仍走后端去重与 alert_notify 通道开关。`,
                   okText: '发送',
-                  onOk: async () => {
-                    try {
-                      await notifyTaskAlert(r.id, chans);
-                      message.success('已触发');
-                      actionRef.current?.reload?.();
-                    } catch (e) {
-                      message.error((e as Error).message);
-                    }
-                  },
+                  onOk: modalOk(async () => {
+                    await notifyTaskAlert(r.id, chans);
+                    message.success('已触发');
+                    actionRef.current?.reload?.();
+                  }),
                 });
               }}
             >
@@ -259,15 +256,11 @@ export default function TaskCenterAlertsPage() {
               onClick={() =>
                 Modal.confirm({
                   title: '标记已处理（不修改原始任务状态）',
-                  onOk: async () => {
-                    try {
-                      await markTaskAlertHandled(r.id);
-                      message.success('已更新');
-                      actionRef.current?.reload?.();
-                    } catch (e) {
-                      message.error((e as Error).message);
-                    }
-                  },
+                  onOk: modalOk(async () => {
+                    await markTaskAlertHandled(r.id);
+                    message.success('已更新');
+                    actionRef.current?.reload?.();
+                  }),
                 })
               }
             >
@@ -280,15 +273,11 @@ export default function TaskCenterAlertsPage() {
               onClick={() =>
                 Modal.confirm({
                   title: '忽略此告警（仍可查看失败任务）',
-                  onOk: async () => {
-                    try {
-                      await markTaskAlertIgnored(r.id);
-                      message.success('已忽略告警');
-                      actionRef.current?.reload?.();
-                    } catch (e) {
-                      message.error((e as Error).message);
-                    }
-                  },
+                  onOk: modalOk(async () => {
+                    await markTaskAlertIgnored(r.id);
+                    message.success('已忽略告警');
+                    actionRef.current?.reload?.();
+                  }),
                 })
               }
             >
@@ -301,15 +290,11 @@ export default function TaskCenterAlertsPage() {
                 onClick={() =>
                   Modal.confirm({
                     title: '取消告警标记并重开为「待处理」',
-                    onOk: async () => {
-                      try {
-                        await unmarkTaskAlertRecord(r.id);
-                        message.success('已取消标记');
-                        actionRef.current?.reload?.();
-                      } catch (e) {
-                        message.error((e as Error).message);
-                      }
-                    },
+                    onOk: modalOk(async () => {
+                      await unmarkTaskAlertRecord(r.id);
+                      message.success('已取消标记');
+                      actionRef.current?.reload?.();
+                    }),
                   })
                 }
               >
@@ -336,17 +321,13 @@ export default function TaskCenterAlertsPage() {
             Modal.confirm({
               title: '根据当前规则扫描近期失败任务并生成/更新告警？',
               okText: '扫描',
-              onOk: async () => {
-                try {
-                  const s = await scanTaskAlerts();
-                  message.success(
-                    `扫描 ${s.scannedCount} 条，新建 ${s.generatedCount}，更新 ${s.updatedCount}，跳过 ${s.ignoredCount}`,
-                  );
-                  actionRef.current?.reload?.();
-                } catch (e) {
-                  message.error((e as Error).message);
-                }
-              },
+              onOk: modalOk(async () => {
+                const s = await scanTaskAlerts();
+                message.success(
+                  `扫描 ${s.scannedCount} 条，新建 ${s.generatedCount}，更新 ${s.updatedCount}，跳过 ${s.ignoredCount}`,
+                );
+                actionRef.current?.reload?.();
+              }),
             });
           }}
         >

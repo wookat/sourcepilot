@@ -1471,13 +1471,22 @@ export default function OrdersPage() {
         onCancel={() => setItemModal({ open: false })}
         forceRender
         onOk={async () => {
-          const v = await itemForm.validateFields();
+          let v;
+          try {
+            v = await itemForm.validateFields();
+          } catch {
+            return;
+          }
           if (!detail) return;
-          if (itemModal.row) await updateOrderItem(detail.id, itemModal.row.id, v as Record<string, unknown>);
-          else await createOrderItem(detail.id, v as Record<string, unknown>);
-          message.success('已保存');
-          setItemModal({ open: false });
-          await refreshDetail();
+          try {
+            if (itemModal.row) await updateOrderItem(detail.id, itemModal.row.id, v as Record<string, unknown>);
+            else await createOrderItem(detail.id, v as Record<string, unknown>);
+            message.success('已保存');
+            setItemModal({ open: false });
+            await refreshDetail();
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '保存失败');
+          }
         }}
       >
         <Form form={itemForm} layout="vertical">
@@ -1508,15 +1517,24 @@ export default function OrdersPage() {
         onCancel={() => setShipModal({ open: false })}
         forceRender
         onOk={async () => {
-          const v = await shipForm.validateFields();
+          let v;
+          try {
+            v = await shipForm.validateFields();
+          } catch {
+            return;
+          }
           if (!detail) return;
-          const matched = matchCarrier(carriers, v.carrier as string);
-          const payload = { ...v, carrierCode: matched?.code } as Record<string, unknown>;
-          if (shipModal.row) await updateOrderShipment(detail.id, shipModal.row.id, payload);
-          else await createOrderShipment(detail.id, payload);
-          message.success('已保存');
-          setShipModal({ open: false });
-          await refreshDetail();
+          try {
+            const matched = matchCarrier(carriers, v.carrier as string);
+            const payload = { ...v, carrierCode: matched?.code } as Record<string, unknown>;
+            if (shipModal.row) await updateOrderShipment(detail.id, shipModal.row.id, payload);
+            else await createOrderShipment(detail.id, payload);
+            message.success('已保存');
+            setShipModal({ open: false });
+            await refreshDetail();
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '保存失败');
+          }
         }}
       >
         <Form form={shipForm} layout="vertical">
@@ -1587,7 +1605,12 @@ export default function OrdersPage() {
         okText="执行"
         forceRender
         onOk={async () => {
-          const v = await batchTagForm.validateFields();
+          let v;
+          try {
+            v = await batchTagForm.validateFields();
+          } catch {
+            return;
+          }
           setBatchTagLoading(true);
           try {
             const res = await batchTagOrders({

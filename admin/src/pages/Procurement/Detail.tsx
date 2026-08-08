@@ -397,7 +397,12 @@ export default function ProcurementOrderDetailPage() {
         destroyOnHidden
         onCancel={() => setPlacedOpen(false)}
         onOk={async () => {
-          const values = await placedForm.validateFields();
+          let values;
+          try {
+            values = await placedForm.validateFields();
+          } catch {
+            return;
+          }
           await run(() => markPurchaseOrderPlaced(po.id, values.externalOrderId.trim()), '已记录 1688 订单号');
           setPlacedOpen(false);
         }}
@@ -419,7 +424,12 @@ export default function ProcurementOrderDetailPage() {
         destroyOnHidden
         onCancel={() => setPaidOpen(false)}
         onOk={async () => {
-          const values = await paidForm.validateFields();
+          let values;
+          try {
+            values = await paidForm.validateFields();
+          } catch {
+            return;
+          }
           await run(() => markPurchaseOrderPaid(po.id, values.payChannel), '已标记付款');
           setPaidOpen(false);
         }}
@@ -444,7 +454,12 @@ export default function ProcurementOrderDetailPage() {
         okText="确认签收"
         onCancel={() => setDeliverOpen(false)}
         onOk={async () => {
-          const values = await deliverForm.validateFields();
+          let values;
+          try {
+            values = await deliverForm.validateFields();
+          } catch {
+            return;
+          }
           await run(
             () => markPurchaseOrderDelivered(po.id, values.warehouseId),
             '已标记签收，采购数量已入库到所选仓库',
@@ -470,7 +485,12 @@ export default function ProcurementOrderDetailPage() {
         destroyOnHidden
         onCancel={() => setLogisticsOpen(false)}
         onOk={async () => {
-          const values = await logisticsForm.validateFields();
+          let values;
+          try {
+            values = await logisticsForm.validateFields();
+          } catch {
+            return;
+          }
           await run(
             () => fillPurchaseLogistics(po.id, values.trackingNo.trim(), values.carrier?.trim()),
             '已记录运单号',
