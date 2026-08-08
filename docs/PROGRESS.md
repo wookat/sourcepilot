@@ -2287,3 +2287,10 @@ Final Production Acceptance Deferred to P10
 - **升级后实测**：MCP 写全链 25 项矩阵全过（三层闸门、dry_run→确认 token→execute→重放幂等→参数漂移拒绝、W3 三前提四路径、审计带 amount、#367 无回退）；并发实测同 token 6 并发恰 1 次生效、8 并发配额严格唯一递减、小时配额 30 打满拒绝；治理 UI 三角色截图一致；view-only 40303/未授权 404/readonly 40301/跨租户 404 矩阵全过。
 - **备份恢复闭环**：`--pre-upgrade-check` 备份→`pg_restore --clean --if-exists` 恢复→标记行消失且指纹 0 差异→AutoMigrate 幂等重跑→deploy-prod 终态重跑 2.9s 全 healthy。
 - **P0/P1 无；P2 新增登记**：`docker-compose.prod.yml` 硬编码 `name: trademind-prod`，同机第二 checkout 直接部署会静默共用数据卷（需显式 `COMPOSE_PROJECT_NAME`，建议部署文档加警示）。详见 `docs/progress/R184-line2.md`。
+
+### 变更记录（2026-08-08）第 185 轮线1：R184 新 P2 收口 + 验收包补 R181–R184 增量（fullstack-engineer）
+
+- **同机多栈警示（R184 新 P2 收口）**：`docs/production-deployment.md` 新增「同机多栈警示」段（compose 项目名硬编码 `name: trademind-prod`，同机第二 checkout 需显式 `COMPOSE_PROJECT_NAME`，含覆盖示例与自查命令）；`scripts/deploy-prod.sh` 前置检查加非破坏性冲突告警（检测同项目名容器来自其他目录时仅打印警示，不中断、不改既有行为）。
+- **验收包**：`ACCEPTANCE_R123.md` §一/21 收口（#357/#360/#361/#362/#364 已合入 main 转 ✅）+ 新增 §一/22 R181–R184 增量 8 行（W3 mark-paid #363、advisory lock 限额 #365、大回归 v34 #366、R183 审计与 #367 修复、竞品 v11 升位超越 5 #368、R184 P2 收口 #369 ⏳、升级演练 #370 ⏳、本轮），合并状态按权威 PR 状态如实标注；§三/§四/§五 同步。
+- **DEMO_SCRIPT**：第 23b 步并入 mark-paid 金额上限演示点（约 40 秒，总长 30 分钟不变）；修正「mark-paid 刻意留 W3」「需叠加 #361 构建」等过时口径（#360–#368 已合入 main）。
+- **基线**：main 叠加 OPEN PR #369/#370 开发；详见 `docs/progress/R185.md`。
