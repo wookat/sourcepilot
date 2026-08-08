@@ -85,4 +85,17 @@ describe('McpTokensPage 审计卡片轻刷新时序（R150 v24 P2-1 回归）', 
     expect(within(auditCard).getByText('tmmcp_****abcd')).toBeInTheDocument();
     expect(within(auditCard).queryByText('暂无数据')).toBeNull();
   });
+
+  it('文档入口为可点击链接，指向站内自托管文档（UX v10 P2-3）', async () => {
+    listMcpTokens.mockResolvedValue([]);
+    listMcpAuditLogs.mockResolvedValue({ total: 0, items: [] });
+    render(<McpTokensPage />);
+
+    const mcpLink = await screen.findByRole('link', { name: 'docs/mcp.md' });
+    expect(mcpLink).toHaveAttribute('href', '/docs/mcp.md');
+    expect(mcpLink).toHaveAttribute('target', '_blank');
+    const openApiLink = screen.getByRole('link', { name: 'docs/open-api.md' });
+    expect(openApiLink).toHaveAttribute('href', '/docs/open-api.md');
+    expect(openApiLink).toHaveAttribute('target', '_blank');
+  });
 });

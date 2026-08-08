@@ -4,6 +4,9 @@
 backend
 data
 docs
+!docs/mcp.md
+!docs/open-api.md
 scripts/*
 !scripts/patch-pro-field-antd-select.mjs
+!scripts/sync-admin-docs.mjs
 .env
