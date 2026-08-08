@@ -1,6 +1,6 @@
-# R123 预验收对照表（R91–R122 功能轮验收包，R128 增补 R124–R127，R132 增补 R128–R131，R136 增补 R132–R135，R141 增补 R136–R140，R148 增补 R144–R147，R153 增补 R148–R152，R158 增补 R153–R157，R163 增补 R158–R162，R167 增补 R163–R166，R170 增补 R167–R169）
+# R123 预验收对照表（R91–R122 功能轮验收包，R128 增补 R124–R127，R132 增补 R128–R131，R136 增补 R132–R135，R141 增补 R136–R140，R148 增补 R144–R147，R153 增补 R148–R152，R158 增补 R153–R157，R163 增补 R158–R162，R167 增补 R163–R166，R170 增补 R167–R169，R175 增补 R170–R174）
 
-- 轮次：R123 线1（technical-writer / product-manager）；R128 线2 增量更新（§一·补、§四、§五）；R132 线1 增量更新（§一/10 合入状态收口、§一/11、§五）；R136 线1 增量更新（§一/12、§四、§五）；R141 线1 增量更新（§一/12 合入状态收口、§一/13、§五）；R148 线1 增量更新（§一/14、§三、§五）；R153 线2 增量更新（§一/15、§三、§五）；R158 线2 增量更新（§一/15 合入状态收口、§一/16、§三、§五）；R163 线2 增量更新（§一/16 合入状态收口、§一/17、§三、§五）；R167 线2 增量更新（§一/18、§三、§五）；R170 线1 增量更新（§一/18 合入状态收口、§一/19、§三、§五）
+- 轮次：R123 线1（technical-writer / product-manager）；R128 线2 增量更新（§一·补、§四、§五）；R132 线1 增量更新（§一/10 合入状态收口、§一/11、§五）；R136 线1 增量更新（§一/12、§四、§五）；R141 线1 增量更新（§一/12 合入状态收口、§一/13、§五）；R148 线1 增量更新（§一/14、§三、§五）；R153 线2 增量更新（§一/15、§三、§五）；R158 线2 增量更新（§一/15 合入状态收口、§一/16、§三、§五）；R163 线2 增量更新（§一/16 合入状态收口、§一/17、§三、§五）；R167 线2 增量更新（§一/18、§三、§五）；R170 线1 增量更新（§一/18 合入状态收口、§一/19、§三、§五）；R175 线2 增量更新（§一/19 合入状态收口、§一/20、§三、§五）
 - 日期：2026-08-07
 - 基线：main `02b6b086`（#260 已合并）；演示脚本实跑也基于该基线。**#261（R122 线1 性能收口 v2，perf/round122）已于本轮验收包提交后合入 main（合并提交 `60e09b19`）**，性能收口条目已随之收口。
 - 口径：按 CHARTER §7 验收制整理——可运行成果（Docker 全栈）+ 演示（[DEMO_SCRIPT.md](DEMO_SCRIPT.md)）+ 需求（业务闭环）逐条对照 + 竞品对比结论（§四）。
@@ -218,7 +218,7 @@ R163–R166 为安全修复与回归密集期（view-only 权限体系收口 + �
 
 ### 19. R167–R169 增量能力（R170 增补）
 
-§一/18 合入状态收口（R170 线1 时点）：**#332/#333/#334（大回归 v29 报告归档）已全部合入 main**，原 ⏳ 条目已收口。R167–R169 新增交付合并状态如实标注：#335/#336/#337/#338 已合入 main；**#339（R169 线2 token 治理复查）/#340（UX v11 报告）仍为 OPEN**，本轮 R170 线1 分支已按序叠加两者内容。
+§一/18 合入状态收口（R170 线1 时点）：**#332/#333/#334（大回归 v29 报告归档）已全部合入 main**，原 ⏳ 条目已收口。R167–R169 新增交付合并状态如实标注：#335/#336/#337/#338 已合入 main；~~#339（R169 线2 token 治理复查）/#340（UX v11 报告）仍为 OPEN~~——R175 时点 #339/#340 已合入 main（内容已随 #342 叠加合入），原 ⏳ 条目已全部收口（R175 线2）。
 
 | 能力点 | 实现轮次 / PR | 验证证据 | 状态 |
 | --- | --- | --- | --- |
@@ -226,9 +226,27 @@ R163–R166 为安全修复与回归密集期（view-only 权限体系收口 + �
 | 验收包补 R163–R166 增量 + 竞品矩阵前哨抽验无回退 + Docker 三角色（含 view-only persona）实跑核对 | R167 线2 / #336（纯文档） | `docs/progress/R167-line2.md`；DEMO_SCRIPT「实跑验证记录」2026-08-07（R167 线2）条目 | ✅ #336 已合并 |
 | 40303 用户可见文案全站统一为「店铺无操作权限」（adminperm/security/tasktenant/product 四处）+ 合并期巡检 + 刊登无 shopId 口径登记（现行为 HTTP 200 + 失败结果行，未改语义） | R168 线1 / #337 | `docs/progress/R168.md` | ✅ #337 已合并 |
 | 生产升级演练季度复跑（R164 基线 → 最新 main + 未合安全分支叠加）：迁移、view-only、版本叠加口径实测归档 | R168 线2 / #338（纯文档） | `docs/progress/R168-line2.md`；演练证据外置不入库 | ✅ #338 已合并 |
-| 全站视觉/UX 复核 v11：5 persona × 5 视口 × 74 路由 = 1850 组合，硬指标全零（console/pageerror/根溢出/NaN·Invalid Date·undefined/403·500 噪声），无新增 P1/P2；v10 P2-3 当时仍遗留 | R169 线1 / #340（纯文档） | `docs/ux-review/UX_REVIEW_V11_REPORT.md` | ⏳ #340 OPEN（内容已叠加进 R170 线1 分支） |
-| MCP/开放 API token 治理季度复查：限流三层/审计/吊销/过期语义复验通过；产出 P2×4 清单（分页钳制口径、Redis 降级延迟放大、租户0 上限计数无单测、permmatrix 手工配置） | R169 线2 / #339（纯文档） | `docs/progress/R169-line2.md` | ⏳ #339 OPEN（内容已叠加进 R170 线1 分支） |
-| R169 线2 P2×4 + UX v10 P2-3 收口（R170 线1）：分页钳制口径写入 `docs/mcp.md`；限流 Redis 调用 200ms 超时上界（降级期延迟放大收口，含 stalled-Redis 回归测试）；租户0 token 上限计数补单测；permmatrix 手工配置登记保留理由；mcp-tokens 页文档入口改为站内自托管链接（/docs/*.md，构建期从 docs/ 复制，杜绝硬编码仓库地址） | R170 线1 | `ratelimit/redis_test.go` `TestRedisLimiterStalledRedisFallsBackQuickly`；`mcptoken/service_test.go` `TestCreateCapTenantZero`；`McpTokens.test.tsx` 链接断言；`docs/progress/R170.md` | ⏳ 本轮 PR 待合并 |
+| 全站视觉/UX 复核 v11：5 persona × 5 视口 × 74 路由 = 1850 组合，硬指标全零（console/pageerror/根溢出/NaN·Invalid Date·undefined/403·500 噪声），无新增 P1/P2；v10 P2-3 当时仍遗留 | R169 线1 / #340（纯文档） | `docs/ux-review/UX_REVIEW_V11_REPORT.md` | ✅ #340 已合并 |
+| MCP/开放 API token 治理季度复查：限流三层/审计/吊销/过期语义复验通过；产出 P2×4 清单（分页钳制口径、Redis 降级延迟放大、租户0 上限计数无单测、permmatrix 手工配置） | R169 线2 / #339（纯文档） | `docs/progress/R169-line2.md` | ✅ #339 已合并 |
+| R169 线2 P2×4 + UX v10 P2-3 收口（R170 线1）：分页钳制口径写入 `docs/mcp.md`；限流 Redis 调用 200ms 超时上界（降级期延迟放大收口，含 stalled-Redis 回归测试）；租户0 token 上限计数补单测；permmatrix 手工配置登记保留理由；mcp-tokens 页文档入口改为站内自托管链接（/docs/*.md，构建期从 docs/ 复制，杜绝硬编码仓库地址） | R170 线1 | `ratelimit/redis_test.go` `TestRedisLimiterStalledRedisFallsBackQuickly`；`mcptoken/service_test.go` `TestCreateCapTenantZero`；`McpTokens.test.tsx` 链接断言；`docs/progress/R170.md` | ✅ #342 已合并 |
+
+### 20. R170–R174 增量能力（R175 增补）
+
+R170–R174 为收口与季度复查密集期（P2 批次收口、大回归 v30/v31、生产演练复检、MCP 写白名单决策材料）。合并状态如实标注（R175 线2 时点，权威 PR 状态）：#341/#342/#343/#344/#345/#346/#347 已合入 main；**#348（R173 线2 客服复查报告）/#349（R174 线1 P2×4 收口）/#350（R174 线2 大回归 v31 报告）仍为 OPEN**（三者均 mergeable 无冲突；v31 结论建议直接合并 #348）。#245/#247/#248 为 2026-08-05 遗留挂账 PR，内容已 100% 在 main（经 #250 整栈带入，R171 线2 核实），建议直接关闭。
+
+| 能力点 | 实现轮次 / PR | 验证证据 | 状态 |
+| --- | --- | --- | --- |
+| 竞品复评 v9（店小秘/马帮/AutoDS，main 实测）：矩阵维持超越 4 / 达到 12 / 落后 0，收口期抽验零回退；view-only/40303 收口后第 15 项超越依据加厚；建议 #326 MCP 写白名单升为下一决策项 | R170 线2 / #341（纯文档） | `docs/COMPETITIVE_BENCHMARK_R170.md`；`docs/progress/R170-line2.md` | ✅ #341 已合并 |
+| R169 线2 P2×4 + UX v10 P2-3 收口 + 验收包补 R167–R169 增量（分页钳制口径写入 `docs/mcp.md`、限流 Redis 200ms 超时上界、租户0 token 上限单测、mcp-tokens 页站内文档链接） | R170 线1 / #342 | `docs/progress/R170.md`；DEMO_SCRIPT 实跑记录 2026-08-08（R170 线1）条目 | ✅ #342 已合并 |
+| 遗留 OPEN PR 挂账清理核查：#245/#247/#248 head 均为 main 祖先（内容经 #250 整栈进入 main），全部判定「建议关闭，不需合并」；全仓 OPEN PR 盘点归档 | R171 线2 / #343（纯文档） | `docs/progress/R171-line2.md`；各 PR 评论区关闭依据登记 | ✅ #343 已合并 |
+| 全站大回归 v30：积压 PR 全部已合入核实、main+#342 零冲突全绿、Docker 全栈 19/19、0 P0/P1 | R171 线1 / #344（纯文档） | `docs/progress/R171.md` | ✅ #344 已合并 |
+| MCP 写白名单 D1–D4 决策材料终版：三视角（tech-lead/security-engineer/product-manager）结构化辩论 + 老板勾选式决策一页纸；四项一致推荐采纳，工作量口径 2.5 轮 | R172 线2 / #345（纯文档） | `docs/design/MCP_WRITE_WHITELIST_DECISION_BRIEF.md`；`docs/progress/R172-line2.md` | ✅ #345 已合并 |
+| 生产部署演练季度复检（R172 线1）：从零部署 6m39s、R168 双租户 2 万订单存量升级指纹 0 差异、备份→恢复→幂等重跑、S3/MinIO 上传实测；演练发现 P1（40303 文案统一漏网四处）随 #346 收口（productpublish/finance/orderexception/migrationimport）+ permmatrix message 回归断言 | R172 线1 / #346 | `docs/progress/R172.md`；`docs/permission-matrix.md` round172 节 | ✅ #346 已合并 |
+| 40303 文案全站回归（grep + 探针双口径，无新漏网）+ 异常 handle/ignore 校验顺序收口（先 scope 后 body，先红后绿回归测试） | R173 线1 / #347 | `docs/progress/R173.md`；`permmatrix/r173_exception_scope_order_test.go` | ✅ #347 已合并 |
+| 客服/AI 工作流季度复查：API 全链路约 50 项断言、#330 view-only 会话族 14 写探针零回退、双租户 404 隔离、#346 修复面实弹通过、三角色三视口 UI 走查 12/12；无 P0/P1，产出 P2×4 清单 | R173 线2 / #348（纯文档） | `docs/progress/R173-line2.md`（随 #348） | ⏳ #348 OPEN（mergeable，v31 建议直接合并） |
+| R173 线2 P2×4 收口：客服发送链路英文报错中文化、迁移导入先 scope 后 body（先红后绿回归测试）、seed delivered_at 未来时间戳修正、异常工作台 modal rethrow 修复（dev overlay） | R174 线1 / #349 | `docs/progress/R174.md`（随 #349）；`permmatrix/r174_migrationimport_scope_order_test.go` | ⏳ #349 OPEN（mergeable） |
+| 全站大回归 v31：全套门禁全绿（go test 103 包、permmatrix 107、E2E 359 passed）、Docker 全栈 35/35 断言、#347 修复面实弹、0 P0/P1；开放 PR 权威状态核实与合并顺序结论 | R174 线2 / #350（纯文档） | `docs/progress/R174-line2.md`（随 #350） | ⏳ #350 OPEN（mergeable） |
+| 验收包补 R170–R174 增量 + DEMO_SCRIPT 口径并入 + Docker 三角色实跑核对 | R175 线2 / 本轮（纯文档） | `docs/progress/R175-line2.md`；DEMO_SCRIPT 实跑记录 2026-08-08（R175 线2）条目 | ⏳ 本轮 PR 待合并 |
 
 ## 二、外部凭证依赖项清单（按杠杆排序，含降级路径）
 
@@ -257,6 +275,7 @@ R163–R166 为安全修复与回归密集期（view-only 权限体系收口 + �
 - R153–R157 合入面：集成预演分支 `integration/r157-regression-v26`（main 按序叠加 #311→#312→#315→#317→#318）；R157 线1 交叉 QA 13/13 无 P0/P1（报告与截图登记于 PR #318 评论，证据不入库）；R158 线2 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-07（R158 线2）条目。
 - R163–R166 合入面：客服会话收口与复查 `docs/progress/R164-line2.md`（#330）；演练复检 `docs/progress/R164.md`（#329）；安全审计 `docs/SECURITY_AUDIT_R165.md`（#331）；大回归 v29 报告 `docs/progress/R166.md`（`integration/r166-regression-v29` 分支，随 #332 合入路径归档）；R166 线2 审计 `docs/progress/R166-line2.md`（随 #333）；R167 线2 竞品矩阵前哨抽验 `docs/progress/R167-line2.md`；R167 线2 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-07（R167 线2）条目。
 - R167–R169 合入面：审单批量整批 403 定案 `docs/progress/R167.md`（#335）；文案统一与合并期巡检 `docs/progress/R168.md`（#337）；升级演练复跑 `docs/progress/R168-line2.md`（#338）；UX v11 `docs/ux-review/UX_REVIEW_V11_REPORT.md`（#340）；token 治理复查 `docs/progress/R169-line2.md`（#339）；R170 线1 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-08（R170 线1）条目。
+- R170–R174 合入面：竞品复评 v9 `docs/COMPETITIVE_BENCHMARK_R170.md`（#341）；挂账清理核查 `docs/progress/R171-line2.md`（#343）；大回归 v30 `docs/progress/R171.md`（#344）；MCP 写白名单决策一页纸 `docs/design/MCP_WRITE_WHITELIST_DECISION_BRIEF.md`（#345）；生产演练复检 + 40303 漏网收口 `docs/progress/R172.md`/`docs/progress/R172-line2.md`（#346/#345）；40303 全站回归 `docs/progress/R173.md`（#347）；客服复查 `docs/progress/R173-line2.md`（随 #348）；P2×4 收口 `docs/progress/R174.md`（随 #349）；大回归 v31 `docs/progress/R174-line2.md`（随 #350）；R175 线2 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-08（R175 线2）条目。
 - R158–R162 合入面：安全审计 `docs/SECURITY_AUDIT_R159.md`（P1 view-only 越权修复 #322 + P2 收口 #323）；升级演练 `docs/progress/R159-line2.md`（#321，证据外置）；竞品复评 v8 `docs/COMPETITIVE_BENCHMARK_R161.md`（随 #324）；UX v10 `docs/ux-review/UX_REVIEW_V10_REPORT.md`（随 #327）；R163 线2 Docker 全栈实跑记录见 [DEMO_SCRIPT.md](DEMO_SCRIPT.md)「实跑验证记录」2026-08-07（R163 线2）条目。
 
 ## 四、竞品对照结论（R125 复评 v4 为准，全文见 [../COMPETITIVE_BENCHMARK_R125.md](../COMPETITIVE_BENCHMARK_R125.md)；R118 版见 [../COMPETITIVE_BENCHMARK_R118.md](../COMPETITIVE_BENCHMARK_R118.md)）
@@ -284,5 +303,6 @@ R163–R166 为安全修复与回归密集期（view-only 权限体系收口 + �
 9. R148 时点：R144–R147 交付（#294–#300，MCP 只读入口+token 治理、实时经营大屏、MCP 安全加固、杂项收口）已全部合入 main，无 open ⏳ 条目（见 §一/14）；大回归 v23 P2（MCP 时间列 ISO 直出）已由 R148 线1 收口。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
 10. ~~R153 时点待办~~——R158 时点 #303–#309 已全部合入 main（§一/15 七个 ⏳ 条目已全部转 ✅），以下为 R153 时点存档口径：§一/15 七条中 #303/#304/#305/#306/#307/#308/#309 均为 ⏳ 待合并（#301/#302 已合入）；#307 的 `docs/mcp.md` fail-closed 口径依赖 #303 先行合入。合并顺序建议 #303 → #304 → #305 → #306 → #307 → #308 → #309（#303 为 #307 文档口径前置；#308 与 #309 在 `docs/module-map.md`、`docs/progress/R152.md`、`tests/contracts/api-contracts.test.ts` 存在可解冲突，后合入者需手工解决，契约受保护端点数合并后为 122；其余无文件级冲突）。operator 管理 MCP token 是否收紧 admin-only、前端工具链跨 major 依赖升级（`DEPENDENCY_ADVISORIES_R134.md` + #305 登记）仍待老板决策。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
 11. ~~R167 时点待办：#332/#333 待合入~~——R170 时点 #332/#333/#334 已全部合入 main（§一/18 原 ⏳ 条目已收口）。MCP 写白名单（#326 方案）、operator 管 MCP token 收紧、前端工具链跨 major 升级仍待老板决策。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
-12. R170 时点待办：#339（token 治理复查报告）/#340（UX v11 报告）为纯文档 PR 待合并（内容已叠加进 R170 线1 分支，随本轮 PR 合入后可直接关闭或按序合并）；permmatrix 套件仍依赖 `TEST_DATABASE_URL` + `APP_ENV=test` 手工配置——保留为**有意设计**（安全测试库绝不 fallback 到开发库，未配置即显式 skip 并提示 `docs/permission-matrix.md`），不做默认连接；UX v9 P2-3（finance-report CSV 未折算列口径）仍待产品确认。
-12. ~~R158 时点待办~~——R163 时点 #312/#317/#318 已按建议顺序全部合入 main（§一/16 四个 ⏳ 条目已全部转 ✅；#311 内容随 #312 合入，其 PR 可直接关闭），以下为 R158 时点存档口径：§一/16 中 #311/#312/#317/#318 为 ⏳ 待合并。#312（fix/round154-audit-p2）已携带 #311 三项行为变更内容、#317（fix/round156-misc）已携带 #312 内容，建议合并顺序 #312 → #317 → #318（各 PR 与 main 的 PROGRESS/契约计数冲突可按 union 解决，集成预演 `integration/r157-regression-v26` 已验证可解，合并后契约受保护端点 124）；#311 的 base 为已合入 main 的 feat/round152-open-api 且有冲突，其内容随 #312 合入后可直接关闭。both 双入口额度语义、operator 管 MCP token 是否收紧 admin-only、前端工具链跨 major 升级决策事项沿 §五/10 存档口径不变。
+12. ~~R170 时点待办：#339/#340 待合并~~——R175 时点 #339/#340 已合入 main（§一/19 原 ⏳ 条目已收口）。以下口径保留：permmatrix 套件仍依赖 `TEST_DATABASE_URL` + `APP_ENV=test` 手工配置——保留为**有意设计**（安全测试库绝不 fallback 到开发库，未配置即显式 skip 并提示 `docs/permission-matrix.md`），不做默认连接；UX v9 P2-3（finance-report CSV 未折算列口径）仍待产品确认。
+13. R175 时点待办：#348（客服复查报告）/#349（R174 P2×4 收口）/#350（大回归 v31 报告）为 OPEN 待合并（均 mergeable 无冲突，v31 结论建议直接合并 #348；#349 含代码，v31 之后提交，建议按 #348→#350→#349 或任意无冲突顺序合入）；#245/#247/#248 挂账 PR 内容已 100% 在 main（R171 线2 核实并已在 PR 评论区登记依据），建议直接关闭。MCP 写白名单 D1–D4 决策一页纸（#345，`docs/design/MCP_WRITE_WHITELIST_DECISION_BRIEF.md` §决策页）待老板勾选；operator 管 MCP token 收紧、前端工具链跨 major 升级仍待老板决策。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
+14. ~~R158 时点待办~~——R163 时点 #312/#317/#318 已按建议顺序全部合入 main（§一/16 四个 ⏳ 条目已全部转 ✅；#311 内容随 #312 合入，其 PR 可直接关闭），以下为 R158 时点存档口径：§一/16 中 #311/#312/#317/#318 为 ⏳ 待合并。#312（fix/round154-audit-p2）已携带 #311 三项行为变更内容、#317（fix/round156-misc）已携带 #312 内容，建议合并顺序 #312 → #317 → #318（各 PR 与 main 的 PROGRESS/契约计数冲突可按 union 解决，集成预演 `integration/r157-regression-v26` 已验证可解，合并后契约受保护端点 124）；#311 的 base 为已合入 main 的 feat/round152-open-api 且有冲突，其内容随 #312 合入后可直接关闭。both 双入口额度语义、operator 管 MCP token 是否收紧 admin-only、前端工具链跨 major 升级决策事项沿 §五/10 存档口径不变。
