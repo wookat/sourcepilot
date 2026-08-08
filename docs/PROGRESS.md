@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-08 — **Round 174 线2：全站大回归 v31（0 P0/P1；门禁全绿 + E2E 359/0 + Docker 全栈 35/35；合并顺序：直接合并 #348；#245/#247/#248 建议关闭）**：详见附录 [`docs/progress/R174-line2.md`](progress/R174-line2.md)。
+
 **Stage update**: 2026-08-08 — **Round 173 线1：40303 文案全站回归（无新漏网）+ R172 P2 收口（handle/ignore 先 scope 后 body；R171 缺档闭环；迁移导入行级文本待产品确认）**：详见附录 [`docs/progress/R173.md`](progress/R173.md)。
 
 **Stage update**: 2026-08-08 — **Round 171 线1：全站大回归 v30（0 P0/P1；合并顺序：直接合并 #342；#245/#247/#248 冗余建议关闭）**：详见附录 [`docs/progress/R171.md`](progress/R171.md)。
