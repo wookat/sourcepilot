@@ -2056,24 +2056,20 @@ Final Production Acceptance Deferred to P10
 - **Docker 三角色（含 view-only persona）实跑**：12 项 UI 断言全部 PASS（含 UX v10 #327 补验：币种设置路由离开确认弹窗、备份页时间列/中文按钮），录屏留证外置不入库；clean + verify 零残留。`pnpm check:ui-copy --strict` 通过。
 - 详见 `docs/progress/R167-line2.md`。
 
-### 变更记录（2026-08-07）第 166 轮线2：view-only 前端体验与后端权限一致性审计（qa-engineer / user-experience-officer）
-
-- **Docker 全栈三账号实测**（operator 含 view-only 店铺授权 / readonly / admin）R165 修复的六个 view-only 写操作面（审单决定、异常标记族、店铺删除、店铺授权/OAuth 写、店铺同步/重试、刊登目标店）：六面全部 PASS，无 P0/P1；403/40303 均有中文提示「店铺无操作权限」，无裸 JSON/英文原文/越权状态变化。
-- **P2 登记**：删除店铺确认弹窗按钮英文 `Cancel`/`OK`；审单按钮未按店铺 scope 预禁用（靠点击后提示兜底）。
-- 详见 `docs/progress/R166-line2.md`。
-
-### 变更记录（2026-08-07）第 167 轮线1：审单批量整批 403 定案对齐 + view-only 体验 P2×4 收口（fullstack-engineer）
-
-- **语义定案落地**：`/order-review/approve|reject` 批量含 view-only 店铺订单整批 403/40303（#331/v29 口径）；新增混批先红后绿回归 `TestR167ReviewBatchWholeBatchDenied`（operate+view 混批整批拒绝、零生效）；`docs/api.md`/`docs/permission-matrix.md`/R166-line2 报告与 #332 描述（评论区更正）全部对齐。
-- **P2×4 收口**：同步任务重试失败中文 toast、删除店铺弹窗按钮中文化、审单按钮按店铺 scope 预禁用（含 round167 E2E）、#332 批量语义描述更正。
-- **门禁**：前端 358 / 契约 17 / 构建 / ui-copy / backend 103 包 / integration+redis / 审单 E2E 11 全绿；Docker 双租户实测另附证据。详见 `docs/progress/R167.md`。
-
 ### 变更记录（2026-08-07）第 168 轮线2：生产升级演练复跑（R164 基线 → 最新 main + #332/#335 叠加）（devops-engineer）
 
 - **升级演练**：R164 时代基线（`a78e2fb0`，双租户 2 万订单/4 万订单行/6 万库存流水/2 万自动化日志/4000 SKU/4000 回款/5 MCP token/20 模板+20 变体/跨租户重复订单号样本）升级到 main `d645ec96` + 未合并 #332/#335 叠加栈（4 处冲突按 R167 定案收口）：AutoMigrate 落地（`order_automation_logs.shop_id` 回填 10000 行）、9 类数值指纹 0 差异；重建 backend 镜像后六处 view-only 修复面 403/40303、跨租户 404（批量审单为整批 failed 零生效，与 api.md 口径一致）实测生效、零落库。
 - **从零部署复验**：最新 main 无缓存从零 223s（<15min）；TRUSTED_PROXIES 伪造 XFF 丢弃/可信网段 XFF 落地、OPENAPI 开关 401/200/404 口径与文档一致。
 - **备份恢复**：`--pre-upgrade-check`（非 root BACKUP_DIR 覆盖口径）+ 备份→`pg_restore --clean --if-exists` 恢复→迁移幂等重跑指纹 0 差异。
 - **文档核对**：未发现 P0/P1 失实；P2×3 登记（六面文案表述差异、参数校验先于 scope 判定、#332/#335 文档冲突需人工收口）。详见 `docs/progress/R168-line2.md`。
+
+### 变更记录（2026-08-07）第 169 轮线2：MCP/开放 API token 治理季度复查（qa-engineer）
+
+- **Docker 全栈（main + 未合并 #335/#337 叠加）实测 token 面**：token 全生命周期（一次明文/SHA-256 落库/过期/吊销/purpose mcp|openapi|both 双向隔离/非法参数 400/40001/每租户上限 20 并发不越界）、限流 429（Redis 分层 token/租户/authfail 桶 + 停机降级进程内不 fail-open、`Retry-After` 在位）、逐次审计与 fail-closed（MCP -32603、开放 API 500/50000 且不返数据）、TRUSTED_PROXIES/XFF（默认空时伪造 XFF 不可绕过每 IP authfail 限流）全部通过。
+- **MCP 4 工具与开放 API 全端点**：双租户隔离（订单集合零交集、跨租户详情 404/40401）、readonly token 无管理面/写通道、R165 六处 view-only 修复面联动无泄漏无写通道、输出脱敏（客户名 `D**`、无密钥/内部 UUID）通过。
+- **R148/R153/R159 零回退**：租户 disabled 双入口失效、限流分层、view-only 审单整批 403/40303；permmatrix/mcptoken/mcpserver/openapi/mcpaudit/idor/shopscope 套件全绿。
+- **P0/P1 零**；P2 4 项（MCP 分页钳制与开放 API 400 口径差异待文档化；Redis 降级期超时延迟放大；租户 0 上限路径无单测；权限矩阵套件测试库配置手工）。
+- 详见 `docs/progress/R169-line2.md`。
 
 ### 变更记录（2026-08-07）第 168 轮线1：合并期杂项收口（fullstack-engineer）
 
