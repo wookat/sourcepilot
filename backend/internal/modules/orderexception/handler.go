@@ -320,12 +320,12 @@ func (h *Handler) BindSKU(c *gin.Context) {
 	if h.denyWrite(c) {
 		return
 	}
+	if h.denyScope(c) {
+		return
+	}
 	var body BindSKURequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
-		return
-	}
-	if h.denyScope(c) {
 		return
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))

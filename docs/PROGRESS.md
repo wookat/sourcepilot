@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-08 — **Round 176 线1：安全审计季度复跑（2 处 P1 已修：迁移导入目标店铺租户闭合、settings 加密降级；回复面/bind-sku 校验顺序一并收口）**：报告 [`docs/SECURITY_AUDIT_R176.md`](SECURITY_AUDIT_R176.md)，详见附录 [`docs/progress/R176.md`](progress/R176.md)。
+
 **Stage update**: 2026-08-08 — **Round 174 线2：全站大回归 v31（0 P0/P1；门禁全绿 + E2E 359/0 + Docker 全栈 35/35；合并顺序：直接合并 #348；#245/#247/#248 建议关闭）**：详见附录 [`docs/progress/R174-line2.md`](progress/R174-line2.md)。
 
 **Stage update**: 2026-08-08 — **Round 174 线1：R173 线2 P2×4 收口（客服发送英文报错中文化；迁移导入先 scope 后 body；seed delivered_at 未来时间戳修正；异常工作台 modal rethrow dev overlay 修复）**：详见附录 [`docs/progress/R174.md`](progress/R174.md)。
@@ -2130,3 +2132,10 @@ Final Production Acceptance Deferred to P10
 - **P2③ 修正**：demoseed 销售单 delivered_at 由 orderedAt+48h（SO-DELIVERED-0004 落在未来 +18h）改为 +24h，订单与运单同修；补回归 `TestFullDemoSeedDeliveredAtNotInFuture`。
 - **P2④ 修复**：订单异常工作台「已处理/忽略/取消标记」modal/Popconfirm rethrow 改为手动 close 控制，dev server 下不再触发 react-error-overlay 盖住 toast（根因：AntD ActionButton 对 rejected onOk `Promise.reject` 直出）；admin 其余 7 处同模式登记待批量收口。
 - **顺带巡检**：R172–R173 合入面复查，收口裸英文 `exceptionType required` → 「exceptionType 不能为空」；migrationimport 向导 shape 校验英文串登记待后续中文化。详见 `docs/progress/R174.md`。
+
+### 变更记录（2026-08-08）第 176 轮线1：安全审计季度复跑（security-auditor）
+
+- **P1-1**：`migrationimport.resolveShop` 对 admin 跳过全部店铺校验且未在租户内确认店铺存在，跨租户 admin 用他租户 `shopId` 可通过 `/imports/validate|commit` 并写出携带外租户 `shop_id` 的 `import_jobs` 行；改为统一 `adminperm.ApplyTenantScope` 加载，外租户/不存在 → 404。
+- **P1-2**：`PUT /api/v1/settings` 省略 `isEncrypted` 可把已加密密钥降级为明文落库并原文回显；`settings.putOne` 改为加密粘性（已加密项不可被请求体降级）。
+- **P2 一并收口**：`customerchat.MarkReplied` / `SendPlatformMessage`、`orderexception.BindSKU` 改为「先 scope 后 body」（view-only → 403+40303、不可见 → 404、可操作 → 400）；补 MCP 入口 purpose 反向隔离回归测试。
+- **零回退复验**：R165 六处 P1、#322/#330、40303 envelope、三轴探针、MCP/开放 API token 治理与限流/XFF/审计 fail-closed 全部零回退；`govulncheck` 0 可达漏洞，`pnpm audit --prod` 15 条（基线 13）均为 admin 构建工具链，登记 P2。详见 `docs/SECURITY_AUDIT_R176.md`。

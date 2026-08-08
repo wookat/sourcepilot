@@ -121,12 +121,15 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 	if it.Clear {
 		val = ""
 	}
-	if !it.Clear && it.IsEncrypted && encrypt.LooksMasked(val) {
+	// Encryption is sticky: a payload that omits isEncrypted must not downgrade
+	// an already-encrypted setting to plaintext at rest (nor unmask it on read).
+	encrypted := it.IsEncrypted || (exists && cur.IsEncrypted)
+	if !it.Clear && encrypted && encrypt.LooksMasked(val) {
 		if !exists {
 			return fmt.Errorf("settings: cannot create encrypted item %s/%s with masked value", gk, ik)
 		}
 		upd := map[string]any{
-			"is_encrypted": it.IsEncrypted,
+			"is_encrypted": encrypted,
 			"remark":       strings.TrimSpace(it.Remark),
 		}
 		if vt := strings.TrimSpace(it.ValueType); vt != "" {
@@ -135,9 +138,9 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 		return tx.Model(&Setting{}).Where("id = ?", cur.ID).Updates(upd).Error
 	}
 	// Empty encrypted payload on an existing row means "leave secret unchanged" (e.g. partial settings form save).
-	if !it.Clear && it.IsEncrypted && strings.TrimSpace(val) == "" && exists && strings.TrimSpace(cur.ItemValue) != "" {
+	if !it.Clear && encrypted && strings.TrimSpace(val) == "" && exists && strings.TrimSpace(cur.ItemValue) != "" {
 		upd := map[string]any{
-			"is_encrypted": it.IsEncrypted,
+			"is_encrypted": encrypted,
 			"remark":       strings.TrimSpace(it.Remark),
 		}
 		if vt := strings.TrimSpace(it.ValueType); vt != "" {
@@ -146,7 +149,7 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 		return tx.Model(&Setting{}).Where("id = ?", cur.ID).Updates(upd).Error
 	}
 
-	if it.IsEncrypted && val != "" {
+	if encrypted && val != "" {
 		if s.Encrypter == nil {
 			return fmt.Errorf("请在后端 .env 配置 APP_MASTER_KEY 并重启服务后再保存敏感项（如 API Key）；详见 docs/env.md")
 		}
@@ -163,7 +166,7 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 		ItemKey:     ik,
 		ItemValue:   val,
 		ValueType:   valType,
-		IsEncrypted: it.IsEncrypted,
+		IsEncrypted: encrypted,
 		Remark:      strings.TrimSpace(it.Remark),
 	}
 

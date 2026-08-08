@@ -273,3 +273,9 @@ POST/PUT/PATCH/DELETE 路由，readonly 账号一律 403，除非路径在显式
 - R172 线1生产演练实测发现 round168 收口存在漏网：`productpublish.failPublishStoreScope`、`finance` handler、`orderexception.denyScope`、`migrationimport.errShopNotOperable` 四处仍返回「当前账号无该店铺的操作权限」。本轮全部改为统一文案「店铺无操作权限」。
 - `permmatrix.requireCode40303` 增加 message 断言（回归防漂移）：所有 40303 拒绝响应的 message 必须等于「店铺无操作权限」。
 - 迁移导入行级失败文案（`commit_payments` 行内 error 文本）为行级展示、非 40303 envelope，保持原文案不在本次收口范围。
+
+## round176 迁移导入租户闭合 + 回复面校验顺序（安全审计 R176）
+
+- **迁移导入目标店铺租户闭合（R176 P1-1）**：`migrationimport.resolveShop` 此前对 admin 角色直接跳过全部店铺校验，只解析 uuid，未确认店铺存在于调用方租户；跨租户 admin 用他租户 `shopId` 可通过 `/imports/validate|commit` 入口并写出携带外租户 `shop_id` 的 `import_jobs` 行（实际业务行仍被 `product.Create` / `order.Create` 的租户校验挡住）。现统一以 `adminperm.ApplyTenantScope` 加载店铺：外租户或不存在的 `shopId` 一律 404「店铺不存在或不可见」，无存在性预言。
+- **回复面「先 scope 后 body」（R176 P2-1，延续 #347/#349）**：`customerchat.MarkReplied` / `SendPlatformMessage` 原先先校验 `reply`/`clientMessageId` 再取会话 scope，view-only 会拿到 400「回复内容不能为空」；`orderexception.BindSKU` 原先先 `ShouldBindJSON` 再 `denyScope`。三处均改为 scope 先答：view-only → 403 + 40303，不可见 → 404，可操作店铺仍保留 400 载荷校验。
+- **新增契约测试**：`r176_scope_order_test.go`（`TestMigrationImportShopTenantScope`、`TestCustomerChatReplyScopeBeforeBody`、`TestExceptionBindSKUScopeBeforeBody`）；`mcpserver/r176_purpose_test.go` 补齐 purpose 反向隔离（`openapi` 用途 token 打 MCP 入口 401，`both` 放行），与 `openapi.TestAuthRequiredAndPurpose` 形成双向覆盖。
