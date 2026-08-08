@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-08 — **Round 177 线1：R176 审计 P2① 收口（settings 敏感 key 服务端注册表：强制加密落库 + 脱敏回显，不信任客户端 isEncrypted；新建项路径含内）**：详见附录 [`docs/progress/R177.md`](progress/R177.md)。
+
 **Stage update**: 2026-08-08 — **Round 176 线1：安全审计季度复跑（2 处 P1 已修：迁移导入目标店铺租户闭合、settings 加密降级；回复面/bind-sku 校验顺序一并收口）**：报告 [`docs/SECURITY_AUDIT_R176.md`](SECURITY_AUDIT_R176.md)，详见附录 [`docs/progress/R176.md`](progress/R176.md)。
 
 **Stage update**: 2026-08-08 — **Round 174 线1：R173 线2 P2×4 收口（客服发送英文报错中文化；迁移导入先 scope 后 body；seed delivered_at 未来时间戳修正；异常工作台 modal rethrow dev overlay 修复）**：详见附录 [`docs/progress/R174.md`](progress/R174.md)。
