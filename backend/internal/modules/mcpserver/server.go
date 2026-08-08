@@ -249,8 +249,33 @@ func auditMiddleware(audits *mcpaudit.Service, tok *mcptoken.Token) mcp.Middlewa
 				// Write tools audit inside the write pipeline (dry_run /
 				// execute rows with params/result summaries, committed in the
 				// same transaction as the mutation); a second generic row here
-				// would double-count them.
-				return next(ctx, method, req)
+				// would double-count them. Calls refused before the pipeline
+				// runs (parameter validation, or the tool not being registered
+				// for a token without write:ops) audit here instead, so no
+				// tools/call — least of all one probing the write whitelist —
+				// escapes the trail.
+				wctx, sig := mcpwrite.WithSignal(ctx)
+				start := time.Now()
+				res, err := next(wctx, method, req)
+				if sig.Reached() {
+					return res, err
+				}
+				if werr := audits.Write(ctx, mcpaudit.WriteOpts{
+					TenantID:      tok.TenantID,
+					TokenID:       tok.ID,
+					TokenName:     tok.Name,
+					TokenMasked:   tok.Masked(),
+					Tool:          toolName,
+					Status:        mcpaudit.StatusError,
+					ResultSummary: "rejected before write pipeline",
+					DurationMs:    time.Since(start).Milliseconds(),
+				}); werr != nil {
+					slog.Error("mcp_tool_audit_write_failed", "tool", toolName, "error", werr.Error())
+					if err == nil {
+						return nil, &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: "audit log unavailable, tool call rejected"}
+					}
+				}
+				return res, err
 			}
 			start := time.Now()
 			res, err := next(ctx, method, req)
