@@ -270,7 +270,7 @@ R185 线1 收口更新：**#357/#360/#361/#362（及 #364 本轮行）已全部�
 
 ### 22. R181–R184 增量能力（R185 增补）
 
-R181–R184 为 MCP 写 W3 收口、并发限额硬保证、安全审计季度复跑与 R184 P2 批次收口期。合并状态如实标注（R185 线1 时点，权威 PR 状态）：#363/#365/#366/#367/#368 已合入 main；**#369（R184 P2 收口）/#370（R184 升级演练报告）仍为 OPEN**（均 mergeable 无冲突，CI passed）。
+R181–R184 为 MCP 写 W3 收口、并发限额硬保证、安全审计季度复跑与 R184 P2 批次收口期。合并状态如实标注（R185 线1 时点，权威 PR 状态）：#363/#365/#366/#367/#368/#369/#370 已全部合入 main（#369/#370 于 R185 线1 期间合入）。
 
 | 能力点 | 实现轮次 / PR | 验证证据 | 状态 |
 | --- | --- | --- | --- |
@@ -279,8 +279,8 @@ R181–R184 为 MCP 写 W3 收口、并发限额硬保证、安全审计季度�
 | 全站大回归 v34（#360→#361→#363→#362→#364 叠加集成验证）：全套门禁全绿 + Docker 全栈 48 项场景矩阵全 PASS（含 mark-paid 三前提四路径、闸门逐层、三角色治理 UI、view-only 40303、双租户零残留）；合并顺序终版 | R182 线2 / #366（纯文档） | `docs/progress/R182-line2.md` | ✅ #366 已合并 |
 | R183 安全审计季度复跑：发现并修复 1 项 P1——`procurement_mark_paid` 漏登记进 `isWriteTool`，入口中间件对唯一金额型动作额外写 mode 空审计行（审计轨迹污染 + 已提交写回执可被误改失败）；补白名单守护测试防再漏；写面 18 项攻击项、settings 注册表 6 项、R176/R181 已修项零回退；`govulncheck` 0 可达漏洞 | R183 线1 / #367 | `docs/SECURITY_AUDIT_R183.md`；`TestWriteToolsAuditExactlyOncePerCall`/`TestIsWriteToolCoversWholeWhitelist`（先红后绿） | ✅ #367 已合并 |
 | 竞品对标复评 v11（店小秘/马帮/AutoDS）：**超越 5 / 达到 11 / 落后 0**——「AI 对话式写操作」由落后转超越（W1–W3 写全链 + 三层闸门/确认 token/审计/限额治理深度独有），main 口径随 #360–#365 合入坐实；Docker 全栈关键能力抽验零回退 | R183 线2 / #368（纯文档） | `docs/COMPETITIVE_BENCHMARK_R183.md`；`docs/progress/R183-line2.md` | ✅ #368 已合并 |
-| R184 P2 批次收口：`GET /api/v1/mcp/audit-logs` 写动作审计行仅 `settings.manage` 可见（后端 SQL 层过滤权威、fail-closed，`mcpserver.WriteToolNames()` 同源守护；admin UI 非管理员隐藏写审计列与调用模式筛选）+ 非 PostgreSQL 限额软保证文档登记 + 读工具审计时序评估登记 + 构建链 16 项依赖告警逐项登记 | R184 线1 / #369 | `TestAuditListWriteRowsAdminOnly`（+ Docker PostgreSQL 双租户版）；`docs/DEPENDENCY_AUDIT_R184.md`；`docs/progress/R184.md` | ⏳ #369 OPEN（mergeable，CI passed） |
-| 生产升级演练季度复跑（R184）：从零部署 + R178 同构双租户 2 万订单存量升级指纹 0 差异 + MCP 写全链 25 项升级后实测 + 并发/权限矩阵 + 备份恢复幂等重跑闭环；新 P2 登记：`docker-compose.prod.yml` 硬编码 `name: trademind-prod` 同机多栈静默共卷（本轮 R185 已收口：部署文档警示 + deploy-prod.sh 非破坏性冲突告警） | R184 线2 / #370（纯文档） | `docs/progress/R184-line2.md`；演练证据外置不入库 | ⏳ #370 OPEN（mergeable，CI passed） |
+| R184 P2 批次收口：`GET /api/v1/mcp/audit-logs` 写动作审计行仅 `settings.manage` 可见（后端 SQL 层过滤权威、fail-closed，`mcpserver.WriteToolNames()` 同源守护；admin UI 非管理员隐藏写审计列与调用模式筛选）+ 非 PostgreSQL 限额软保证文档登记 + 读工具审计时序评估登记 + 构建链 16 项依赖告警逐项登记 | R184 线1 / #369 | `TestAuditListWriteRowsAdminOnly`（+ Docker PostgreSQL 双租户版）；`docs/DEPENDENCY_AUDIT_R184.md`；`docs/progress/R184.md` | ✅ #369 已合并 |
+| 生产升级演练季度复跑（R184）：从零部署 + R178 同构双租户 2 万订单存量升级指纹 0 差异 + MCP 写全链 25 项升级后实测 + 并发/权限矩阵 + 备份恢复幂等重跑闭环；新 P2 登记：`docker-compose.prod.yml` 硬编码 `name: trademind-prod` 同机多栈静默共卷（本轮 R185 已收口：部署文档警示 + deploy-prod.sh 非破坏性冲突告警） | R184 线2 / #370（纯文档） | `docs/progress/R184-line2.md`；演练证据外置不入库 | ✅ #370 已合并 |
 | 验收包补 R181–R184 增量 + DEMO_SCRIPT 并入 mark-paid 金额上限演示点 + 同机多栈 `COMPOSE_PROJECT_NAME` 警示（R184 新 P2 收口）+ 三角色/view-only 实跑核对 | R185 线1 / 本轮 | `docs/progress/R185.md`；`docs/production-deployment.md`「同机多栈警示」；DEMO_SCRIPT 实跑验证记录 2026-08-08（R185 线1）条目 | ⏳ 本轮 PR 待合并 |
 
 ## 二、外部凭证依赖项清单（按杠杆排序，含降级路径）
@@ -346,5 +346,5 @@ R181–R184 为 MCP 写 W3 收口、并发限额硬保证、安全审计季度�
 11. ~~R167 时点待办：#332/#333 待合入~~——R170 时点 #332/#333/#334 已全部合入 main（§一/18 原 ⏳ 条目已收口）。MCP 写白名单（#326 方案）、operator 管 MCP token 收紧、前端工具链跨 major 升级仍待老板决策。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
 12. ~~R170 时点待办：#339/#340 待合并~~——R175 时点 #339/#340 已合入 main（§一/19 原 ⏳ 条目已收口）。以下口径保留：permmatrix 套件仍依赖 `TEST_DATABASE_URL` + `APP_ENV=test` 手工配置——保留为**有意设计**（安全测试库绝不 fallback 到开发库，未配置即显式 skip 并提示 `docs/permission-matrix.md`），不做默认连接；UX v9 P2-3（finance-report CSV 未折算列口径）仍待产品确认。
 13. R175 时点待办：#348（客服复查报告）/#349（R174 P2×4 收口）/#350（大回归 v31 报告）为 OPEN 待合并（均 mergeable 无冲突，v31 结论建议直接合并 #348；#349 含代码，v31 之后提交，建议按 #348→#350→#349 或任意无冲突顺序合入）；#245/#247/#248 挂账 PR 内容已 100% 在 main（R171 线2 核实并已在 PR 评论区登记依据），建议直接关闭。MCP 写白名单 D1–D4 决策一页纸（#345，`docs/design/MCP_WRITE_WHITELIST_DECISION_BRIEF.md` §决策页）待老板勾选；operator 管 MCP token 收紧、前端工具链跨 major 升级仍待老板决策。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
-14. ~~R175 时点待办已收口（R181 线2）；R181 时点待办已收口（R185 线1）：#357/#360/#361/#362（及 #364）已全部合入 main（§一/21 原 ⏳ 条目已收口）~~。R185 时点待办：#369（R184 P2 收口，含代码）/#370（R184 升级演练报告，纯文档）为 OPEN 待合并（均 mergeable 无冲突、CI passed，任意顺序可合）；#245/#247/#248 挂账 PR 仍建议直接关闭。MCP 写白名单 W1–W3 已全部合入 main（含 mark-paid 三前提与 advisory lock 限额硬保证）；operator 管 MCP token 收紧已随 #369 方向对齐（审计写行 admin-only），前端工具链跨 major 升级仍待老板决策（`docs/DEPENDENCY_AUDIT_R184.md` 逐项登记）。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
+14. ~~R175 时点待办已收口（R181 线2）；R181 时点待办已收口（R185 线1）：#357/#360/#361/#362（及 #364）已全部合入 main（§一/21 原 ⏳ 条目已收口）~~。~~R185 时点待办：#369/#370 待合并~~——R185 线1 期间 #369/#370 已合入 main（§一/22 原 ⏳ 条目已收口）；#245/#247/#248 挂账 PR 仍建议直接关闭。MCP 写白名单 W1–W3 已全部合入 main（含 mark-paid 三前提与 advisory lock 限额硬保证）；operator 管 MCP token 收紧已随 #369 方向对齐（审计写行 admin-only），前端工具链跨 major 升级仍待老板决策（`docs/DEPENDENCY_AUDIT_R184.md` 逐项登记）。凭证 ①（抖店）仍为正式验收前唯一外部前置项。
 15. ~~R158 时点待办~~——R163 时点 #312/#317/#318 已按建议顺序全部合入 main（§一/16 四个 ⏳ 条目已全部转 ✅；#311 内容随 #312 合入，其 PR 可直接关闭），以下为 R158 时点存档口径：§一/16 中 #311/#312/#317/#318 为 ⏳ 待合并。#312（fix/round154-audit-p2）已携带 #311 三项行为变更内容、#317（fix/round156-misc）已携带 #312 内容，建议合并顺序 #312 → #317 → #318（各 PR 与 main 的 PROGRESS/契约计数冲突可按 union 解决，集成预演 `integration/r157-regression-v26` 已验证可解，合并后契约受保护端点 124）；#311 的 base 为已合入 main 的 feat/round152-open-api 且有冲突，其内容随 #312 合入后可直接关闭。both 双入口额度语义、operator 管 MCP token 是否收紧 admin-only、前端工具链跨 major 升级决策事项沿 §五/10 存档口径不变。

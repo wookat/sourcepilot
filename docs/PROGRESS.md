@@ -2294,4 +2294,4 @@ Final Production Acceptance Deferred to P10
 - **验收包**：`ACCEPTANCE_R123.md` §一/21 收口（#357/#360/#361/#362/#364 已合入 main 转 ✅）+ 新增 §一/22 R181–R184 增量 8 行（W3 mark-paid #363、advisory lock 限额 #365、大回归 v34 #366、R183 审计与 #367 修复、竞品 v11 升位超越 5 #368、R184 P2 收口 #369 ⏳、升级演练 #370 ⏳、本轮），合并状态按权威 PR 状态如实标注；§三/§四/§五 同步。
 - **DEMO_SCRIPT**：第 23b 步并入 mark-paid 金额上限演示点（约 40 秒，总长 30 分钟不变）；修正「mark-paid 刻意留 W3」「需叠加 #361 构建」等过时口径（#360–#368 已合入 main）。
 - **实跑实测**：基于本轮分支全栈镜像三角色/view-only/双租户/MCP 写全链（含 mark-paid 四拒绝路径）/#369 审计权限/RacePostgres 三例共 24/25 项断言 PASS；唯一 FAIL 为 deploy-prod.sh 告警首版 `{{index .Labels "…"}}` 模板恒不触发，已即修为 `{{.Label "…"}}` 并复验可触发；证据外置不入库。
-- **基线**：main 叠加 OPEN PR #369/#370 开发；详见 `docs/progress/R185.md`。
+- **基线**：开发时点 main 叠加 OPEN PR #369/#370；期间两者已合入 main（本 PR 已回并收敛）。详见 `docs/progress/R185.md`。
