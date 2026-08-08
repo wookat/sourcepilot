@@ -61,8 +61,13 @@ type Request struct {
 	ParamsCanonical string
 	// ParamsSummary is the allowlisted key=value audit summary of the params.
 	ParamsSummary string
-	DryRun        func(ctx context.Context, db *gorm.DB) (preview any, summary string, err error)
-	Execute       func(ctx context.Context, tx *gorm.DB) (result any, summary string, err error)
+	// Amount is the money amount of an amount-bearing action
+	// (procurement_mark_paid); recorded on the audit rows so the tenant
+	// daily amount ceiling sums from the same fail-closed trail. Zero for
+	// every other tool.
+	Amount  float64
+	DryRun  func(ctx context.Context, db *gorm.DB) (preview any, summary string, err error)
+	Execute func(ctx context.Context, tx *gorm.DB) (result any, summary string, err error)
 }
 
 // Result is the structured outcome of one write tool call.
@@ -111,6 +116,7 @@ func (s *Service) auditReject(ctx context.Context, req Request, mode string, sta
 		Mode:          mode,
 		ParamsSummary: req.ParamsSummary,
 		ResultSummary: reason,
+		Amount:        req.Amount,
 		DurationMs:    time.Since(start).Milliseconds(),
 	}); err != nil {
 		slog.Error("mcp_write_audit_reject_failed", "tool", req.Tool, "error", err.Error())
@@ -172,7 +178,7 @@ func (s *Service) runDryRun(ctx context.Context, req Request, ph string, start t
 	}
 	preview, summary, err := req.DryRun(ctx, db)
 	if err != nil {
-		s.auditReject(ctx, req, ModeDryRun, start, "validation failed")
+		s.auditReject(ctx, req, ModeDryRun, start, "validation failed: "+err.Error())
 		return nil, err
 	}
 	var plain string
@@ -196,6 +202,7 @@ func (s *Service) runDryRun(ctx context.Context, req Request, ph string, start t
 			ParamsSummary: req.ParamsSummary,
 			ResultSummary: summary,
 			ConfirmHash:   conf.ConfirmHash,
+			Amount:        req.Amount,
 			DurationMs:    time.Since(start).Milliseconds(),
 		})
 	})
@@ -269,6 +276,7 @@ func (s *Service) runExecute(ctx context.Context, req Request, ph string, start 
 			ParamsSummary: req.ParamsSummary,
 			ResultSummary: summary,
 			ConfirmHash:   conf.ConfirmHash,
+			Amount:        req.Amount,
 			DurationMs:    time.Since(start).Milliseconds(),
 		}); aerr != nil {
 			return fmt.Errorf("%w: %v", ErrAuditUnavailable, aerr)
@@ -281,7 +289,7 @@ func (s *Service) runExecute(ctx context.Context, req Request, ph string, start 
 			slog.Error("mcp_write_execute_audit_failed", "tool", req.Tool, "error", err.Error())
 			return nil, ErrAuditUnavailable
 		}
-		s.auditReject(ctx, req, ModeExecute, start, "execute failed")
+		s.auditReject(ctx, req, ModeExecute, start, "execute failed: "+err.Error())
 		return nil, err
 	}
 	return &Result{

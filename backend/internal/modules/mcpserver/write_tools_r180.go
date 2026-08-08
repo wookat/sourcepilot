@@ -18,8 +18,8 @@ import (
 // and logistics tracking backfill. All three run through the W1 governed
 // write pipeline (three gates, dry-run → one-time confirmation → execute,
 // fail-closed audit, quotas) and answer cross-tenant / missing targets with
-// 404 semantics. mark-paid is intentionally NOT exposed (deferred to W3 with
-// its amount ceiling and preconditions).
+// 404 semantics. mark-paid is exposed separately as the R181 W3 action with
+// its amount ceilings and preconditions (write_tools_r181.go).
 
 // Exception mark actions accepted by exceptions_mark.
 const (

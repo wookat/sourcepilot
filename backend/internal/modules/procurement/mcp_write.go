@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -79,6 +80,46 @@ func (s *Service) FillLogisticsInTenantTx(ctx context.Context, tx *gorm.DB, tena
 		return nil, err
 	}
 	return po, nil
+}
+
+// MarkPaidInTenantTx applies the placed → paid transition (manual payment
+// backfill) inside the caller's transaction. The MCP surface never moves
+// real money: it only records that the operator paid the 1688 order by hand.
+// Amount/currency validation against the purchase order and the tenant
+// ceilings are enforced by the MCP tool layer before this runs.
+func (s *Service) MarkPaidInTenantTx(ctx context.Context, tx *gorm.DB, tenantID int64, id uuid.UUID, payChannel string) (*PurchaseOrder, error) {
+	if _, err := s.FindPOInTenant(ctx, tx, tenantID, id); err != nil {
+		return nil, err
+	}
+	channel := defaultStr(strings.TrimSpace(payChannel), "manual")
+	po, err := s.transitionTx(tx.WithContext(ctx), id, StatusPaid, EventSourceAPI,
+		map[string]any{"payChannel": channel, "via": "mcp"}, func(tx *gorm.DB, po *PurchaseOrder) error {
+			now := time.Now().UTC()
+			po.PayStatus = PayStatusPaid
+			po.PayChannel = channel
+			po.PaidAt = &now
+			return nil
+		})
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, ErrPONotFoundInTenant
+		}
+		return nil, err
+	}
+	return po, nil
+}
+
+// AfterMarkPaidCommitted runs the best-effort post-commit side effects of a
+// mark-paid (mock provider pay advance + operation log), mirroring the admin
+// route after the MCP write pipeline commits.
+func (s *Service) AfterMarkPaidCommitted(ctx context.Context, po *PurchaseOrder) {
+	if s == nil || po == nil {
+		return
+	}
+	if mock, ok := s.provider().(*trade.Mock1688); ok && po.ExternalOrderID != "" {
+		_ = mock.AdvancePay(po.ExternalOrderID)
+	}
+	s.logOp(ctx, nil, "procurement.mark_paid", po.ID.String(), "via=mcp")
 }
 
 // AfterMarkPlacedCommitted runs the best-effort post-commit side effects of a

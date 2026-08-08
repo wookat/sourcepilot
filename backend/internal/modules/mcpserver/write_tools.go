@@ -70,6 +70,7 @@ type OrderTagWriteResult struct {
 // write:ops; the tenant gate and quotas are enforced per call.
 func registerWriteTools(srv *mcp.Server, d *Deps, tok *mcptoken.Token) {
 	registerWriteToolsR180(srv, d, tok)
+	registerWriteToolsR181(srv, d, tok)
 	if d.Orders == nil {
 		return
 	}
