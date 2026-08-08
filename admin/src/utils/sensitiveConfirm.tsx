@@ -26,6 +26,7 @@ export function confirmSensitiveAction(opts: SensitiveConfirmOptions) {
   if (opts.failureHint) {
     lines.push(`失败后可在：${opts.failureHint}`);
   }
+  let pending = false;
   const modalOpts: ModalFuncProps = {
     title: opts.title,
     content: <div style={{ whiteSpace: 'pre-wrap' }}>{lines.join('\n')}</div>,
@@ -35,11 +36,16 @@ export function confirmSensitiveAction(opts: SensitiveConfirmOptions) {
     // 弹窗保持打开、不向外抛拒绝（避免 dev 环境 unhandledrejection 触发
     // react-error-overlay 盖住 toast）。
     onOk: (close: () => void) => {
+      if (pending) return;
+      pending = true;
       Promise.resolve()
         .then(() => opts.onOk())
         .then(() => close())
         .catch((e) => {
           message.error(opts.errorText ? opts.errorText(e) : (e as Error)?.message || '操作失败');
+        })
+        .finally(() => {
+          pending = false;
         });
     },
   };
