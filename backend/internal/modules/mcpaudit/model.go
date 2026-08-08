@@ -51,9 +51,14 @@ type ToolCallLog struct {
 	ResultSummary string `gorm:"size:512;not null;default:''" json:"resultSummary,omitempty"`
 	// ConfirmHash is the SHA-256 of the confirmation token binding the
 	// dry_run row to its execute row. Empty for read tools.
-	ConfirmHash string    `gorm:"size:64;index;not null;default:''" json:"confirmHash,omitempty"`
-	DurationMs  int64     `gorm:"not null;default:0" json:"durationMs"`
-	CreatedAt   time.Time `gorm:"index" json:"createdAt"`
+	ConfirmHash string `gorm:"size:64;index;not null;default:''" json:"confirmHash,omitempty"`
+	// Amount is the money amount of an amount-bearing write tool call
+	// (e.g. procurement_mark_paid), so tenant daily amount ceilings can be
+	// summed from the same fail-closed audit trail as the count quotas.
+	// Zero for every other tool.
+	Amount     float64   `gorm:"type:decimal(12,2);not null;default:0" json:"amount,omitempty"`
+	DurationMs int64     `gorm:"not null;default:0" json:"durationMs"`
+	CreatedAt  time.Time `gorm:"index" json:"createdAt"`
 }
 
 // TableName keeps a stable table name for migrations.

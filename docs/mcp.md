@@ -75,8 +75,17 @@ R179 起 MCP 提供极小的受控写面。设计口径：D1 P0 最小动作集�
 | `exceptions_mark` | 异常标记（R180 W2）：`action` 为 `handle`（标记已处理）/ `ignore`（标记已忽略）/ `unmark`（清除标记）。幂等：重复同向标记不产生新行，`handle`↔`ignore` 互斥切换，`unmark` 无标记时为无操作。目标为 `sourceType` + `sourceId`（订单 / 订单项等），跨租户 / 不存在统一「记录不存在」 |
 | `procurement_mark_placed` | 采购单 mark-placed（R180 W2）：回填 1688 外部单号，走既有状态机 `placing → placed`，非法状态在 dry_run 即拒绝；跨租户 / 不存在统一「采购单不存在」 |
 | `procurement_fill_logistics` | 物流运单号回填（R180 W2）：`paid → shipped` 并创建物流记录（运单号 + 承运商）；同一状态机 / 404 口径 |
+| `procurement_mark_paid` | 采购单支付登记（R181 W3）：`placed → paid` 人工付款回填，**不动真实资金**，仅登记操作员已线下支付的事实。除 W1 全套管道外附加金额前提，见下方「mark-paid 金额前提」 |
 
-`mark-paid` **本轮刻意不接入**：留待 W3 与「租户金额上限 + 三前提（对账 / 审核 / 金额摘要）」一起落地。
+### mark-paid 金额前提（R181 W3，fail-closed）
+
+`procurement_mark_paid` 在 W1 管道之上强制三项前提，任一不满足即拒绝（403 语义）并写审计行：
+
+1. **租户金额上限必须先配置**：设置项 `mcp` 组 `mark_paid_single_limit`（单笔上限）与 `mark_paid_daily_limit`（日累计上限），仅管理员可改。缺失、非数字、`0` 或负数一律视为**未配置 = 工具不可用**（默认关）。
+2. **dry-run 预览回显金额与订单明细**：预览含采购单 ID、供应商、当前/目标状态、金额、币种、支付渠道、两项上限、当日已用额度，以及全部明细行（商品名 / SKU / 数量 / 单价），供人工确认后再 execute。
+3. **金额 / 币种必须与采购单完全一致**：入参 `amount`（必填，>0、至多两位小数，按“分”精确比较，无浮点误差豁免）与 `currency`（必填，大小写不敏感）与采购单 `totalAmount` / `currency` 任一不符即拒绝；0 / 负数 / 超两位小数 / 超大金额直接判非法入参。
+
+日累计额度按当日成功 execute 审计行的金额求和（与次数限额同一条 fail-closed 审计链），并且在 **execute 事务内**再次校验——dry_run 时领取的确认 token 不能绕过其后被占满的额度。求和失败即拒绝。金额同时落入审计行 `amount` 字段，供后台审计列表与对账使用。
 
 ### 后台治理 UI（R180 W2）
 
