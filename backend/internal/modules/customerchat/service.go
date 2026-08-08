@@ -791,15 +791,17 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	reply := strings.TrimSpace(body.Reply)
-	if reply == "" {
-		return nil, fmt.Errorf("回复内容不能为空")
-	}
+	// Store scope answers before payload validation so a denied principal
+	// never learns the reply contract of a conversation it cannot operate.
 	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
 	if err != nil {
 		return nil, err
 	}
 	conv := *convPtr
+	reply := strings.TrimSpace(body.Reply)
+	if reply == "" {
+		return nil, fmt.Errorf("回复内容不能为空")
+	}
 	now := time.Now().UTC()
 	msg := &CustomerMessage{
 		ConversationID: conversationID,

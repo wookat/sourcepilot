@@ -108,6 +108,14 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 	if s.Shops == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
+	// Store scope answers before payload validation so a denied principal
+	// never learns the send contract of a conversation it cannot operate.
+	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	conv := *convPtr
+
 	reply := strings.TrimSpace(body.Reply)
 	if reply == "" {
 		return nil, fmt.Errorf("回复内容不能为空")
@@ -118,11 +126,6 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		return nil, fmt.Errorf("clientMessageId 不能为空")
 	}
 
-	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
-	if err != nil {
-		return nil, err
-	}
-	conv := *convPtr
 	if conv.ShopID == nil {
 		return nil, fmt.Errorf("conversation has no shop")
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
@@ -153,6 +154,16 @@ func (s *Service) resolveShop(c *gin.Context, raw string) (*uuid.UUID, error) {
 		if !principal.CanOperateStore(u) {
 			return nil, errShopNotOperable
 		}
+	}
+	// The shop must exist inside the caller's tenant: a foreign-tenant or
+	// unknown shopId is indistinguishable from a missing shop.
+	tx, _, err := adminperm.ApplyTenantScope(c, s.DB.WithContext(c.Request.Context()).Model(&shop.Shop{}))
+	if err != nil {
+		return nil, err
+	}
+	var row shop.Shop
+	if err := tx.First(&row, "id = ?", u).Error; err != nil {
+		return nil, err
 	}
 	return &u, nil
 }
