@@ -2179,3 +2179,11 @@ Final Production Acceptance Deferred to P10
 
 - **`procurement_mark_paid` 接入 W1 框架**：`placed→paid` 人工付款回填（不动真实资金），复用三层闸门 / dry-run→确认 token→执行 / fail-closed 审计限额 / 404 口径；brief 三前提 fail-closed——租户单笔+日累计金额上限（settings `mcp/mark_paid_single_limit`+`mark_paid_daily_limit`，缺失/0/负数/非数字=未配置不可用）、dry_run 回显金额币种上限与采购单全明细、金额（按分整数比较）/币种与采购单不符直接拒绝；日累计从成功 execute 审计行（新增 `amount` 列）求和并在 execute 事务内重校验（TOCTOU 封死）。
 - **W1+W2+W3 全写面渗透视角交叉审查**：18 个攻击面逐项核对，未发现 P0/P1；2 项 P2/建议级观察（并发限额竞态、审计 amount 列口径）。报告归档 `docs/SECURITY_AUDIT_R181_MCP_WRITE.md`；permmatrix / `docs/mcp.md` 同步。详见 `docs/progress/R181.md`。
+
+### 变更记录（2026-08-08）第 180 轮线2：全站大回归 v33（qa-engineer）
+
+- **集成**：最新 main（`3fd5a35a`）按依赖叠加全部 OPEN PR #348–#360（权威状态核实均 OPEN），仅 #357 的 `docs/PROGRESS.md` 一处文书性冲突（保留双方记录），无语义冲突。
+- **合并顺序终版**：#360 已完整包含 #348/#349/#351–#356/#359（ancestry 实测），最省事顺序 **#360 → #350 → #357 → #358**，其余 9 个 PR 合入 #360 后 diff 为空直接 close。
+- **门禁**：Go 全量 103 包 ok、securitytests/permmatrix 113/113、check:dev、ui-copy strict、test:frontend 368、contracts 17、build:admin/collector、collector 18、全量 E2E 359 passed/3 skipped 全绿。
+- **Docker 全栈实测**：R57 主链路、W1 写链路全链（环境/租户/scope 三层闸门逐层拒绝→dry_run→一次性确认 token→execute→重放 alreadyExecuted→审计落库）、settings 加密/脱敏/存量明文惰性收编、modal 防重（双击仅 1 次 POST）、view-only 40303/readonly 40301/不可见店铺 404/跨租户 404、双租户隔离与零残留（clean+verify）全部通过。
+- **P0/P1 无；P2 全部为继承项**（mcp-tokens 文档口径、finance-report CSV 折算列、pnpm audit 构建链告警、R179 W2 UI 缺口）。详见 `docs/progress/R180-line2.md`。
