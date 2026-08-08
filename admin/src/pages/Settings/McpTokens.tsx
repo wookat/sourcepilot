@@ -69,6 +69,7 @@ const MCP_WRITE_TOOL_OPTIONS = [
   'exceptions_mark',
   'procurement_mark_placed',
   'procurement_fill_logistics',
+  'procurement_mark_paid',
 ];
 
 const WRITE_EXPIRY_OPTIONS = [
@@ -150,6 +151,7 @@ export default function McpTokensPage() {
   const [auditPageSize, setAuditPageSize] = useState(20);
   const [auditTool, setAuditTool] = useState<string>();
   const [auditStatus, setAuditStatus] = useState<string>();
+  const [auditMode, setAuditMode] = useState<string>();
   const auditSeqRef = useRef(0);
 
   const [writeEnabled, setWriteEnabled] = useState(false);
@@ -254,6 +256,7 @@ export default function McpTokensPage() {
         pageSize: auditPageSize,
         tool: auditTool,
         status: auditStatus,
+        mode: auditMode,
       });
       if (seq !== auditSeqRef.current) return;
       setAuditRows(res.items || []);
@@ -264,7 +267,7 @@ export default function McpTokensPage() {
     } finally {
       if (seq === auditSeqRef.current) setAuditLoading(false);
     }
-  }, [auditPage, auditPageSize, auditTool, auditStatus]);
+  }, [auditPage, auditPageSize, auditTool, auditStatus, auditMode]);
 
   useEffect(() => {
     void loadAudits();
@@ -651,6 +654,20 @@ export default function McpTokensPage() {
               label: v.label,
             }))}
           />
+          <Select
+            allowClear
+            placeholder="调用模式"
+            style={{ width: 160 }}
+            value={auditMode}
+            onChange={(v) => {
+              setAuditPage(1);
+              setAuditMode(v);
+            }}
+            options={Object.entries(WRITE_MODE_TAGS).map(([value, v]) => ({
+              value,
+              label: v.label,
+            }))}
+          />
           <Button onClick={() => void loadAudits()}>刷新</Button>
           <Typography.Text type="secondary">
             每次 MCP 工具调用与开放 API 调用（openapi: 前缀）各记录一条；鉴权失败与限流事件按来源每分钟至多一条；不记录查询参数与查询结果内容
@@ -745,6 +762,20 @@ export default function McpTokensPage() {
                   <Tooltip title={v}>
                     <Typography.Text code>{v.slice(0, 12)}…</Typography.Text>
                   </Tooltip>
+                ) : (
+                  <Typography.Text type="secondary">—</Typography.Text>
+                ),
+            },
+            {
+              title: (
+                <Tooltip title="仅金额型写动作（procurement_mark_paid）有金额，其余动作不涉及金额">
+                  <span>金额（仅支付登记）</span>
+                </Tooltip>
+              ),
+              dataIndex: 'amount',
+              render: (v?: number) =>
+                v ? (
+                  <Typography.Text>{v.toFixed(2)}</Typography.Text>
                 ) : (
                   <Typography.Text type="secondary">—</Typography.Text>
                 ),

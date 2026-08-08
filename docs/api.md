@@ -982,7 +982,7 @@ MCP token 管理（登录后，走统一 JWT 鉴权与租户 scope）：
 GET  /api/v1/mcp/tokens             # 列出当前租户 token（脱敏：sp_mcp_ro_ab…cdef）
 POST /api/v1/mcp/tokens             # 创建只读 token，body {"name":"claude-desktop","expiresInDays":30}（expiresInDays 可选，0/缺省=不过期，1-730）；响应含一次性 plaintext
 POST /api/v1/mcp/tokens/:id/revoke  # 吊销（幂等），readonly 账号 403
-GET  /api/v1/mcp/audit-logs         # 工具调用审计日志（租户 scope），query: page/pageSize/tool/status
+GET  /api/v1/mcp/audit-logs         # 工具调用审计日志（租户 scope），query: page/pageSize/tool/status/mode；行含 amount（仅金额型写动作 procurement_mark_paid 有意义，其余为 0/缺省）
 ```
 
 - token 明文只在创建响应中返回一次，库中只存 SHA-256 哈希；创建/吊销写操作日志（resource=`mcp_token`）。

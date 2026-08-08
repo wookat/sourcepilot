@@ -175,6 +175,7 @@ func (s *Service) WriteThrottled(ctx context.Context, key string, opts WriteOpts
 type ListFilter struct {
 	Tool     string
 	Status   string
+	Mode     string
 	Page     int
 	PageSize int
 }
@@ -209,6 +210,9 @@ func (s *Service) List(ctx context.Context, tenantID int64, f ListFilter) (*List
 	}
 	if v := strings.TrimSpace(f.Status); v != "" {
 		tx = tx.Where("status = ?", v)
+	}
+	if v := strings.TrimSpace(f.Mode); v != "" {
+		tx = tx.Where("mode = ?", v)
 	}
 	var res ListResult
 	if err := tx.Count(&res.Total).Error; err != nil {

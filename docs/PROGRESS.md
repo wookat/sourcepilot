@@ -2155,6 +2155,49 @@ Final Production Acceptance Deferred to P10
 - **Docker 全栈实测**：backend 镜像重建后 R57 主链路（自动生成采购单/打标/分仓/发货规则）、#353 两处修复面（跨租户 shopId 导入 404 + 零残留、settings 加密粘性）、modal 失败路径中文 toast 保持弹窗、migrationimport 中文文案、view-only 40303/readonly 40301/跨租户 404、MCP purpose 隔离与开放 API、双租户零残留全部通过。
 - **P1 即修**：#352 modal onOk 改「手动 close」后丢失 antd async pending 防重，双击敏感确认产生 2 次写请求；`modalOk`/`confirmSensitiveAction` 增加 in-flight 守卫 + 3 条单测，E2E 复绿。详见 `docs/progress/R177-line2.md`。
 
+### 变更记录（2026-08-08）第 179 轮线1：MCP 写白名单 W1 基建（fullstack-engineer）
+
+- **write:ops scope**：独立权限轴（readonly 不放宽、开放 API 面不放宽）；未知/空 scope fail-closed；写 token 仅 admin 可创建、强制过期（默认 30 天/最长 90 天）、scope 只在创建时授予。
+- **三层闸门默认全关**：全局 `MCP_WRITE_ENABLED`（默认 false，关时写工具不注册）→ 租户 settings `mcp/write_enabled`（默认关，读取失败即关）→ token scope；逐层独立 403。
+- **dry-run→确认 token→执行**：确认 token 一次性、TTL 5 分钟、绑定租户+调用 token+工具+参数哈希，原子消费；执行成功后重放 `alreadyExecuted` 不重复变更；execute 的业务变更与审计行同事务，审计失败整体回滚；限额每 token 30 次/时、每租户 200 次/天（计数失败即拒绝）。
+- **首个动作**：`orders_add_tag`/`orders_remove_tag`（幂等、单目标、跨租户 404）；消息线零 MCP 写触点（工具面断言）。详见 `docs/progress/R179.md`、`docs/mcp.md`。
+
+### 变更记录（2026-08-08）第 178 轮线2：竞品对标复评 v10（market-researcher）
+
+- **第十次竞品复评归档**：`docs/COMPETITIVE_BENCHMARK_R178.md`——16 项矩阵维持超越 4 / 达到 12 / 落后 0，维护期（R171–R173 已合入收口）Docker 全栈实测零回退（view-only 5 类写路径 403+40303、readonly 403+40301、settings 密文+脱敏、MCP 四只读工具+脱敏+用途分离、开放 API 边界）。
+- **诚实口径**：main 止于 #347（R173 线1）；R173 线2 至 R177 产出全部在 OPEN PR #348–#356，矩阵位次不计入，建议线1 按序合入。
+- **竞品动态**：AutoDS Claude MCP 多店铺单会话管理常态运营（含写）；店小秘美客多全托管批量刊登（内容/平台侧）；马帮 TikTok 美区双赛道认证（平台/合规侧）。无新结构性缺口。
+- **路线建议**：MCP 写白名单 D1–D4 勾选后 R179–R181 实现窗口（2.5 轮）为唯一高杠杆项；复评节奏维持每 12 轮或结构性触发。详见 `docs/progress/R178-line2.md`。
+
+### 变更记录（2026-08-08）第 179 轮线1：MCP 写白名单 W1 基建（fullstack-engineer）
+
+- **write:ops scope**：独立权限轴（readonly 不放宽、开放 API 面不放宽）；未知/空 scope fail-closed；写 token 仅 admin 可创建、强制过期（默认 30 天/最长 90 天）、scope 只在创建时授予。
+- **三层闸门默认全关**：全局 `MCP_WRITE_ENABLED`（默认 false，关时写工具不注册）→ 租户 settings `mcp/write_enabled`（默认关，读取失败即关）→ token scope；逐层独立 403。
+- **dry-run→确认 token→执行**：确认 token 一次性、TTL 5 分钟、绑定租户+调用 token+工具+参数哈希，原子消费；执行成功后重放 `alreadyExecuted` 不重复变更；execute 的业务变更与审计行同事务，审计失败整体回滚；限额每 token 30 次/时、每租户 200 次/天（计数失败即拒绝）。
+- **首个动作**：`orders_add_tag`/`orders_remove_tag`（幂等、单目标、跨租户 404）；消息线零 MCP 写触点（工具面断言）。详见 `docs/progress/R179.md`、`docs/mcp.md`。
+
+### 变更记录（2026-08-08）第 179 轮线1：MCP 写白名单 W1 基建（fullstack-engineer）
+
+- **write:ops scope**：独立权限轴（readonly 不放宽、开放 API 面不放宽）；未知/空 scope fail-closed；写 token 仅 admin 可创建、强制过期（默认 30 天/最长 90 天）、scope 只在创建时授予。
+- **三层闸门默认全关**：全局 `MCP_WRITE_ENABLED`（默认 false，关时写工具不注册）→ 租户 settings `mcp/write_enabled`（默认关，读取失败即关）→ token scope；逐层独立 403。
+- **dry-run→确认 token→执行**：确认 token 一次性、TTL 5 分钟、绑定租户+调用 token+工具+参数哈希，原子消费；执行成功后重放 `alreadyExecuted` 不重复变更；execute 的业务变更与审计行同事务，审计失败整体回滚；限额每 token 30 次/时、每租户 200 次/天（计数失败即拒绝）。
+- **首个动作**：`orders_add_tag`/`orders_remove_tag`（幂等、单目标、跨租户 404）；消息线零 MCP 写触点（工具面断言）。详见 `docs/progress/R179.md`、`docs/mcp.md`。
+
+### 变更记录（2026-08-08）第 178 轮线2：竞品对标复评 v10（market-researcher）
+
+- **第十次竞品复评归档**：`docs/COMPETITIVE_BENCHMARK_R178.md`——16 项矩阵维持超越 4 / 达到 12 / 落后 0，维护期（R171–R173 已合入收口）Docker 全栈实测零回退（view-only 5 类写路径 403+40303、readonly 403+40301、settings 密文+脱敏、MCP 四只读工具+脱敏+用途分离、开放 API 边界）。
+- **诚实口径**：main 止于 #347（R173 线1）；R173 线2 至 R177 产出全部在 OPEN PR #348–#356，矩阵位次不计入，建议线1 按序合入。
+- **竞品动态**：AutoDS Claude MCP 多店铺单会话管理常态运营（含写）；店小秘美客多全托管批量刊登（内容/平台侧）；马帮 TikTok 美区双赛道认证（平台/合规侧）。无新结构性缺口。
+- **路线建议**：MCP 写白名单 D1–D4 勾选后 R179–R181 实现窗口（2.5 轮）为唯一高杠杆项；复评节奏维持每 12 轮或结构性触发。详见 `docs/progress/R178-line2.md`。
+
+### 变更记录（2026-08-08）第 180 轮线2：全站大回归 v33（qa-engineer）
+
+- **集成**：最新 main（`3fd5a35a`）按依赖叠加全部 OPEN PR #348–#360（权威状态核实均 OPEN），仅 #357 的 `docs/PROGRESS.md` 一处文书性冲突（保留双方记录），无语义冲突。
+- **合并顺序终版**：#360 已完整包含 #348/#349/#351–#356/#359（ancestry 实测），最省事顺序 **#360 → #350 → #357 → #358**，其余 9 个 PR 合入 #360 后 diff 为空直接 close。
+- **门禁**：Go 全量 103 包 ok、securitytests/permmatrix 113/113、check:dev、ui-copy strict、test:frontend 368、contracts 17、build:admin/collector、collector 18、全量 E2E 359 passed/3 skipped 全绿。
+- **Docker 全栈实测**：R57 主链路、W1 写链路全链（环境/租户/scope 三层闸门逐层拒绝→dry_run→一次性确认 token→execute→重放 alreadyExecuted→审计落库）、settings 加密/脱敏/存量明文惰性收编、modal 防重（双击仅 1 次 POST）、view-only 40303/readonly 40301/不可见店铺 404/跨租户 404、双租户隔离与零残留（clean+verify）全部通过。
+- **P0/P1 无；P2 全部为继承项**（mcp-tokens 文档口径、finance-report CSV 折算列、pnpm audit 构建链告警、R179 W2 UI 缺口）。详见 `docs/progress/R180-line2.md`。
+
 ### 变更记录（2026-08-08）第 178 轮线2：竞品对标复评 v10（market-researcher）
 
 - **第十次竞品复评归档**：`docs/COMPETITIVE_BENCHMARK_R178.md`——16 项矩阵维持超越 4 / 达到 12 / 落后 0，维护期（R171–R173 已合入收口）Docker 全栈实测零回退（view-only 5 类写路径 403+40303、readonly 403+40301、settings 密文+脱敏、MCP 四只读工具+脱敏+用途分离、开放 API 边界）。
@@ -2175,6 +2218,7 @@ Final Production Acceptance Deferred to P10
 - **后台治理 UI**：租户级 `mcp/write_enabled` 开关（admin-only、默认关、开启前风险确认）、写 token 创建/吊销管理（operator 不可见，后端列表过滤 + 吊销 404 同步收紧）、写审计列表补 `mode`/`paramsSummary`/`confirmHash` 展示。
 - **R179 线2 遗留**：`platform_shopee/partner_key` 纳入敏感注册表静态种子（消除 bootstrap 顺序依赖），补加密/脱敏回归。详见 `docs/progress/R180.md`、`docs/mcp.md`。
 
+
 ### 变更记录（2026-08-08）第 181 轮线1：MCP 写白名单 W3 收尾 + 全写面安全交叉审查（security/fullstack-engineer）
 
 - **`procurement_mark_paid` 接入 W1 框架**：`placed→paid` 人工付款回填（不动真实资金），复用三层闸门 / dry-run→确认 token→执行 / fail-closed 审计限额 / 404 口径；brief 三前提 fail-closed——租户单笔+日累计金额上限（settings `mcp/mark_paid_single_limit`+`mark_paid_daily_limit`，缺失/0/负数/非数字=未配置不可用）、dry_run 回显金额币种上限与采购单全明细、金额（按分整数比较）/币种与采购单不符直接拒绝；日累计从成功 execute 审计行（新增 `amount` 列）求和并在 execute 事务内重校验（TOCTOU 封死）。
@@ -2190,7 +2234,39 @@ Final Production Acceptance Deferred to P10
 
 ### 变更记录（2026-08-08）第 182 轮线2：全站大回归 v34（qa-engineer）
 
+### 变更记录（2026-08-08）第 182 轮线1：MCP 写面遗留 P2 收口（fullstack-engineer）
+
+- **并发限额硬保证**：execute 事务按租户串行化——进程内每租户互斥 + PostgreSQL 事务级 advisory lock（键 `mcpwrite_execute:<tenantID>`，加锁失败 fail-closed），封死次数/金额限额事务内读判断的并发竞态；不同租户互不阻塞。先红后绿 PostgreSQL 并发回归（次数抢名额 / 金额日累计 / 双租户隔离三场景）。
+- **审计 amount 口径收口 + W2 UI 缺口**：审计 API 补 `amount`（仅 `procurement_mark_paid` 有意义），后台审计列表新增「金额（仅支付登记）」列（非金额型动作显示「—」）与「调用模式」筛选，工具筛选补 `procurement_mark_paid`。docs/mcp.md、docs/api.md 同步。详见 `docs/progress/R182.md`。
+### 变更记录（2026-08-08）第 178 轮线2：竞品对标复评 v10（market-researcher）
+
+- **第十次竞品复评归档**：`docs/COMPETITIVE_BENCHMARK_R178.md`——16 项矩阵维持超越 4 / 达到 12 / 落后 0，维护期（R171–R173 已合入收口）Docker 全栈实测零回退（view-only 5 类写路径 403+40303、readonly 403+40301、settings 密文+脱敏、MCP 四只读工具+脱敏+用途分离、开放 API 边界）。
+- **诚实口径**：main 止于 #347（R173 线1）；R173 线2 至 R177 产出全部在 OPEN PR #348–#356，矩阵位次不计入，建议线1 按序合入。
+- **竞品动态**：AutoDS Claude MCP 多店铺单会话管理常态运营（含写）；店小秘美客多全托管批量刊登（内容/平台侧）；马帮 TikTok 美区双赛道认证（平台/合规侧）。无新结构性缺口。
+- **路线建议**：MCP 写白名单 D1–D4 勾选后 R179–R181 实现窗口（2.5 轮）为唯一高杠杆项；复评节奏维持每 12 轮或结构性触发。详见 `docs/progress/R178-line2.md`。
+
+### 变更记录（2026-08-08）第 180 轮线2：全站大回归 v33（qa-engineer）
+
+- **集成**：最新 main（`3fd5a35a`）按依赖叠加全部 OPEN PR #348–#360（权威状态核实均 OPEN），仅 #357 的 `docs/PROGRESS.md` 一处文书性冲突（保留双方记录），无语义冲突。
+- **合并顺序终版**：#360 已完整包含 #348/#349/#351–#356/#359（ancestry 实测），最省事顺序 **#360 → #350 → #357 → #358**，其余 9 个 PR 合入 #360 后 diff 为空直接 close。
+- **门禁**：Go 全量 103 包 ok、securitytests/permmatrix 113/113、check:dev、ui-copy strict、test:frontend 368、contracts 17、build:admin/collector、collector 18、全量 E2E 359 passed/3 skipped 全绿。
+- **Docker 全栈实测**：R57 主链路、W1 写链路全链（环境/租户/scope 三层闸门逐层拒绝→dry_run→一次性确认 token→execute→重放 alreadyExecuted→审计落库）、settings 加密/脱敏/存量明文惰性收编、modal 防重（双击仅 1 次 POST）、view-only 40303/readonly 40301/不可见店铺 404/跨租户 404、双租户隔离与零残留（clean+verify）全部通过。
+- **P0/P1 无；P2 全部为继承项**（mcp-tokens 文档口径、finance-report CSV 折算列、pnpm audit 构建链告警、R179 W2 UI 缺口）。详见 `docs/progress/R180-line2.md`。
+### 变更记录（2026-08-08）第 178 轮线2：竞品对标复评 v10（market-researcher）
+
+- **第十次竞品复评归档**：`docs/COMPETITIVE_BENCHMARK_R178.md`——16 项矩阵维持超越 4 / 达到 12 / 落后 0，维护期（R171–R173 已合入收口）Docker 全栈实测零回退（view-only 5 类写路径 403+40303、readonly 403+40301、settings 密文+脱敏、MCP 四只读工具+脱敏+用途分离、开放 API 边界）。
+- **诚实口径**：main 止于 #347（R173 线1）；R173 线2 至 R177 产出全部在 OPEN PR #348–#356，矩阵位次不计入，建议线1 按序合入。
+- **竞品动态**：AutoDS Claude MCP 多店铺单会话管理常态运营（含写）；店小秘美客多全托管批量刊登（内容/平台侧）；马帮 TikTok 美区双赛道认证（平台/合规侧）。无新结构性缺口。
+- **路线建议**：MCP 写白名单 D1–D4 勾选后 R179–R181 实现窗口（2.5 轮）为唯一高杠杆项；复评节奏维持每 12 轮或结构性触发。详见 `docs/progress/R178-line2.md`。
 - **集成**：权威核实 #346–#359 均已 merged，OPEN 仅 #360–#364；基于最新 main 按 ancestry 叠加 **#360 → #361 → #363 → #362 → #364**（仅 `docs/PROGRESS.md` 文书性冲突，无代码冲突），该顺序即合并顺序终版。
 - **门禁**：Go 全量 103 包 ok、securitytests/permmatrix 113/113、check:dev、ui-copy strict、test:frontend 372、contracts 17、collector 18、build:admin/collector/go build、全量 E2E 364 passed / 3 skipped 全绿。
 - **Docker 全栈实测（48 项场景矩阵全 PASS）**：R57 主链路、MCP 写全链五动作（W1 打标/去标、W2 异常标记/mark-placed/物流回填、W3 mark-paid 三前提四路径：未配置拒绝/金额币种不符拒绝/成功+重放幂等/超单笔与超日累计拒绝）、三层闸门逐层、确认 token 重放拒绝、审计落库（含 amount 列）、治理 UI 三角色（admin 可见写白名单卡片，operator/readonly 不可见）、settings 注册表加密/惰性收编、view-only 40303/readonly 40301/跨租户 404、双租户零残留（clean+verify）。
 - **P0/P1 无；P2 清单**：沿袭安全审计两项（并发限额竞态、audit amount 展示口径）+ MCP 限流 429 空体建议 + clean 保留 demo_* 账号（既有设计）。详见 `docs/progress/R182-line2.md`。
+
+### 变更记录（2026-08-08）第 183 轮线1：安全审计季度复跑（security-engineer）
+
+- **口径**：#360/#364 已合入 main，#361/#362/#363/#365/#366 仍 OPEN，故自 main 叠加 **#361 → #363 → #365 → #362 → #366** 后审计（仅 `docs/PROGRESS.md` 文书性冲突）。
+- **P1（已修）**：`procurement_mark_paid` 漏登记进 `isWriteTool`，唯一金额型写动作被入口中间件额外写一行 mode 空审计行（审计轨迹/mode 筛选失真；该行写失败会把已提交的支付登记回执改写为失败）。先红后绿：`TestWriteToolsAuditExactlyOncePerCall` + 白名单守护测试 `TestIsWriteToolCoversWholeWhitelist`。不影响限额（空 mode 不计入 execute 计数与金额日累计）。
+- **未发现其他 P0/P1**：写面 18 项攻击项、settings 敏感 key 注册表/惰性收编 6 项、R176/R181 已修项零回退。
+- **依赖**：`govulncheck` 0 可达漏洞；`pnpm audit --prod` 16 项（全部 admin 构建链）。
+- **门禁**：Go 全量（含 Docker PostgreSQL 集成）+ RacePostgres ×3 + 前端/契约/采集/构建全绿。详见 `docs/SECURITY_AUDIT_R183.md`、`docs/progress/R183.md`。

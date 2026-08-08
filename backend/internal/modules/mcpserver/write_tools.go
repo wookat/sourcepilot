@@ -27,7 +27,8 @@ const (
 func isWriteTool(name string) bool {
 	switch name {
 	case ToolOrdersAddTag, ToolOrdersRemoveTag,
-		ToolExceptionsMark, ToolProcurementMarkPlaced, ToolProcurementFillLogistics:
+		ToolExceptionsMark, ToolProcurementMarkPlaced, ToolProcurementFillLogistics,
+		ToolProcurementMarkPaid:
 		return true
 	}
 	return false
