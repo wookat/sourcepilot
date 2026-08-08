@@ -91,30 +91,43 @@ func (s *Service) writeEvent(tx *gorm.DB, poID uuid.UUID, from, to, source strin
 
 // transition moves a purchase order along the state machine inside one tx.
 func (s *Service) transition(ctx context.Context, id uuid.UUID, to, source string, payload any, mutate func(tx *gorm.DB, po *PurchaseOrder) error) (*PurchaseOrder, error) {
-	var po PurchaseOrder
+	var po *PurchaseOrder
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.First(&po, "id = ?", id).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrNotFound
-			}
-			return err
-		}
-		if !CanTransition(po.Status, to) {
-			return ErrIllegalTransition(po.Status, to)
-		}
-		from := po.Status
-		po.Status = to
-		if mutate != nil {
-			if err := mutate(tx, &po); err != nil {
-				return err
-			}
-		}
-		if err := tx.Save(&po).Error; err != nil {
-			return err
-		}
-		return s.writeEvent(tx, po.ID, from, to, source, payload)
+		var err error
+		po, err = s.transitionTx(tx, id, to, source, payload, mutate)
+		return err
 	})
 	if err != nil {
+		return nil, err
+	}
+	return po, nil
+}
+
+// transitionTx applies one state-machine move inside the caller's transaction
+// (used both by transition and by the MCP write pipeline, whose audit row
+// must commit atomically with the mutation).
+func (s *Service) transitionTx(tx *gorm.DB, id uuid.UUID, to, source string, payload any, mutate func(tx *gorm.DB, po *PurchaseOrder) error) (*PurchaseOrder, error) {
+	var po PurchaseOrder
+	if err := tx.First(&po, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if !CanTransition(po.Status, to) {
+		return nil, ErrIllegalTransition(po.Status, to)
+	}
+	from := po.Status
+	po.Status = to
+	if mutate != nil {
+		if err := mutate(tx, &po); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Save(&po).Error; err != nil {
+		return nil, err
+	}
+	if err := s.writeEvent(tx, po.ID, from, to, source, payload); err != nil {
 		return nil, err
 	}
 	return &po, nil
@@ -823,7 +836,22 @@ func (s *Service) MarkPlaced(ctx context.Context, id uuid.UUID, body MarkPlacedB
 	if ext == "" {
 		return nil, fmt.Errorf("%w: externalOrderId required", ErrBadRequest)
 	}
-	po, err := s.transition(ctx, id, StatusPlaced, EventSourceManual, map[string]any{"externalOrderId": ext}, func(tx *gorm.DB, po *PurchaseOrder) error {
+	po, err := s.transition(ctx, id, StatusPlaced, EventSourceManual, map[string]any{"externalOrderId": ext}, markPlacedMutate(ext, body.ActualPrices))
+	if err != nil {
+		return nil, err
+	}
+	if mock, ok := s.provider().(*trade.Mock1688); ok {
+		mock.RegisterManualOrder(ext, po.TotalAmount)
+	}
+	s.logOp(ctx, operator, "procurement.mark_placed", id.String(), ext)
+	return po, nil
+}
+
+// markPlacedMutate backfills the external order id, applies per-line actual
+// prices (with price-history capture) and recomputes the order total. Shared
+// by the admin mark-placed route and the MCP write pipeline.
+func markPlacedMutate(ext string, actualPrices map[string]float64) func(tx *gorm.DB, po *PurchaseOrder) error {
+	return func(tx *gorm.DB, po *PurchaseOrder) error {
 		po.ExternalOrderID = ext
 		var items []PurchaseOrderItem
 		if err := tx.Where("purchase_order_id = ?", po.ID).Find(&items).Error; err != nil {
@@ -833,7 +861,7 @@ func (s *Service) MarkPlaced(ctx context.Context, id uuid.UUID, body MarkPlacedB
 		total := 0.0
 		for i := range items {
 			it := &items[i]
-			if p, ok := body.ActualPrices[it.ID.String()]; ok && p > 0 {
+			if p, ok := actualPrices[it.ID.String()]; ok && p > 0 {
 				it.ActualPrice = &p
 				if err := tx.Model(it).Update("actual_price", p).Error; err != nil {
 					return err
@@ -860,15 +888,7 @@ func (s *Service) MarkPlaced(ctx context.Context, id uuid.UUID, body MarkPlacedB
 			po.TotalAmount = round2(total)
 		}
 		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
-	if mock, ok := s.provider().(*trade.Mock1688); ok {
-		mock.RegisterManualOrder(ext, po.TotalAmount)
-	}
-	s.logOp(ctx, operator, "procurement.mark_placed", id.String(), ext)
-	return po, nil
 }
 
 // MarkPaidBody backfills manual payment info.
@@ -907,16 +927,7 @@ func (s *Service) FillLogistics(ctx context.Context, id uuid.UUID, body Logistic
 	if tn == "" {
 		return nil, fmt.Errorf("%w: trackingNo required", ErrBadRequest)
 	}
-	po, err := s.transition(ctx, id, StatusShipped, EventSourceManual, map[string]any{"trackingNo": tn}, func(tx *gorm.DB, po *PurchaseOrder) error {
-		lg := PurchaseLogistics{
-			TenantID:        po.TenantID,
-			PurchaseOrderID: po.ID,
-			TrackingNo:      tn,
-			Carrier:         strings.TrimSpace(body.Carrier),
-			Status:          "in_transit",
-		}
-		return tx.Create(&lg).Error
-	})
+	po, err := s.transition(ctx, id, StatusShipped, EventSourceManual, map[string]any{"trackingNo": tn}, fillLogisticsMutate(tn, strings.TrimSpace(body.Carrier)))
 	if err != nil {
 		return nil, err
 	}
@@ -926,6 +937,21 @@ func (s *Service) FillLogistics(ctx context.Context, id uuid.UUID, body Logistic
 	s.logOp(ctx, operator, "procurement.fill_logistics", id.String(), tn)
 	s.fireOrderEvents(ctx, po, order.AutomationEventLogisticsCollected)
 	return po, nil
+}
+
+// fillLogisticsMutate stores the tracking record for the paid → shipped
+// transition. Shared by the admin route and the MCP write pipeline.
+func fillLogisticsMutate(trackingNo, carrier string) func(tx *gorm.DB, po *PurchaseOrder) error {
+	return func(tx *gorm.DB, po *PurchaseOrder) error {
+		lg := PurchaseLogistics{
+			TenantID:        po.TenantID,
+			PurchaseOrderID: po.ID,
+			TrackingNo:      trackingNo,
+			Carrier:         carrier,
+			Status:          "in_transit",
+		}
+		return tx.Create(&lg).Error
+	}
 }
 
 // MarkDelivered moves shipped → delivered (cloud warehouse inbound) and adds
