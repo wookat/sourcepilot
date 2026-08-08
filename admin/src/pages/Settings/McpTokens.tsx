@@ -208,13 +208,13 @@ export default function McpTokensPage() {
           </Tooltip>
           <Typography.Text type="secondary">
             配置方法见{' '}
-            <Typography.Link href="/docs/mcp.md" target="_blank" rel="noopener noreferrer">
+            <a href="/docs/mcp.md" target="_blank" rel="noopener noreferrer">
               docs/mcp.md
-            </Typography.Link>{' '}
+            </a>{' '}
             与{' '}
-            <Typography.Link href="/docs/open-api.md" target="_blank" rel="noopener noreferrer">
+            <a href="/docs/open-api.md" target="_blank" rel="noopener noreferrer">
               docs/open-api.md
-            </Typography.Link>
+            </a>
             ；token 一旦泄露请立即吊销
           </Typography.Text>
         </Space>

@@ -93,7 +93,9 @@ describe('McpTokensPage 审计卡片轻刷新时序（R150 v24 P2-1 回归）', 
 
     const mcpLink = await screen.findByRole('link', { name: 'docs/mcp.md' });
     expect(mcpLink).toHaveAttribute('href', '/docs/mcp.md');
+    expect(mcpLink).toHaveAttribute('target', '_blank');
     const openApiLink = screen.getByRole('link', { name: 'docs/open-api.md' });
     expect(openApiLink).toHaveAttribute('href', '/docs/open-api.md');
+    expect(openApiLink).toHaveAttribute('target', '_blank');
   });
 });
