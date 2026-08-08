@@ -69,7 +69,7 @@ fi
 # 若本机已有同项目名容器且来自其他目录，继续部署会静默共用容器/网络/数据卷。
 PROJECT_NAME="${COMPOSE_PROJECT_NAME:-trademind-prod}"
 existing_dir="$(docker ps -a --filter "label=com.docker.compose.project=${PROJECT_NAME}" \
-  --format '{{index .Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u | head -n1 || true)"
+  --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u | head -n1 || true)"
 if [ -n "$existing_dir" ] && [ "$existing_dir" != "$REPO_ROOT" ]; then
   printf '\n\033[1;33m[deploy][警示]\033[0m 本机已存在 compose 项目 %s 的容器（目录 %s，当前 %s）。\n' \
     "$PROJECT_NAME" "$existing_dir" "$REPO_ROOT"
