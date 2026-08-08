@@ -2262,3 +2262,11 @@ Final Production Acceptance Deferred to P10
 - **门禁**：Go 全量 103 包 ok、securitytests/permmatrix 113/113、check:dev、ui-copy strict、test:frontend 372、contracts 17、collector 18、build:admin/collector/go build、全量 E2E 364 passed / 3 skipped 全绿。
 - **Docker 全栈实测（48 项场景矩阵全 PASS）**：R57 主链路、MCP 写全链五动作（W1 打标/去标、W2 异常标记/mark-placed/物流回填、W3 mark-paid 三前提四路径：未配置拒绝/金额币种不符拒绝/成功+重放幂等/超单笔与超日累计拒绝）、三层闸门逐层、确认 token 重放拒绝、审计落库（含 amount 列）、治理 UI 三角色（admin 可见写白名单卡片，operator/readonly 不可见）、settings 注册表加密/惰性收编、view-only 40303/readonly 40301/跨租户 404、双租户零残留（clean+verify）。
 - **P0/P1 无；P2 清单**：沿袭安全审计两项（并发限额竞态、audit amount 展示口径）+ MCP 限流 429 空体建议 + clean 保留 demo_* 账号（既有设计）。详见 `docs/progress/R182-line2.md`。
+
+### 变更记录（2026-08-08）第 183 轮线1：安全审计季度复跑（security-engineer）
+
+- **口径**：#360/#364 已合入 main，#361/#362/#363/#365/#366 仍 OPEN，故自 main 叠加 **#361 → #363 → #365 → #362 → #366** 后审计（仅 `docs/PROGRESS.md` 文书性冲突）。
+- **P1（已修）**：`procurement_mark_paid` 漏登记进 `isWriteTool`，唯一金额型写动作被入口中间件额外写一行 mode 空审计行（审计轨迹/mode 筛选失真；该行写失败会把已提交的支付登记回执改写为失败）。先红后绿：`TestWriteToolsAuditExactlyOncePerCall` + 白名单守护测试 `TestIsWriteToolCoversWholeWhitelist`。不影响限额（空 mode 不计入 execute 计数与金额日累计）。
+- **未发现其他 P0/P1**：写面 18 项攻击项、settings 敏感 key 注册表/惰性收编 6 项、R176/R181 已修项零回退。
+- **依赖**：`govulncheck` 0 可达漏洞；`pnpm audit --prod` 16 项（全部 admin 构建链）。
+- **门禁**：Go 全量（含 Docker PostgreSQL 集成）+ RacePostgres ×3 + 前端/契约/采集/构建全绿。详见 `docs/SECURITY_AUDIT_R183.md`、`docs/progress/R183.md`。
