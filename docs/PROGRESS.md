@@ -2155,6 +2155,13 @@ Final Production Acceptance Deferred to P10
 - **Docker 全栈实测**：backend 镜像重建后 R57 主链路（自动生成采购单/打标/分仓/发货规则）、#353 两处修复面（跨租户 shopId 导入 404 + 零残留、settings 加密粘性）、modal 失败路径中文 toast 保持弹窗、migrationimport 中文文案、view-only 40303/readonly 40301/跨租户 404、MCP purpose 隔离与开放 API、双租户零残留全部通过。
 - **P1 即修**：#352 modal onOk 改「手动 close」后丢失 antd async pending 防重，双击敏感确认产生 2 次写请求；`modalOk`/`confirmSensitiveAction` 增加 in-flight 守卫 + 3 条单测，E2E 复绿。详见 `docs/progress/R177-line2.md`。
 
+### 变更记录（2026-08-08）第 178 轮线2：竞品对标复评 v10（market-researcher）
+
+- **第十次竞品复评归档**：`docs/COMPETITIVE_BENCHMARK_R178.md`——16 项矩阵维持超越 4 / 达到 12 / 落后 0，维护期（R171–R173 已合入收口）Docker 全栈实测零回退（view-only 5 类写路径 403+40303、readonly 403+40301、settings 密文+脱敏、MCP 四只读工具+脱敏+用途分离、开放 API 边界）。
+- **诚实口径**：main 止于 #347（R173 线1）；R173 线2 至 R177 产出全部在 OPEN PR #348–#356，矩阵位次不计入，建议线1 按序合入。
+- **竞品动态**：AutoDS Claude MCP 多店铺单会话管理常态运营（含写）；店小秘美客多全托管批量刊登（内容/平台侧）；马帮 TikTok 美区双赛道认证（平台/合规侧）。无新结构性缺口。
+- **路线建议**：MCP 写白名单 D1–D4 勾选后 R179–R181 实现窗口（2.5 轮）为唯一高杠杆项；复评节奏维持每 12 轮或结构性触发。详见 `docs/progress/R178-line2.md`。
+
 ### 变更记录（2026-08-08）第 179 轮线1：MCP 写白名单 W1 基建（fullstack-engineer）
 
 - **write:ops scope**：独立权限轴（readonly 不放宽、开放 API 面不放宽）；未知/空 scope fail-closed；写 token 仅 admin 可创建、强制过期（默认 30 天/最长 90 天）、scope 只在创建时授予。
@@ -2167,3 +2174,13 @@ Final Production Acceptance Deferred to P10
 - **三动作接入 W1 框架**：`exceptions_mark`（handle/ignore/unmark，幂等、复用既有 handled/ignored 语义）、`procurement_mark_placed`（placing→placed，回填外部单号）、`procurement_fill_logistics`（paid→shipped + 物流行）；全部 dry-run 影响预览 + 一次性确认 token，业务变更与审计同事务，跨租户/不存在统一 404；`mark-paid` 留待 W3（金额上限 + 三前提）。
 - **后台治理 UI**：租户级 `mcp/write_enabled` 开关（admin-only、默认关、开启前风险确认）、写 token 创建/吊销管理（operator 不可见，后端列表过滤 + 吊销 404 同步收紧）、写审计列表补 `mode`/`paramsSummary`/`confirmHash` 展示。
 - **R179 线2 遗留**：`platform_shopee/partner_key` 纳入敏感注册表静态种子（消除 bootstrap 顺序依赖），补加密/脱敏回归。详见 `docs/progress/R180.md`、`docs/mcp.md`。
+||||||| 00cc577c
+=======
+
+### 变更记录（2026-08-08）第 178 轮线2：竞品对标复评 v10（market-researcher）
+
+- **第十次竞品复评归档**：`docs/COMPETITIVE_BENCHMARK_R178.md`——16 项矩阵维持超越 4 / 达到 12 / 落后 0，维护期（R171–R173 已合入收口）Docker 全栈实测零回退（view-only 5 类写路径 403+40303、readonly 403+40301、settings 密文+脱敏、MCP 四只读工具+脱敏+用途分离、开放 API 边界）。
+- **诚实口径**：main 止于 #347（R173 线1）；R173 线2 至 R177 产出全部在 OPEN PR #348–#356，矩阵位次不计入，建议线1 按序合入。
+- **竞品动态**：AutoDS Claude MCP 多店铺单会话管理常态运营（含写）；店小秘美客多全托管批量刊登（内容/平台侧）；马帮 TikTok 美区双赛道认证（平台/合规侧）。无新结构性缺口。
+- **路线建议**：MCP 写白名单 D1–D4 勾选后 R179–R181 实现窗口（2.5 轮）为唯一高杠杆项；复评节奏维持每 12 轮或结构性触发。详见 `docs/progress/R178-line2.md`。
+>>>>>>> origin/main
