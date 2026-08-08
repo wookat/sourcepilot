@@ -2139,3 +2139,9 @@ Final Production Acceptance Deferred to P10
 - **P1-2**：`PUT /api/v1/settings` 省略 `isEncrypted` 可把已加密密钥降级为明文落库并原文回显；`settings.putOne` 改为加密粘性（已加密项不可被请求体降级）。
 - **P2 一并收口**：`customerchat.MarkReplied` / `SendPlatformMessage`、`orderexception.BindSKU` 改为「先 scope 后 body」（view-only → 403+40303、不可见 → 404、可操作 → 400）；补 MCP 入口 purpose 反向隔离回归测试。
 - **零回退复验**：R165 六处 P1、#322/#330、40303 envelope、三轴探针、MCP/开放 API token 治理与限流/XFF/审计 fail-closed 全部零回退；`govulncheck` 0 可达漏洞，`pnpm audit --prod` 15 条（基线 13）均为 admin 构建工具链，登记 P2。详见 `docs/SECURITY_AUDIT_R176.md`。
+
+### 变更记录（2026-08-08）第 176 轮线2：全站视觉/UX 复核 v12（user-experience-officer）
+
+- **矩阵全扫**：5 persona × 5 视口 × 98 路由共 2450 组合，pageerror/根横向溢出/NaN·Invalid Date·undefined/redirect-login/403·500 噪音全零；预期权限范围 404 网络日志（页面优雅中文空态）不计缺陷。
+- **新面走查**：modal 失败保持弹窗开 + 中文 toast（#352）、migrationimport 向导与 shape 校验中文（#352）、客服发送失败中文提示（#349）、40303 view-only 预禁用/tooltip（#346/#347）12/12 断言通过；v11 遗留（mcp-tokens 文档纯文本、finance-report CSV 未折算列）维持口径。
+- **P2 即修**：客服会话详情 antd Descriptions `span={2}` 与响应式 column 冲突（375 视口 console error）改响应式 span。详见 `docs/ux-review/UX_REVIEW_V12_REPORT.md`、`docs/progress/R176-line2.md`。
