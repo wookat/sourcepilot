@@ -23,6 +23,16 @@ const (
 	ToolProcurementFillLogistics = "procurement_fill_logistics"
 )
 
+// WriteToolNames returns the whitelisted write tool names for callers
+// outside this package (e.g. the audit read API's least-exposure filter).
+func WriteToolNames() []string {
+	return []string{
+		ToolOrdersAddTag, ToolOrdersRemoveTag,
+		ToolExceptionsMark, ToolProcurementMarkPlaced, ToolProcurementFillLogistics,
+		ToolProcurementMarkPaid,
+	}
+}
+
 // isWriteTool reports whether a tool audits inside the write pipeline.
 func isWriteTool(name string) bool {
 	switch name {

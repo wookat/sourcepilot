@@ -173,11 +173,16 @@ func (s *Service) WriteThrottled(ctx context.Context, key string, opts WriteOpts
 
 // ListFilter narrows List within the tenant scope.
 type ListFilter struct {
-	Tool     string
-	Status   string
-	Mode     string
-	Page     int
-	PageSize int
+	Tool   string
+	Status string
+	Mode   string
+	// HideWriteRows excludes write-action rows (any row with a write mode,
+	// or rows of the WriteToolNames whitelist) for callers without the
+	// write governance permission.
+	HideWriteRows  bool
+	WriteToolNames []string
+	Page           int
+	PageSize       int
 }
 
 // ListResult carries one page of audit rows.
@@ -213,6 +218,12 @@ func (s *Service) List(ctx context.Context, tenantID int64, f ListFilter) (*List
 	}
 	if v := strings.TrimSpace(f.Mode); v != "" {
 		tx = tx.Where("mode = ?", v)
+	}
+	if f.HideWriteRows {
+		tx = tx.Where("(mode = '' OR mode IS NULL)")
+		if len(f.WriteToolNames) > 0 {
+			tx = tx.Where("tool NOT IN ?", f.WriteToolNames)
+		}
 	}
 	var res ListResult
 	if err := tx.Count(&res.Total).Error; err != nil {
