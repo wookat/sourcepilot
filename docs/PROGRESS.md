@@ -2048,3 +2048,9 @@ Final Production Acceptance Deferred to P10
 - **验收包增量**：`ACCEPTANCE_R123.md` 新增 §一/18「R163–R166 增量能力」（view-only 权限体系收口合并状态如实标注：#328/#329/#330/#331 已合入，#332 OPEN 有冲突、#333 OPEN 依赖 #332；大回归 v29 报告在 `integration/r166-regression-v29` 分支，v28 报告不可检索登记为会话侧未归档）+ §三证据索引 + §五 R167 待办；`DEMO_SCRIPT.md` 新增第 21b 步 view-only 演示点（403 中文提示「店铺无操作权限」，30 分钟总长不变）。
 - **Docker 三角色（含 view-only persona）实跑**：12 项 UI 断言全部 PASS（含 UX v10 #327 补验：币种设置路由离开确认弹窗、备份页时间列/中文按钮），录屏留证外置不入库；clean + verify 零残留。`pnpm check:ui-copy --strict` 通过。
 - 详见 `docs/progress/R167-line2.md`。
+
+### 变更记录（2026-08-08）第 169 轮线1：全站视觉/UX 复核 v11（user-experience-officer）
+
+- **硬指标矩阵全绿**：5 persona（admin/operator/readonly/临时 view-only/平台管理员）× 5 精确视口（1920/1440/1024/768/375）× 74 路由 = 1850 组合 headless 全扫，console error / pageerror / 根节点横向溢出 / NaN·Invalid Date·undefined 直出 / 403·500 噪音均为 0。
+- **v10 遗留项回归无回退**（币种未保存离开确认、备份/恢复中文按钮与时间格式、大屏 tooltip、操作日志中文化）；R163–R168 新面（view-only 审单预禁用/整批 403/中文 toast/删除店铺中文弹窗/40303 文案统一）全部通过；移动端与视觉现代感达标。
+- **本轮无新 P1/P2**；遗留维持 v10 P2-3（mcp-tokens 文档链接）与 v9 P2-3（CSV 未折算列）待产品确认。基线为 main + 叠加 #335/#337。详见 `docs/ux-review/UX_REVIEW_V11_REPORT.md`、`docs/progress/R169.md`。
