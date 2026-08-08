@@ -37,3 +37,4 @@ description: TradeMind Docker 全栈 demo 环境手工走查要点：seed 账号
 - MCP 审计日志表是 `mcp_tool_call_logs`（不是 mcp_call_audits）；开放 API 可用端点为 `/api/open/v1/orders`、`/api/open/v1/inventory`（`/summary` 404）。填充审计卡时直接用 token 调这两个端点。
 - `/settings/report-currency` 的 unsaved 提示只是内联文案，可能没有路由级拦截（v10 走查发现为 P1）：验证时必须真的点侧栏离开再返回确认值是否丢失，不能只看提示出现。
 - 导出防重复验证法：快速双击导出按钮后检查 `~/Downloads` 文件数（应只有 1 个 CSV），比只看 toast 可靠。
+- 验证链接 `target="_blank"` 时不要相信插桩后的自动化浏览器 DOM：Devin/agent 浏览器工具会从渲染后的 `<a>` 上剥离 `target=_blank`（rel 保留），导致假 FAIL。正确做法：检查生产 bundle（`docker exec <admin容器> grep -o 'target:"_blank"' /usr/share/nginx/html/p__*.js`）或用干净 Playwright Chromium（executablePath 指向 `~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`，在 `collector/` 目录跑脚本以复用其 playwright 依赖）验证 DOM 与 popup 新标签行为。
