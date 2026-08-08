@@ -1,17 +1,26 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useModel } from '@umijs/max';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { McpAuditLogRow } from '@/services/mcpTokens';
+import type { McpAuditLogRow, McpTokenRow } from '@/services/mcpTokens';
 import McpTokensPage from '../McpTokens';
 
 const listMcpTokens = vi.fn();
 const listMcpAuditLogs = vi.fn();
+const fetchSettingsList = vi.fn();
+const saveSettingsItems = vi.fn();
 
 vi.mock('@/services/mcpTokens', () => ({
   listMcpTokens: (...args: unknown[]) => listMcpTokens(...args),
   listMcpAuditLogs: (...args: unknown[]) => listMcpAuditLogs(...args),
   createMcpToken: vi.fn(),
+  createMcpWriteToken: vi.fn(),
   revokeMcpToken: vi.fn(),
+}));
+
+vi.mock('@/services/settings', () => ({
+  fetchSettingsList: (...args: unknown[]) => fetchSettingsList(...args),
+  saveSettingsItems: (...args: unknown[]) => saveSettingsItems(...args),
 }));
 
 function auditRow(id: string, tool: string): McpAuditLogRow {
@@ -23,6 +32,19 @@ function auditRow(id: string, tool: string): McpAuditLogRow {
     tool,
     status: 'success',
     durationMs: 12,
+    createdAt: '2026-08-07T00:00:00Z',
+  };
+}
+
+function tokenRow(id: string, name: string, scope: string): McpTokenRow {
+  return {
+    id,
+    name,
+    maskedToken: 'tmmcp_****' + id.slice(-4),
+    scope,
+    purpose: 'mcp',
+    revoked: false,
+    expired: false,
     createdAt: '2026-08-07T00:00:00Z',
   };
 }
@@ -57,6 +79,7 @@ describe('McpTokensPage 审计卡片轻刷新时序（R150 v24 P2-1 回归）', 
   });
 
   it('迟到的旧审计响应不得覆盖后发请求的结果（不闪回「暂无数据」）', async () => {
+    fetchSettingsList.mockResolvedValue({ items: [] });
     listMcpTokens.mockResolvedValue([]);
     const first = deferred<{ total: number; items: McpAuditLogRow[] }>();
     const second = deferred<{ total: number; items: McpAuditLogRow[] }>();
@@ -87,6 +110,7 @@ describe('McpTokensPage 审计卡片轻刷新时序（R150 v24 P2-1 回归）', 
   });
 
   it('文档入口为可点击链接，指向站内自托管文档（UX v10 P2-3）', async () => {
+    fetchSettingsList.mockResolvedValue({ items: [] });
     listMcpTokens.mockResolvedValue([]);
     listMcpAuditLogs.mockResolvedValue({ total: 0, items: [] });
     render(<McpTokensPage />);
@@ -97,5 +121,108 @@ describe('McpTokensPage 审计卡片轻刷新时序（R150 v24 P2-1 回归）', 
     const openApiLink = screen.getByRole('link', { name: 'docs/open-api.md' });
     expect(openApiLink).toHaveAttribute('href', '/docs/open-api.md');
     expect(openApiLink).toHaveAttribute('target', '_blank');
+  });
+});
+
+describe('McpTokensPage MCP 写白名单管理（R180 W2）', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+    fetchSettingsList.mockResolvedValue({ items: [] });
+    listMcpAuditLogs.mockResolvedValue({ total: 0, items: [] });
+  });
+
+  it('管理员可见写管理卡片：租户开关默认关、写 token 单独列表、风险提示', async () => {
+    vi.mocked(useModel).mockReturnValue({
+      initialState: { currentUser: { role: 'admin' } },
+    });
+    listMcpTokens.mockResolvedValue([
+      tokenRow('token-r1', 'reader', 'readonly'),
+      tokenRow('token-w1', 'writer', 'readonly,write:ops'),
+    ]);
+    render(<McpTokensPage />);
+
+    const writeCard = (await screen.findByText('MCP 写白名单（write:ops，仅管理员）')).closest(
+      '.ant-card',
+    ) as HTMLElement;
+    expect(within(writeCard).getByText('高风险能力：三层闸门默认全关')).toBeInTheDocument();
+    // 租户开关默认关闭
+    expect(within(writeCard).getByRole('switch')).not.toBeChecked();
+    // 写 token 只出现在写卡片，只读表格不展示
+    expect(await within(writeCard).findByText('writer')).toBeInTheDocument();
+    const readCard = screen
+      .getByText('创建只读 token', { selector: 'span' })
+      .closest('.ant-card') as HTMLElement;
+    expect(within(readCard).getByText('reader')).toBeInTheDocument();
+    expect(within(readCard).queryByText('writer')).toBeNull();
+  });
+
+  it('开启租户开关前弹出风险确认，确认后才保存设置', async () => {
+    vi.mocked(useModel).mockReturnValue({
+      initialState: { currentUser: { role: 'admin' } },
+    });
+    listMcpTokens.mockResolvedValue([]);
+    saveSettingsItems.mockResolvedValue({ items: [] });
+    const user = userEvent.setup();
+    render(<McpTokensPage />);
+
+    const writeCard = (await screen.findByText('MCP 写白名单（write:ops，仅管理员）')).closest(
+      '.ant-card',
+    ) as HTMLElement;
+    await user.click(within(writeCard).getByRole('switch'));
+    expect(saveSettingsItems).not.toHaveBeenCalled();
+    expect(await screen.findByText('确认开启本租户的 MCP 写白名单？')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '确认开启' }));
+    expect(saveSettingsItems).toHaveBeenCalledWith([
+      expect.objectContaining({ groupKey: 'mcp', itemKey: 'write_enabled', itemValue: 'true' }),
+    ]);
+  });
+
+  it('operator 不可见写管理卡片，且不拉取写开关设置', async () => {
+    vi.mocked(useModel).mockReturnValue({
+      initialState: { currentUser: { role: 'operator' } },
+    });
+    listMcpTokens.mockResolvedValue([tokenRow('token-r1', 'reader', 'readonly')]);
+    render(<McpTokensPage />);
+
+    expect(await screen.findByText('reader')).toBeInTheDocument();
+    expect(screen.queryByText('MCP 写白名单（write:ops，仅管理员）')).toBeNull();
+    expect(fetchSettingsList).not.toHaveBeenCalled();
+  });
+
+  it('审计列表展示 mode / paramsSummary / confirmHash', async () => {
+    vi.mocked(useModel).mockReturnValue({
+      initialState: { currentUser: { role: 'admin' } },
+    });
+    listMcpTokens.mockResolvedValue([]);
+    listMcpAuditLogs.mockResolvedValue({
+      total: 1,
+      items: [
+        {
+          ...auditRow('log-w1', 'procurement_mark_placed'),
+          mode: 'execute',
+          paramsSummary: 'purchaseOrderId=po-1 externalOrderId=1688-X1',
+          confirmHash: 'abcdef0123456789abcdef0123456789',
+        },
+      ],
+    });
+    render(<McpTokensPage />);
+
+    expect(await screen.findByText('execute 执行')).toBeInTheDocument();
+    expect(
+      screen.getByText('purchaseOrderId=po-1 externalOrderId=1688-X1'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('abcdef012345…')).toBeInTheDocument();
   });
 });

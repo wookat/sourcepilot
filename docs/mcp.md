@@ -66,14 +66,25 @@ R179 起 MCP 提供极小的受控写面。设计口径：D1 P0 最小动作集�
 - 跨租户目标（订单号 / 标签名不属于本租户）统一返回「不存在」，与真正不存在不可区分（404 语义，无存在性探测）。
 - 每次调用单目标对象（一个订单 + 一个标签），无批量入口。
 
-### 写工具列表（P0 首批）
+### 写工具列表（P0）
 
 | 工具 | 说明 |
 | --- | --- |
 | `orders_add_tag` | 为一个订单添加一个**已存在**的租户标签（幂等：已有该标签时为无操作，`applied=0`） |
 | `orders_remove_tag` | 移除一个订单上的一个标签（幂等：本就没有时为无操作，`removed=0`） |
+| `exceptions_mark` | 异常标记（R180 W2）：`action` 为 `handle`（标记已处理）/ `ignore`（标记已忽略）/ `unmark`（清除标记）。幂等：重复同向标记不产生新行，`handle`↔`ignore` 互斥切换，`unmark` 无标记时为无操作。目标为 `sourceType` + `sourceId`（订单 / 订单项等），跨租户 / 不存在统一「记录不存在」 |
+| `procurement_mark_placed` | 采购单 mark-placed（R180 W2）：回填 1688 外部单号，走既有状态机 `placing → placed`，非法状态在 dry_run 即拒绝；跨租户 / 不存在统一「采购单不存在」 |
+| `procurement_fill_logistics` | 物流运单号回填（R180 W2）：`paid → shipped` 并创建物流记录（运单号 + 承运商）；同一状态机 / 404 口径 |
 
-后续 P0 动作（异常标记、mark-placed、物流回填、带三前提的 mark-paid）按同一框架在后续轮次接入。
+`mark-paid` **本轮刻意不接入**：留待 W3 与「租户金额上限 + 三前提（对账 / 审核 / 金额摘要）」一起落地。
+
+### 后台治理 UI（R180 W2）
+
+管理页「MCP 只读接入」新增管理员专属的「MCP 写白名单」卡片（operator / readonly 完全不可见）：
+
+- 租户级 `mcp / write_enabled` 开关：默认关，开启前弹风险确认（说明三层闸门与全局 `MCP_WRITE_ENABLED` 的关系）。
+- 写 token 创建 / 吊销：独立列表，只列 `write:ops` token；明文仅创建时展示一次；默认 30 天 / 最长 90 天。后端同步收紧：非 admin 的 token 列表**看不到**写 token，非 admin 吊销写 token 返回 404（不可见即不可操作）。
+- 审计列表补充展示写管道字段：`mode`（dry_run / execute）、`paramsSummary`（白名单参数摘要）、`confirmHash`（确认 token 绑定哈希），读工具行为空。
 
 ## 只读工具列表
 

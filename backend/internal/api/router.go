@@ -809,7 +809,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	mcpAuditSvc := &mcpaudit.Service{DB: dep.DB}
 	mcpaudit.Register(authed, &mcpaudit.Handler{Svc: mcpAuditSvc})
 	if dep.Config == nil || dep.Config.MCPEnabled {
-		mcpDeps := &mcpserver.Deps{DB: dep.DB, Tokens: mcpTokenSvc, Exceptions: excSvc, Audits: mcpAuditSvc, Orders: orderSvc, Settings: settingsSvc}
+		mcpDeps := &mcpserver.Deps{DB: dep.DB, Tokens: mcpTokenSvc, Exceptions: excSvc, Audits: mcpAuditSvc, Orders: orderSvc, Procurement: procurementSvc, Settings: settingsSvc}
 		if dep.Redis != nil && dep.Redis.Client != nil {
 			mcpDeps.Redis = dep.Redis.Client
 		}

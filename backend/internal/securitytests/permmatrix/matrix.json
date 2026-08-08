@@ -6477,7 +6477,7 @@
     "method": "POST",
     "path": "/api/mcp",
     "probe": false,
-    "note": "MCP entry; authenticated by tenant-scoped API token (sp_mcp_ro_*), not admin JWT; read tools need readonly scope, whitelisted write tools (orders_add_tag/orders_remove_tag) need write:ops + MCP_WRITE_ENABLED + tenant settings mcp/write_enabled and go through dry_run→confirmation→execute; gate-closed 403s, readonly-token 403, cross-tenant 404, confirmation reuse/expiry/cross-caller/param-drift rejection, fail-closed audit and quotas covered by mcpserver r179_write_test.go; write:ops token creation is admin-only (mcptoken handler)"
+    "note": "MCP entry; authenticated by tenant-scoped API token (sp_mcp_ro_*), not admin JWT; read tools need readonly scope, whitelisted write tools (orders_add_tag/orders_remove_tag + R180 W2: exceptions_mark/procurement_mark_placed/procurement_fill_logistics) need write:ops + MCP_WRITE_ENABLED + tenant settings mcp/write_enabled and go through dry_run→confirmation→execute; gate-closed 403s, readonly-token 403, cross-tenant 404, confirmation reuse/expiry/cross-caller/param-drift rejection, fail-closed audit and quotas covered by mcpserver r179_write_test.go and r180_write_test.go; write:ops token governance (create/list/revoke) is admin-only — non-admins never see write tokens (mcptoken handler_r179/r180 tests); mark-paid deliberately NOT exposed (deferred to W3 with amount ceiling + preconditions)"
   },
   {
     "method": "GET",

@@ -27,11 +27,20 @@ func (s *Service) resolveSourceScope(ctx context.Context, sourceType, sourceID s
 	if s == nil || s.DB == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
+	return s.resolveSourceScopeDB(ctx, s.DB, sourceType, sourceID)
+}
+
+// resolveSourceScopeDB is resolveSourceScope against an explicit *gorm.DB
+// (the MCP write pipeline passes its own transaction).
+func (s *Service) resolveSourceScopeDB(ctx context.Context, conn *gorm.DB, sourceType, sourceID string) (*sourceScope, error) {
+	if conn == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
 	sid, err := uuid.Parse(strings.TrimSpace(sourceID))
 	if err != nil {
 		return nil, gorm.ErrRecordNotFound
 	}
-	db := s.DB.WithContext(ctx)
+	db := conn.WithContext(ctx)
 	orderScope := func(orderID uuid.UUID) (*sourceScope, error) {
 		var o order.Order
 		if err := db.Select("id", "tenant_id", "shop_id").

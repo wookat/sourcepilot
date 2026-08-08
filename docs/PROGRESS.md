@@ -2169,3 +2169,9 @@ Final Production Acceptance Deferred to P10
 - **dry-run→确认 token→执行**：确认 token 一次性、TTL 5 分钟、绑定租户+调用 token+工具+参数哈希，原子消费；执行成功后重放 `alreadyExecuted` 不重复变更；execute 的业务变更与审计行同事务，审计失败整体回滚；限额每 token 30 次/时、每租户 200 次/天（计数失败即拒绝）。
 - **首个动作**：`orders_add_tag`/`orders_remove_tag`（幂等、单目标、跨租户 404）；消息线零 MCP 写触点（工具面断言）。详见 `docs/progress/R179.md`、`docs/mcp.md`。
 
+### 变更记录（2026-08-08）第 180 轮线1：MCP 写白名单 W2（fullstack-engineer）
+
+- **三动作接入 W1 框架**：`exceptions_mark`（handle/ignore/unmark，幂等、复用既有 handled/ignored 语义）、`procurement_mark_placed`（placing→placed，回填外部单号）、`procurement_fill_logistics`（paid→shipped + 物流行）；全部 dry-run 影响预览 + 一次性确认 token，业务变更与审计同事务，跨租户/不存在统一 404；`mark-paid` 留待 W3（金额上限 + 三前提）。
+- **后台治理 UI**：租户级 `mcp/write_enabled` 开关（admin-only、默认关、开启前风险确认）、写 token 创建/吊销管理（operator 不可见，后端列表过滤 + 吊销 404 同步收紧）、写审计列表补 `mode`/`paramsSummary`/`confirmHash` 展示。
+- **R179 线2 遗留**：`platform_shopee/partner_key` 纳入敏感注册表静态种子（消除 bootstrap 顺序依赖），补加密/脱敏回归。详见 `docs/progress/R180.md`、`docs/mcp.md`。
+>>>>>>> pr361

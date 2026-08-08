@@ -25,6 +25,12 @@ type logView struct {
 	Status      string `json:"status"`
 	DurationMs  int64  `json:"durationMs"`
 	CreatedAt   string `json:"createdAt"`
+	// Write-pipeline fields (R180 W2): empty for read tools. ParamsSummary
+	// only carries whitelisted identifiers (never free-form values or the
+	// confirmation token); ConfirmHash is the confirmation binding hash.
+	Mode          string `json:"mode,omitempty"`
+	ParamsSummary string `json:"paramsSummary,omitempty"`
+	ConfirmHash   string `json:"confirmHash,omitempty"`
 }
 
 // List GET /mcp/audit-logs
@@ -61,6 +67,10 @@ func (h *Handler) List(c *gin.Context) {
 			Status:      r.Status,
 			DurationMs:  r.DurationMs,
 			CreatedAt:   r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+
+			Mode:          r.Mode,
+			ParamsSummary: r.ParamsSummary,
+			ConfirmHash:   r.ConfirmHash,
 		})
 	}
 	response.OK(c, gin.H{"total": res.Total, "items": items})

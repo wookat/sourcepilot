@@ -24,6 +24,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/mcpwrite"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ratelimit"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -65,6 +66,9 @@ type Deps struct {
 	WriteEnabled bool
 	// Orders backs the whitelisted order-tag write tools; nil disables them.
 	Orders *order.Service
+	// Procurement backs the whitelisted purchase-order write tools
+	// (mark-placed / 物流回填); nil disables them.
+	Procurement *procurement.Service
 	// Settings resolves the tenant-level write switch; nil keeps every
 	// tenant's write gate closed (fail closed).
 	Settings *settings.Service
