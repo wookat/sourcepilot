@@ -168,13 +168,13 @@ func (s *Service) Validate(c *gin.Context, body WizardBody) (*ValidateResult, er
 		return nil, err
 	}
 	body.Kind = kind
-	if err := body.validateShape(); err != nil {
-		return nil, err
-	}
 	if kindNeedsShop(kind) {
 		if _, err := s.resolveShop(c, body.ShopID); err != nil {
 			return nil, err
 		}
+	}
+	if err := body.validateShape(); err != nil {
+		return nil, err
 	}
 	res := &ValidateResult{TotalRows: len(body.Rows)}
 	switch kind {
@@ -215,18 +215,18 @@ func (s *Service) Commit(c *gin.Context, body WizardBody, adminID *uuid.UUID) (*
 		return nil, err
 	}
 	body.Kind = kind
-	if err := body.validateShape(); err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(body.FileHash) == "" {
-		return nil, fmt.Errorf("fileHash is required")
-	}
 	var shopID *uuid.UUID
 	if kindNeedsShop(kind) {
 		shopID, err = s.resolveShop(c, body.ShopID)
 		if err != nil {
 			return nil, err
 		}
+	}
+	if err := body.validateShape(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(body.FileHash) == "" {
+		return nil, fmt.Errorf("fileHash is required")
 	}
 	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {

@@ -2,6 +2,8 @@
 
 **Stage update**: 2026-08-08 — **Round 174 线2：全站大回归 v31（0 P0/P1；门禁全绿 + E2E 359/0 + Docker 全栈 35/35；合并顺序：直接合并 #348；#245/#247/#248 建议关闭）**：详见附录 [`docs/progress/R174-line2.md`](progress/R174-line2.md)。
 
+**Stage update**: 2026-08-08 — **Round 174 线1：R173 线2 P2×4 收口（客服发送英文报错中文化；迁移导入先 scope 后 body；seed delivered_at 未来时间戳修正；异常工作台 modal rethrow dev overlay 修复）**：详见附录 [`docs/progress/R174.md`](progress/R174.md)。
+
 **Stage update**: 2026-08-08 — **Round 173 线1：40303 文案全站回归（无新漏网）+ R172 P2 收口（handle/ignore 先 scope 后 body；R171 缺档闭环；迁移导入行级文本待产品确认）**：详见附录 [`docs/progress/R173.md`](progress/R173.md)。
 
 **Stage update**: 2026-08-08 — **Round 171 线1：全站大回归 v30（0 P0/P1；合并顺序：直接合并 #342；#245/#247/#248 冗余建议关闭）**：详见附录 [`docs/progress/R171.md`](progress/R171.md)。
@@ -2120,3 +2122,11 @@ Final Production Acceptance Deferred to P10
 - **P2③ 收口**：异常 handle/ignore 校验顺序统一为「先 scope 后 body」（`orderexception/handler.go`），空 body 时 view-only → 403+40303、不可见 → 404、可操作 → 400；补先红后绿回归测试 `TestExceptionMarkScopeBeforeBody`。
 - **P2② 闭环核实**：`docs/progress/R171.md` 已随 #344（MERGED）入库，缺档已闭环无需补档。
 - **P2① 登记**：迁移导入行级失败文本「当前账号无该店铺的操作权限」待产品确认是否统一，本轮不改行为。详见 `docs/progress/R173.md`。
+
+### 变更记录（2026-08-08）第 174 轮线1：R173 线2 P2 批次收口（fullstack-engineer）
+
+- **P2① 中文化**：customerchat 模块 send-platform-message 及同族参数校验英文直出（`reply/clientMessageId/editedReply/finalReply is required`、`conversation has no platform external id`）全部中文化；Provider 层防御性英文串不可达用户面，保持原样。
+- **P2② 收口**：migrationimport Validate/Commit 统一为先 `resolveShop`（403/404）后 shape/fileHash 校验（沿 #347「先 scope 后 body」口径）；补先红后绿回归 `TestMigrationImportScopeBeforeBody`。
+- **P2③ 修正**：demoseed 销售单 delivered_at 由 orderedAt+48h（SO-DELIVERED-0004 落在未来 +18h）改为 +24h，订单与运单同修；补回归 `TestFullDemoSeedDeliveredAtNotInFuture`。
+- **P2④ 修复**：订单异常工作台「已处理/忽略/取消标记」modal/Popconfirm rethrow 改为手动 close 控制，dev server 下不再触发 react-error-overlay 盖住 toast（根因：AntD ActionButton 对 rejected onOk `Promise.reject` 直出）；admin 其余 7 处同模式登记待批量收口。
+- **顺带巡检**：R172–R173 合入面复查，收口裸英文 `exceptionType required` → 「exceptionType 不能为空」；migrationimport 向导 shape 校验英文串登记待后续中文化。详见 `docs/progress/R174.md`。
