@@ -144,3 +144,29 @@ func TestTenantIsolation(t *testing.T) {
 		t.Fatal("cross-tenant revoke succeeded")
 	}
 }
+
+func TestCreateCapTenantZero(t *testing.T) {
+	// Tenant 0 (platform bootstrap admin, outside the tenant system) follows
+	// the same per-tenant cap: its token count is scoped to tenant_id = 0 and
+	// must neither bypass the cap nor consume any other tenant's quota.
+	svc := &mcptoken.Service{DB: openTestDB(t)}
+	for i := 0; i < mcptoken.MaxActiveTokensPerTenant; i++ {
+		if _, err := svc.Create(context.Background(), 0, fmt.Sprintf("t0-%d", i), "", nil, nil); err != nil {
+			t.Fatalf("create %d for tenant 0: %v", i, err)
+		}
+	}
+	if _, err := svc.Create(context.Background(), 0, "t0-over", "", nil, nil); err != mcptoken.ErrTooManyTokens {
+		t.Fatalf("tenant 0 over-cap create: got %v, want ErrTooManyTokens", err)
+	}
+	// A regular tenant is unaffected by tenant 0's full quota.
+	if _, err := svc.Create(context.Background(), 1, "tenant-1-ok", "", nil, nil); err != nil {
+		t.Fatalf("tenant 1 create blocked by tenant 0 quota: %v", err)
+	}
+	rows, err := svc.List(context.Background(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != mcptoken.MaxActiveTokensPerTenant {
+		t.Fatalf("tenant 0 list: got %d rows, want %d", len(rows), mcptoken.MaxActiveTokensPerTenant)
+	}
+}

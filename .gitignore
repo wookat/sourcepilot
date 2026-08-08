@@ -16,6 +16,9 @@
 # 生产部署本机 compose override（deploy-prod.sh 自动叠加，按机器维护，不入库）
 docker-compose.prod.override.yml
 
+# Admin 站内自托管文档（scripts/sync-admin-docs.mjs 构建时从 docs/ 复制，单一来源在 docs/）
+/admin/public/docs/
+
 # Runtime data
 tools/k6/
 /data/uploads/*

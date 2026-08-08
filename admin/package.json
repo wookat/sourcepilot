@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node ../scripts/sync-admin-docs.mjs",
     "dev": "max dev",
+    "prebuild": "node ../scripts/sync-admin-docs.mjs",
     "build": "max build",
     "postinstall": "max setup",
     "preview": "max preview",

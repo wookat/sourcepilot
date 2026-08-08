@@ -2084,6 +2084,13 @@ Final Production Acceptance Deferred to P10
 - **v10 遗留项回归无回退**（币种未保存离开确认、备份/恢复中文按钮与时间格式、大屏 tooltip、操作日志中文化）；R163–R168 新面（view-only 审单预禁用/整批 403/中文 toast/删除店铺中文弹窗/40303 文案统一）全部通过；移动端与视觉现代感达标。
 - **本轮无新 P1/P2**；遗留维持 v10 P2-3（mcp-tokens 文档链接）与 v9 P2-3（CSV 未折算列）待产品确认。基线为 main + 叠加 #335/#337。详见 `docs/ux-review/UX_REVIEW_V11_REPORT.md`、`docs/progress/R169.md`。
 
+### 变更记录（2026-08-08）第 170 轮线1：P2 批次收口 + 验收包增量（fullstack-engineer）
+
+- **R169 线2 P2×4 收口**：①MCP 分页钳制口径写入 `docs/mcp.md`（与开放 API 400/40001 差异明示，属有意差异不统一）；②限流 Redis 调用增加 200ms 超时上界（`ratelimit.RedisLimiter`，降级期延迟放大收口，含 stalled-Redis 回归测试，不 fail-open 语义不变）；③租户 0 token 上限计数补单测 `TestCreateCapTenantZero`；④permmatrix `TEST_DATABASE_URL` 手工配置登记保留（安全测试库绝不 fallback 到开发库的有意设计）。
+- **UX v10 P2-3 收口**：mcp-tokens 页文档入口改为站内自托管可点击链接（`/docs/mcp.md`、`/docs/open-api.md`；构建期 `scripts/sync-admin-docs.mjs` 从 `docs/` 复制，nginx 以纯文本内联展示，杜绝硬编码仓库地址），含前端单测。
+- **验收包增量**：`ACCEPTANCE_R123.md` §一/18 合入状态收口 + 新增 §一/19「R167–R169 增量能力」（#335/#336/#337/#338 已合入、#339/#340 OPEN 如实标注）+ §三 + §五；`DEMO_SCRIPT.md` 补 R170 口径（30 分钟总长不变）。
+- 详见 `docs/progress/R170.md`。
+
 ### 变更记录（2026-08-08）第 171 轮线2：遗留 OPEN PR 核查与全仓盘点（fullstack-engineer）
 
 - **#245/#247/#248 核查定案**：三个 2026-08-05 遗留 OPEN PR 的 head commit（`c283b475`/`ea1c9d21`/`cec578af`）均已是 main 祖先——#250（`fix/round117-audit-p2`）基于该 stacked 链（#244→#245→#247→#248）顶部创建并于当日合并（merge commit `b82277ae`），整栈随之进入 main；因 base 为中间分支未被 GitHub 自动关闭，属纯挂账。**全部建议直接关闭（不需合并/rebase）**，关闭依据已登记各 PR 评论区。#245 审单面此后还被 R165/R167 加严（`EnsureStoreOperable` + 整批 403/40303）。
