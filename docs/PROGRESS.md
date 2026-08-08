@@ -2287,3 +2287,12 @@ Final Production Acceptance Deferred to P10
 - **P2-3（评估登记）**：读工具审计后置时序无泄漏窗口（fail-closed 挡响应），维持现状，理由见 `docs/progress/R184.md`。
 - **P2-4（逐项登记）**：admin 构建链 16 项告警逐项评估于 `docs/DEPENDENCY_AUDIT_R184.md`，全部 umi 传递链、无生产暴露面，不跨 major 不动，等 umi 窗口统一。
 - **门禁**：Go 全量 + Docker PostgreSQL（audit 双租户 + RacePostgres ×3）+ 前端/契约/采集/构建全绿。详见 `docs/progress/R184.md`。
+
+
+### 变更记录（2026-08-08）第 185 轮线2：全站视觉/UX 复核 v13（ux-designer + qa-engineer）
+
+- **口径**：权威核实 #369/#370 均 OPEN、mergeable，自 main（#368 → `135f2c5e`）本地叠加后走查（仅 `docs/PROGRESS.md` 文书性冲突）。
+- **硬指标**：5 persona × 5 视口 × 102 路由 headless 全扫，console error / pageerror / 根节点溢出 / NaN / redirect-login 全零，v12 基线无回退；v10 P2-3（mcp-tokens 文档入口）确认已闭环。
+- **MCP 治理新面**：写开关风险确认、写 token admin-only、审计 mode/金额列/筛选、R184 收紧后 operator/readonly 最小暴露视图、settings 敏感 key 脱敏回显全部通过（三角色实走）。
+- **P1 无；P2 即修 6 项**：mark-paid 限额 UI 配置入口缺失（写白名单卡片新增 admin-only 限额表单，先红后绿补回归）+ observability / workers monitor / sku-matches / config-status & security / reports-profit 五处裸枚举中文化。接受为技术标识：采集源 key、告警规则 ID、Prompt code、重加密审计表/字段名。
+- **门禁**：ui-copy strict、test:frontend 375、contracts 17、build:admin 全绿；未改后端 Go 代码。详见 `docs/ux-review/UX_REVIEW_V13_REPORT.md`、`docs/progress/R185-line2.md`。
