@@ -2180,3 +2180,16 @@ Final Production Acceptance Deferred to P10
 
 - **`procurement_mark_paid` 接入 W1 框架**：`placed→paid` 人工付款回填（不动真实资金），复用三层闸门 / dry-run→确认 token→执行 / fail-closed 审计限额 / 404 口径；brief 三前提 fail-closed——租户单笔+日累计金额上限（settings `mcp/mark_paid_single_limit`+`mark_paid_daily_limit`，缺失/0/负数/非数字=未配置不可用）、dry_run 回显金额币种上限与采购单全明细、金额（按分整数比较）/币种与采购单不符直接拒绝；日累计从成功 execute 审计行（新增 `amount` 列）求和并在 execute 事务内重校验（TOCTOU 封死）。
 - **W1+W2+W3 全写面渗透视角交叉审查**：18 个攻击面逐项核对，未发现 P0/P1；2 项 P2/建议级观察（并发限额竞态、审计 amount 列口径）。报告归档 `docs/SECURITY_AUDIT_R181_MCP_WRITE.md`；permmatrix / `docs/mcp.md` 同步。详见 `docs/progress/R181.md`。
+
+### 变更记录（2026-08-08）第 179 轮线1：MCP 写白名单 W1 基建（fullstack-engineer）
+
+- **write:ops scope**：独立权限轴（readonly 不放宽、开放 API 面不放宽）；未知/空 scope fail-closed；写 token 仅 admin 可创建、强制过期（默认 30 天/最长 90 天）、scope 只在创建时授予。
+- **三层闸门默认全关**：全局 `MCP_WRITE_ENABLED`（默认 false，关时写工具不注册）→ 租户 settings `mcp/write_enabled`（默认关，读取失败即关）→ token scope；逐层独立 403。
+- **dry-run→确认 token→执行**：确认 token 一次性、TTL 5 分钟、绑定租户+调用 token+工具+参数哈希，原子消费；执行成功后重放 `alreadyExecuted` 不重复变更；execute 的业务变更与审计行同事务，审计失败整体回滚；限额每 token 30 次/时、每租户 200 次/天（计数失败即拒绝）。
+- **首个动作**：`orders_add_tag`/`orders_remove_tag`（幂等、单目标、跨租户 404）；消息线零 MCP 写触点（工具面断言）。详见 `docs/progress/R179.md`、`docs/mcp.md`。
+
+
+### 变更记录（2026-08-08）第 182 轮线1：MCP 写面遗留 P2 收口（fullstack-engineer）
+
+- **并发限额硬保证**：execute 事务按租户串行化——进程内每租户互斥 + PostgreSQL 事务级 advisory lock（键 `mcpwrite_execute:<tenantID>`，加锁失败 fail-closed），封死次数/金额限额事务内读判断的并发竞态；不同租户互不阻塞。先红后绿 PostgreSQL 并发回归（次数抢名额 / 金额日累计 / 双租户隔离三场景）。
+- **审计 amount 口径收口 + W2 UI 缺口**：审计 API 补 `amount`（仅 `procurement_mark_paid` 有意义），后台审计列表新增「金额（仅支付登记）」列（非金额型动作显示「—」）与「调用模式」筛选，工具筛选补 `procurement_mark_paid`。docs/mcp.md、docs/api.md 同步。详见 `docs/progress/R182.md`。

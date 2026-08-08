@@ -83,6 +83,25 @@ func TestListFilters(t *testing.T) {
 	}
 }
 
+func TestListFilterByMode(t *testing.T) {
+	svc := &mcpaudit.Service{DB: openTestDB(t)}
+	for _, mode := range []string{mcpaudit.ModeDryRun, mcpaudit.ModeExecute, ""} {
+		if err := svc.Write(context.Background(), mcpaudit.WriteOpts{
+			TenantID: 1, TokenID: uuid.New(), Tool: "orders_add_tag",
+			Status: mcpaudit.StatusSuccess, Mode: mode,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	byMode, err := svc.List(context.Background(), 1, mcpaudit.ListFilter{Mode: mcpaudit.ModeExecute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byMode.Total != 1 || byMode.Items[0].Mode != mcpaudit.ModeExecute {
+		t.Fatalf("mode filter mismatch: %+v", byMode)
+	}
+}
+
 func TestWriteNormalizesUnknownStatus(t *testing.T) {
 	svc := &mcpaudit.Service{DB: openTestDB(t)}
 	write(t, svc, 1, "orders_query", "weird")

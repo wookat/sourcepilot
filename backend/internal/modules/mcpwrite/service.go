@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -92,6 +93,39 @@ type Service struct {
 	DB     *gorm.DB
 	Gate   *Gate
 	Audits *mcpaudit.Service
+
+	// tenantLocks serializes executes per tenant within this process; the
+	// PostgreSQL advisory lock extends the same guarantee across processes.
+	tenantLocks sync.Map // int64 → *sync.Mutex
+}
+
+// lockTenant serializes execute transactions for one tenant in-process, so
+// the quota reads inside the transaction cannot interleave with another
+// execute's uncommitted audit row. Cross-tenant executes stay parallel.
+func (s *Service) lockTenant(tenantID int64) func() {
+	v, _ := s.tenantLocks.LoadOrStore(tenantID, &sync.Mutex{})
+	mu := v.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
+func isPostgres(db *gorm.DB) bool {
+	return db != nil && db.Dialector != nil && db.Dialector.Name() == "postgres"
+}
+
+// lockTenantAdvisory takes a transaction-scoped PostgreSQL advisory lock
+// keyed by tenant, serializing concurrent executes for the same tenant
+// across processes (fail closed on lock errors). Non-PostgreSQL setups are
+// covered by the in-process per-tenant mutex.
+func lockTenantAdvisory(tx *gorm.DB, tenantID int64) error {
+	if !isPostgres(tx) {
+		return nil
+	}
+	if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?)::bigint)",
+		fmt.Sprintf("mcpwrite_execute:%d", tenantID)).Error; err != nil {
+		return fmt.Errorf("mcp write: tenant lock failed (fail closed): %w", err)
+	}
+	return nil
 }
 
 // paramsHash binds a confirmation to one tool + parameter set.
@@ -246,8 +280,15 @@ func (s *Service) runExecute(ctx context.Context, req Request, ph string, start 
 	var summary string
 	var remainingToken, remainingTenant int64
 	// Quota check, business mutation, audit row and executed-marker commit
-	// in one transaction: an audit failure rolls the mutation back.
+	// in one transaction: an audit failure rolls the mutation back. The
+	// per-tenant locks serialize concurrent executes so the quota / amount
+	// reads below cannot race past their ceilings.
+	unlock := s.lockTenant(req.Caller.TenantID)
+	defer unlock()
 	err = db.Transaction(func(tx *gorm.DB) error {
+		if lerr := lockTenantAdvisory(tx, req.Caller.TenantID); lerr != nil {
+			return lerr
+		}
 		tokenUsed, tenantUsed, qerr := s.quotaUsage(tx, req.Caller)
 		if qerr != nil {
 			return qerr

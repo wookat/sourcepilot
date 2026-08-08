@@ -31,6 +31,9 @@ type logView struct {
 	Mode          string `json:"mode,omitempty"`
 	ParamsSummary string `json:"paramsSummary,omitempty"`
 	ConfirmHash   string `json:"confirmHash,omitempty"`
+	// Amount is only meaningful for amount-bearing write actions
+	// (procurement_mark_paid); zero for every other row.
+	Amount float64 `json:"amount,omitempty"`
 }
 
 // List GET /mcp/audit-logs
@@ -49,6 +52,7 @@ func (h *Handler) List(c *gin.Context) {
 	res, err := h.Svc.List(c.Request.Context(), tid, ListFilter{
 		Tool:     strings.TrimSpace(c.Query("tool")),
 		Status:   strings.TrimSpace(c.Query("status")),
+		Mode:     strings.TrimSpace(c.Query("mode")),
 		Page:     page,
 		PageSize: pageSize,
 	})
@@ -71,6 +75,7 @@ func (h *Handler) List(c *gin.Context) {
 			Mode:          r.Mode,
 			ParamsSummary: r.ParamsSummary,
 			ConfirmHash:   r.ConfirmHash,
+			Amount:        r.Amount,
 		})
 	}
 	response.OK(c, gin.H{"total": res.Total, "items": items})
