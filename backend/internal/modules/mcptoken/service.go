@@ -81,11 +81,38 @@ type CreateResult struct {
 // ErrInvalidPurpose indicates an unknown token purpose.
 var ErrInvalidPurpose = errors.New("mcptoken: invalid purpose (want mcp/openapi/both)")
 
+// Write-scope tokens must expire: default 30 days when unspecified, never
+// more than 90 days, never non-expiring. Read-only tokens keep the legacy
+// optional expiry so their semantics do not change.
+const (
+	WriteTokenDefaultExpiryDays = 30
+	WriteTokenMaxExpiryDays     = 90
+)
+
+// ErrWriteExpiryTooLong rejects write tokens whose requested lifetime
+// exceeds WriteTokenMaxExpiryDays (non-expiring write tokens are forbidden).
+var ErrWriteExpiryTooLong = errors.New("mcptoken: write:ops token expiry must be 1-90 days (never non-expiring)")
+
+// ErrWritePurposeOpenAPI rejects write scopes on openapi-only tokens: the
+// whitelisted write tools exist only on the MCP entry, so an openapi-only
+// write grant would be dead surface waiting to widen.
+var ErrWritePurposeOpenAPI = errors.New("mcptoken: write:ops requires purpose mcp or both")
+
 // Create issues a new readonly token for the tenant. The plaintext is
 // returned once; only its SHA-256 hash is persisted. expiresAt is optional:
 // nil issues a non-expiring token, a non-nil value must lie in the future.
 // purpose selects the entry the token may call (empty defaults to mcp).
 func (s *Service) Create(ctx context.Context, tenantID int64, name string, purpose string, expiresAt *time.Time, createdBy *uuid.UUID) (*CreateResult, error) {
+	return s.CreateScoped(ctx, tenantID, name, purpose, nil, expiresAt, createdBy)
+}
+
+// CreateScoped issues a token with an explicit scope set. scopes may combine
+// readonly and write:ops (empty defaults to readonly; unknown members are
+// rejected). Write scope is only grantable here — there is no upgrade path
+// for existing tokens — and forces an expiry (default 30 days, max 90).
+// Caller-side authorization (admin only for write scope) is enforced at the
+// handler; this service enforces the shape invariants.
+func (s *Service) CreateScoped(ctx context.Context, tenantID int64, name string, purpose string, scopes []string, expiresAt *time.Time, createdBy *uuid.UUID) (*CreateResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("mcptoken: no db")
 	}
@@ -106,12 +133,28 @@ func (s *Service) Create(ctx context.Context, tenantID int64, name string, purpo
 	if !ValidPurpose(purpose) {
 		return nil, ErrInvalidPurpose
 	}
+	scope, err := NormalizeScopes(scopes)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
 	if expiresAt != nil {
 		utc := expiresAt.UTC()
-		if !utc.After(time.Now().UTC()) {
+		if !utc.After(now) {
 			return nil, ErrInvalidExpiry
 		}
 		expiresAt = &utc
+	}
+	if strings.Contains(scope, ScopeWriteOps) {
+		if purpose == PurposeOpenAPI {
+			return nil, ErrWritePurposeOpenAPI
+		}
+		if expiresAt == nil {
+			def := now.Add(WriteTokenDefaultExpiryDays * 24 * time.Hour)
+			expiresAt = &def
+		} else if expiresAt.After(now.Add(WriteTokenMaxExpiryDays * 24 * time.Hour)) {
+			return nil, ErrWriteExpiryTooLong
+		}
 	}
 	buf := make([]byte, secretHexLen/2)
 	if _, err := rand.Read(buf); err != nil {
@@ -124,14 +167,14 @@ func (s *Service) Create(ctx context.Context, tenantID int64, name string, purpo
 		Prefix:    plain[:len(TokenPrefix)+4],
 		LastFour:  plain[len(plain)-4:],
 		TokenHash: HashToken(plain),
-		Scope:     ScopeReadonly,
+		Scope:     scope,
 		Purpose:   purpose,
 		ExpiresAt: expiresAt,
 		CreatedBy: createdBy,
 	}
 	unlock := lockTenantCreate(tenantID)
 	defer unlock()
-	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if isPostgres(tx) {
 			// Transaction-scoped advisory lock serializes the cap check across
 			// replicas; released automatically at commit/rollback.
@@ -216,7 +259,7 @@ func (s *Service) AuthenticateFor(ctx context.Context, plain string, entry strin
 	}
 	hash := HashToken(plain)
 	q := s.DB.WithContext(ctx).Model(&Token{}).
-		Where("token_hash = ? AND revoked_at IS NULL AND scope = ?", hash, ScopeReadonly).
+		Where("token_hash = ? AND revoked_at IS NULL", hash).
 		Where("expires_at IS NULL OR expires_at > ?", time.Now().UTC())
 	switch entry {
 	case PurposeMCP:
@@ -237,6 +280,21 @@ func (s *Service) AuthenticateFor(ctx context.Context, plain string, entry strin
 	}
 	if subtle.ConstantTimeCompare([]byte(row.TokenHash), []byte(hash)) != 1 || row.TenantID < 0 || row.Expired(time.Now().UTC()) {
 		return nil, ErrInvalidToken
+	}
+	// Scope-set gate: a token whose scope column parses to no known member
+	// authorizes nothing (malformed / future scopes fail closed). The MCP
+	// entry accepts readonly (query tools) and write:ops (whitelisted write
+	// tools); the Open API entry stays strictly readonly — write scope never
+	// widens it.
+	switch entry {
+	case PurposeMCP:
+		if !row.HasScope(ScopeReadonly) && !row.HasScope(ScopeWriteOps) {
+			return nil, ErrInvalidToken
+		}
+	case PurposeOpenAPI:
+		if !row.HasScope(ScopeReadonly) {
+			return nil, ErrInvalidToken
+		}
 	}
 	// A tenant disabled by a platform administrator loses the token entries too,
 	// otherwise a terminated tenant keeps reading its data through MCP / Open API
