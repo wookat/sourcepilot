@@ -2303,3 +2303,10 @@ Final Production Acceptance Deferred to P10
 - **MCP 治理新面**：写开关风险确认、写 token admin-only、审计 mode/金额列/筛选、R184 收紧后 operator/readonly 最小暴露视图、settings 敏感 key 脱敏回显全部通过（三角色实走）。
 - **P1 无；P2 即修 6 项**：mark-paid 限额 UI 配置入口缺失（写白名单卡片新增 admin-only 限额表单，先红后绿补回归）+ observability / workers monitor / sku-matches / config-status & security / reports-profit 五处裸枚举中文化。接受为技术标识：采集源 key、告警规则 ID、Prompt code、重加密审计表/字段名。
 - **门禁**：ui-copy strict、test:frontend 375、contracts 17、build:admin 全绿；未改后端 Go 代码。详见 `docs/ux-review/UX_REVIEW_V13_REPORT.md`、`docs/progress/R185-line2.md`。
+
+### 变更记录（2026-08-08）第 186 轮线1：全站大回归 v35（qa-engineer）
+
+- **口径**：权威核实 #371/#372 均 OPEN、mergeable，自 main（#369/#370 合并后 `f9695c86`）按 #371→#372 顺序本地叠加后全量回归（仅 `docs/PROGRESS.md` 文书性冲突）。
+- **门禁全绿**：backend go test 104 包 / securitytests+permmatrix / ui-copy strict / frontend 375 / contracts 17 / collector 18 / build×2 / E2E 364 passed 0 failed。
+- **Docker 全栈矩阵 60/60 PASS**：主链路（采集→草稿→订单付款自动化→采购 generate→placed→(MCP)paid→shipped→入库→发货运单）、MCP 写五类动作 dry_run→确认 token→execute→重放幂等→参数漂移拒绝、mark-paid 三前提四拒绝路径、三层闸门独立生效、R184 审计权限收紧三角色可见性、view-only 40303/未授权 404/readonly 40301、双租户隔离与租户闸门、#372 新限额 UI 表单与后端 settings 联动实测、seed clean 后 zero DEMO- residual。
+- **P0/P1 = 0，P2 无新增**；合并顺序结论 #371→#372→R186 集成 PR。详见 `docs/progress/R186.md`。
