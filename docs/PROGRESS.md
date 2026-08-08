@@ -2325,3 +2325,13 @@ Final Production Acceptance Deferred to P10
 - **权威核实**：#371/#372/#373 已合入 main；#374（R186 大回归 v35 报告，纯文档）OPEN、mergeable，本轮已叠加，合并顺序 #374 → R187 PR。
 - **合入面巡检**：R185–R186 touched 前端文件无 console/debug 残留；ui-copy strict 通过；docs 引用抽查一致；无新缺陷。
 - **门禁与实测**：go test 104 包全绿、前端全套门禁与构建通过、E2E 受影响 spec + smoke 全绿；Docker 双租户实测（越权 404 契约探针、UI 新文案三场景、第二租户隔离、收尾 zero DEMO- residual）。详见 `docs/progress/R187.md`。
+
+
+### 变更记录（2026-08-08）第 188 轮线2：安全审计季度复跑前哨——R184–R187 合入面渗透抽验（security-engineer + qa-engineer）
+
+- **口径**：权威核实 #371–#375 已合入 main，#376（R187 线2 性能审计，纯文档）仍 OPEN、mergeable，本轮基于 main 本地叠加 #376 走查（仅 `docs/PROGRESS.md` 文书性冲突）；Docker 全栈 + 双租户 demo 数据，探针证据外置不入库，Actions CI 不作依据。
+- **P1×1 先红后绿即修**：MCP 写工具「管道前拒绝」审计盲区——参数校验失败或无 `write:ops` token 探测写白名单时，请求在进入 `mcpwrite` 管道前被拒，入口中间件为避免重复行整体放行，导致此类调用完全不落审计（可无痕探测白名单成员与租户闸门）。修为入口层与管道以 context signal 协同补写 error 行且 fail-closed，成功链路仍 dry_run/execute 各 1 行；新增 `r188_write_audit_gap_test.go`，Docker 实测 11 类拒绝路径各 1 行。
+- **四面渗透抽验**：#369 审计权限收紧无旁路（指名写工具/mode/编码注入/深分页/token 列表/跨租户全 0 写行）；#372 mark-paid 限额服务端权威（operator 40305、readonly 40301、非法值 fail-closed 拒付）；#375 404 遮蔽无存在性泄露（6 路由 ×2 角色 ×25 采样，响应体归一化后逐字节相同、头一致、时序 p50 差 ≤0.5ms）；#371 deploy-prod 告警无新攻击面，即修容器标签 ANSI/CR 终端注入。
+- **#367/R183 零回退**：白名单守护与 exactly-once 审计测试全 PASS，Docker 实测一次 dry_run→execute 仅 2 行。
+- **P2 新登记 3 项**：限额值缺服务端值域校验（`1e20` 可使单笔上限失效）、审计可见性仅「写/读」一档无中间视图、deploy 类脚本外部字符串输出未统一净化。
+- **门禁**：go fmt/vet/gofmt + `go test ./...` 全包（含 securitytests/permmatrix/Postgres 并发用例）、check:dev、ui-copy strict、frontend 375、contracts 17、collector 18、build×2 全绿。详见 `docs/progress/R188-line2.md`。

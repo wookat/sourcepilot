@@ -179,6 +179,9 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	if s == nil || s.DB == nil || s.Audits == nil {
 		return nil, ErrAuditUnavailable
 	}
+	// From here every return path writes an audit row; tell the entry layer
+	// so it does not add a second one.
+	markReached(ctx)
 	mode := req.Mode
 	if mode != ModeDryRun && mode != ModeExecute {
 		s.auditReject(ctx, req, "", start, "invalid mode")
