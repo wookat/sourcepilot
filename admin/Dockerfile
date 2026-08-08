@@ -7,6 +7,7 @@ RUN npm install -g pnpm@9.15.4
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY scripts ./scripts
+COPY docs ./docs
 COPY admin ./admin
 COPY collector ./collector
 

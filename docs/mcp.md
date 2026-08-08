@@ -41,6 +41,10 @@ TradeMind 提供一个符合 MCP（Model Context Protocol）标准的只读 serv
 | `report_summary` | 经营摘要：时间范围内订单量、已支付订单量、按币种已支付销售额（不做汇率折算），以及当前未处理异常数与低库存 SKU 数 |
 | `exceptions_pending` | 异常待办：SKU 未匹配、库存不足、同步失败等，返回异常类型、级别、关联订单号与建议动作 |
 
+### 分页参数口径（与开放 API 的差异）
+
+MCP 工具的 `page` / `pageSize` 为**钳制语义**：`page < 1` 归一为 1，`pageSize < 1` 归一为默认 20，`pageSize > 100` 截断为 100，不会因分页参数越界返回错误。这与开放 API（`GET /api/open/v1/*`）的口径**不同**——开放 API 对非正整数分页参数返回 `400`（`code=40001`），仅对 `pageSize > 100` 做截断（见 [`docs/open-api.md`](open-api.md)）。差异原因：MCP 参数由 LLM 客户端生成，钳制语义可减少一轮工具报错重试；开放 API 面向程序化调用方，显式 400 更利于尽早暴露集成错误。编写同时对接两个入口的客户端时请勿假设两者报错行为一致。
+
 ## 在 Claude Desktop / Claude Code 中配置
 
 Claude Desktop（`claude_desktop_config.json`）或其他支持 Streamable HTTP 的客户端：

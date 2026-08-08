@@ -3,6 +3,8 @@ package ratelimit_test
 import (
 	"context"
 	"fmt"
+	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -106,5 +108,57 @@ func TestRedisLimiterFallsBackWhenRedisDown(t *testing.T) {
 	}
 	if allowed != 2 {
 		t.Fatalf("fallback budget: allowed %d of 5, want burst=2", allowed)
+	}
+}
+
+func TestRedisLimiterStalledRedisFallsBackQuickly(t *testing.T) {
+	// A listener that accepts but never replies simulates a stalled Redis:
+	// dial succeeds, the script call hangs. The limiter's per-call timeout
+	// must bound the latency so the fallback engages well under a second,
+	// instead of waiting out the client's default multi-second read timeout.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	var conns []net.Conn
+	var connsMu sync.Mutex
+	go func() {
+		for {
+			conn, aerr := ln.Accept()
+			if aerr != nil {
+				return
+			}
+			connsMu.Lock()
+			conns = append(conns, conn)
+			connsMu.Unlock()
+		}
+	}()
+	t.Cleanup(func() {
+		connsMu.Lock()
+		defer connsMu.Unlock()
+		for _, c := range conns {
+			_ = c.Close()
+		}
+	})
+	client := redis.NewClient(&redis.Options{Addr: ln.Addr().String(), MaxRetries: -1})
+	t.Cleanup(func() { _ = client.Close() })
+	p := testPolicy(t, 2)
+	p.Rate = rate.Limit(0.001)
+	l := ratelimit.NewRedisLimiter(client, p)
+
+	start := time.Now()
+	allowed := 0
+	for i := 0; i < 3; i++ {
+		if l.Allow(context.Background(), "k").Allowed {
+			allowed++
+		}
+	}
+	elapsed := time.Since(start)
+	if allowed != 2 {
+		t.Fatalf("fallback budget: allowed %d of 3, want burst=2", allowed)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("3 calls against stalled redis took %s; per-call timeout not bounding latency", elapsed)
 	}
 }

@@ -48,6 +48,12 @@ end
 return allowed
 `)
 
+// redisCallTimeout bounds each limiter script call. The shared Redis client
+// keeps its default (multi-second) dial/read timeouts for queue work; a rate
+// decision is only useful if it is fast, so a stalled Redis must not add
+// seconds of latency to every request before the in-process fallback engages.
+const redisCallTimeout = 200 * time.Millisecond
+
 // RedisLimiter is a token bucket whose state is shared through Redis, so the
 // budget holds across multiple backend replicas. When Redis is unreachable it
 // degrades to an in-process bucket with the same policy (per-replica budget),
@@ -70,18 +76,39 @@ func (l *RedisLimiter) redisKey(rawKey string) string {
 }
 
 func (l *RedisLimiter) run(ctx context.Context, rawKey string, consume int) (bool, error) {
-	res, err := tokenBucketScript.Run(ctx, l.client,
-		[]string{l.redisKey(rawKey)},
-		float64(l.policy.Rate),
-		l.policy.Burst,
-		l.now().UnixMicro(),
-		consume,
-		l.policy.TTL.Milliseconds(),
-	).Int()
-	if err != nil {
-		return false, err
+	// The shared go-redis client does not honour context deadlines by default
+	// (ContextTimeoutEnabled=false) and keeps its multi-second read timeouts
+	// for queue work, so the bound is enforced here: wait at most
+	// redisCallTimeout for the script result, then fall back. A stalled call
+	// finishes (and is discarded) in the background under the client's own
+	// timeouts.
+	ctx, cancel := context.WithTimeout(ctx, redisCallTimeout)
+	defer cancel()
+	type outcome struct {
+		res int
+		err error
 	}
-	return res == 1, nil
+	ch := make(chan outcome, 1)
+	go func() {
+		res, err := tokenBucketScript.Run(ctx, l.client,
+			[]string{l.redisKey(rawKey)},
+			float64(l.policy.Rate),
+			l.policy.Burst,
+			l.now().UnixMicro(),
+			consume,
+			l.policy.TTL.Milliseconds(),
+		).Int()
+		ch <- outcome{res: res, err: err}
+	}()
+	select {
+	case out := <-ch:
+		if out.err != nil {
+			return false, out.err
+		}
+		return out.res == 1, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
 }
 
 // Allow consumes one token when available; on Redis failure it falls back to
