@@ -2154,3 +2154,10 @@ Final Production Acceptance Deferred to P10
 - **门禁**：Go 全量 103 包 ok、securitytests（permmatrix/idor/shopscope）111/111、check:dev、ui-copy strict、test:frontend 368、contracts 17、build:admin/collector、全量 E2E（修复后全绿）。
 - **Docker 全栈实测**：backend 镜像重建后 R57 主链路（自动生成采购单/打标/分仓/发货规则）、#353 两处修复面（跨租户 shopId 导入 404 + 零残留、settings 加密粘性）、modal 失败路径中文 toast 保持弹窗、migrationimport 中文文案、view-only 40303/readonly 40301/跨租户 404、MCP purpose 隔离与开放 API、双租户零残留全部通过。
 - **P1 即修**：#352 modal onOk 改「手动 close」后丢失 antd async pending 防重，双击敏感确认产生 2 次写请求；`modalOk`/`confirmSensitiveAction` 增加 in-flight 守卫 + 3 条单测，E2E 复绿。详见 `docs/progress/R177-line2.md`。
+
+### 变更记录（2026-08-08）第 178 轮线2：竞品对标复评 v10（market-researcher）
+
+- **第十次竞品复评归档**：`docs/COMPETITIVE_BENCHMARK_R178.md`——16 项矩阵维持超越 4 / 达到 12 / 落后 0，维护期（R171–R173 已合入收口）Docker 全栈实测零回退（view-only 5 类写路径 403+40303、readonly 403+40301、settings 密文+脱敏、MCP 四只读工具+脱敏+用途分离、开放 API 边界）。
+- **诚实口径**：main 止于 #347（R173 线1）；R173 线2 至 R177 产出全部在 OPEN PR #348–#356，矩阵位次不计入，建议线1 按序合入。
+- **竞品动态**：AutoDS Claude MCP 多店铺单会话管理常态运营（含写）；店小秘美客多全托管批量刊登（内容/平台侧）；马帮 TikTok 美区双赛道认证（平台/合规侧）。无新结构性缺口。
+- **路线建议**：MCP 写白名单 D1–D4 勾选后 R179–R181 实现窗口（2.5 轮）为唯一高杠杆项；复评节奏维持每 12 轮或结构性触发。详见 `docs/progress/R178-line2.md`。
