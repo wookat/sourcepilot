@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-08 — **Round 189 线1：mark-paid 限额服务端值域校验 P1 化收口（`mcp/mark_paid_single_limit`、`mcp/mark_paid_daily_limit` 写入即校验：>0、至多两位小数、≤1e10，拒科学计数法/正负号/NaN/Infinity/非数字，事务回滚不落库，禁加密存储；UI 表单同步 max 与中文提示；先红后绿）+ R188 P2 批次收口（P2-4 大屏配置弹窗 getContainer 指向全屏根节点已修；P2-2/P2-3 登记不修）**：详见附录 [`docs/progress/R189.md`](progress/R189.md)。
+
 **Stage update**: 2026-08-08 — **Round 188 线1：R187 性能审计 P2×4 收口（mcp_tool_call_logs 补 (tenant_id, created_at DESC) 复合索引，110k 行深分页 p50 20.6ms→3.5ms；异常聚合下推 SQL 聚合，数值口径逐字段一致且摘要 p50 ~400ms→~200ms；前端首包 gzip 预算门禁落地 umi.js ≤350kB（当前 313.9kB）；MCP 写配额计数口径登记不改，约定沉淀 docs/mcp.md）**：详见附录 [`docs/progress/R188.md`](progress/R188.md)。
 
 **Stage update**: 2026-08-08 — **Round 187 线1：R186 线2 P2 收口（operator 越 store-scope 会话详情 404 口径统一：文案改为「会话不存在或不在可见范围」，与真实 404 同构不泄露存在性，先红后绿）+ #371–#374 权威核实（#371/#372/#373 已合入，#374 OPEN 已叠加）+ 合入面巡检无新缺陷 + Docker 双租户实测**：详见附录 [`docs/progress/R187.md`](progress/R187.md)。

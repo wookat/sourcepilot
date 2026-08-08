@@ -292,6 +292,40 @@ describe('McpTokensPage MCP 写白名单管理（R180 W2）', () => {
     ]);
   });
 
+  it('限额表单钳制超大值：超过 100 亿的输入不会以超域值保存（R189 服务端值域同步）', async () => {
+    vi.mocked(useModel).mockReturnValue({
+      initialState: { currentUser: { role: 'admin' } },
+    });
+    listMcpTokens.mockResolvedValue([]);
+    fetchSettingsList.mockResolvedValue({
+      items: [
+        { groupKey: 'mcp', itemKey: 'mark_paid_single_limit', itemValue: '500' },
+        { groupKey: 'mcp', itemKey: 'mark_paid_daily_limit', itemValue: '2000' },
+      ],
+    });
+    saveSettingsItems.mockResolvedValue({ items: [] });
+    const user = userEvent.setup();
+    render(<McpTokensPage />);
+
+    const writeCard = (await screen.findByText('MCP 写白名单（write:ops，仅管理员）')).closest(
+      '.ant-card',
+    ) as HTMLElement;
+    const single = await within(writeCard).findByLabelText('单笔上限');
+    await user.clear(single);
+    await user.type(single, '99999999999999999999');
+    await user.click(within(writeCard).getByRole('button', { name: '保存限额' }));
+
+    // InputNumber max 在提交（blur）时钳制到 1e10；无论走钳制还是校验拦截，
+    // 都不允许把超过 100 亿的值发给服务端。
+    for (const call of saveSettingsItems.mock.calls) {
+      for (const item of call[0] as { itemKey: string; itemValue: string }[]) {
+        if (item.itemKey === 'mark_paid_single_limit') {
+          expect(Number(item.itemValue)).toBeLessThanOrEqual(1e10);
+        }
+      }
+    }
+  });
+
   it('非管理员不展示写审计列与调用模式筛选（R184 最小暴露）', async () => {
     vi.mocked(useModel).mockReturnValue({
       initialState: { currentUser: { role: 'operator' } },

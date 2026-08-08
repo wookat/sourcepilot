@@ -43,6 +43,10 @@ const EXPIRY_OPTIONS = [
 
 const EXPIRING_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
+// 与服务端 settings 受控值域一致（backend/internal/modules/settings/value_registry.go）：
+// mark-paid 上限至多 1e10（100 亿），即单笔金额本身的硬上界。
+const MARK_PAID_LIMIT_MAX = 1e10;
+
 const PURPOSE_OPTIONS = [
   { value: "mcp", label: "MCP 只读" },
   { value: "openapi", label: "开放 API" },
@@ -542,16 +546,42 @@ export default function McpTokensPage() {
             <Form.Item
               label="单笔上限"
               name="singleLimit"
-              rules={[{ required: true, message: "请输入单笔上限" }]}
+              rules={[
+                { required: true, message: "请输入单笔上限" },
+                {
+                  type: "number",
+                  min: 0.01,
+                  max: MARK_PAID_LIMIT_MAX,
+                  message: "单笔上限须在 0.01 到 100 亿之间（至多两位小数）",
+                },
+              ]}
             >
-              <InputNumber min={0.01} precision={2} placeholder="如 500" />
+              <InputNumber
+                min={0.01}
+                max={MARK_PAID_LIMIT_MAX}
+                precision={2}
+                placeholder="如 500"
+              />
             </Form.Item>
             <Form.Item
               label="日累计上限"
               name="dailyLimit"
-              rules={[{ required: true, message: "请输入日累计上限" }]}
+              rules={[
+                { required: true, message: "请输入日累计上限" },
+                {
+                  type: "number",
+                  min: 0.01,
+                  max: MARK_PAID_LIMIT_MAX,
+                  message: "日累计上限须在 0.01 到 100 亿之间（至多两位小数）",
+                },
+              ]}
             >
-              <InputNumber min={0.01} precision={2} placeholder="如 2000" />
+              <InputNumber
+                min={0.01}
+                max={MARK_PAID_LIMIT_MAX}
+                precision={2}
+                placeholder="如 2000"
+              />
             </Form.Item>
             <Form.Item>
               <Button htmlType="submit" loading={limitsSaving}>

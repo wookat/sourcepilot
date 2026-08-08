@@ -129,6 +129,11 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 	if gk == "" || ik == "" {
 		return fmt.Errorf("settings: groupKey and itemKey required")
 	}
+	canonical, err := validateControlledValue(it, gk, ik)
+	if err != nil {
+		return err
+	}
+	it.ItemValue = canonical
 	tenant := it.TenantID
 	valType := strings.TrimSpace(it.ValueType)
 	if valType == "" {
@@ -136,7 +141,7 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 	}
 
 	var cur Setting
-	err := tx.Where("tenant_id = ? AND group_key = ? AND item_key = ?", tenant, gk, ik).First(&cur).Error
+	err = tx.Where("tenant_id = ? AND group_key = ? AND item_key = ?", tenant, gk, ik).First(&cur).Error
 	exists := true
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

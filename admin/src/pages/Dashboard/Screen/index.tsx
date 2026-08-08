@@ -104,10 +104,12 @@ function ScreenConfigModal({
   open,
   onClose,
   onSaved,
+  getContainer,
 }: {
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
+  getContainer?: () => HTMLElement;
 }) {
   const { message } = App.useApp();
   const [cards, setCards] = useState<ScreenCard[]>(DEFAULT_SCREEN_CARDS);
@@ -154,6 +156,7 @@ function ScreenConfigModal({
       confirmLoading={saving}
       okButtonProps={{ disabled: loading || enabledCount === 0 }}
       destroyOnHidden
+      getContainer={getContainer}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
         选择大屏展示的卡片并调整顺序，配置按租户生效。
@@ -617,6 +620,7 @@ function DashboardScreenBody({
         </>
       )}
 
+      {/* 挂到大屏根节点：浏览器全屏只渲染全屏元素的子树，挂 body 会被遮蔽 */}
       <ScreenConfigModal
         open={configOpen}
         onClose={() => setConfigOpen(false)}
@@ -624,6 +628,7 @@ function DashboardScreenBody({
           setLoading(true);
           void load();
         }}
+        getContainer={() => rootRef.current ?? document.body}
       />
     </div>
   );
