@@ -26,6 +26,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventorysyncp9"
 	"github.com/trademind-ai/trademind/backend/internal/modules/mcpaudit"
 	"github.com/trademind-ai/trademind/backend/internal/modules/mcptoken"
+	"github.com/trademind-ai/trademind/backend/internal/modules/mcpwrite"
 	"github.com/trademind-ai/trademind/backend/internal/modules/migrationimport"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
@@ -181,6 +182,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&migrationimport.ImportMappingPreset{},
 		&mcptoken.Token{},
 		&mcpaudit.ToolCallLog{},
+		&mcpwrite.Confirmation{},
 		&order.Order{},
 		&order.OrderItem{},
 		&order.OrderShipment{},

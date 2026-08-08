@@ -1,6 +1,8 @@
 // Package mcpaudit records one audit row per MCP tool call: tenant, token,
-// tool name, outcome and timing. Query parameters and query results are never
-// stored, so the log carries no business data.
+// tool name, outcome and timing. For read tools, query parameters and query
+// results are never stored. For whitelisted write tools, only allowlisted
+// key=value argument/result summaries are stored (business keys like order
+// no / tag name — never secrets or free text) so every write stays traceable.
 package mcpaudit
 
 import (
@@ -22,6 +24,14 @@ const (
 	StatusRateLimited = "rate_limited"
 )
 
+// Modes of one write-tool audit row. Read tools leave Mode empty; write
+// tools record dry_run / execute so the paired rows for one confirmed write
+// stay linkable via ConfirmHash.
+const (
+	ModeDryRun  = "dry_run"
+	ModeExecute = "execute"
+)
+
 // ToolCallLog is one immutable MCP tool-call audit row (no soft delete).
 type ToolCallLog struct {
 	ID       uuid.UUID `gorm:"type:char(36);primaryKey" json:"id"`
@@ -29,10 +39,19 @@ type ToolCallLog struct {
 	TokenID  uuid.UUID `gorm:"type:char(36);index" json:"tokenId"`
 	// TokenName / TokenMasked snapshot the token identity at call time so the
 	// log stays readable after the token is revoked or renamed.
-	TokenName   string    `gorm:"size:128" json:"tokenName"`
-	TokenMasked string    `gorm:"size:40" json:"tokenMasked"`
-	Tool        string    `gorm:"size:64;index;not null" json:"tool"`
-	Status      string    `gorm:"size:16;index;not null" json:"status"`
+	TokenName   string `gorm:"size:128" json:"tokenName"`
+	TokenMasked string `gorm:"size:40" json:"tokenMasked"`
+	Tool        string `gorm:"size:64;index;not null" json:"tool"`
+	Status      string `gorm:"size:16;index;not null" json:"status"`
+	// Mode is empty for read tools; dry_run / execute for write tools.
+	Mode string `gorm:"size:16;index;not null;default:''" json:"mode,omitempty"`
+	// ParamsSummary / ResultSummary hold allowlisted key=value pairs for
+	// write tools only (e.g. "orderNo=X tag=Y" / "applied=1"). Never secrets.
+	ParamsSummary string `gorm:"size:512;not null;default:''" json:"paramsSummary,omitempty"`
+	ResultSummary string `gorm:"size:512;not null;default:''" json:"resultSummary,omitempty"`
+	// ConfirmHash is the SHA-256 of the confirmation token binding the
+	// dry_run row to its execute row. Empty for read tools.
+	ConfirmHash string    `gorm:"size:64;index;not null;default:''" json:"confirmHash,omitempty"`
 	DurationMs  int64     `gorm:"not null;default:0" json:"durationMs"`
 	CreatedAt   time.Time `gorm:"index" json:"createdAt"`
 }

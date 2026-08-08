@@ -1,6 +1,10 @@
-// Package mcpserver exposes a read-only Model Context Protocol (MCP) entry
-// backed by tenant-scoped API tokens. Only query tools are registered; no
-// write operation is reachable through this endpoint.
+// Package mcpserver exposes a Model Context Protocol (MCP) entry backed by
+// tenant-scoped API tokens. Query tools require the readonly scope; a small
+// whitelist of write tools (R179 W1: order tagging) requires the write:ops
+// scope plus the env-level and tenant-level write gates, and every write
+// goes through dry-run → one-time confirmation → execute with fail-closed
+// auditing. Message sending / external-platform actions are permanently
+// excluded from this surface.
 package mcpserver
 
 import (
@@ -17,7 +21,10 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/trademind-ai/trademind/backend/internal/modules/mcpaudit"
 	"github.com/trademind-ai/trademind/backend/internal/modules/mcptoken"
+	"github.com/trademind-ai/trademind/backend/internal/modules/mcpwrite"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ratelimit"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"golang.org/x/time/rate"
@@ -53,6 +60,23 @@ type Deps struct {
 	RateBurst int
 	// Version reported to MCP clients (optional).
 	Version string
+	// WriteEnabled mirrors MCP_WRITE_ENABLED (default false). When false the
+	// write tools are not registered at all, whatever the token scope.
+	WriteEnabled bool
+	// Orders backs the whitelisted order-tag write tools; nil disables them.
+	Orders *order.Service
+	// Settings resolves the tenant-level write switch; nil keeps every
+	// tenant's write gate closed (fail closed).
+	Settings *settings.Service
+}
+
+// writes builds the governed write pipeline for one request.
+func (d *Deps) writes() *mcpwrite.Service {
+	return &mcpwrite.Service{
+		DB:     d.DB,
+		Gate:   &mcpwrite.Gate{EnvEnabled: d.WriteEnabled, Settings: d.Settings},
+		Audits: d.Audits,
+	}
 }
 
 // GinHandler returns the POST /api/mcp handler: tenant API-token auth,
@@ -114,7 +138,16 @@ func GinHandler(d *Deps) gin.HandlerFunc {
 			return nil
 		}
 		srv := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: d.Version}, nil)
-		registerTools(srv, d, tok.TenantID)
+		// Scope axes are independent: readonly grants the query tools,
+		// write:ops grants the write whitelist (and nothing else). The env
+		// gate hides write tools entirely; the tenant gate is enforced per
+		// call inside the write pipeline.
+		if tok.HasScope(mcptoken.ScopeReadonly) {
+			registerTools(srv, d, tok.TenantID)
+		}
+		if d.WriteEnabled && tok.HasScope(mcptoken.ScopeWriteOps) {
+			registerWriteTools(srv, d, tok)
+		}
 		if d.Audits != nil {
 			srv.AddReceivingMiddleware(auditMiddleware(d.Audits, tok))
 		}
@@ -207,6 +240,13 @@ func auditMiddleware(audits *mcpaudit.Service, tok *mcptoken.Token) mcp.Middlewa
 			toolName := ""
 			if p, ok := req.GetParams().(*mcp.CallToolParamsRaw); ok && p != nil {
 				toolName = p.Name
+			}
+			if isWriteTool(toolName) {
+				// Write tools audit inside the write pipeline (dry_run /
+				// execute rows with params/result summaries, committed in the
+				// same transaction as the mutation); a second generic row here
+				// would double-count them.
+				return next(ctx, method, req)
 			}
 			start := time.Now()
 			res, err := next(ctx, method, req)
