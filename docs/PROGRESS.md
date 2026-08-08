@@ -2145,3 +2145,10 @@ Final Production Acceptance Deferred to P10
 - **矩阵全扫**：5 persona × 5 视口 × 98 路由共 2450 组合，pageerror/根横向溢出/NaN·Invalid Date·undefined/redirect-login/403·500 噪音全零；预期权限范围 404 网络日志（页面优雅中文空态）不计缺陷。
 - **新面走查**：modal 失败保持弹窗开 + 中文 toast（#352）、migrationimport 向导与 shape 校验中文（#352）、客服发送失败中文提示（#349）、40303 view-only 预禁用/tooltip（#346/#347）12/12 断言通过；v11 遗留（mcp-tokens 文档纯文本、finance-report CSV 未折算列）维持口径。
 - **P2 即修**：客服会话详情 antd Descriptions `span={2}` 与响应式 column 冲突（375 视口 console error）改响应式 span。详见 `docs/ux-review/UX_REVIEW_V12_REPORT.md`、`docs/progress/R176-line2.md`。
+
+### 变更记录（2026-08-08）第 177 轮线2：全站大回归 v32（qa-engineer）
+
+- **集成**：最新 main 按依赖叠加全部 OPEN PR #348–#354，仅 `docs/PROGRESS.md` 三次文书性冲突（均保留双方记录），无语义冲突；建议合并顺序 #348→#350→#349→#352→#351→#354→#353。
+- **门禁**：Go 全量 103 包 ok、securitytests（permmatrix/idor/shopscope）111/111、check:dev、ui-copy strict、test:frontend 368、contracts 17、build:admin/collector、全量 E2E（修复后全绿）。
+- **Docker 全栈实测**：backend 镜像重建后 R57 主链路（自动生成采购单/打标/分仓/发货规则）、#353 两处修复面（跨租户 shopId 导入 404 + 零残留、settings 加密粘性）、modal 失败路径中文 toast 保持弹窗、migrationimport 中文文案、view-only 40303/readonly 40301/跨租户 404、MCP purpose 隔离与开放 API、双租户零残留全部通过。
+- **P1 即修**：#352 modal onOk 改「手动 close」后丢失 antd async pending 防重，双击敏感确认产生 2 次写请求；`modalOk`/`confirmSensitiveAction` 增加 in-flight 守卫 + 3 条单测，E2E 复绿。详见 `docs/progress/R177-line2.md`。

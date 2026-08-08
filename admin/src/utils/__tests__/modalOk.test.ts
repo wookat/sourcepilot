@@ -37,6 +37,34 @@ describe('modalOk', () => {
     expect(message.error).toHaveBeenCalledWith('后端拒绝');
   });
 
+  it('提交中重复触发不产生第二次执行（防重复提交）', async () => {
+    const run = vi.fn(() => new Promise<void>((r) => setTimeout(r, 5)));
+    const close = vi.fn();
+    const onOk = modalOk(run);
+    onOk(close);
+    onOk(close);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('失败后可再次触发（pending 状态复位）', async () => {
+    let fail = true;
+    const run = vi.fn(async () => {
+      if (fail) throw new Error('后端拒绝');
+    });
+    const close = vi.fn();
+    const onOk = modalOk(run);
+    onOk(close);
+    await flush();
+    expect(close).not.toHaveBeenCalled();
+    fail = false;
+    onOk(close);
+    await flush();
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it('支持自定义 errorText，空错误信息回退默认文案', async () => {
     modalOk(
       async () => {

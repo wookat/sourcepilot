@@ -49,4 +49,16 @@ describe('confirmSensitiveAction', () => {
     expect(close).not.toHaveBeenCalled();
     expect(message.error).toHaveBeenCalledWith('中文失败提示');
   });
+
+  it('提交中重复触发不产生第二次执行（防重复提交）', async () => {
+    const run = vi.fn(() => new Promise<void>((r) => setTimeout(r, 5)));
+    confirmSensitiveAction({ title: 't', content: 'c', onOk: run });
+    const onOk = lastConfirmOpts().onOk as (close: () => void) => void;
+    const close = vi.fn();
+    onOk(close);
+    onOk(close);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
 });

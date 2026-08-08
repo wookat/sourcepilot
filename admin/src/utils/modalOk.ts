@@ -6,12 +6,18 @@ import { message } from 'antd';
  * 抛拒绝（避免 dev 环境 unhandledrejection 触发 react-error-overlay）。
  */
 export function modalOk(run: () => void | Promise<void>, errorText?: (e: unknown) => string) {
+  let pending = false;
   return (close: () => void) => {
+    if (pending) return;
+    pending = true;
     Promise.resolve()
       .then(() => run())
       .then(() => close())
       .catch((e: unknown) => {
         message.error(errorText ? errorText(e) : (e as Error)?.message || '操作失败');
+      })
+      .finally(() => {
+        pending = false;
       });
   };
 }
