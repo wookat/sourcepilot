@@ -123,7 +123,9 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 	}
 	// Encryption is sticky: a payload that omits isEncrypted must not downgrade
 	// an already-encrypted setting to plaintext at rest (nor unmask it on read).
-	encrypted := it.IsEncrypted || (exists && cur.IsEncrypted)
+	// Registry-listed sensitive keys are always encrypted server-side; the
+	// client-supplied isEncrypted flag cannot opt them out (new items included).
+	encrypted := it.IsEncrypted || (exists && cur.IsEncrypted) || IsSensitiveKey(gk, ik)
 	if !it.Clear && encrypted && encrypt.LooksMasked(val) {
 		if !exists {
 			return fmt.Errorf("settings: cannot create encrypted item %s/%s with masked value", gk, ik)

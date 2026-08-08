@@ -58,7 +58,7 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/settings` | 读取**当前租户**的系统设置（仅本租户行；tenant 0 平台配置不返回，平台默认值仅服务端内部消费）。 |
-| `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。写入租户一律取自认证上下文；请求体 `tenantId` 与当前租户不一致（含 0）返回 403。item 可选 `clear: true` 强制清空已存值（含加密字段，绕过「空加密值保留旧密钥」语义），用于 AI 配置一键清空等场景。 |
+| `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。写入租户一律取自认证上下文；请求体 `tenantId` 与当前租户不一致（含 0）返回 403。敏感项（AI key、平台凭证、存储秘钥、SMTP 密码、webhook secret 等）由**服务端敏感 key 注册表**强制加密落库与脱敏回显，不信任请求体 `isEncrypted` 声明（新建项同样生效）；非注册表项保持 `isEncrypted` 声明兼容，且加密一经写入即粘性（省略 `isEncrypted` 不降级）。item 可选 `clear: true` 强制清空已存值（含加密字段，绕过「空加密值保留旧密钥」语义），用于 AI 配置一键清空等场景。 |
 | `POST` | `/api/v1/settings/test-ai` | 经 **AI Gateway** 测试 `settings.ai`（支持 `openai` / `openai_compatible` / `deepseek` / `qwen`）。各服务商 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`** 独立存储；可选 JSON：`provider`、`base_url`、`model`、`api_key`（写入当前 provider 对应项；`****` 占位则沿用已保存密钥）、`timeout_sec`，用于**未保存前**用当前表单试连；空 body 仅用库内配置。成功 `data`：`ok`、`message`、`provider`、`model`、`latencyMs`。 |
 | `POST` | `/api/v1/settings/test-storage` | 测试 Storage Provider 配置。 |
 | `GET` | `/api/v1/settings/report-currency` | 读取当前租户的报表本位币与手工汇率表（settings 分组 `report_currency`，按租户隔离存储）：`{provider: "manual", baseCurrency, rates:[{currency, rate}]}`；`rate` 为十进制字符串，含义为「1 单位原币 = rate 本位币」。租户未配置时返回默认本位币 CNY 与空汇率表。需 `settings.manage`（readonly 403）。 |
