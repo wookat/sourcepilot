@@ -2168,3 +2168,11 @@ Final Production Acceptance Deferred to P10
 - **诚实口径**：main 止于 #347（R173 线1）；R173 线2 至 R177 产出全部在 OPEN PR #348–#356，矩阵位次不计入，建议线1 按序合入。
 - **竞品动态**：AutoDS Claude MCP 多店铺单会话管理常态运营（含写）；店小秘美客多全托管批量刊登（内容/平台侧）；马帮 TikTok 美区双赛道认证（平台/合规侧）。无新结构性缺口。
 - **路线建议**：MCP 写白名单 D1–D4 勾选后 R179–R181 实现窗口（2.5 轮）为唯一高杠杆项；复评节奏维持每 12 轮或结构性触发。详见 `docs/progress/R178-line2.md`。
+
+### 变更记录（2026-08-08）第 180 轮线2：全站大回归 v33（qa-engineer）
+
+- **集成**：最新 main（`3fd5a35a`）按依赖叠加全部 OPEN PR #348–#360（权威状态核实均 OPEN），仅 #357 的 `docs/PROGRESS.md` 一处文书性冲突（保留双方记录），无语义冲突。
+- **合并顺序终版**：#360 已完整包含 #348/#349/#351–#356/#359（ancestry 实测），最省事顺序 **#360 → #350 → #357 → #358**，其余 9 个 PR 合入 #360 后 diff 为空直接 close。
+- **门禁**：Go 全量 103 包 ok、securitytests/permmatrix 113/113、check:dev、ui-copy strict、test:frontend 368、contracts 17、build:admin/collector、collector 18、全量 E2E 359 passed/3 skipped 全绿。
+- **Docker 全栈实测**：R57 主链路、W1 写链路全链（环境/租户/scope 三层闸门逐层拒绝→dry_run→一次性确认 token→execute→重放 alreadyExecuted→审计落库）、settings 加密/脱敏/存量明文惰性收编、modal 防重（双击仅 1 次 POST）、view-only 40303/readonly 40301/不可见店铺 404/跨租户 404、双租户隔离与零残留（clean+verify）全部通过。
+- **P0/P1 无；P2 全部为继承项**（mcp-tokens 文档口径、finance-report CSV 折算列、pnpm audit 构建链告警、R179 W2 UI 缺口）。详见 `docs/progress/R180-line2.md`。
