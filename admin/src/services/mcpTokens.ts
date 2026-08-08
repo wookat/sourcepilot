@@ -72,6 +72,8 @@ export type McpAuditLogRow = {
   paramsSummary?: string;
   /** 确认 token 绑定哈希（dry_run 签发 / execute 核销对账用）。 */
   confirmHash?: string;
+  /** 金额，仅金额型写动作（procurement_mark_paid）有意义，其余为 0/缺省。 */
+  amount?: number;
 };
 
 export type McpAuditLogQuery = {
@@ -79,6 +81,7 @@ export type McpAuditLogQuery = {
   pageSize?: number;
   tool?: string;
   status?: string;
+  mode?: string;
 };
 
 export async function listMcpAuditLogs(

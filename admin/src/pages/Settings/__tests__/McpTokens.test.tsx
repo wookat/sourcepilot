@@ -225,4 +225,29 @@ describe('McpTokensPage MCP 写白名单管理（R180 W2）', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('abcdef012345…')).toBeInTheDocument();
   });
+
+  it('审计列表金额列：金额型动作显示金额，其余显示 —', async () => {
+    vi.mocked(useModel).mockReturnValue({
+      initialState: { currentUser: { role: 'admin' } },
+    });
+    listMcpTokens.mockResolvedValue([]);
+    listMcpAuditLogs.mockResolvedValue({
+      total: 2,
+      items: [
+        {
+          ...auditRow('log-paid', 'procurement_mark_paid'),
+          mode: 'execute',
+          amount: 88.5,
+        },
+        {
+          ...auditRow('log-tag', 'orders_add_tag'),
+          mode: 'execute',
+        },
+      ],
+    });
+    render(<McpTokensPage />);
+
+    expect(await screen.findByText('88.50')).toBeInTheDocument();
+    expect(screen.getByText('金额（仅支付登记）')).toBeInTheDocument();
+  });
 });

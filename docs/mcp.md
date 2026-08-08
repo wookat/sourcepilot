@@ -63,6 +63,7 @@ R179 起 MCP 提供极小的受控写面。设计口径：D1 P0 最小动作集�
 
 - 每次写调用（dry_run 与 execute 各一行）写入审计：租户、token（脱敏）、工具、mode、白名单化参数摘要（订单号 / 标签名等业务键，绝不含密钥或自由文本）、结果摘要、确认哈希、耗时。execute 的业务变更与审计行在**同一事务**提交：审计写不进去则整个执行回滚（`audit log unavailable, tool call rejected`）。
 - 限额（按成功 execute 审计行计数，计数失败即拒绝）：每 token 30 次/小时、每租户 200 次/天；超限拒绝 dry_run 与 execute。
+- 并发硬保证（R182）：同租户的 execute 事务串行化——进程内按租户互斥，PostgreSQL 上另加事务级 advisory lock（键 `mcpwrite_execute:<tenantID>`，加锁失败即拒绝），确保限额与金额日累计的事务内读判断不会在并发下超过上限；不同租户互不阻塞。
 - 跨租户目标（订单号 / 标签名不属于本租户）统一返回「不存在」，与真正不存在不可区分（404 语义，无存在性探测）。
 - 每次调用单目标对象（一个订单 + 一个标签），无批量入口。
 
@@ -93,7 +94,8 @@ R179 起 MCP 提供极小的受控写面。设计口径：D1 P0 最小动作集�
 
 - 租户级 `mcp / write_enabled` 开关：默认关，开启前弹风险确认（说明三层闸门与全局 `MCP_WRITE_ENABLED` 的关系）。
 - 写 token 创建 / 吊销：独立列表，只列 `write:ops` token；明文仅创建时展示一次；默认 30 天 / 最长 90 天。后端同步收紧：非 admin 的 token 列表**看不到**写 token，非 admin 吊销写 token 返回 404（不可见即不可操作）。
-- 审计列表补充展示写管道字段：`mode`（dry_run / execute）、`paramsSummary`（白名单参数摘要）、`confirmHash`（确认 token 绑定哈希），读工具行为空。
+- 审计列表补充展示写管道字段：`mode`（dry_run / execute）、`paramsSummary`（白名单参数摘要）、`confirmHash`（确认 token 绑定哈希），读工具行为空；支持按调用模式（mode）筛选（R182）。
+- 审计列表展示金额列（R182）：`amount` 仅对金额型写动作（`procurement_mark_paid`）有意义，其余动作不涉及金额，列表显示为「—」，避免把 0 误读为金额。
 
 ## 只读工具列表
 
