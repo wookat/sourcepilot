@@ -388,15 +388,13 @@ func (s *Service) ReportSummary(ctx context.Context, tenantID int64, in ReportSu
 	}
 
 	if s.Exceptions != nil {
-		res, err := s.Exceptions.ListOrderExceptions(ctx, orderexception.ListOrderExceptionsRequest{
+		sum, err := s.Exceptions.SummaryOpenExceptions(ctx, orderexception.ListOrderExceptionsRequest{
 			TenantID: &tenantID,
-			Page:     1,
-			PageSize: 1,
 		})
 		if err != nil {
 			return out, fmt.Errorf("report_summary: exceptions: %w", err)
 		}
-		out.OpenExceptionCount = res.Summary.TotalOpen
+		out.OpenExceptionCount = sum.TotalOpen
 	}
 
 	if err := s.DB.WithContext(ctx).Table("product_skus").

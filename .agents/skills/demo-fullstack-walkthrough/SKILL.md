@@ -35,6 +35,7 @@ description: TradeMind Docker 全栈 demo 环境手工走查要点：seed 账号
 - 大屏销售额/毛利卡「已折算：X」与「未折算（不计入合计）…」两行互斥：存在未折算币种时只显未折算行；seed 多币种样本（EUR 无汇率）下看不到「已折算」行，属预期。
 - `/ops/backups`、`/ops/restores` 是平台级路由：租户管理员（demo_admin）会收 40302/「暂无访问权限」，属预期隔离；走查需用 bootstrap 平台管理员 `admin@example.com / admin123456`。
 - MCP 审计日志表是 `mcp_tool_call_logs`（不是 mcp_call_audits）；开放 API 可用端点为 `/api/open/v1/orders`、`/api/open/v1/inventory`（`/summary` 404）。填充审计卡时直接用 token 调这两个端点。
+- 开放 API（`/api/open/v1/*`）要求 token 用途为「开放 API」或「MCP + 开放 API」；用途「MCP 只读」的 token 统一 401，且连续失败会被限流为每分钟 429。
 - `/settings/report-currency` 的 unsaved 提示只是内联文案，可能没有路由级拦截（v10 走查发现为 P1）：验证时必须真的点侧栏离开再返回确认值是否丢失，不能只看提示出现。
 - 导出防重复验证法：快速双击导出按钮后检查 `~/Downloads` 文件数（应只有 1 个 CSV），比只看 toast 可靠。
 - 登录页路由是 `/user/login`（直接访问 `/login` 是无效路由）；切换账号时清 `localStorage`/`sessionStorage` 后访问受保护路由会自动跳转登录页。

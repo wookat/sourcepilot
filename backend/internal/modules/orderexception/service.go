@@ -1472,20 +1472,16 @@ func (s *Service) ResolveOrderItemForBind(ctx context.Context, sourceType, sourc
 
 // DashboardSummary returns open-exception counts for the board (read-only).
 // tenantID/allowedShops carry the caller's authorization scope (nil = unrestricted).
+// Counts are aggregated in SQL (SummaryOpenExceptions) rather than by
+// materializing every exception row.
 func (s *Service) DashboardSummary(ctx context.Context, platform, shopID string, start, end *time.Time, tenantID *int64, allowedShops []uuid.UUID) (ExceptionSummaryDTO, error) {
 	req := ListOrderExceptionsRequest{
 		Platform:       strings.TrimSpace(platform),
 		ShopID:         strings.TrimSpace(shopID),
 		Start:          start,
 		End:            end,
-		Page:           1,
-		PageSize:       1,
 		TenantID:       tenantID,
 		AllowedShopIDs: allowedShops,
 	}
-	res, err := s.ListOrderExceptions(ctx, req)
-	if err != nil || res == nil {
-		return ExceptionSummaryDTO{}, err
-	}
-	return res.Summary, nil
+	return s.SummaryOpenExceptions(ctx, req)
 }
