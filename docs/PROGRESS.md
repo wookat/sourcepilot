@@ -2113,3 +2113,10 @@ Final Production Acceptance Deferred to P10
 - **P2③ 收口**：异常 handle/ignore 校验顺序统一为「先 scope 后 body」（`orderexception/handler.go`），空 body 时 view-only → 403+40303、不可见 → 404、可操作 → 400；补先红后绿回归测试 `TestExceptionMarkScopeBeforeBody`。
 - **P2② 闭环核实**：`docs/progress/R171.md` 已随 #344（MERGED）入库，缺档已闭环无需补档。
 - **P2① 登记**：迁移导入行级失败文本「当前账号无该店铺的操作权限」待产品确认是否统一，本轮不改行为。详见 `docs/progress/R173.md`。
+
+### 变更记录（2026-08-08）第 178 轮线2：竞品对标复评 v10（market-researcher）
+
+- **第十次竞品复评归档**：`docs/COMPETITIVE_BENCHMARK_R178.md`——16 项矩阵维持超越 4 / 达到 12 / 落后 0，维护期（R171–R173 已合入收口）Docker 全栈实测零回退（view-only 5 类写路径 403+40303、readonly 403+40301、settings 密文+脱敏、MCP 四只读工具+脱敏+用途分离、开放 API 边界）。
+- **诚实口径**：main 止于 #347（R173 线1）；R173 线2 至 R177 产出全部在 OPEN PR #348–#356，矩阵位次不计入，建议线1 按序合入。
+- **竞品动态**：AutoDS Claude MCP 多店铺单会话管理常态运营（含写）；店小秘美客多全托管批量刊登（内容/平台侧）；马帮 TikTok 美区双赛道认证（平台/合规侧）。无新结构性缺口。
+- **路线建议**：MCP 写白名单 D1–D4 勾选后 R179–R181 实现窗口（2.5 轮）为唯一高杠杆项；复评节奏维持每 12 轮或结构性触发。详见 `docs/progress/R178-line2.md`。
