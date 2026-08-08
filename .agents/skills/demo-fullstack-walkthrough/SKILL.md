@@ -37,4 +37,11 @@ description: TradeMind Docker 全栈 demo 环境手工走查要点：seed 账号
 - MCP 审计日志表是 `mcp_tool_call_logs`（不是 mcp_call_audits）；开放 API 可用端点为 `/api/open/v1/orders`、`/api/open/v1/inventory`（`/summary` 404）。填充审计卡时直接用 token 调这两个端点。
 - `/settings/report-currency` 的 unsaved 提示只是内联文案，可能没有路由级拦截（v10 走查发现为 P1）：验证时必须真的点侧栏离开再返回确认值是否丢失，不能只看提示出现。
 - 导出防重复验证法：快速双击导出按钮后检查 `~/Downloads` 文件数（应只有 1 个 CSV），比只看 toast 可靠。
+- 登录页路由是 `/user/login`（直接访问 `/login` 是无效路由）；切换账号时清 `localStorage`/`sessionStorage` 后访问受保护路由会自动跳转登录页。
+- 浏览器窗口无法物理缩到 375px 宽（wmctrl 会被 WM 拉宽）；改用 CDP `Emulation.setDeviceMetricsOverride`（ws 连 /json 里的 page target），收尾必须 `Emulation.clearDeviceMetricsOverride`。
+- 客服/权限相关表名：`shops`（不是 stores）、`admin_users`、`user_store_permissions`（列 `user_id/store_id/permission_scope`，scope 值 `view`/`operate`）、`customer_conversations.shop_id`。订单表是 `orders`（没有 sales_orders）。
+- view-only 客服写端点应返回 403 + code `40303`；readonly 角色是 `40301`；跨租户模板 PUT/DELETE 是 404 + `40401`。
+- `POST /customer/conversations/:id/send-platform-message` body 需 `{"reply","clientMessageId"}`（不是 content）；demo 会话无 external_conversation_id，会 400「会话缺少平台外部会话 ID」，不会真实外发。
+- migrationimport 路由挂在 `/api/v1/imports/*`（parse/validate/commit），不是 `/api/v1/migration/imports`。
+- 避免真实 AI 调用：可临时把 settings `ai.openai_compatible_base_url`（tenant 行）指向本机 mock server（容器内用 `http://172.18.0.1:<port>/v1` 访问宿主）；收尾必须清空该 setting 并 kill mock 进程。
 - 验证链接 `target="_blank"` 时不要相信插桩后的自动化浏览器 DOM：Devin/agent 浏览器工具会从渲染后的 `<a>` 上剥离 `target=_blank`（rel 保留），导致假 FAIL。正确做法：检查生产 bundle（`docker exec <admin容器> grep -o 'target:"_blank"' /usr/share/nginx/html/p__*.js`）或用干净 Playwright Chromium（executablePath 指向 `~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`，在 `collector/` 目录跑脚本以复用其 playwright 依赖）验证 DOM 与 popup 新标签行为。
