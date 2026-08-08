@@ -2123,3 +2123,9 @@ Final Production Acceptance Deferred to P10
 - **P2③ 修正**：demoseed 销售单 delivered_at 由 orderedAt+48h（SO-DELIVERED-0004 落在未来 +18h）改为 +24h，订单与运单同修；补回归 `TestFullDemoSeedDeliveredAtNotInFuture`。
 - **P2④ 修复**：订单异常工作台「已处理/忽略/取消标记」modal/Popconfirm rethrow 改为手动 close 控制，dev server 下不再触发 react-error-overlay 盖住 toast（根因：AntD ActionButton 对 rejected onOk `Promise.reject` 直出）；admin 其余 7 处同模式登记待批量收口。
 - **顺带巡检**：R172–R173 合入面复查，收口裸英文 `exceptionType required` → 「exceptionType 不能为空」；migrationimport 向导 shape 校验英文串登记待后续中文化。详见 `docs/progress/R174.md`。
+
+### 变更记录（2026-08-08）第 176 轮线2：全站视觉/UX 复核 v12（user-experience-officer）
+
+- **矩阵全扫**：5 persona × 5 视口 × 98 路由共 2450 组合，pageerror/根横向溢出/NaN·Invalid Date·undefined/redirect-login/403·500 噪音全零；预期权限范围 404 网络日志（页面优雅中文空态）不计缺陷。
+- **新面走查**：modal 失败保持弹窗开 + 中文 toast（#352）、migrationimport 向导与 shape 校验中文（#352）、客服发送失败中文提示（#349）、40303 view-only 预禁用/tooltip（#346/#347）12/12 断言通过；v11 遗留（mcp-tokens 文档纯文本、finance-report CSV 未折算列）维持口径。
+- **P2 即修**：客服会话详情 antd Descriptions `span={2}` 与响应式 column 冲突（375 视口 console error）改响应式 span。详见 `docs/ux-review/UX_REVIEW_V12_REPORT.md`、`docs/progress/R176-line2.md`。

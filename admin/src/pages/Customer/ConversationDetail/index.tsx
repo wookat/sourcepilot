@@ -479,7 +479,7 @@ export default function CustomerConversationDetailPage() {
                 {statusMap ? <Tag color={statusMap.color}>{statusMap.text}</Tag> : <Tag>{conv.status}</Tag>}
               </Descriptions.Item>
               <Descriptions.Item label="店铺">{conv.shopSummary?.shopName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="外部会话 ID" span={2}>
+              <Descriptions.Item label="外部会话 ID" span={{ xs: 1, sm: 2, md: 2 }}>
                 <Typography.Text copyable={conv.externalConversationId ? { text: conv.externalConversationId } : false}>
                   {conv.externalConversationId ?? '—'}
                 </Typography.Text>
@@ -553,7 +553,7 @@ export default function CustomerConversationDetailPage() {
                     <Descriptions.Item label="库存扣减">
                       {mapBizStatus(conv.orderSummary.inventoryDeductStatus || 'none', ORDER_INVENTORY_DEDUCT_SUMMARY)}
                     </Descriptions.Item>
-                    <Descriptions.Item label="操作" span={2}>
+                    <Descriptions.Item label="操作" span={{ xs: 1, sm: 2 }}>
                       <Space wrap>
                         <Button size="small" onClick={() => history.push(`/orders/${conv.orderId}`)}>
                           查看订单详情
@@ -569,13 +569,13 @@ export default function CustomerConversationDetailPage() {
                     <Descriptions.Item label="下单时间">
                       {conv.orderSummary.orderedAt ? formatDateTime(conv.orderSummary.orderedAt) : '—'}
                     </Descriptions.Item>
-                    <Descriptions.Item label="最新物流状态" span={2}>
+                    <Descriptions.Item label="最新物流状态" span={{ xs: 1, sm: 2 }}>
                       {conv.orderSummary.latestShipmentStatus
                         ? mapBizStatus(conv.orderSummary.latestShipmentStatus, ORDER_SHIPMENT_STATUS)
                         : '—'}
                     </Descriptions.Item>
                     {(conv.orderSummary.shipments?.length ?? 0) > 0 ? (
-                      <Descriptions.Item label="物流明细" span={2}>
+                      <Descriptions.Item label="物流明细" span={{ xs: 1, sm: 2 }}>
                         <Space direction="vertical" size={4} style={{ width: '100%' }}>
                           {(conv.orderSummary.shipments || []).map((s, i) => (
                             <div key={i}>
@@ -646,7 +646,7 @@ export default function CustomerConversationDetailPage() {
                   <Descriptions.Item label="SKU 匹配">{conv.contextSummary.skuMatchStatus || '—'}</Descriptions.Item>
                   <Descriptions.Item label="库存状态">{conv.contextSummary.inventoryStatus || '—'}</Descriptions.Item>
                   <Descriptions.Item label="商品">{conv.contextSummary.productTitle || '—'}</Descriptions.Item>
-                  <Descriptions.Item label="客户问题" span={2}>
+                  <Descriptions.Item label="客户问题" span={{ xs: 1, sm: 2 }}>
                     {conv.contextSummary.customerQuestion || '—'}
                   </Descriptions.Item>
                 </Descriptions>
