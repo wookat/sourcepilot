@@ -791,15 +791,17 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	reply := strings.TrimSpace(body.Reply)
-	if reply == "" {
-		return nil, fmt.Errorf("reply is required")
-	}
+	// Store scope answers before payload validation so a denied principal
+	// never learns the reply contract of a conversation it cannot operate.
 	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
 	if err != nil {
 		return nil, err
 	}
 	conv := *convPtr
+	reply := strings.TrimSpace(body.Reply)
+	if reply == "" {
+		return nil, fmt.Errorf("回复内容不能为空")
+	}
 	now := time.Now().UTC()
 	msg := &CustomerMessage{
 		ConversationID: conversationID,
@@ -845,7 +847,7 @@ func (s *Service) UpdateSuggestion(c *gin.Context, id uuid.UUID, body UpdateSugg
 	}
 	text := strings.TrimSpace(body.EditedReply)
 	if text == "" {
-		return fmt.Errorf("editedReply is required")
+		return fmt.Errorf("editedReply 不能为空")
 	}
 	rowPtr, err := s.findScopedSuggestionForWrite(c, id)
 	if err != nil {
@@ -881,7 +883,7 @@ func (s *Service) AcceptSuggestion(c *gin.Context, id uuid.UUID, body AcceptSugg
 	}
 	final := strings.TrimSpace(body.FinalReply)
 	if final == "" {
-		return fmt.Errorf("finalReply is required")
+		return fmt.Errorf("finalReply 不能为空")
 	}
 	suPtr, err := s.findScopedSuggestionForWrite(c, id)
 	if err != nil {

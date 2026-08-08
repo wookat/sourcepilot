@@ -28,6 +28,7 @@ docker compose -f docker-compose.full.yml up -d --build
 - 不提交 `.env`。
 - 生产环境必须替换 `JWT_SECRET`、`APP_MASTER_KEY`、`ADMIN_BOOTSTRAP_PASSWORD`、数据库密码。
 - AI API Key、平台 Secret、Access Token、Refresh Token、Webhook Secret 不应写入环境模板，优先通过后台 settings 加密保存。
+- settings 敏感项由服务端敏感 key 注册表（`settings.IsSensitiveKey`，来源：`IntegrationConfigDefinitions` 与各平台 App/Publish Config Schema 的 `Sensitive` 声明）强制加密落库与脱敏回显，不信任客户端 `isEncrypted` 标志；需要 `APP_MASTER_KEY` 已配置，否则保存敏感项返回 400 提示。
 - 日志不得输出完整密钥、Token、Cookie 或密码。
 
 ## 后端基础配置

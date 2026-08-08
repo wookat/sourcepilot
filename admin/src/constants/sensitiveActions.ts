@@ -1,6 +1,7 @@
 import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
 
 type OkFn = () => void | Promise<void>;
+type ErrorTextFn = (e: unknown) => string;
 
 const TASK_CENTER_HINT = '失败任务中心（/ops/task-center/failures）';
 
@@ -120,7 +121,12 @@ export function confirmSkuUnbind(onOk: OkFn) {
 }
 
 /** 库存同步 */
-export function confirmInventorySync(targetLabel: string, externalCall: boolean, onOk: OkFn) {
+export function confirmInventorySync(
+  targetLabel: string,
+  externalCall: boolean,
+  onOk: OkFn,
+  errorText?: ErrorTextFn,
+) {
   confirmSensitiveAction({
     title: '库存同步',
     content: `将对${targetLabel}发起库存同步。`,
@@ -129,11 +135,12 @@ export function confirmInventorySync(targetLabel: string, externalCall: boolean,
     reversible: false,
     failureHint: '库存同步任务页或' + TASK_CENTER_HINT,
     onOk,
+    errorText,
   });
 }
 
 /** 库存人工修正 */
-export function confirmInventoryManualAdjust(onOk: OkFn) {
+export function confirmInventoryManualAdjust(onOk: OkFn, errorText?: ErrorTextFn) {
   confirmSensitiveAction({
     title: '人工修正库存',
     content: '将直接修改本地 SKU 库存数量，不会自动同步到平台。',
@@ -141,11 +148,12 @@ export function confirmInventoryManualAdjust(onOk: OkFn) {
     externalCall: false,
     reversible: false,
     onOk,
+    errorText,
   });
 }
 
 /** 客服回复发送 */
-export function confirmCustomerReplySend(externalCall: boolean, onOk: OkFn) {
+export function confirmCustomerReplySend(externalCall: boolean, onOk: OkFn, errorText?: ErrorTextFn) {
   confirmSensitiveAction({
     title: '发送客服回复',
     content: externalCall
@@ -156,11 +164,12 @@ export function confirmCustomerReplySend(externalCall: boolean, onOk: OkFn) {
     reversible: false,
     failureHint: TASK_CENTER_HINT,
     onOk,
+    errorText,
   });
 }
 
 /** 失败任务重试 */
-export function confirmFailureTaskRetry(count: number, onOk: OkFn) {
+export function confirmFailureTaskRetry(count: number, onOk: OkFn, errorText?: ErrorTextFn) {
   const n = count > 1 ? `${count} 条失败任务` : '该失败任务';
   confirmSensitiveAction({
     title: count > 1 ? '批量重试失败任务' : '重试失败任务',
@@ -170,6 +179,7 @@ export function confirmFailureTaskRetry(count: number, onOk: OkFn) {
     reversible: false,
     failureHint: TASK_CENTER_HINT,
     onOk,
+    errorText,
   });
 }
 
@@ -212,24 +222,31 @@ export function confirmStoragePublicTest(onOk: OkFn) {
 }
 
 /** 修改用户角色 */
-export function confirmChangeUserRole(username: string, roleLabel: string, onOk: OkFn) {
+export function confirmChangeUserRole(
+  username: string,
+  roleLabel: string,
+  onOk: OkFn,
+  errorText?: ErrorTextFn,
+) {
   confirmSensitiveAction({
     title: '修改用户角色',
     content: `将把用户「${username}」的角色调整为「${roleLabel}」。`,
     impacts: ['用户权限范围', '菜单可见性', '写操作能力'],
     reversible: true,
     onOk,
+    errorText,
   });
 }
 
 /** 分配店铺权限 */
-export function confirmAssignStorePermissions(username: string, onOk: OkFn) {
+export function confirmAssignStorePermissions(username: string, onOk: OkFn, errorText?: ErrorTextFn) {
   confirmSensitiveAction({
     title: '保存店铺权限',
     content: `将更新用户「${username}」的店铺授权范围。`,
     impacts: ['店铺数据可见范围', '写操作授权'],
     reversible: true,
     onOk,
+    errorText,
   });
 }
 

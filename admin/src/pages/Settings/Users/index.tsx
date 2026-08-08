@@ -148,22 +148,24 @@ export default function SettingsUsersPage() {
                 />
               ),
               okText: '确认修改',
-              onOk: async () => {
-                if (selectedRole === row.role) return;
+              // onOk 不返回 Promise，由回调手动 close：失败保持弹窗打开且不向外抛拒绝。
+              onOk: (close: () => void) => {
+                if (selectedRole === row.role) {
+                  close();
+                  return;
+                }
                 const roleLabel = ROLE_OPTIONS.find((o) => o.value === selectedRole)?.label || selectedRole;
-                return new Promise<void>((resolve, reject) => {
-                  confirmChangeUserRole(adminUserLabel(row), roleLabel, async () => {
-                    try {
-                      await updateAdminUser(row.id, { role: selectedRole });
-                      message.success('角色已更新');
-                      actionRef.current?.reload();
-                      resolve();
-                    } catch (e: unknown) {
-                      message.error((e as Error)?.message || '更新失败');
-                      reject(e);
-                    }
-                  });
-                });
+                confirmChangeUserRole(
+                  adminUserLabel(row),
+                  roleLabel,
+                  async () => {
+                    await updateAdminUser(row.id, { role: selectedRole });
+                    message.success('角色已更新');
+                    actionRef.current?.reload();
+                    close();
+                  },
+                  (e) => (e as Error)?.message || '更新失败',
+                );
               },
             });
           }}
@@ -219,10 +221,14 @@ export default function SettingsUsersPage() {
                   actionRef.current?.reload();
                 });
               } else {
-                void updateAdminUser(row.id, { status: next }).then(() => {
-                  message.success('已更新');
-                  actionRef.current?.reload();
-                });
+                void updateAdminUser(row.id, { status: next })
+                  .then(() => {
+                    message.success('已更新');
+                    actionRef.current?.reload();
+                  })
+                  .catch((e: unknown) => {
+                    message.error((e as Error)?.message || '更新失败');
+                  });
               }
             }}
           >
@@ -369,17 +375,16 @@ export default function SettingsUsersPage() {
             } catch {
               return;
             }
-            confirmAssignStorePermissions(adminUserLabel(editUser), async () => {
-              try {
+            confirmAssignStorePermissions(
+              adminUserLabel(editUser),
+              async () => {
                 await setAdminUserStorePermissions(userId, values.items || []);
                 message.success('店铺权限已保存');
                 setPermOpen(false);
                 actionRef.current?.reload();
-              } catch (e: unknown) {
-                message.error((e as Error)?.message || '保存失败');
-                throw e;
-              }
-            });
+              },
+              (e) => (e as Error)?.message || '保存失败',
+            );
           }}
           forceRender
         >

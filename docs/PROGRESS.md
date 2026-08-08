@@ -1,5 +1,13 @@
 ﻿# TradeMind 开发进度记录
 
+**Stage update**: 2026-08-08 — **Round 177 线1：R176 审计 P2① 收口（settings 敏感 key 服务端注册表：强制加密落库 + 脱敏回显，不信任客户端 isEncrypted；新建项路径含内）**：详见附录 [`docs/progress/R177.md`](progress/R177.md)。
+
+**Stage update**: 2026-08-08 — **Round 176 线1：安全审计季度复跑（2 处 P1 已修：迁移导入目标店铺租户闭合、settings 加密降级；回复面/bind-sku 校验顺序一并收口）**：报告 [`docs/SECURITY_AUDIT_R176.md`](SECURITY_AUDIT_R176.md)，详见附录 [`docs/progress/R176.md`](progress/R176.md)。
+
+**Stage update**: 2026-08-08 — **Round 174 线2：全站大回归 v31（0 P0/P1；门禁全绿 + E2E 359/0 + Docker 全栈 35/35；合并顺序：直接合并 #348；#245/#247/#248 建议关闭）**：详见附录 [`docs/progress/R174-line2.md`](progress/R174-line2.md)。
+
+**Stage update**: 2026-08-08 — **Round 174 线1：R173 线2 P2×4 收口（客服发送英文报错中文化；迁移导入先 scope 后 body；seed delivered_at 未来时间戳修正；异常工作台 modal rethrow dev overlay 修复）**：详见附录 [`docs/progress/R174.md`](progress/R174.md)。
+
 **Stage update**: 2026-08-08 — **Round 173 线1：40303 文案全站回归（无新漏网）+ R172 P2 收口（handle/ignore 先 scope 后 body；R171 缺档闭环；迁移导入行级文本待产品确认）**：详见附录 [`docs/progress/R173.md`](progress/R173.md)。
 
 **Stage update**: 2026-08-08 — **Round 171 线1：全站大回归 v30（0 P0/P1；合并顺序：直接合并 #342；#245/#247/#248 冗余建议关闭）**：详见附录 [`docs/progress/R171.md`](progress/R171.md)。
@@ -2095,6 +2103,11 @@ Final Production Acceptance Deferred to P10
 - **验收包增量**：`ACCEPTANCE_R123.md` §一/18 合入状态收口 + 新增 §一/19「R167–R169 增量能力」（#335/#336/#337/#338 已合入、#339/#340 OPEN 如实标注）+ §三 + §五；`DEMO_SCRIPT.md` 补 R170 口径（30 分钟总长不变）。
 - 详见 `docs/progress/R170.md`。
 
+### 变更记录（2026-08-08）第 173 轮线2：客服/AI 工作流季度复查（qa-engineer）
+
+- **全链路实测通过、#330 零回退、无 P0/P1**：Docker 全栈（main + #346 叠加）实测客服线约 50 项 API 断言（AI 建议降级 400 可读提示无伪成功、模板变量填充/多语言变体/语言切换重生成、消息节点规则仅新事件+回溯预估幂等、批量标记、人工发送闸门零自动外发）；view-only 会话族 14 条写探针全部 403/40303 统一「店铺无操作权限」零落库；越权 detail 404、readonly 只读、AI key 脱敏、双租户隔离零残留；#346 修复面四模块（orderexception/finance/productpublish/migrationimport）40303 文案统一实弹通过。
+- UI 三角色三视口走查 12/12 组合无根级横向溢出、console 零 error；R164 P2-2/P2-3（view-only 详情无只读 Alert、readonly 列表写入口残留）实测已不复现。P2×3 登记（send-platform-message 英文报错、migrationimport 参数校验先于 scope、seed delivered_at 未来时间戳）。详见 `docs/progress/R173-line2.md`。
+
 ### 变更记录（2026-08-08）第 171 轮线2：遗留 OPEN PR 核查与全仓盘点（fullstack-engineer）
 
 - **#245/#247/#248 核查定案**：三个 2026-08-05 遗留 OPEN PR 的 head commit（`c283b475`/`ea1c9d21`/`cec578af`）均已是 main 祖先——#250（`fix/round117-audit-p2`）基于该 stacked 链（#244→#245→#247→#248）顶部创建并于当日合并（merge commit `b82277ae`），整栈随之进入 main；因 base 为中间分支未被 GitHub 自动关闭，属纯挂账。**全部建议直接关闭（不需合并/rebase）**，关闭依据已登记各 PR 评论区。#245 审单面此后还被 R165/R167 加严（`EnsureStoreOperable` + 整批 403/40303）。
@@ -2113,6 +2126,34 @@ Final Production Acceptance Deferred to P10
 - **P2③ 收口**：异常 handle/ignore 校验顺序统一为「先 scope 后 body」（`orderexception/handler.go`），空 body 时 view-only → 403+40303、不可见 → 404、可操作 → 400；补先红后绿回归测试 `TestExceptionMarkScopeBeforeBody`。
 - **P2② 闭环核实**：`docs/progress/R171.md` 已随 #344（MERGED）入库，缺档已闭环无需补档。
 - **P2① 登记**：迁移导入行级失败文本「当前账号无该店铺的操作权限」待产品确认是否统一，本轮不改行为。详见 `docs/progress/R173.md`。
+
+### 变更记录（2026-08-08）第 174 轮线1：R173 线2 P2 批次收口（fullstack-engineer）
+
+- **P2① 中文化**：customerchat 模块 send-platform-message 及同族参数校验英文直出（`reply/clientMessageId/editedReply/finalReply is required`、`conversation has no platform external id`）全部中文化；Provider 层防御性英文串不可达用户面，保持原样。
+- **P2② 收口**：migrationimport Validate/Commit 统一为先 `resolveShop`（403/404）后 shape/fileHash 校验（沿 #347「先 scope 后 body」口径）；补先红后绿回归 `TestMigrationImportScopeBeforeBody`。
+- **P2③ 修正**：demoseed 销售单 delivered_at 由 orderedAt+48h（SO-DELIVERED-0004 落在未来 +18h）改为 +24h，订单与运单同修；补回归 `TestFullDemoSeedDeliveredAtNotInFuture`。
+- **P2④ 修复**：订单异常工作台「已处理/忽略/取消标记」modal/Popconfirm rethrow 改为手动 close 控制，dev server 下不再触发 react-error-overlay 盖住 toast（根因：AntD ActionButton 对 rejected onOk `Promise.reject` 直出）；admin 其余 7 处同模式登记待批量收口。
+- **顺带巡检**：R172–R173 合入面复查，收口裸英文 `exceptionType required` → 「exceptionType 不能为空」；migrationimport 向导 shape 校验英文串登记待后续中文化。详见 `docs/progress/R174.md`。
+
+### 变更记录（2026-08-08）第 176 轮线1：安全审计季度复跑（security-auditor）
+
+- **P1-1**：`migrationimport.resolveShop` 对 admin 跳过全部店铺校验且未在租户内确认店铺存在，跨租户 admin 用他租户 `shopId` 可通过 `/imports/validate|commit` 并写出携带外租户 `shop_id` 的 `import_jobs` 行；改为统一 `adminperm.ApplyTenantScope` 加载，外租户/不存在 → 404。
+- **P1-2**：`PUT /api/v1/settings` 省略 `isEncrypted` 可把已加密密钥降级为明文落库并原文回显；`settings.putOne` 改为加密粘性（已加密项不可被请求体降级）。
+- **P2 一并收口**：`customerchat.MarkReplied` / `SendPlatformMessage`、`orderexception.BindSKU` 改为「先 scope 后 body」（view-only → 403+40303、不可见 → 404、可操作 → 400）；补 MCP 入口 purpose 反向隔离回归测试。
+- **零回退复验**：R165 六处 P1、#322/#330、40303 envelope、三轴探针、MCP/开放 API token 治理与限流/XFF/审计 fail-closed 全部零回退；`govulncheck` 0 可达漏洞，`pnpm audit --prod` 15 条（基线 13）均为 admin 构建工具链，登记 P2。详见 `docs/SECURITY_AUDIT_R176.md`。
+
+### 变更记录（2026-08-08）第 176 轮线2：全站视觉/UX 复核 v12（user-experience-officer）
+
+- **矩阵全扫**：5 persona × 5 视口 × 98 路由共 2450 组合，pageerror/根横向溢出/NaN·Invalid Date·undefined/redirect-login/403·500 噪音全零；预期权限范围 404 网络日志（页面优雅中文空态）不计缺陷。
+- **新面走查**：modal 失败保持弹窗开 + 中文 toast（#352）、migrationimport 向导与 shape 校验中文（#352）、客服发送失败中文提示（#349）、40303 view-only 预禁用/tooltip（#346/#347）12/12 断言通过；v11 遗留（mcp-tokens 文档纯文本、finance-report CSV 未折算列）维持口径。
+- **P2 即修**：客服会话详情 antd Descriptions `span={2}` 与响应式 column 冲突（375 视口 console error）改响应式 span。详见 `docs/ux-review/UX_REVIEW_V12_REPORT.md`、`docs/progress/R176-line2.md`。
+
+### 变更记录（2026-08-08）第 177 轮线2：全站大回归 v32（qa-engineer）
+
+- **集成**：最新 main 按依赖叠加全部 OPEN PR #348–#354，仅 `docs/PROGRESS.md` 三次文书性冲突（均保留双方记录），无语义冲突；建议合并顺序 #348→#350→#349→#352→#351→#354→#353。
+- **门禁**：Go 全量 103 包 ok、securitytests（permmatrix/idor/shopscope）111/111、check:dev、ui-copy strict、test:frontend 368、contracts 17、build:admin/collector、全量 E2E（修复后全绿）。
+- **Docker 全栈实测**：backend 镜像重建后 R57 主链路（自动生成采购单/打标/分仓/发货规则）、#353 两处修复面（跨租户 shopId 导入 404 + 零残留、settings 加密粘性）、modal 失败路径中文 toast 保持弹窗、migrationimport 中文文案、view-only 40303/readonly 40301/跨租户 404、MCP purpose 隔离与开放 API、双租户零残留全部通过。
+- **P1 即修**：#352 modal onOk 改「手动 close」后丢失 antd async pending 防重，双击敏感确认产生 2 次写请求；`modalOk`/`confirmSensitiveAction` 增加 in-flight 守卫 + 3 条单测，E2E 复绿。详见 `docs/progress/R177-line2.md`。
 
 ### 变更记录（2026-08-08）第 178 轮线2：竞品对标复评 v10（market-researcher）
 

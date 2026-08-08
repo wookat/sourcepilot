@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/sourcing"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
@@ -108,16 +109,16 @@ func normalizeSourceFormat(v string) string {
 
 func (b *WizardBody) validateShape() error {
 	if len(b.Columns) == 0 {
-		return fmt.Errorf("columns is required")
+		return fmt.Errorf("表头列（columns）不能为空，请先上传并解析导入文件")
 	}
 	if len(b.Rows) == 0 {
-		return fmt.Errorf("rows is required")
+		return fmt.Errorf("数据行（rows）不能为空，导入文件至少需要一行数据")
 	}
 	if len(b.Rows) > MaxImportRows {
 		return fmt.Errorf("单批最多导入 %d 行数据", MaxImportRows)
 	}
 	if b.Mapping == nil {
-		return fmt.Errorf("mapping is required")
+		return fmt.Errorf("字段映射（mapping）不能为空，请先完成字段映射")
 	}
 	for _, f := range FieldsForKind(b.Kind) {
 		idx, ok := b.Mapping[f.Key]
@@ -136,11 +137,11 @@ func (b *WizardBody) validateShape() error {
 func (s *Service) resolveShop(c *gin.Context, raw string) (*uuid.UUID, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return nil, fmt.Errorf("shopId is required（导入必须选择归属店铺）")
+		return nil, fmt.Errorf("归属店铺（shopId）不能为空，导入必须选择归属店铺")
 	}
 	u, err := uuid.Parse(raw)
 	if err != nil || u == uuid.Nil {
-		return nil, fmt.Errorf("invalid shopId")
+		return nil, fmt.Errorf("归属店铺（shopId）无效")
 	}
 	principal, err := adminperm.LoadPrincipal(c, s.DB)
 	if err != nil {
@@ -153,6 +154,16 @@ func (s *Service) resolveShop(c *gin.Context, raw string) (*uuid.UUID, error) {
 		if !principal.CanOperateStore(u) {
 			return nil, errShopNotOperable
 		}
+	}
+	// The shop must exist inside the caller's tenant: a foreign-tenant or
+	// unknown shopId is indistinguishable from a missing shop.
+	tx, _, err := adminperm.ApplyTenantScope(c, s.DB.WithContext(c.Request.Context()).Model(&shop.Shop{}))
+	if err != nil {
+		return nil, err
+	}
+	var row shop.Shop
+	if err := tx.First(&row, "id = ?", u).Error; err != nil {
+		return nil, err
 	}
 	return &u, nil
 }
@@ -168,13 +179,13 @@ func (s *Service) Validate(c *gin.Context, body WizardBody) (*ValidateResult, er
 		return nil, err
 	}
 	body.Kind = kind
-	if err := body.validateShape(); err != nil {
-		return nil, err
-	}
 	if kindNeedsShop(kind) {
 		if _, err := s.resolveShop(c, body.ShopID); err != nil {
 			return nil, err
 		}
+	}
+	if err := body.validateShape(); err != nil {
+		return nil, err
 	}
 	res := &ValidateResult{TotalRows: len(body.Rows)}
 	switch kind {
@@ -215,18 +226,18 @@ func (s *Service) Commit(c *gin.Context, body WizardBody, adminID *uuid.UUID) (*
 		return nil, err
 	}
 	body.Kind = kind
-	if err := body.validateShape(); err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(body.FileHash) == "" {
-		return nil, fmt.Errorf("fileHash is required")
-	}
 	var shopID *uuid.UUID
 	if kindNeedsShop(kind) {
 		shopID, err = s.resolveShop(c, body.ShopID)
 		if err != nil {
 			return nil, err
 		}
+	}
+	if err := body.validateShape(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(body.FileHash) == "" {
+		return nil, fmt.Errorf("文件指纹（fileHash）不能为空，请重新上传导入文件")
 	}
 	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {

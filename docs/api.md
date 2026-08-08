@@ -58,7 +58,7 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/settings` | 读取**当前租户**的系统设置（仅本租户行；tenant 0 平台配置不返回，平台默认值仅服务端内部消费）。 |
-| `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。写入租户一律取自认证上下文；请求体 `tenantId` 与当前租户不一致（含 0）返回 403。item 可选 `clear: true` 强制清空已存值（含加密字段，绕过「空加密值保留旧密钥」语义），用于 AI 配置一键清空等场景。 |
+| `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。写入租户一律取自认证上下文；请求体 `tenantId` 与当前租户不一致（含 0）返回 403。敏感项（AI key、平台凭证、存储秘钥、SMTP 密码、webhook secret 等）由**服务端敏感 key 注册表**强制加密落库与脱敏回显，不信任请求体 `isEncrypted` 声明（新建项同样生效）；非注册表项保持 `isEncrypted` 声明兼容，且加密一经写入即粘性（省略 `isEncrypted` 不降级）。item 可选 `clear: true` 强制清空已存值（含加密字段，绕过「空加密值保留旧密钥」语义），用于 AI 配置一键清空等场景。 |
 | `POST` | `/api/v1/settings/test-ai` | 经 **AI Gateway** 测试 `settings.ai`（支持 `openai` / `openai_compatible` / `deepseek` / `qwen`）。各服务商 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`** 独立存储；可选 JSON：`provider`、`base_url`、`model`、`api_key`（写入当前 provider 对应项；`****` 占位则沿用已保存密钥）、`timeout_sec`，用于**未保存前**用当前表单试连；空 body 仅用库内配置。成功 `data`：`ok`、`message`、`provider`、`model`、`latencyMs`。 |
 | `POST` | `/api/v1/settings/test-storage` | 测试 Storage Provider 配置。 |
 | `GET` | `/api/v1/settings/report-currency` | 读取当前租户的报表本位币与手工汇率表（settings 分组 `report_currency`，按租户隔离存储）：`{provider: "manual", baseCurrency, rates:[{currency, rate}]}`；`rate` 为十进制字符串，含义为「1 单位原币 = rate 本位币」。租户未配置时返回默认本位币 CNY 与空汇率表。需 `settings.manage`（readonly 403）。 |
@@ -952,7 +952,7 @@ Dashboard 同步：`summary.negativeMarginOrderCount`，统一待办 `order_nega
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `POST` | `/api/v1/imports/parse` | multipart 上传（`kind=product|order|inventory|source`、`file`，CSV/XLSX ≤10MB）；返回 `columns / rows / totalRows / fileHash / sourceFormat（dianxiaomi|mabang|custom，按表头自动识别）/ mapping（自动猜列，字段 key → 列下标，-1 表示未映射）/ fields（目标字段定义，含 required）`。单批 ≤10000 数据行，超限 400（R116 由 1000 行放宽）。XLSX 基于 excelize 解析（BSD-3-Clause），内置 zip 炸弹防护（解压上限 128MB、单 XML 部件 ≤64MB），损坏/加密文件返回中文 400。 |
-| `POST` | `/api/v1/imports/validate` | 请求体 `kind / shopId / columns / rows / mapping / fileName / fileHash / sourceFormat`；只校验不落库。返回 `totalRows / validRows / errorRows / groupCount（商品数或订单数）/ errors[]（rowNumber/field/message，逐行必填缺失、重复、非法值）`。`shopId` 必填且必须是当前账号可操作的店铺（operator 越权返回 404/403）。 |
+| `POST` | `/api/v1/imports/validate` | 请求体 `kind / shopId / columns / rows / mapping / fileName / fileHash / sourceFormat`；只校验不落库。返回 `totalRows / validRows / errorRows / groupCount（商品数或订单数）/ errors[]（rowNumber/field/message，逐行必填缺失、重复、非法值）`。`shopId` 必填且必须是当前账号可操作、且属于当前租户的店铺；仅 `view` 授权返回 403/40303，不可见 / 外租户 / 不存在的店铺统一 404（R176）。店铺 scope 在请求体形状校验之前结算。 |
 | `POST` | `/api/v1/imports/commit` | 与 validate 同请求体；确认导入。商品按「商品名称」聚合创建草稿（status=draft，行=SKU，已存在的 SKU 编码按重复跳过）；订单按「订单号」聚合创建（platform=migration，来源状态映射到内部枚举，收件人地址存入 `rawData.receiver` 与备注）。**幂等**：同租户同 kind 同 `fileHash`（文件 sha256）只提交一次，重传原样返回首个批次结果（`replayed=true`）。返回 `jobId / status（success|partial_success|failed）/ totalRows / successRows / failedRows / duplicateRows / replayed`。 |
 | `GET` | `/api/v1/imports?kind=&page=&pageSize=` | 导入历史（租户隔离，倒序）；返回 `list[]（ImportJob + errorRowCount）/ total / page / pageSize`。 |
 | `GET` | `/api/v1/imports/:id` | 单批详情：`job` + `errorRows[]`（仅持久化失败/重复行：rowNumber/status(failed|duplicate)/field/message/rawValues）。 |

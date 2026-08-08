@@ -1,3 +1,4 @@
+import { modalOk } from '@/utils/modalOk';
 import GenerateResultAlerts from '@/components/procurement/GenerateResultAlerts';
 import { TmPageContainer } from '@/components/ui';
 import { platformLabel } from '@/constants/userFriendly';
@@ -58,15 +59,14 @@ export function confirmVoidPurchaseOrder(id: string, onDone: () => void) {
       '作废用于处置测试单或错误单据：作废后单据保留审计记录，但不再参与统计与待办。注意：已入库的库存不会自动回滚，如需调整库存请到库存模块手工处理。',
     okText: '确认作废',
     okButtonProps: { danger: true },
-    onOk: async () => {
-      try {
+    onOk: modalOk(
+      async () => {
         await voidPurchaseOrder(id, '人工作废');
         message.success('已作废');
         onDone();
-      } catch (e) {
-        message.error((e as Error).message || '作废失败');
-      }
-    },
+      },
+      (e) => (e as Error).message || '作废失败',
+    ),
   });
 }
 

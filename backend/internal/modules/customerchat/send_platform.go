@@ -108,26 +108,29 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 	if s.Shops == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
-	reply := strings.TrimSpace(body.Reply)
-	if reply == "" {
-		return nil, fmt.Errorf("reply is required")
-	}
-
-	clientMsgID := strings.TrimSpace(body.ClientMessageID)
-	if clientMsgID == "" {
-		return nil, fmt.Errorf("clientMessageId is required")
-	}
-
+	// Store scope answers before payload validation so a denied principal
+	// never learns the send contract of a conversation it cannot operate.
 	convPtr, err := s.findScopedConversationForWrite(c, conversationID)
 	if err != nil {
 		return nil, err
 	}
 	conv := *convPtr
+
+	reply := strings.TrimSpace(body.Reply)
+	if reply == "" {
+		return nil, fmt.Errorf("回复内容不能为空")
+	}
+
+	clientMsgID := strings.TrimSpace(body.ClientMessageID)
+	if clientMsgID == "" {
+		return nil, fmt.Errorf("clientMessageId 不能为空")
+	}
+
 	if conv.ShopID == nil {
 		return nil, fmt.Errorf("conversation has no shop")
 	}
 	if conv.ExternalConversationID == nil || strings.TrimSpace(*conv.ExternalConversationID) == "" {
-		return nil, fmt.Errorf("conversation has no platform external id")
+		return nil, fmt.Errorf("会话缺少平台外部会话 ID，暂不支持平台发送")
 	}
 
 	owner := idempotency.OwnerFromRequest(c.GetString("requestId"), "customer-send")

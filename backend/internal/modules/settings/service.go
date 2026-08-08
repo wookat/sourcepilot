@@ -43,7 +43,19 @@ func (s *Service) List(ctx context.Context, tenantID int64) ([]Setting, error) {
 	out := make([]Setting, len(rows))
 	for i := range rows {
 		out[i] = rows[i]
-		if !out[i].IsEncrypted || strings.TrimSpace(out[i].ItemValue) == "" {
+		if strings.TrimSpace(out[i].ItemValue) == "" {
+			continue
+		}
+		if !out[i].IsEncrypted {
+			if !IsSensitiveKey(out[i].GroupKey, out[i].ItemKey) {
+				continue
+			}
+			// Legacy plaintext sensitive row (stored before the registry
+			// forced encryption): mask on read and adopt it encrypted at
+			// rest when an encrypter is available.
+			s.adoptLegacyPlaintext(ctx, rows[i])
+			out[i].IsEncrypted = true
+			out[i].ItemValue = encrypt.MaskSecret(out[i].ItemValue)
 			continue
 		}
 		plain, err := s.decryptStored(out[i].ItemValue)
@@ -54,6 +66,23 @@ func (s *Service) List(ctx context.Context, tenantID int64) ([]Setting, error) {
 		out[i].ItemValue = encrypt.MaskSecret(string(plain))
 	}
 	return out, nil
+}
+
+// adoptLegacyPlaintext encrypts a registry-listed sensitive row that is still
+// plaintext at rest. Best-effort: the read path never fails because of it.
+// The update is guarded on the observed plaintext so a concurrent PUT (which
+// encrypts on write) is never overwritten.
+func (s *Service) adoptLegacyPlaintext(ctx context.Context, row Setting) {
+	if s.Encrypter == nil {
+		return
+	}
+	enc, err := s.Encrypter.Encrypt([]byte(row.ItemValue))
+	if err != nil {
+		return
+	}
+	_ = s.DB.WithContext(ctx).Model(&Setting{}).
+		Where("id = ? AND is_encrypted = ? AND item_value = ?", row.ID, false, row.ItemValue).
+		Updates(map[string]any{"item_value": enc, "is_encrypted": true}).Error
 }
 
 func (s *Service) decryptStored(stored string) ([]byte, error) {
@@ -121,12 +150,17 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 	if it.Clear {
 		val = ""
 	}
-	if !it.Clear && it.IsEncrypted && encrypt.LooksMasked(val) {
+	// Encryption is sticky: a payload that omits isEncrypted must not downgrade
+	// an already-encrypted setting to plaintext at rest (nor unmask it on read).
+	// Registry-listed sensitive keys are always encrypted server-side; the
+	// client-supplied isEncrypted flag cannot opt them out (new items included).
+	encrypted := it.IsEncrypted || (exists && cur.IsEncrypted) || IsSensitiveKey(gk, ik)
+	if !it.Clear && encrypted && encrypt.LooksMasked(val) {
 		if !exists {
 			return fmt.Errorf("settings: cannot create encrypted item %s/%s with masked value", gk, ik)
 		}
 		upd := map[string]any{
-			"is_encrypted": it.IsEncrypted,
+			"is_encrypted": encrypted,
 			"remark":       strings.TrimSpace(it.Remark),
 		}
 		if vt := strings.TrimSpace(it.ValueType); vt != "" {
@@ -135,9 +169,9 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 		return tx.Model(&Setting{}).Where("id = ?", cur.ID).Updates(upd).Error
 	}
 	// Empty encrypted payload on an existing row means "leave secret unchanged" (e.g. partial settings form save).
-	if !it.Clear && it.IsEncrypted && strings.TrimSpace(val) == "" && exists && strings.TrimSpace(cur.ItemValue) != "" {
+	if !it.Clear && encrypted && strings.TrimSpace(val) == "" && exists && strings.TrimSpace(cur.ItemValue) != "" {
 		upd := map[string]any{
-			"is_encrypted": it.IsEncrypted,
+			"is_encrypted": encrypted,
 			"remark":       strings.TrimSpace(it.Remark),
 		}
 		if vt := strings.TrimSpace(it.ValueType); vt != "" {
@@ -146,7 +180,7 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 		return tx.Model(&Setting{}).Where("id = ?", cur.ID).Updates(upd).Error
 	}
 
-	if it.IsEncrypted && val != "" {
+	if encrypted && val != "" {
 		if s.Encrypter == nil {
 			return fmt.Errorf("请在后端 .env 配置 APP_MASTER_KEY 并重启服务后再保存敏感项（如 API Key）；详见 docs/env.md")
 		}
@@ -163,7 +197,7 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 		ItemKey:     ik,
 		ItemValue:   val,
 		ValueType:   valType,
-		IsEncrypted: it.IsEncrypted,
+		IsEncrypted: encrypted,
 		Remark:      strings.TrimSpace(it.Remark),
 	}
 

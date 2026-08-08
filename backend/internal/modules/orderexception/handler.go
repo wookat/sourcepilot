@@ -223,7 +223,7 @@ func (h *Handler) Handle(c *gin.Context) {
 	var body HandleBody
 	_ = c.ShouldBindJSON(&body)
 	if strings.TrimSpace(body.ExceptionType) == "" {
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "exceptionType required")
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "exceptionType 不能为空")
 		return
 	}
 	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkHandled, body.Remark, adminUUID(c)); err != nil {
@@ -260,7 +260,7 @@ func (h *Handler) Ignore(c *gin.Context) {
 	var body HandleBody
 	_ = c.ShouldBindJSON(&body)
 	if strings.TrimSpace(body.ExceptionType) == "" {
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "exceptionType required")
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "exceptionType 不能为空")
 		return
 	}
 	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkIgnored, body.Remark, adminUUID(c)); err != nil {
@@ -320,12 +320,12 @@ func (h *Handler) BindSKU(c *gin.Context) {
 	if h.denyWrite(c) {
 		return
 	}
+	if h.denyScope(c) {
+		return
+	}
 	var body BindSKURequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
-		return
-	}
-	if h.denyScope(c) {
 		return
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))

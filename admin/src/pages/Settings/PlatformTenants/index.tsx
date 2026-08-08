@@ -1,3 +1,4 @@
+import { modalOk } from '@/utils/modalOk';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { PAGE_COPY } from '@/constants/copywriting';
@@ -93,15 +94,14 @@ export default function PlatformTenantsPage() {
                     title: `启用租户「${row.name}」？`,
                     content: '启用后该租户下的账号可正常登录。',
                     okText: '启用',
-                    onOk: async () => {
-                      try {
+                    onOk: modalOk(
+                      async () => {
                         await enablePlatformTenant(row.id);
                         message.success('租户已启用');
                         actionRef.current?.reload();
-                      } catch (e: unknown) {
-                        message.error((e as Error)?.message || '启用失败');
-                      }
-                    },
+                      },
+                      (e) => (e as Error)?.message || '启用失败',
+                    ),
                   })
                 }
               >
@@ -131,15 +131,14 @@ export default function PlatformTenantsPage() {
                     content: '停用后该租户所有账号将无法登录，已登录会话将在下次请求时失效。',
                     okText: '停用',
                     okButtonProps: { danger: true },
-                    onOk: async () => {
-                      try {
+                    onOk: modalOk(
+                      async () => {
                         await disablePlatformTenant(row.id);
                         message.success('租户已停用');
                         actionRef.current?.reload();
-                      } catch (e: unknown) {
-                        message.error((e as Error)?.message || '停用失败');
-                      }
-                    },
+                      },
+                      (e) => (e as Error)?.message || '停用失败',
+                    ),
                   })
                 }
               >
@@ -271,17 +270,16 @@ export default function PlatformTenantsPage() {
               content: '此操作不可恢复，将后台执行级联清理并逐表校验零残留。',
               okText: '确认清退',
               okButtonProps: { danger: true },
-              onOk: async () => {
-                try {
+              onOk: modalOk(
+                async () => {
                   await purgePlatformTenant(target.id, v.confirmName);
                   message.success('清退任务已提交，将在后台执行');
                   setPurgeTarget(null);
                   purgeForm.resetFields();
                   actionRef.current?.reload();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '清退失败');
-                }
-              },
+                },
+                (e) => (e as Error)?.message || '清退失败',
+              ),
             });
           }}
         >

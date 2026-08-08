@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/api"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/database"
+	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
@@ -99,10 +100,14 @@ func buildHarness(dbURL string) (*harness, error) {
 	if err != nil {
 		return nil, err
 	}
+	enc, err := encrypt.NewService(cfg.MasterKey)
+	if err != nil {
+		return nil, err
+	}
 
 	engine := gin.New()
 	engine.Use(middleware.RequestID())
-	api.Register(engine, &api.Deps{Config: cfg, DB: db, MigrationsReady: true})
+	api.Register(engine, &api.Deps{Config: cfg, DB: db, Encrypter: enc, MigrationsReady: true})
 
 	h := &harness{Router: engine, DB: db, Cfg: cfg, Keys: keys, Personas: map[string]*persona{}}
 	if err := h.seedPersonas(); err != nil {

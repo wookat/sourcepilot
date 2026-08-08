@@ -65,7 +65,12 @@ export default function TransferStockModal({
       okText="确认调拨"
       cancelText="取消"
       onOk={async () => {
-        const values = await form.validateFields();
+        let values;
+        try {
+          values = await form.validateFields();
+        } catch {
+          return;
+        }
         if (!productSkuId) return;
         if (values.fromWarehouseId === values.toWarehouseId) {
           message.error('源仓库与目标仓库不能相同');

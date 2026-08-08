@@ -178,10 +178,17 @@ export default function CustomerConversationDetailPage() {
     if (!id) return;
     Modal.confirm({
       title: '取消关联订单？',
-      onOk: async () => {
-        await updateConversation(id, { orderId: '' });
-        message.success('已取消关联');
-        loadAll();
+      // onOk 不返回 Promise，由回调手动 close：失败保持弹窗打开且不向外抛拒绝。
+      onOk: (close: () => void) => {
+        updateConversation(id, { orderId: '' })
+          .then(() => {
+            message.success('已取消关联');
+            loadAll();
+            close();
+          })
+          .catch((e: unknown) => {
+            message.error(extractErrorMessage(e, '取消关联失败'));
+          });
       },
     });
   };
@@ -213,10 +220,16 @@ export default function CustomerConversationDetailPage() {
     if (!id) return;
     Modal.confirm({
       title: '取消关联店铺？',
-      onOk: async () => {
-        await updateConversation(id, { shopId: '' });
-        message.success('已取消关联');
-        loadAll();
+      onOk: (close: () => void) => {
+        updateConversation(id, { shopId: '' })
+          .then(() => {
+            message.success('已取消关联');
+            loadAll();
+            close();
+          })
+          .catch((e: unknown) => {
+            message.error(extractErrorMessage(e, '取消关联失败'));
+          });
       },
     });
   };
@@ -376,19 +389,18 @@ export default function CustomerConversationDetailPage() {
       message.warning('请填写要发送到平台的回复内容');
       return;
     }
-    confirmCustomerReplySend(canSendToPlatform, async () => {
-      try {
+    confirmCustomerReplySend(
+      canSendToPlatform,
+      async () => {
         await sendPlatformMessage(id, {
           reply: finalReply,
           suggestionId: suggestionId || undefined,
         });
         message.success('已发送到平台');
         loadAll();
-      } catch (e: unknown) {
-        message.error(extractErrorMessage(e, '发送失败'));
-        throw e;
-      }
-    });
+      },
+      (e) => extractErrorMessage(e, '发送失败'),
+    );
   };
 
   const onDiscard = async () => {
@@ -467,7 +479,7 @@ export default function CustomerConversationDetailPage() {
                 {statusMap ? <Tag color={statusMap.color}>{statusMap.text}</Tag> : <Tag>{conv.status}</Tag>}
               </Descriptions.Item>
               <Descriptions.Item label="店铺">{conv.shopSummary?.shopName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="外部会话 ID" span={2}>
+              <Descriptions.Item label="外部会话 ID" span={{ xs: 1, sm: 2, md: 2 }}>
                 <Typography.Text copyable={conv.externalConversationId ? { text: conv.externalConversationId } : false}>
                   {conv.externalConversationId ?? '—'}
                 </Typography.Text>
@@ -541,7 +553,7 @@ export default function CustomerConversationDetailPage() {
                     <Descriptions.Item label="库存扣减">
                       {mapBizStatus(conv.orderSummary.inventoryDeductStatus || 'none', ORDER_INVENTORY_DEDUCT_SUMMARY)}
                     </Descriptions.Item>
-                    <Descriptions.Item label="操作" span={2}>
+                    <Descriptions.Item label="操作" span={{ xs: 1, sm: 2 }}>
                       <Space wrap>
                         <Button size="small" onClick={() => history.push(`/orders/${conv.orderId}`)}>
                           查看订单详情
@@ -557,13 +569,13 @@ export default function CustomerConversationDetailPage() {
                     <Descriptions.Item label="下单时间">
                       {conv.orderSummary.orderedAt ? formatDateTime(conv.orderSummary.orderedAt) : '—'}
                     </Descriptions.Item>
-                    <Descriptions.Item label="最新物流状态" span={2}>
+                    <Descriptions.Item label="最新物流状态" span={{ xs: 1, sm: 2 }}>
                       {conv.orderSummary.latestShipmentStatus
                         ? mapBizStatus(conv.orderSummary.latestShipmentStatus, ORDER_SHIPMENT_STATUS)
                         : '—'}
                     </Descriptions.Item>
                     {(conv.orderSummary.shipments?.length ?? 0) > 0 ? (
-                      <Descriptions.Item label="物流明细" span={2}>
+                      <Descriptions.Item label="物流明细" span={{ xs: 1, sm: 2 }}>
                         <Space direction="vertical" size={4} style={{ width: '100%' }}>
                           {(conv.orderSummary.shipments || []).map((s, i) => (
                             <div key={i}>
@@ -634,7 +646,7 @@ export default function CustomerConversationDetailPage() {
                   <Descriptions.Item label="SKU 匹配">{conv.contextSummary.skuMatchStatus || '—'}</Descriptions.Item>
                   <Descriptions.Item label="库存状态">{conv.contextSummary.inventoryStatus || '—'}</Descriptions.Item>
                   <Descriptions.Item label="商品">{conv.contextSummary.productTitle || '—'}</Descriptions.Item>
-                  <Descriptions.Item label="客户问题" span={2}>
+                  <Descriptions.Item label="客户问题" span={{ xs: 1, sm: 2 }}>
                     {conv.contextSummary.customerQuestion || '—'}
                   </Descriptions.Item>
                 </Descriptions>

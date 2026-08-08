@@ -38,7 +38,7 @@ func (s *Service) SaveMappingPreset(c *gin.Context, body MappingPresetBody, admi
 		return nil, fmt.Errorf("方案名称最长 64 字")
 	}
 	if len(body.Mapping) == 0 {
-		return nil, fmt.Errorf("mapping is required")
+		return nil, fmt.Errorf("字段映射（mapping）不能为空")
 	}
 	if len(body.Mapping) > MaxMappingColumns || len(body.Columns) > MaxMappingColumns {
 		return nil, fmt.Errorf("映射方案最多支持 %d 列", MaxMappingColumns)
